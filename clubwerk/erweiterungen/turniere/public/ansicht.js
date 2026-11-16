@@ -73,7 +73,7 @@
       @media print { .tu-box { box-shadow: none; border: 1px solid #999; break-inside: avoid; } .tu-groups > * { break-inside: avoid; } .tu-tab tr.me td { background: none; } }`;
     document.head.appendChild(s);
   }
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const T = (t, v) => (window.T ? window.T(t, v) : String(t).replace(/\{(\d+)\}/g, (m, i) => (v && v[i] != null ? v[i] : m)));
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
   const dm = d => (d ? `${WD[new Date(d + 'T12:00:00').getDay()]}, ${d.slice(8, 10)}.${d.slice(5, 7)}.` : '');

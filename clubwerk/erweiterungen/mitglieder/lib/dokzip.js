@@ -85,13 +85,12 @@ function register(sh) {
     return { members: list.length, withDocs, docs, bytes };
   }
 
-  const safe = v => (typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? "'" + v : v);
+  const safe = C.xlsx.safe;
   const deD = d => (/^\d{4}-\d{2}-\d{2}/.test(String(d || '')) ? String(d).slice(0, 10).split('-').reverse().join('.') : '');
 
   /** ZIP schreiben (gestreamt). list: Mitglieder mit folder. → { docs, missing } */
   async function writeZip(req, res, list, zipName) {
     const archiver = C.require('archiver');
-    const ExcelJS = C.require('exceljs');
     const archive = archiver('zip', { zlib: { level: 6 } });
     let aborted = false;
     req.on('close', () => { if (!res.writableFinished) { aborted = true; archive.abort(); } });
@@ -126,12 +125,11 @@ function register(sh) {
       }
     }
     if (aborted) return { docs, missing, aborted };
-    const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Dokumente');
-    ws.columns = [{ header: 'Mitglied', width: 28 }, { header: 'Nr.', width: 10 }, { header: 'Dokument', width: 40 }, { header: 'Art', width: 18 }, { header: 'Datum', width: 12 },
-      { header: 'Größe (KB)', width: 11 }, { header: 'Herkunft', width: 14 }, { header: 'Datei im ZIP', width: 60 }, { header: 'Hinweis', width: 18 }];
-    for (const r of rows) ws.addRow(r.map(safe));
-    ws.getRow(1).font = { bold: true }; ws.views = [{ state: 'frozen', ySplit: 1 }];
-    archive.append(Buffer.from(await wb.xlsx.writeBuffer()), { name: cleanPart(C.T('Übersicht.xlsx'), 40) || 'Übersicht.xlsx', date: new Date() });
+    const wb = C.xlsx.book();
+    C.xlsx.sheet(wb, 'Dokumente', [{ header: 'Mitglied', width: 28 }, { header: 'Nr.', width: 10 }, { header: 'Dokument', width: 40 }, { header: 'Art', width: 18 }, { header: 'Datum', width: 12 },
+      { header: 'Größe (KB)', width: 11 }, { header: 'Herkunft', width: 14 }, { header: 'Datei im ZIP', width: 60 }, { header: 'Hinweis', width: 18 }],
+      rows.map(r => r.map(safe)), { freeze: true });
+    archive.append(await C.xlsx.buffer(wb), { name: cleanPart(C.T('Übersicht.xlsx'), 40) || 'Übersicht.xlsx', date: new Date() });
     await archive.finalize();
     return { docs, missing };
   }
@@ -167,7 +165,7 @@ function register(sh) {
     const fee = f.fee ? (db.prepare('SELECT name FROM mv_fee WHERE id = ?').get(int(f.fee)) || {}).name : null;
     return [st, dept && `Abteilung ${dept}`, fee && `Beitrag ${fee}`, f.q && `Suche „${one(f.q, 40)}“`].filter(Boolean).join(' · ');
   };
-  admin.post('/documents/zip', PD, (req, res) => {
+  admin.post('/documents/zip', PD, async (req, res) => {
     const b = req.body || {};
     const ids = Array.isArray(b.ids) ? [...new Set(b.ids.slice(0, IDS_MAX).map(Number).filter(n => Number.isInteger(n) && n > 0))] : null;
     if (ids && !ids.length) return bad(res, 'Keine Mitglieder ausgewählt.');
@@ -178,7 +176,7 @@ function register(sh) {
     if (!pv.docs) return bad(res, 'Bei diesen Mitgliedern gibt es keine Dokumente.');
     if (pv.bytes > TOTAL_MAX) return bad(res, 'Das wären mehr als 2 GB – bitte die Liste eingrenzen (z. B. nach Abteilung) und in mehreren Teilen exportieren.');
     if (lockedAnswer(res)) return;
-    const pw = G.bestaetigt(req, res, C.ownPwOk); if (!pw) return;
+    const pw = await G.bestaetigt(req, res, C.ownPwOk); if (!pw) return;
     if (!pw.confirmed) return res.status(428).json({ error: 'Bitte mit deinem Passwort bestätigen.', needPassword: true });
     if (!quota.take(String(req.user.id))) return res.status(429).json({ error: 'Schon 10 gesammelte Exporte in der letzten Stunde – bitte später noch einmal.' });
     const now = Date.now();
@@ -195,7 +193,7 @@ function register(sh) {
     if (!t || t.until < Date.now() || t.user !== req.user.id) return bad(res, 'Der Download-Link ist abgelaufen – bitte den Export noch einmal starten.', 410);
     if (lockedAnswer(res)) return;
     const list = folders(membersFor(req, t.ids));   // Rechte und Abteilungen noch einmal prüfen
-    const who = req.user.name || req.user.username;
+    const who = C.userName(req);
     const pv = preview(list, req.user.perms);
     const what = `${pv.withDocs} ${pv.withDocs === 1 ? 'Mitglied' : 'Mitglieder'} mit ${pv.docs} ${pv.docs === 1 ? 'Dokument' : 'Dokumenten'} (Auswahl: ${list.length} · ${t.filter})`;
     C.audit(req.user, 'Mitglieder: Dokumente gesammelt exportiert', what);

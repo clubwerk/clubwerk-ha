@@ -8,7 +8,7 @@
    ===================================================================================================== */
 const crypto = require('crypto');
 const konfigio = require('../../src/konfigio');   // gemeinsame Regeln für Funktionsexport/-import
-const { today, isDate, addDays, deD } = require('../../src/util');
+const { today, isDate, addDays, deD, addColumns } = require('../../src/util');
 const FAHRTEN = require('../../src/fahrten');   // Fahrgemeinschaften (gemeinsamer Baustein)
 
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || ''));
@@ -69,26 +69,24 @@ CREATE TABLE IF NOT EXISTS sp_extern (
 );
 `);
   // 3.23: Altersklasse (Rahmenterminplan) und vorläufige Spieltage
-  const has = (t, c) => db.prepare(`PRAGMA table_info(${t})`).all().some(x => x.name === c);
-  if (!has('sp_team', 'age_class')) db.exec('ALTER TABLE sp_team ADD COLUMN age_class TEXT');
-  if (!has('sp_game', 'kind')) db.exec("ALTER TABLE sp_game ADD COLUMN kind TEXT NOT NULL DEFAULT 'spiel'");   // spiel | rahmen (vorläufig)
-  if (!has('sp_extern', 'token_at')) { db.exec('ALTER TABLE sp_extern ADD COLUMN token_at TEXT'); db.exec('UPDATE sp_extern SET token_at = created_at'); }   // 3.29: Links verfallen
+  addColumns(db, 'sp_team', { age_class: 'TEXT' });
+  addColumns(db, 'sp_game', {
+    kind: "TEXT NOT NULL DEFAULT 'spiel'",   // spiel | rahmen (vorläufig)
+    za: 'INTEGER NOT NULL DEFAULT 0',        // Zusatz-/Ausweichtermin
+    released: 'INTEGER NOT NULL DEFAULT 1' });   // in der App sichtbar
+  if (addColumns(db, 'sp_extern', { token_at: 'TEXT' }).length) db.exec('UPDATE sp_extern SET token_at = created_at');   // 3.29: Links verfallen
   // 2026.11: Der Link (token) liegt im Tresor (vault.SPEC) – nachgeschlagen wird über seinen Hash (planung/geheimnisse.md)
-  if (!has('sp_extern', 'token_h')) {
-    db.exec('ALTER TABLE sp_extern ADD COLUMN token_h TEXT');
+  if (addColumns(db, 'sp_extern', { token_h: 'TEXT' }).length) {
     for (const r of db.prepare('SELECT member_id, token FROM main.sp_extern').all()) if (r.token && !/^(e1|p1):/.test(r.token)) db.prepare('UPDATE main.sp_extern SET token_h = ? WHERE member_id = ?').run(tokH(r.token), r.member_id);
   }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS main.ux_sp_extern_token_h ON sp_extern(token_h)');
-  if (!has('sp_game', 'za')) db.exec('ALTER TABLE sp_game ADD COLUMN za INTEGER NOT NULL DEFAULT 0');           // Zusatz-/Ausweichtermin
-  if (!has('sp_game', 'released')) db.exec('ALTER TABLE sp_game ADD COLUMN released INTEGER NOT NULL DEFAULT 1'); // in der App sichtbar
 }
 
 function activate(ctx) {
   const db = ctx.db;
   tables(db);
   const { need, bad, int, rateLimit } = ctx;
-  const S = (k, d = '') => ctx.getSetting('ext_spielbetrieb_' + k, d);
-  const SET = (k, v) => ctx.setSetting('ext_spielbetrieb_' + k, String(v));
+  const S = ctx.setting, SET = ctx.setSetting2;
   const P = need('spielbetrieb');
   const admin = ctx.admin, M = ctx.member;
   const ar = fn => ctx.asyncRoute(fn);
@@ -154,7 +152,7 @@ function activate(ctx) {
     db.prepare('INSERT INTO sp_player(team_id, member_id, rank) VALUES (?,?,?) ON CONFLICT(team_id, member_id) DO NOTHING').run(teamId, memberId, n + 1);
   }
   const short = n => { const x = splitPersonName(n); return x.first ? `${x.first} ${String(x.last || '')[0] || ''}.` : x.last; };
-  const uname = req => (req.user ? req.user.name || req.user.username : req.member ? req.member.name : 'App');
+  const uname = req => ctx.userName(req) || (req.member ? req.member.name : 'App');
 
   /* ---------- Einstellungen ---------- */
   const cfg = () => ({
@@ -246,7 +244,7 @@ function activate(ctx) {
       try {
         await ctx.mail.send({ to: a.email, subject: `${title} – ${club}`, text: [hi, '', ...mail.lines, ...(mail.calendar ? ['', `Zu deinem Kalender hinzufügen: ${mail.calendar.url}`] : []), '', 'Viele Grüße', club].join('\n'),
           card: { heading: mail.heading || title, before: [hi, '', mail.intro || ''].join('\n'), title: mail.cardTitle, rows: mail.rows, after: [mail.outro || '', '', 'Viele Grüße', club].join('\n'), calendar: mail.calendar || null } });
-      } catch (e) { /* nächste Person */ }
+      } catch (e) { console.error('Spielbetrieb: E-Mail nicht versendet (weiter mit der nächsten Person):', e.message); }
     }
   }
 
@@ -1056,15 +1054,7 @@ function activate(ctx) {
   /* ----- Spielplan-Import ----- */
   admin.post('/import/parse', P, ar(async (req, res) => {
     const b = req.body || {};
-    let parsed;
-    try {
-      if (b.file) {
-        const buf = Buffer.from(String(b.file), 'base64'); if (buf.length > 3 * 1024 * 1024) return bad(res, 'Die Datei ist zu groß (höchstens 3 MB).');
-        if (/\.xlsx$/i.test(String(b.name || ''))) parsed = IMP.fromRows(await IMP.xlsxRows(buf, ctx.require('exceljs')));
-        else { const t = buf.toString('utf8'); parsed = /BEGIN:VCALENDAR/i.test(t) ? IMP.fromIcs(t) : IMP.fromRows(IMP.splitRows(t)); }
-      } else { const t = String(b.text || '').slice(0, 500000); parsed = /BEGIN:VCALENDAR/i.test(t) ? IMP.fromIcs(t) : IMP.fromRows(IMP.splitRows(t)); }
-    } catch (e) { return bad(res, 'Die Daten konnten nicht gelesen werden: ' + e.message); }
-    if (!parsed.games.length) return bad(res, 'Keine Spiele erkannt. Bitte die ganze Tabelle mit Datum, Heim- und Gastmannschaft einfügen (oder eine CSV-, Excel- oder Kalenderdatei wählen).');
+    let parsed; try { parsed = await IMP.parse(b); } catch (e) { return bad(res, e.message); }
     const club = txt(b.club, 80) || cfg().club || IMP.guessClub(parsed.games) || ctx.getSetting('club_name', '');
     IMP.numberTeams(parsed.games, club);   // „H30“ + „TC Musterstadt II“ → „H30 2“
     const d0 = today(), teams = {};

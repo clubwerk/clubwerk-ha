@@ -78,7 +78,7 @@ function register(sh) {
     const why = !mailReady ? 'Kein Postfach eingerichtet (Einstellungen › Postfach).' : !r ? 'Keine E-Mail-Adresse hinterlegt.' : '';
     const last = db.prepare('SELECT at, by_user FROM mv_history WHERE member_id = ? AND field = ? ORDER BY id DESC LIMIT 1').get(id, FIELD);
     let app = { ok: false, reason: 'Die Mitglieder-App ist nicht verfügbar.' };
-    try { app = C.appInvite ? C.appInvite.state(id) : app; } catch (e) { /* */ }
+    try { app = C.appInvite ? C.appInvite.state(id) : app; } catch (e) { /* App-Stand unbekannt: ohne App-Hinweis */ }
     if (app.ok && r && r.via) app = { ok: false, reason: 'Die E-Mail geht an das Oberhaupt – die Einladung zur App bitte per QR-Code.' };
     return { ok: !why, why, to: r ? r.to : null, via: r ? r.via : null, last: last ? { at: last.at, by: last.by_user } : null, app: { ok: Boolean(app.ok), reason: app.ok ? '' : app.reason } };
   }

@@ -78,7 +78,6 @@
       $('main').querySelectorAll('[data-steuer]').forEach(a => { a.onclick = () => { try { sessionStorage.setItem('bh_goto', 'Steuer & Finanzamt'); } catch (e) { /* ohne Speicher: Seite öffnet sich oben */ } }; });
     };
   }
-  const nameOf = (list, id) => (list.find(x => x.id === id) || {}).name || '';
 
   /* ---------------- Positionen-Editor (Rechnungen und Jahrespositionen) ---------------- */
   function itemsEditor(box, items, { onChange } = {}) {
@@ -434,10 +433,10 @@
       await ausSettings(el);
       return;
     }
-    const s = await api('settings'), ad = s.address || {}, fb = s.fallback;
+    const s = await api('settings'), ad = s.address || {};
     const inp = (k, l, o = {}) => `<label class="f ${o.cls || ''}">${esc(l)}<input id="bs_${k}" value="${esc(s[k] ?? '')}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.type ? `type="${o.type}"` : ''}></label>`;
     const save = id => `<div class="btns"><button class="btn primary" data-save="${id}" type="button">Speichern</button></div>`;
-    const addr = [['Straße', ad.street || s.street || fb.street], ['PLZ und Ort', ad.city || s.city || fb.city], ['E-Mail', ad.email || s.email], ['Telefon', ad.phone || s.phone]];
+    const addr = [['Straße', ad.street], ['PLZ und Ort', ad.city], ['E-Mail', ad.email], ['Telefon', ad.phone]];
     const m = st.meta;
     el.innerHTML = `
       <div class="card" data-set="rechnungen"><h3>Rechnungen</h3>

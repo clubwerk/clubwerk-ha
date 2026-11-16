@@ -178,7 +178,7 @@ Filters: **Booked**, **Cancelled**, **All**, plus year (or financial year) and e
 - **Paid on**, **Amount (€, gross)**, **Payee** (companies from “Companies & sponsors” are suggested), **Expense type** and **What for** are required.
 - **VAT:** only if input tax deduction is switched on in the settings.
 - **Paid from:** bank account or cash box. A cash box cannot go negative, and nothing can be booked in a locked month.
-- **Receipt:** “Take photo” (opens the camera on a phone or tablet) or “Choose file” (JPG, PNG, HEIC or PDF, 15 MB at most). Photos are made smaller before uploading. If there is no receipt, explain why with “No receipt available …” as a **self-issued receipt**.
+- **Receipt:** “Take photo” (opens the camera on a phone or tablet) or “Choose file” (JPG, PNG, HEIC or PDF, 15 MB at most). Photos are made smaller before uploading. If there is no receipt, explain why with “No receipt available …” as a **self-issued receipt**. An uploaded receipt for which no expense is saved disappears again after two hours.
 
 > The receipt is frozen when saving (checksum) and stored encrypted in the vault. It cannot be replaced afterwards; if the file has been altered, Clubwerk says so when opening it.
 

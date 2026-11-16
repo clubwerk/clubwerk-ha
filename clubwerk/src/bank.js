@@ -84,4 +84,4 @@ function migrateLegacy() {
 }
 migrateLegacy();
 
-module.exports = { list, get, def, forDepartment, pick, save, remove, clean, ibanOk, bicOk, normIban, maskIban };
+module.exports = { list, get, def, forDepartment, pick, save, remove, clean, ibanOk, normIban, maskIban };

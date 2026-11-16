@@ -66,12 +66,7 @@ function guess(name, category) {
 
 /* ---------- Bilder ---------- */
 const MAX_BYTES = 2 * 1024 * 1024;
-function kindOf(buf) {
-  if (buf.length > 8 && buf.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
-  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
-  if (buf.length > 12 && buf.slice(0, 4).toString('latin1') === 'RIFF' && buf.slice(8, 12).toString('latin1') === 'WEBP') return 'webp';
-  return null;
-}
+function kindOf(buf) { const k = require('./util').imageType(buf); return k === 'png' || k === 'jpg' || k === 'webp' ? k : null; }
 const MIME = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' };
 const FILE_RE = /^a\d+-[0-9a-f]{12}\.(png|jpg|webp)$/;
 function dir(dataDir) { const d = path.join(dataDir, 'artikelbilder'); fs.mkdirSync(d, { recursive: true }); return d; }

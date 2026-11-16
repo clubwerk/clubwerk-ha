@@ -11,7 +11,7 @@
    Rechte: „ausgaben“ erfasst, „kassenpruefung“ liest nur (Kassenprüfer).
    ===================================================================================================== */
 const fs = require('fs'), path = require('path'), crypto = require('crypto'), zlib = require('zlib');
-const { today, isDate, addDays, deD, euro, nowTs } = require('../../../src/util');
+const { today, isDate, addDays, deD, euro, nowTs, nextMonth } = require('../../../src/util');
 
 const BELEG_MAX = 15 * 1024 * 1024;
 const VATS = [0, 7, 19];
@@ -23,7 +23,6 @@ const COINS = [50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10,
 const LIMITS = { zweck: 4500000, wgb: 5000000 };   // Freigrenzen in Cent (wie in Einstellungen › Buchführung)
 const sha256 = buf => crypto.createHash('sha256').update(buf).digest('hex');
 const monthEnd = m => new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10);   // letzter Tag des Monats JJJJ-MM
-const nextMonth = m => addDays(monthEnd(m), 1).slice(0, 7);
 const isMonth = m => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(m || ''));
 const sum = l => l.reduce((s, e) => s + e.cents, 0);
 
@@ -43,7 +42,7 @@ module.exports = function kasse(C, h) {
   const { txt, one, nextNo, S, pdf, club } = h;
   const PA = need('ausgaben'), PR = need('ausgaben', 'kassenpruefung');
   const ar = fn => C.asyncRoute(fn);
-  const uname = req => req.user.name || req.user.username;
+  const uname = C.userName;
   const gobd = () => C.require('./gobd');
   const vault = () => C.require('./vault');
   const fachlich = msg => Object.assign(new Error(msg), { fachlich: true });
@@ -196,8 +195,17 @@ CREATE TABLE IF NOT EXISTS bh_cash_close (
   const noMinus = (c, date, delta) => { if (delta < 0 && minAfter(c, date, delta) < 0) throw fachlich(`Dafür reicht der Bestand der ${c.name} nicht – eine Kasse kann nicht ins Minus gehen. Erst Bareinnahmen oder Geldtransit buchen.`); };
 
   /* ---------------------------------------------------------------- Belege */
+  /* Unfertige Belege (hochgeladen, Ausgabe nicht gespeichert): je Benutzer höchstens TMP_JE die neuesten, alle nach 2 Std. weg –
+     sonst ließe sich mit vielen 15-MB-Fotos der Speicher füllen */
+  const TMP_JE = 10, TMP_MS = 2 * 3600000, tmpJe = new Map();   // Benutzer → Dateinamen, älteste zuerst (nur im Speicher; nach einem Neustart räumt die Frist auf)
   function cleanupTmp() {
-    try { for (const f of fs.readdirSync(DIR())) if (/^tmp_/.test(f) && Date.now() - fs.statSync(path.join(DIR(), f)).mtimeMs > 86400000) fs.rmSync(path.join(DIR(), f), { force: true }); } catch (e) { /* Ordner fehlt noch */ }
+    try { for (const f of fs.readdirSync(DIR())) if (/^tmp_/.test(f) && Date.now() - fs.statSync(path.join(DIR(), f)).mtimeMs > TMP_MS) fs.rmSync(path.join(DIR(), f), { force: true }); } catch (e) { /* Ordner fehlt noch */ }
+  }
+  setInterval(cleanupTmp, 15 * 60000).unref();
+  function tmpMerken(user, f) {
+    const l = (tmpJe.get(user) || []).filter(x => fs.existsSync(path.join(DIR(), x)));
+    l.push(f); while (l.length > TMP_JE) fs.rmSync(path.join(DIR(), l.shift()), { force: true });
+    tmpJe.set(user, l);
   }
   const tmpFile = token => { if (!/^[0-9a-f]{32}$/.test(String(token || ''))) return null; const f = ['jpg', 'png', 'pdf', 'heic'].map(x => `tmp_${token}.${x}`).find(x => fs.existsSync(path.join(DIR(), x))); return f || null; };
   /** Beleg lesen und gegen die eingefrorene Prüfsumme prüfen */
@@ -257,6 +265,7 @@ CREATE TABLE IF NOT EXISTS bh_cash_close (
     fs.mkdirSync(DIR(), { recursive: true, mode: 0o700 });
     const token = crypto.randomBytes(16).toString('hex');
     vault().writeFile(path.join(DIR(), `tmp_${token}.${t.ext}`), buf);
+    tmpMerken(String(req.user.id || req.user.username), `tmp_${token}.${t.ext}`);
     res.json({ token, mime: t.mime, size: buf.length });
   });
 
@@ -530,16 +539,14 @@ CREATE TABLE IF NOT EXISTS bh_cash_close (
   admin.get('/cash/:id/book.xlsx', PR, ar(async (req, res) => {
     const c = cashOr404(req, res); if (!c) return;
     const m = monthOf(req.query.month), b = book(c, m);
-    const Excel = C.require('exceljs'), wb = new Excel.Workbook(), ws = wb.addWorksheet('Kassenbuch');
-    ws.columns = [{ header: 'Datum', key: 'd', width: 12 }, { header: 'Beleg', key: 'b', width: 14 }, { header: 'Text', key: 't', width: 50 }, { header: 'Einnahme', key: 'i', width: 13 }, { header: 'Ausgabe', key: 'o', width: 13 }, { header: 'Bestand', key: 's', width: 13 }];
+    const wb = C.xlsx.book();
+    const ws = C.xlsx.sheet(wb, 'Kassenbuch', [{ header: 'Datum', key: 'd', width: 12 }, { header: 'Beleg', key: 'b', width: 14 }, { header: 'Text', key: 't', width: 50 }, { header: 'Einnahme', key: 'i', width: 13 }, { header: 'Ausgabe', key: 'o', width: 13 }, { header: 'Bestand', key: 's', width: 13 }]);
     ws.addRow({ d: deD(`${m}-01`), t: b.closed ? 'Anfangsbestand (festgeschrieben)' : 'Anfangsbestand', s: b.opening / 100 });
     for (const r of b.rows) ws.addRow({ d: deD(r.date), b: r.doc, t: [r.text, r.sub].filter(Boolean).join(' – '), i: r.cents > 0 ? r.cents / 100 : null, o: r.cents < 0 ? -r.cents / 100 : null, s: r.balance / 100 });
     ws.addRow({ d: deD(monthEnd(m)), t: 'Endbestand', s: b.closing / 100 });
     for (const k of ['i', 'o', 's']) ws.getColumn(k).numFmt = '#,##0.00 "€"';
-    ws.getRow(1).font = { bold: true };
-    const buf = await wb.xlsx.writeBuffer();
     C.audit(req.user, 'Kassenbuch exportiert', `Kassenbuch ${c.name}, Monat ${deD(`${m}-01`).slice(3)}, als Excel`);
-    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="${encodeURIComponent(bookFile(c, m))}.xlsx"` }).send(Buffer.from(buf));
+    await C.xlsx.send(res, `${encodeURIComponent(bookFile(c, m))}.xlsx`, wb);
   }));
 
   /* ---------- Einnahmen-Überschuss-Rechnung je Sphäre (Geschäftsjahr) ---------- */
@@ -560,8 +567,8 @@ CREATE TABLE IF NOT EXISTS bh_cash_close (
   admin.get('/euer', PR, (req, res) => res.json({ ...euer(yearOf(req.query.year)), names: gobd().SPHERES }));
   admin.get('/euer.xlsx', PR, ar(async (req, res) => {
     const e = euer(yearOf(req.query.year)), names = gobd().SPHERES;
-    const Excel = C.require('exceljs'), wb = new Excel.Workbook(), ws = wb.addWorksheet('EÜR');
-    ws.columns = [{ header: 'Bereich', key: 'a', width: 34 }, { header: 'Position', key: 'b', width: 52 }, { header: 'Betrag', key: 'c', width: 15 }];
+    const wb = C.xlsx.book();
+    const ws = C.xlsx.sheet(wb, 'EÜR', [{ header: 'Bereich', key: 'a', width: 34 }, { header: 'Position', key: 'b', width: 52 }, { header: 'Betrag', key: 'c', width: 15 }]);
     for (const k of [...SPH, '']) {
       const x = e.spheres[k]; if (!x.ein.length && !x.aus.length) continue;
       const n = names[k] || 'Ohne Sphäre';
@@ -571,10 +578,9 @@ CREATE TABLE IF NOT EXISTS bh_cash_close (
     }
     ws.addRow({ a: 'Gesamt', b: 'Überschuss', c: (e.total.ein - e.total.aus) / 100 }).font = { bold: true };
     if (e.vorsteuer != null) ws.addRow({ a: 'Hinweis', b: 'davon gezahlte Vorsteuer', c: e.vorsteuer / 100 });
-    ws.getColumn('c').numFmt = '#,##0.00 "€"'; ws.getRow(1).font = { bold: true };
-    const buf = await wb.xlsx.writeBuffer();
+    ws.getColumn('c').numFmt = '#,##0.00 "€"';
     C.audit(req.user, 'EÜR exportiert', e.label);
-    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="EUER_${e.label.replace('/', '-')}.xlsx"` }).send(Buffer.from(buf));
+    await C.xlsx.send(res, `EUER_${e.label.replace('/', '-')}.xlsx`, wb);
   }));
 
   /* ---------------------------------------------------------------- Beispieldaten: Belegdateien (die Datenbank hat nur die Zeilen) */

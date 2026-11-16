@@ -62,48 +62,44 @@ function activate(ctx) {
   const db = ctx.db;
   tables(db);
   const { need, bad, int, rateLimit, rateLimitKey } = ctx;
-  const S = (k, d = '') => ctx.getSetting('ext_buchung_' + k, d);
-  const SET = (k, v) => ctx.setSetting('ext_buchung_' + k, String(v));
+  const S = ctx.setting, SET = ctx.setSetting2;
   const ALL = ['buchung', 'buchung_buchen', 'buchung_stornieren', 'buchung_serien', 'buchung_einstellungen'];
   const P = need(...ALL);                                   // Belegung ansehen (jedes Recht des Moduls)
   const PS = need('buchung_serien'), PE = need('buchung_einstellungen'), PB = need('buchung_buchen');
   const may = (req, p) => req.user.perms.includes(p);
-  { const rc = db.prepare('PRAGMA table_info(bk_rights)').all().map(c => c.name);
-    if (!rc.includes('for_others')) db.exec('ALTER TABLE bk_rights ADD COLUMN for_others INTEGER NOT NULL DEFAULT 0');   // darf in der App für andere Mitglieder buchen
-    if (!rc.includes('all_labels')) db.exec('ALTER TABLE bk_rights ADD COLUMN all_labels INTEGER NOT NULL DEFAULT 0');   // darf mit allen aktiven Buchungsarten buchen
-    if (!rc.includes('depts')) db.exec("ALTER TABLE bk_rights ADD COLUMN depts TEXT NOT NULL DEFAULT '[]'");   // Trainer („Kein Mitglied“): Abteilungen, deren Plätze er buchen darf
-    const bc = db.prepare('PRAGMA table_info(bk_booking)').all().map(c => c.name);
-    if (!bc.includes('booked_by_id')) db.exec('ALTER TABLE bk_booking ADD COLUMN booked_by_id INTEGER');   // gebucht von (Mitglied, das für ein anderes gebucht hat)
-  }
-  { const cols = db.prepare('PRAGMA table_info(bk_resource)').all().map(c => c.name);
-    if (!cols.includes('department_id')) db.exec('ALTER TABLE bk_resource ADD COLUMN department_id INTEGER');
-    if (!cols.includes('outsiders')) db.exec("ALTER TABLE bk_resource ADD COLUMN outsiders TEXT NOT NULL DEFAULT 'gebuehr'");   // gebuehr | gesperrt
-    for (const t of ['bk_booking', 'bk_series']) if (!db.prepare(`PRAGMA table_info(${t})`).all().some(c => c.name === 'label_id')) db.exec(`ALTER TABLE ${t} ADD COLUMN label_id INTEGER`);
-    if (!cols.includes('outsider_fee_cents')) db.exec('ALTER TABLE bk_resource ADD COLUMN outsider_fee_cents INTEGER NOT NULL DEFAULT 500');
-    if (!cols.includes('deleted')) db.exec('ALTER TABLE bk_resource ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0');   // gelöscht, aber vergangene Buchungen bleiben im Protokoll
-    const lc = db.prepare('PRAGMA table_info(bk_label)').all().map(c => c.name);
-    if (!lc.includes('use_mode')) db.exec("ALTER TABLE bk_label ADD COLUMN use_mode TEXT NOT NULL DEFAULT 'verwaltung'");   // verwaltung | alle | auswahl
-    if (!lc.includes('use_functions')) db.exec("ALTER TABLE bk_label ADD COLUMN use_functions TEXT NOT NULL DEFAULT '[]'");   // Ämter aus der Mitgliederverwaltung
-    if (!lc.includes('use_members')) db.exec("ALTER TABLE bk_label ADD COLUMN use_members TEXT NOT NULL DEFAULT '[]'");
-    if (!lc.includes('free_rules')) db.exec('ALTER TABLE bk_label ADD COLUMN free_rules INTEGER NOT NULL DEFAULT 0');   // Vereinstermin: ohne Höchstdauer, Kontingent, Vorlauf, Gebühren
-    // 3.17: Mitspieler-Pflicht je Platz, Allein-Training (z. B. „Ballwand“), Geräte als Mitspieler (z. B. Ballmaschine)
-    if (!cols.includes('partner_required')) db.exec('ALTER TABLE bk_resource ADD COLUMN partner_required INTEGER NOT NULL DEFAULT 0');
-    if (!cols.includes('solo_label')) db.exec('ALTER TABLE bk_resource ADD COLUMN solo_label TEXT');            // NULL = kein Allein-Training
-    if (!cols.includes('as_partner')) db.exec('ALTER TABLE bk_resource ADD COLUMN as_partner INTEGER NOT NULL DEFAULT 0');   // Gerät: „als Mitspieler buchbar“ (auf allen Plätzen)
-    const bc = db.prepare('PRAGMA table_info(bk_booking)').all().map(c => c.name);
-    if (!bc.includes('partner_device_id')) db.exec('ALTER TABLE bk_booking ADD COLUMN partner_device_id INTEGER');   // verknüpfte Gerätebuchung (id in bk_booking)
-    if (!bc.includes('solo')) db.exec('ALTER TABLE bk_booking ADD COLUMN solo INTEGER NOT NULL DEFAULT 0');
-    // 3.20: Wiederholungsregel je Serie (täglich, wöchentlich, alle n Wochen, monatlich) und Spielplan-Import (Schlüssel je Spiel)
-    if (!bc.includes('ext_key')) db.exec('ALTER TABLE bk_booking ADD COLUMN ext_key TEXT');
-    const sc = db.prepare('PRAGMA table_info(bk_series)').all().map(c => c.name);
-    if (!sc.includes('rule')) db.exec('ALTER TABLE bk_series ADD COLUMN rule TEXT');
+  { const add = ctx.addColumns;
+    add('bk_rights', {
+      for_others: 'INTEGER NOT NULL DEFAULT 0',   // darf in der App für andere Mitglieder buchen
+      all_labels: 'INTEGER NOT NULL DEFAULT 0',   // darf mit allen aktiven Buchungsarten buchen
+      depts: "TEXT NOT NULL DEFAULT '[]'" });     // Trainer („Kein Mitglied“): Abteilungen, deren Plätze er buchen darf
+    add('bk_resource', {
+      department_id: 'INTEGER',
+      outsiders: "TEXT NOT NULL DEFAULT 'gebuehr'",   // gebuehr | gesperrt
+      outsider_fee_cents: 'INTEGER NOT NULL DEFAULT 500',
+      deleted: 'INTEGER NOT NULL DEFAULT 0',   // gelöscht, aber vergangene Buchungen bleiben im Protokoll
+      // 3.17: Mitspieler-Pflicht je Platz, Allein-Training (z. B. „Ballwand“), Geräte als Mitspieler (z. B. Ballmaschine)
+      partner_required: 'INTEGER NOT NULL DEFAULT 0',
+      solo_label: 'TEXT',                              // NULL = kein Allein-Training
+      as_partner: 'INTEGER NOT NULL DEFAULT 0' });     // Gerät: „als Mitspieler buchbar“ (auf allen Plätzen)
+    add('bk_booking', {
+      booked_by_id: 'INTEGER',                         // gebucht von (Mitglied, das für ein anderes gebucht hat)
+      label_id: 'INTEGER',
+      partner_device_id: 'INTEGER',                    // verknüpfte Gerätebuchung (id in bk_booking)
+      solo: 'INTEGER NOT NULL DEFAULT 0',
+      ext_key: 'TEXT' });                              // 3.20: Spielplan-Import (Schlüssel je Spiel)
+    add('bk_series', { label_id: 'INTEGER', rule: 'TEXT' });   // 3.20: Wiederholungsregel je Serie (täglich, wöchentlich, alle n Wochen, monatlich)
+    add('bk_label', {
+      use_mode: "TEXT NOT NULL DEFAULT 'verwaltung'",   // verwaltung | alle | auswahl
+      use_functions: "TEXT NOT NULL DEFAULT '[]'",      // Ämter aus der Mitgliederverwaltung
+      use_members: "TEXT NOT NULL DEFAULT '[]'",
+      free_rules: 'INTEGER NOT NULL DEFAULT 0' });      // Vereinstermin: ohne Höchstdauer, Kontingent, Vorlauf, Gebühren
     db.exec('CREATE INDEX IF NOT EXISTS ix_bk_booking_ext ON bk_booking(ext_key)');
     // verknüpfte Gerätebuchungen: „… NOT IN (SELECT partner_device_id …)“ las sonst bei jeder Platzansicht alle Buchungen aller Jahre (planung/n-plus-1.md)
     db.exec('CREATE INDEX IF NOT EXISTS ix_bk_device ON bk_booking(partner_device_id) WHERE partner_device_id IS NOT NULL');
     // Gebühren: Monatsliste nur aus den (wenigen) Buchungen mit Gebühr statt aus allen
     db.exec('CREATE INDEX IF NOT EXISTS ix_bk_fee ON bk_booking(date) WHERE fee_cents > 0'); }
   const admin = ctx.admin, T = ctx.tablet, M = ctx.member;
-  const uname = req => req.user.name || req.user.username;
+  const uname = ctx.userName;
   const ar = fn => ctx.asyncRoute(fn);
   const mv = () => ctx.isModuleActive('mitglieder');
   const hook = async (name, ...a) => { const r = await ctx.callHooks(name, ...a); const x = r.find(y => y.id === 'mitglieder'); return x ? x.result : null; };
@@ -505,7 +501,7 @@ function activate(ctx) {
       const mc = card ? { heading: card.heading, before: [hi, '', card.intro || ''].join('\n'), title: card.title, rows: card.rows, after: [card.outro || '', '', 'Viele Grüße', club].join('\n'),
         calendar: cal ? { url: cal.url } : null } : null;
       const calLine = cal ? ['', `Zu deinem Kalender hinzufügen: ${cal.url}`] : [];
-      try { await ctx.mail.send({ to: a.email, subject: `${subject} – ${club}`, text: [hi, '', ...lines, ...calLine, '', 'Viele Grüße', club].join('\n'), card: mc }); n++; } catch (e) { /* weiter */ }
+      try { await ctx.mail.send({ to: a.email, subject: `${subject} – ${club}`, text: [hi, '', ...lines, ...calLine, '', 'Viele Grüße', club].join('\n'), card: mc }); n++; } catch (e) { console.error('Plätze: E-Mail nicht versendet:', e.message); }
     }
     return n;
   }
@@ -710,7 +706,7 @@ function activate(ctx) {
     const r = resource(b.resource_id) || { name: 'Platz' };
     const players = [b.member_id ? nameOf(b.member_id) : null, ...J(b.partners, []).map(nameOf), ...normGuests(J(b.guests, [])).map(g => g.name)].filter(Boolean);
     const club = ctx.getSetting('club_name', 'Verein');
-    const ci = mvSync('clubInfo') || {}, addr = [ci.street, ci.city].filter(Boolean).join(', ');
+    const ci = ctx.clubAddress(), addr = [ci.street, ci.city].filter(Boolean).join(', ');
     const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Clubwerk//Buchung//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
       `UID:bk-${b.id}@clubwerk`, `DTSTAMP:${utc(today(), hhmm(nowMin()))}`, `DTSTART:${utc(b.date, b.start)}`, `DTEND:${utc(b.date, b.end)}`,
       `SUMMARY:${icsEsc(`${r.name} – ${club}`)}`, `LOCATION:${icsEsc(addr ? `${club}, ${addr}` : club)}`, `DESCRIPTION:${icsEsc(`Spieler: ${players.join(', ')}`)}`,
@@ -1079,7 +1075,8 @@ function activate(ctx) {
   };
   admin.get('/log', P, (req, res) => {
     const { year, rows } = logRows(req.query);
-    res.json({ year, total: rows.length, rows: rows.slice(0, 1500), years: [...new Set([Number(today().slice(0, 4)), ...db.prepare('SELECT DISTINCT substr(date,1,4) y FROM bk_booking').all().map(r => +r.y)])].sort((a, b) => b - a) });
+    res.json({ year, total: rows.length, rows: rows.slice(0, Math.max(1, Math.min(1500, int(req.query.n) || 200))),   // seitenweise: ?n= Zeilen (Standard 200), „Weitere anzeigen“ holt mehr
+       years: [...new Set([Number(today().slice(0, 4)), ...db.prepare('SELECT DISTINCT substr(date,1,4) y FROM bk_booking').all().map(r => +r.y)])].sort((a, b) => b - a) });
   });
   admin.get('/log.csv', P, (req, res) => {
     const { year, rows } = logRows(req.query);
@@ -1274,20 +1271,7 @@ function activate(ctx) {
   const futureByKey = key => db.prepare("SELECT * FROM bk_booking WHERE ext_key = ? AND status = 'aktiv' AND date >= ? ORDER BY date, resource_id").all(key, today());
   admin.post('/import/parse', PS, ar(async (req, res) => {
     const b = req.body || {};
-    let parsed;
-    try {
-      const name = String(b.name || '').toLowerCase();
-      if (b.file) {
-        const buf = Buffer.from(String(b.file), 'base64');
-        if (buf.length > 3 * 1024 * 1024) return bad(res, 'Die Datei ist zu groß (höchstens 3 MB).');
-        if (/\.xlsx$/.test(name)) parsed = IMP.fromRows(await IMP.xlsxRows(buf, ctx.require('exceljs')));
-        else { const t = buf.toString('utf8'); parsed = /BEGIN:VCALENDAR/i.test(t) ? IMP.fromIcs(t) : IMP.fromRows(IMP.splitRows(t)); }
-      } else {
-        const t = String(b.text || '').slice(0, 500000);
-        parsed = /BEGIN:VCALENDAR/i.test(t) ? IMP.fromIcs(t) : IMP.fromRows(IMP.splitRows(t));
-      }
-    } catch (e) { return bad(res, 'Die Daten konnten nicht gelesen werden: ' + e.message); }
-    if (!parsed.games.length) return bad(res, 'Keine Spiele erkannt. Bitte die ganze Tabelle mit Datum, Heim- und Gastmannschaft einfügen (oder eine CSV-, Excel- oder Kalenderdatei wählen).');
+    let parsed; try { parsed = await IMP.parse(b); } catch (e) { return bad(res, e.message); }
     const club = txt(b.club, 80) || S('import_club', '') || IMP.guessClub(parsed.games) || ctx.getSetting('club_name', '');
     IMP.numberTeams(parsed.games, club);   // „Herren 30 2“: zweite Mannschaft getrennt
     const d0 = today(), teams = {};
@@ -1797,7 +1781,7 @@ function activate(ctx) {
     return z.text();
   };
   // Warteliste aufräumen (vergangene Tage)
-  setInterval(() => { try { db.prepare('DELETE FROM bk_wait WHERE date < ?').run(today()); } catch (e) { /* */ } }, 6 * 3600 * 1000).unref();
+  setInterval(() => { try { db.prepare('DELETE FROM bk_wait WHERE date < ?').run(today()); } catch (e) { console.error('Plätze: Warteliste nicht aufgeräumt:', e.message); } }, 6 * 3600 * 1000).unref();
 }
 
 module.exports = { activate };

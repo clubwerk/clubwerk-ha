@@ -7,7 +7,7 @@
   document.head.appendChild(st);
   const el = document.getElementById('sec');
   const tok = (location.hash.match(/[#&]t=([A-Za-z0-9_-]{20,40})/) || [])[1] || '';
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = CW.esc;
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
   const wd = d => WD[new Date(d + 'T12:00:00').getDay()];
   const toast = (t, err) => { const x = document.getElementById('toast'); x.textContent = t; x.className = 'vh-toast show' + (err ? ' err' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => { x.className = 'vh-toast'; }, 2600); };

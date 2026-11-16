@@ -112,9 +112,7 @@
       .bkm-plan.wide .bkm-blk > b, .bkm-plan.wide .bkm-blk > span { font-size: 12.5px; height: 16px; line-height: 16px; }`;
     document.head.appendChild(s);
   }
-  const deD = d => (d ? d.split('-').reverse().join('.') : '');
-  const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // einmal anlegen statt je Betrag
-  const euro = c => EUR.format((c || 0) / 100);
+  const { euro, deD } = VA;
   const tm = s => +s.slice(0, 2) * 60 + +s.slice(3, 5);
   /** alle offenen Plätze mit gleicher Öffnungszeit? Dann steht sie nicht unter jedem Spaltenkopf (die Zeitachse zeigt sie) */
   const sameHours = rs => { const o = rs.filter(r => r.open_today); return o.length > 1 && o.every(r => r.open_from === o[0].open_from && r.open_to === o[0].open_to); };
@@ -158,8 +156,7 @@
       let pastOpen = false;   // heute: vergangene Stunden aufgeklappt?
       let nowShown = false;   // „Jetzt auf der Anlage“ aufgeklappt?
       const nowOpen = new Set();   // „Jetzt auf der Anlage“: aufgeklappte Zeilen (alle Namen statt einer Zeile)
-      const sheet = () => { let sh = document.getElementById('bkmSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'bkmSheet'; sh.className = 'vh-sheet bkm-sheet'; document.body.appendChild(sh); } return sh; };
-      const close = () => { const s = document.getElementById('bkmSheet'); if (s) s.classList.remove('show'); };
+      const { open: sheet, close } = VA.sheet('bkmSheet', 'vh-sheet bkm-sheet');
       ctx.onLeave(() => { close(); clearInterval(timer); });
 
       async function load() {

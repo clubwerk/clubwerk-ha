@@ -15,6 +15,7 @@ const { today, addDays, deD, nowTs } = require('../../src/util');
 const W = require('./lib/wertung');
 const N = require('./lib/nuliga');
 const Z = require('./lib/zeitplan');
+const Plaetze = require('./lib/plaetze');
 
 const J = (v, d) => { try { const x = JSON.parse(v); return x == null ? d : x; } catch (e) { return d; } };
 const txt = (v, max = 80) => String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -70,6 +71,8 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
     for (const r of db.prepare('SELECT id, token FROM main.tu_person WHERE token IS NOT NULL').all()) if (!/^(e1|p1):/.test(r.token)) db.prepare('UPDATE main.tu_person SET token_h = ? WHERE id = ?').run(tokH(r.token), r.id);
   }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS main.ux_tu_person_token_h ON tu_person(token_h)');
+  // 2026.11: optionaler Code der Turnierleitung für das Tablet (gesalzen, auth.hashSecret)
+  if (!db.prepare('PRAGMA main.table_info(tu_day)').all().some(c => c.name === 'code_hash')) db.exec('ALTER TABLE main.tu_day ADD COLUMN code_hash TEXT');
   const S = (k, d) => ctx.getSetting('ext_turniere_lk_' + k, d);
   const SET = (k, v) => ctx.setSetting('ext_turniere_lk_' + k, String(v));
   const pick = (list, v, d) => (list.includes(int(v)) ? int(v) : d);
@@ -84,6 +87,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
   const events = did => db.prepare('SELECT * FROM tu_event WHERE day_id = ? ORDER BY sort, id').all(did);
   const entries = did => db.prepare('SELECT * FROM tu_entry WHERE day_id = ?').all(did);
   const courts = did => db.prepare('SELECT * FROM tu_court WHERE day_id = ? ORDER BY sort, id').all(did);
+  const Pl = Plaetze({ db, int, hook, bookingOn, err, isTime });   // Plätze des Buchungssystems zuordnen und sperren
   const mrow = m => (m ? { ...m, sets: J(m.sets, []) } : m);
   const matches = did => db.prepare('SELECT * FROM tu_lkmatch WHERE day_id = ? ORDER BY id').all(did).map(mrow);
   const matchRow = id => mrow(db.prepare('SELECT * FROM tu_lkmatch WHERE id = ?').get(int(id)));
@@ -169,7 +173,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
       checked_in: Boolean(p.checked_in_at), checked_at: p.checked_in_at, absent: Boolean(p.absent), fee: p.paid ? p.paid_cents || 0 : fee.get(p.id) || 0, paid: p.paid || null, pay_hint: p.pay_hint || null, first_match: firstMatch.get(p.id) || null, gone: Boolean(p.gone) }))
       .sort((x, y) => x.name.localeCompare(y.name, 'de'));
   }
-  const dayView = d => ({ id: d.id, name: d.name, date_from: d.date_from, date_to: d.date_to, finished_at: d.finished_at, purged_at: d.purged_at, locked: Boolean(d.locked), lock_from: d.lock_from, lock_to: d.lock_to, sources: J(d.sources, []), today: d.date_from <= today() && d.date_to >= today() });
+  const dayView = d => ({ id: d.id, name: d.name, date_from: d.date_from, date_to: d.date_to, finished_at: d.finished_at, purged_at: d.purged_at, locked: Boolean(d.locked), lock_from: d.lock_from, lock_to: d.lock_to, sources: J(d.sources, []), today: d.date_from <= today() && d.date_to >= today(), code: Boolean(d.code_hash) });
 
   /* ---------- Import ---------- */
   /** Dateien lesen: XML (je Turnier) und CSV (Meldeliste) → { tours: [readTournament], csv: [rows], files: [name] } */
@@ -350,12 +354,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
     for (let d = day.date_from; d <= day.date_to; d = addDays(d, 1)) for (const c of cs) out.push({ resource_id: c.resource_id, date: d, start: day.lock_from || '08:00', end: day.lock_to || '22:00' });
     return out;
   }
-  async function syncLocks(day, by, preview = false) {
-    if (!bookingOn()) return { made: 0, removed: 0, conflicts: [] };
-    const r = await hook('courtLock', { key: `tu:lk:${day.id}`, locks: wantedLocks(day), title: `Turnier: ${day.name}`.slice(0, 160), by, preview });
-    if (r && r.error) throw err(r.error);
-    return r || { made: 0, removed: 0, conflicts: [] };
-  }
+  const syncLocks = Pl.abgleich('lk', wantedLocks);
   /** Vorschlag für die Sperrzeit: volle Stunde vor dem ersten Match bis eine Stunde nach dem voraussichtlichen Ende des letzten */
   function lockSuggest(day) {
     const ts = matches(day.id).map(m => m.time || m.plan_time).filter(Boolean).map(t => t.slice(11, 16)).sort();
@@ -364,6 +363,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
     const end = Math.min(24, h(ts[ts.length - 1]) + Math.ceil((+ts[ts.length - 1].slice(3, 5) + m) / 60) + 1);
     return { from: `${String(Math.max(0, h(ts[0]) - 1)).padStart(2, '0')}:00`, to: end >= 24 ? '24:00' : `${String(end).padStart(2, '0')}:00` };
   }
+  const sperre = Pl.sperre({ table: 'tu_day', row: dayRow, courts, suggest: lockSuggest, sync: syncLocks, offen: d => { if (d.finished_at) throw err('Das Turnier ist beendet.'); } });
 
   /* ---------- Matches ---------- */
   const mLabel = (L, m) => `${(L.eById.get(m.event_id) || {}).name || ''}, ${roundLabel(m)} Nr. ${m.no}: ${L.ename(L.enById.get(m.a)) || '?'} – ${L.ename(L.enById.get(m.b)) || '?'}`;
@@ -496,6 +496,16 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
     audit(req.user, undo ? 'Turniere: Turnier wieder geöffnet' : 'Turniere: Turnier beendet', d.name);
     return { ok: true };
   }));
+  /** Optionaler Code der Turnierleitung: ist er festgelegt, gehen Check-in, Nenngeld, Match starten und Ergebnis am Tablet nur mit ihm */
+  A.post('/lk/tag/:id/code', P, send(async req => {
+    const d = dayOr404(req.params.id), code = String((req.body || {}).code || '').trim();
+    if (code === '') { db.prepare('UPDATE tu_day SET code_hash = NULL WHERE id = ?').run(d.id); audit(req.user, 'Turniere: Code der Turnierleitung entfernt', d.name); return { ok: true }; }
+    if (!/^\d{4,6}$/.test(code)) throw err('Bitte 4 bis 6 Ziffern.');
+    if (/^(\d)\1+$/.test(code) || '01234567890'.includes(code) || '98765432109'.includes(code)) throw err('Bitte keine einfache Folge wie 1234 oder 1111.');
+    db.prepare('UPDATE tu_day SET code_hash = ? WHERE id = ?').run(await ctx.auth.hashSecret('tulk:' + code), d.id); codeFails.ok(d.id);   // neuer Code: Sperre aufheben
+    audit(req.user, 'Turniere: Code der Turnierleitung festgelegt', d.name);
+    return { ok: true };
+  }));
   /* Check-in, Nenngeld, abwesend */
   A.post('/lk/person/:id', P, send(async req => checkin(personOr404(req.params.id), req.body || {}, req.user)));
   function checkin(p, b, by) {
@@ -531,32 +541,23 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
     return { url: base, list };
   }));
   /* Plätze */
-  A.get('/lk/buchungsplaetze', P, send(async () => (bookingOn() ? (await hook('courtList')) || [] : [])));
+  A.get('/lk/buchungsplaetze', P, send(async () => Pl.liste()));
   A.post('/lk/tag/:id/platz', P, send(async req => {
     const d = dayOr404(req.params.id), name = txt((req.body || {}).name, 40);
     if (name.length < 2) throw err('Bitte einen Namen eintragen (z. B. „Halle Platz A“).');
-    if (courts(d.id).some(c => c.name.toLowerCase() === name.toLowerCase())) throw err('Diesen Platz gibt es schon.');
-    db.prepare('INSERT INTO tu_court(day_id, name, sort, manual) VALUES (?,?,?,1)').run(d.id, name, courts(d.id).reduce((a, c) => Math.max(a, c.sort), 0) + 1);
+    db.prepare('INSERT INTO tu_court(day_id, name, sort, manual) VALUES (?,?,?,1)').run(d.id, name, Pl.neu(courts(d.id), name));
     audit(req.user, 'Turniere: Platz angelegt', `${d.name}: ${name}`);
     return { ok: true };
   }));
   A.put('/lk/platz/:id', P, send(async req => {
     const c = db.prepare('SELECT * FROM tu_court WHERE id = ?').get(int(req.params.id)); if (!c) throw err('Platz nicht gefunden.', 404);
     const b = req.body || {}, d = dayRow(c.day_id);
-    let rid = c.resource_id;
-    if (b.resource_id !== undefined) {
-      rid = b.resource_id ? int(b.resource_id) : null;
-      if (rid) {
-        const list = bookingOn() ? (await hook('courtList')) || [] : [];
-        if (!list.some(x => x.id === rid)) throw err('Diesen Platz gibt es im Buchungssystem nicht.');
-        if (courts(d.id).some(x => x.id !== c.id && x.resource_id === rid)) throw err('Dieser Platz des Buchungssystems ist schon einem anderen Turnierplatz zugeordnet.');
-      }
-    }
+    const rid = await Pl.zuordnung(b, c, () => courts(d.id));
     const name = b.name !== undefined ? txt(b.name, 40) : c.name;
     if (name.length < 2) throw err('Bitte einen Namen eintragen.');
     const auto = b.auto !== undefined ? (b.auto ? 1 : 0) : c.auto;
     db.prepare('UPDATE tu_court SET name = ?, resource_id = ?, auto = ? WHERE id = ?').run(name, rid, auto, c.id);
-    const res = new Map(((bookingOn() ? await hook('courtList') : null) || []).map(x => [x.id, x.name]));
+    const res = await Pl.namen();
     const df = ctx.auditDiff({ name: 'Name', resource: 'Platz im Buchungssystem', auto: ['automatisch verteilen', 'bool'] }, { name: c.name, resource: res.get(c.resource_id) || '–', auto: Boolean(c.auto) }, { name, resource: res.get(rid) || '–', auto: Boolean(auto) });
     if (df) audit(req.user, 'Turniere: Platz geändert', `${d.name}, ${c.name}: ${df}`);
     if (d.locked && rid !== c.resource_id) await syncLocks(dayRow(d.id), req.user);
@@ -572,19 +573,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
     return { ok: true };
   }));
   /** Plätze im Buchungssystem sperren: Vorschau (Buchungen, die storniert würden) bzw. sperren; off = Sperre aufheben */
-  A.post('/lk/tag/:id/sperre', P, send(async req => {
-    const d = dayOr404(req.params.id), b = req.body || {};
-    if (!bookingOn()) throw err('Das Modul „Plätze“ ist nicht aktiv – es gibt nichts zu sperren.');
-    if (b.off) { db.prepare('UPDATE tu_day SET locked = 0 WHERE id = ?').run(d.id); const r = await syncLocks(dayRow(d.id), req.user); return { ok: true, ...r }; }
-    const from = b.from || d.lock_from || lockSuggest(d).from, to = b.to || d.lock_to || lockSuggest(d).to;
-    if (!isTime(from) || !(isTime(to) || to === '24:00') || to <= from) throw err('Bitte die Zeiten prüfen (z. B. 08:00 bis 20:00).');
-    if (!courts(d.id).some(c => c.resource_id)) throw err('Erst die Turnierplätze den Plätzen des Buchungssystems zuordnen.');
-    if (d.finished_at) throw err('Das Turnier ist beendet.');
-    const next = { ...d, locked: 1, lock_from: from, lock_to: to };
-    if (b.preview) return await syncLocks(next, req.user, true);
-    db.prepare('UPDATE tu_day SET locked = 1, lock_from = ?, lock_to = ? WHERE id = ?').run(from, to, d.id);
-    return { ok: true, ...(await syncLocks(dayRow(d.id), req.user)) };
-  }));
+  A.post('/lk/tag/:id/sperre', P, send(async req => sperre(dayOr404(req.params.id), req.body || {}, req.user)));
   /* Matches */
   A.put('/lk/match/:id', P, send(async req => { assign(matchOr404(req.params.id), req.body || {}, req.user); return { ok: true }; }));
   A.post('/lk/match/:id/start', P, send(async req => startMatch(matchOr404(req.params.id), req.user, true)));
@@ -641,6 +630,21 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
   /* ================================================================= Tablet und Fernseher (/api/tablet/x/turniere/lk/…) – im Vereins-WLAN, Tablet-Passwort */
   const TB = ctx.tablet;
   const tabletDay = () => { const d = todayDay(); if (!d) throw err('Heute läuft kein Turnier.', 404); return d; };
+  /* Code der Turnierleitung (wenn festgelegt): Sperre je Turniertag nach 10 falschen Codes, egal von welchem Gerät (wie im Turnierplaner) */
+  const codeFails = ctx.require('./security').limiter({ per: 10, baseMs: 15 * 60000 });
+  // asynchron (scrypt) und je Turniertag nacheinander: die Sperre wird erst in der Reihe gelesen
+  const leitung = (d, b) => (d.code_hash ? ctx.auth.nacheinander('tulk:' + d.id, () => leitungJetzt(d, b)) : Promise.resolve());
+  const leitungJetzt = async (d, b) => {
+    const wait = codeFails.blocked(d.id);
+    if (wait) throw err(`Zu viele falsche Codes – die Eingabe ist für ${wait} Min. gesperrt. In der Verwaltung lässt sich der Code neu festlegen.`, 429);
+    const code = String((b || {}).code || '');
+    if (!/^\d{4,6}$/.test(code) || !(await ctx.auth.verifySecret('tulk:' + code, d.code_hash))) {
+      const f = codeFails.fail(d.id);
+      if (f.locked) { audit(null, 'Turniere: Code der Turnierleitung gesperrt', `${d.name}: 10 falsche Codes`); ctx.securityAlert('code', `Turniertag „${d.name}“: 10-mal ein falscher Code der Turnierleitung – die Eingabe ist für ${f.minutes} Minuten gesperrt.`, { key: 'lk' + d.id }); }
+      throw err(f.locked ? `Der Code stimmt nicht – die Eingabe ist jetzt für ${f.minutes} Min. gesperrt.` : 'Der Code stimmt nicht.', f.locked ? 429 : 403);
+    }
+    codeFails.soft(d.id);
+  };
   /** Tablet: Check-in (Name, Verein, LK, Nenngeld), Plätze und Matches ohne Ergebnis */
   TB.get('/lk/heute', send(async () => {
     const d = todayDay(); if (!d) return { day: null };
@@ -655,11 +659,13 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
     const p = personOr404(req.params.id), d = tabletDay();
     if (p.day_id !== d.id) throw err('Spieler nicht gefunden.', 404);
     const b = req.body || {};
+    await leitung(d, b);
     return checkin(p, { checkin: b.checkin, paid: b.paid, absent: b.absent }, { username: 'tablet', name: 'Tablet' });
   }));
-  const tabletMatch = id => { const m = matchOr404(id), d = tabletDay(); if (m.day_id !== d.id) throw err('Match nicht gefunden.', 404); return m; };
-  TB.post('/lk/match/:id/start', ctx.rateLimit('tulk', 120, 60000), send(async req => startMatch(tabletMatch(req.params.id), 'Tablet', false)));
-  TB.post('/lk/match/:id/ergebnis', ctx.rateLimit('tulk', 120, 60000), send(async req => saveResult(tabletMatch(req.params.id), req.body || {}, { by: 'Tablet', admin: false })));
+  const tabletMatch = async (id, b) => { const m = matchOr404(id), d = tabletDay(); if (m.day_id !== d.id) throw err('Match nicht gefunden.', 404); await leitung(d, b); return m; };
+  TB.post('/lk/pruefen', ctx.rateLimit('tulk', 120, 60000), send(async req => { await leitung(tabletDay(), req.body); return { ok: true }; }));
+  TB.post('/lk/match/:id/start', ctx.rateLimit('tulk', 120, 60000), send(async req => startMatch(await tabletMatch(req.params.id, req.body), 'Tablet', false)));
+  TB.post('/lk/match/:id/ergebnis', ctx.rateLimit('tulk', 120, 60000), send(async req => saveResult(await tabletMatch(req.params.id, req.body), req.body || {}, { by: 'Tablet', admin: false })));
   /** Fernseher im Clubhaus: Plätze mit laufendem und nächstem Match, Verzug, letzte Ergebnisse */
   TB.get('/lk/tv', send(async () => {
     const d = todayDay(); if (!d) return { day: null, club: ctx.getSetting('club_name', '') };

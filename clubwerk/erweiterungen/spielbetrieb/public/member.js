@@ -58,7 +58,7 @@
   }
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
   const wd = (d, long) => (long ? WDL : WD)[new Date(d + 'T12:00:00').getDay()];
-  const deD = d => (d ? d.split('-').reverse().join('.') : '');
+  const { deD } = VA;
   const title = g => (g.kind === 'rahmen' ? `${g.team} · ${g.za ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin'}` : `${g.team} ${g.home ? 'gegen' : 'bei'} ${g.opponent}`);
 
   window.VA.registerSection({
@@ -68,8 +68,7 @@
       const nums = t => esc(t).replace(/\d{1,2}:\d{2}|\d+\/\d+/g, '<span class="num">$&</span>');   // Uhrzeiten und Zähler in Anzeigetafel-Ziffern
       let d = null, tab = 'alle';
       const openRows = new Set();   // aufgeklappte Spieltage (bleiben nach dem Neuladen offen)
-      const sheet = () => { let sh = document.getElementById('sbSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'sbSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); } return sh; };
-      const close = () => { const s = document.getElementById('sbSheet'); if (s) s.classList.remove('show'); };
+      const { open: sheet, close } = VA.sheet('sbSheet');
       ctx.onLeave(close);
 
       let focus = ctx.focus || '';   // aus „Für mich“: zu diesem Spieltag scrollen und ihn kurz hervorheben, nichts aufklappen (nur beim ersten Laden)

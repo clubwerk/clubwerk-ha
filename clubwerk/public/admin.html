@@ -16,7 +16,7 @@
   body { font-size: 14px; line-height: 20px; }
   /* ---------- Rahmen: Seitenleiste + Inhalt ---------- */
   /* Seitenmenü: schwebende Glas-Leiste (Klasse .glass aus style.css), daneben der Inhalt */
-  @media (min-width: 901px) { html.tabrahmen nav.side .brandbox { display: none; } }   /* Verwaltung im Tablet-Rahmen: die Tablet-Kopfzeile zeigt den Verein schon – keine zweite Vereinskarte (Fehler 11.11.2026); am Handy trägt die Karte den Menüknopf */
+  @media (min-width: 901px) { html.tabrahmen nav.side .brandbox { display: none; } }   /* Verwaltung im Tablet-Rahmen: die Tablet-Kopfzeile zeigt den Verein schon – keine zweite Vereinskarte; am Handy trägt die Karte den Menüknopf */
   @media (max-width: 900px) { html.tabrahmen nav.side .brandbox > .mark, html.tabrahmen nav.side .brandbox > div:not(.mark) { display: none; } html.tabrahmen nav.side .brandbox .menutoggle { margin-left: 0; } }   /* Hochformat und Handy im Tablet-Rahmen: nur der Menüknopf, ohne zweiten Vereinsnamen und Logo */
   .shell { display: grid; grid-template-columns: 264px minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
   nav.side { margin: 14px 0 14px 14px; border-radius: 22px; position: sticky; top: 14px; height: calc(100vh - 28px); height: calc(100dvh - 28px); display: flex; flex-direction: column; min-width: 0; overflow: hidden; box-sizing: border-box; }
@@ -24,7 +24,7 @@
   nav.side .brandbox .mark { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 12px; background: var(--brand); display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--on-brand); font-weight: 800; font-size: 14px; }
   nav.side .brandbox .mark:has(img) { background: #fff; border: 1px solid var(--line); }
   nav.side .brandbox .mark img { max-width: 34px; max-height: 34px; object-fit: contain; }
-  nav.side .brandbox b { display: block; font-size: 14px; line-height: 18px; font-weight: 700; overflow-wrap: break-word; }   /* Vereinsname ganz, auch lang (3.101) */
+  nav.side .brandbox b { display: block; font-size: 14px; line-height: 18px; font-weight: 700; overflow-wrap: break-word; }   /* Vereinsname ganz, auch lang */
   nav.side .brandbox small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
   nav.side .brandbox > div { min-width: min-content; }   /* der Vereinsname bricht an Leerzeichen um, nie mitten im Wort („Musterstad|t“, wenn der Menüknopf viel Platz braucht) */
   nav.side .navbody { flex: 1; overflow: auto; padding: 6px 12px 8px; display: flex; flex-direction: column; gap: 2px; }
@@ -102,7 +102,7 @@
   p.empty { margin: 0; padding: 22px 16px; border-radius: 12px; background: var(--hover); color: var(--muted); text-align: center; font-size: 14px; line-height: 1.45; text-wrap: pretty; }
   .card > h3 + p.empty, .card > div + p.empty, .card > table + p.empty { margin-top: 4px; }
   /* Ergebnisbereich unter einer Knopf-/Feldzeile (z. B. #kOut nach „Prüfen“): immer 12 px Abstand – am Handy bricht die Zeile um, der Knopf darf nie am Kasten darunter kleben (D-5) */
-  .row + div:not(:empty), .row + p.empty, .card > .row + p.empty, .dialog > div + p.empty { margin-top: 12px; }   /* Fenster: Leerzustand nie direkt an Feldern darüber (02.11.2026) */
+  .row + div:not(:empty), .row + p.empty, .card > .row + p.empty, .dialog > div + p.empty { margin-top: 12px; }   /* Fenster: Leerzustand nie direkt an Feldern darüber */
   p.lead { margin: 0 0 24px; color: var(--muted); max-width: 1100px; text-wrap: pretty; }   /* ausgewogener Umbruch – kein einzelnes Wort allein in Zeile 2 */
   /* Einleitung über Reitern: immer zwei Zeilen hoch (Reiter springen beim Wechsel nicht); längere Texte enden mit „…“ und „mehr“ */
   .leadbox { position: relative; min-height: 2lh; margin: 0 0 24px; max-width: 1100px; }
@@ -176,8 +176,8 @@
   /* Detailansicht (GK.registerDetail): „← Zurück“ vorn in der einen Reiterzeile, gleich hoch wie die Reiter */
   .detailrow > .detback { padding: 0 14px; flex: none; }
   .mlayout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
-  .mlist .scroll { margin: 0; max-height: none; overflow: visible; }   /* Liste ohne eigenen Scrollbereich: die Seite scrollt, das Mausrad wirkt überall (auch über der Karte und daneben), die Kopfzeile klebt oben (Fehler 09.11.2026) */
-  .mlayout > .mlist { align-self: stretch; display: flex; flex-direction: column; }   /* Liste reicht bis zur Unterkante der Karte, auch bei wenigen Treffern – beide Rahmen enden bündig (Symmetrie, Fehler 09.11.2026) */
+  .mlist .scroll { margin: 0; max-height: none; overflow: visible; }   /* Liste ohne eigenen Scrollbereich: die Seite scrollt, das Mausrad wirkt überall (auch über der Karte und daneben), die Kopfzeile klebt oben */
+  .mlayout > .mlist { align-self: stretch; display: flex; flex-direction: column; }   /* Liste reicht bis zur Unterkante der Karte, auch bei wenigen Treffern – beide Rahmen enden bündig (Symmetrie) */
   .mlayout > .mlist > .scroll:has(> table:not(.hidden)), .mlayout > .mlist > p.empty { flex: 1 0 auto; }
   .mlayout > .mlist > .scroll:not(:has(> table:not(.hidden))) { display: none; }   /* keine Treffer: nur der Leerhinweis, kein leerer Rahmen darüber */
   .tbl.sel tr[data-sel] { cursor: pointer; }
@@ -188,7 +188,7 @@
   .tbl .who b { font-weight: 600; }
   .av { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 16px; background: var(--brand-soft); color: var(--brand-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
   .av.lg { width: 52px; height: 52px; flex-basis: 52px; border-radius: 26px; font-size: 17px; background: var(--brand); color: var(--on-brand); }
-  .mlayout > .mcol { align-self: stretch; margin: 0; padding: 0; overflow: visible; }   /* rechte Spalte als Rahmen über die ganze Höhe der Zeile: Liste und Karte enden immer bündig (Symmetrie, Fehler 09.11.2026) */
+  .mlayout > .mcol { align-self: stretch; margin: 0; padding: 0; overflow: visible; }   /* rechte Spalte als Rahmen über die ganze Höhe der Zeile: Liste und Karte enden immer bündig (Symmetrie) */
   .mdetail { position: sticky; top: var(--mtop, 20px); margin: 0; padding: 20px; }   /* Inhalt der Karte klebt oben; höher als das Fenster scrollt er mit, bis sein Ende zu sehen ist (--mtop aus GK.klebend) – nie ein eigener Scrollbalken */
   .mdetail .mhead { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
   .mdetail .mhead h3 { margin: 0 0 6px; font-size: 16px; line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -227,7 +227,7 @@
     transition: border-color .15s, box-shadow .15s;
   }
   label.f textarea[data-grow] { min-height: 40px; resize: none; overflow: hidden; display: block; line-height: 20px; padding-top: 9px; padding-bottom: 9px; }   /* einzeiliges, selbst wachsendes Feld (GK.fit): bricht langen Text um, statt ihn abzuschneiden */
-  label.f select, .tbl select { padding-top: 0; padding-bottom: 0; padding-left: 8px; }   /* Auswahlfelder rücken ihren Text von selbst etwa 4 px nach innen (Chromium und WebKit): 8 + 4 = 12 px wie bei Textfeldern, so fluchten Felder und Auswahlen untereinander */   /* Safari zeichnet den Text nativer Auswahlfelder mit Innenabstand oben/unten zu tief (unten abgeschnitten); die Höhe kommt aus min-height (02.11.2026) */
+  label.f select, .tbl select { padding-top: 0; padding-bottom: 0; padding-left: 8px; }   /* Auswahlfelder rücken ihren Text von selbst etwa 4 px nach innen (Chromium und WebKit): 8 + 4 = 12 px wie bei Textfeldern, so fluchten Felder und Auswahlen untereinander */   /* Safari zeichnet den Text nativer Auswahlfelder mit Innenabstand oben/unten zu tief (unten abgeschnitten); die Höhe kommt aus min-height */
   label.f input:focus, label.f select:focus, label.f textarea:focus, .tbl input:focus, .tbl select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
   label.f textarea { min-height: 120px; line-height: 20px; }
   /* Datums-/Zeitfelder: iOS Safari gibt ihnen sonst eine eigene Breite und sie ragen aus dem Fenster */
@@ -250,7 +250,7 @@
   .tbl tr:last-child td { border-bottom: 0; }
   @media (min-width: 641px) and (max-width: 1279px) { .tbl th, .tbl td { padding-left: 6px; padding-right: 6px; } }   /* mit Seitenmenü bleibt in breiten Tabellen sonst ein Knopf hinter dem Kartenrand */
   @media (min-width: 701px) and (max-width: 1360px) { .tbl .k-mid { display: none; } }   /* k-mid: Aufteilung der Buchungen im Lager-Abgleich (11 Spalten) – bei 1280 px Fensterbreite zu breit für die Karte */
-  @media (min-width: 701px) and (max-width: 1600px) { .tbl .k-breit { display: none; } }   /* k-breit: Nebenspalte mit unbegrenzt langem Text (Kategorie), entfällt bis 1600 px Fensterbreite – am Handy zeigt die kompakte Liste sie ohnehin nicht (hide-md/k-eng reichen dafür nicht: 11 Spalten im Lager-Abgleich)  */
+  @media (min-width: 701px) and (max-width: 1600px) { .tbl .k-breit { display: none; } }   /* k-breit: Nebenspalte mit unbegrenzt langem Text (Kategorie), entfällt bis 1600 px Fensterbreite – am Handy zeigt die kompakte Liste sie ohnehin nicht (hide-md/k-eng reichen dafür nicht: 11 Spalten im Lager-Abgleich) */
   .tbl td.r.wrap-ok { white-space: normal; }   /* rechtsbündige Zellen brechen sonst nie um (nowrap oben): zwei Knöpfe nebeneinander dürfen umbrechen, statt die Tabelle über den Rand zu weiten */
   #apTbl td:first-child { overflow-wrap: anywhere; }   /* lange Namen brechen um, statt die Knöpfe rechts aus der Karte zu schieben */
   @media (min-width: 701px) { #apAreaTbl .ap-lbl { display: none; } }   /* Tabelle „Bereiche der App“: Am Rechner nennt die Kopfzeile die Spalte, das Feld braucht nur den Haken (Name steht im aria-label); am Handy steht der Text in der Zeile. So bleibt die Tabelle bei mittlerer Breite ohne Scrollen und ohne klebende Spalte. */
@@ -262,11 +262,11 @@
   .tbl tr.off td { color: var(--faint); }
   .tbl tr.sum td { font-weight: 700; border-top: 2px solid var(--line); }
   .tbl input.n { width: 76px; text-align: right; }
-  .tbl input.n[placeholder] { width: 104px; }   /* auch am Handy (16 px Schrift): Platzhalter wie „Gebinde“, „+ einzeln“ ganz sichtbar (02.11.2026) */
-  .scroll { overflow: clip; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }   /* kein eigener Scrollbereich auf der Seite: die Seite scrollt, das Mausrad wirkt überall, die Kopfzeile klebt (position: sticky) an der Seite – nur `clip`, damit der Rahmen rund bleibt (Fehler 09./10.11.2026) */
+  .tbl input.n[placeholder] { width: 104px; }   /* auch am Handy (16 px Schrift): Platzhalter wie „Gebinde“, „+ einzeln“ ganz sichtbar */
+  .scroll { overflow: clip; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }   /* kein eigener Scrollbereich auf der Seite: die Seite scrollt, das Mausrad wirkt überall, die Kopfzeile klebt (position: sticky) an der Seite – nur `clip`, damit der Rahmen rund bleibt */
   #overlay .scroll, .vh-sheet .scroll { overflow: auto; max-height: 70vh; }   /* Fenster: ihre langen Vorschaulisten dürfen im Fenster scrollen – die Seite dahinter steht still */
   /* Marken */
-  .pill { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 10px; line-height: 18px; box-sizing: border-box; max-width: 100%; border-radius: 12px; font-size: 12px; font-weight: 700; background: var(--hover); color: var(--muted); }   /* lange Schilder (Namen, Hinweise) brechen in ihrem Kasten um statt hinauszuragen oder unter Knöpfe zu laufen (02.11.2026); einzeilig wie bisher 24 px */
+  .pill { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 10px; line-height: 18px; box-sizing: border-box; max-width: 100%; border-radius: 12px; font-size: 12px; font-weight: 700; background: var(--hover); color: var(--muted); }   /* lange Schilder (Namen, Hinweise) brechen in ihrem Kasten um statt hinauszuragen oder unter Knöpfe zu laufen; einzeilig wie bisher 24 px */
   .pill.g { background: var(--brand-soft); color: var(--brand-ink); }
   .pill.a { background: var(--amber-soft); color: var(--amber); }
   .pill.r { background: var(--red-soft); color: var(--red); }
@@ -278,10 +278,9 @@
   .drop .row { justify-content: center; margin-top: 14px; }
   /* Dialoge */
   /* Fenster weich ein- und ausblenden statt die ganze Seite schlagartig ab- und aufzudunkeln (wie am Tablet seit 2026.11.25; Fehler 11.11.2026,
-     Video „Abteilung zuordnen › Abbrechen“). Ausblenden: admin.js lässt die Abdunklung kurz nachklingen – das Fenster selbst ist sofort zu. */
-  @media (prefers-reduced-motion: no-preference) { .overlay:not(.hidden) { animation: cw-fenster-ein .16s ease-out; } .cw-abblenden.an { display: block; animation: cw-fenster-aus .16s ease-in forwards; } }
-  @keyframes cw-fenster-ein { from { opacity: 0; } } @keyframes cw-fenster-aus { from { opacity: 1; } to { opacity: 0; } }
-  .cw-abblenden { display: none; position: fixed; inset: 0; z-index: 19; pointer-events: none; }
+     Video „Abteilung zuordnen › Abbrechen“). Ausblenden: theme-init.js lässt die Abdunklung kurz nachklingen – das Fenster selbst ist sofort zu. */
+  @media (prefers-reduced-motion: no-preference) { .overlay:not(.hidden) { animation: cw-fenster-ein .16s ease-out; } }
+  @keyframes cw-fenster-ein { from { opacity: 0; } }
   .overlay { position: fixed; inset: 0; background: rgba(13,19,16,.5); z-index: 20; display: flex; align-items: flex-start; justify-content: center; padding: 4vh 16px; overflow: auto; scroll-padding-bottom: 96px; }   /* scroll-padding: ein Feld, das den Fokus bekommt, rollt über die klebende Fußleiste, nicht dahinter */
   .dialog:focus { outline: none; }   /* das Fenster selbst trägt beim Öffnen den Fokus (Screenreader), ist aber kein Bedienelement */
   .dialog { background: var(--card); border-radius: 22px; padding: 24px; width: min(720px, 100%); box-shadow: var(--shadow-pop); border: 1px solid var(--edge); }
@@ -290,7 +289,7 @@
   .dialog .btns { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
   @media (max-width: 480px) { .dialog .btns.lang .btn, .card .btns.lang .btn { flex: 1 1 100%; } }   /* lange Knopfbeschriftung: am Handy alle Knöpfe gleich breit untereinander (auch in Karten) */
   .dialog > .btns:last-child { position: sticky; bottom: -4vh; margin: 20px -24px -24px; padding: 14px 24px 20px; background: var(--card); border-top: 1px solid var(--line); border-radius: 0 0 22px 22px; z-index: 2; transition: box-shadow .15s; }   /* lange Dialoge: Speichern/Abbrechen bleiben unten sichtbar */
-  /* bottom: -4vh = der Innenabstand des Fenster-Hintergrunds (.overlay, padding 4vh): sonst klebt die Leiste 4vh über dem Bildschirmrand und darunter ist Inhalt zu sehen (02.11.2026) */
+  /* bottom: -4vh = der Innenabstand des Fenster-Hintergrunds (.overlay, padding 4vh): sonst klebt die Leiste 4vh über dem Bildschirmrand und darunter ist Inhalt zu sehen */
   .dialog > .btns:last-child.mehr { box-shadow: 0 -14px 16px -12px rgba(0,0,0,.28); }   /* darunter folgt noch Inhalt (dialogMehr in admin.js) */
   /* Fußzeile einer Karte mit mehreren Eingabezeilen: Speichern unten rechts (Karten mit einer Zeile: Knopf in der Zeile) */
   .btns { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }   /* Speichern & Co. immer rechts – auch unter mehreren Karten */
@@ -325,7 +324,7 @@
   .muted.s { font-size: 13px; }
   .s { font-size: 13px; }
   a { color: var(--brand-ink); }
-  code { background: var(--hover); padding: 0 4px; border-radius: 5px; font-size: .92em; line-height: 1; overflow-wrap: anywhere; }   /* lange Adressen brechen um statt das Fenster seitlich scrollen zu lassen (02.11.2026); schmal: kein scheinbares Leerzeichen vor Satzzeichen, Zeilenhöhe bleibt */
+  code { background: var(--hover); padding: 0 4px; border-radius: 5px; font-size: .92em; line-height: 1; overflow-wrap: anywhere; }   /* lange Adressen brechen um statt das Fenster seitlich scrollen zu lassen; schmal: kein scheinbares Leerzeichen vor Satzzeichen, Zeilenhöhe bleibt */
   tr.paidrow .gname { text-decoration: line-through; color: var(--muted); }
   @media (max-width: 640px) { .evscroll { max-height: none; } }   /* Abrechnungsliste am Handy ohne eigene Scrollbox – das Seitenende bleibt erreichbar */
   .evlist[data-f="offen"] tr[data-status]:not([data-status="offen"]) { display: none; }
@@ -389,7 +388,7 @@
   .tabrow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 4px 0 20px; } .tabrow > .tabs { margin: 0; }
   @media (min-width: 701px) { .tabrow.beside { flex-wrap: nowrap; } .tabrow.beside > .tabs { flex: 0 1 auto; min-width: 0; } }   /* Knöpfe neben den Reitern, solange beide Platz haben (admin.js: fitTools); sonst darunter – nie ein abgeschnittener Reiter */
   .tabtools { margin-left: auto; display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; } .tabtools:empty { display: none; }
-  /* Knöpfe stehen unter den Reitern (nicht daneben, admin.js: fitTools setzt .stack): die Reiterleiste füllt die ganze Zeile und fluchtet rechts mit der Knopfreihe, die Reiter verteilen sich gleichmäßig (Fehler 11.11.2026, Tablet) */
+  /* Knöpfe stehen unter den Reitern (nicht daneben, admin.js: fitTools setzt .stack): die Reiterleiste füllt die ganze Zeile und fluchtet rechts mit der Knopfreihe, die Reiter verteilen sich gleichmäßig */
   .tabrow.stack > .tabs { flex: 1 1 100%; } .tabrow.stack > .tabs > button { flex: 1 1 auto; justify-content: center; }
   /* Filterleiste: zwei oder mehr Auswahlfelder stehen als Gruppe (<div class="fb-sel">) zusammen – sie brechen nur gemeinsam um und teilen sich dann die Zeile zu gleichen Teilen, nie ein Feld allein */
   .filterbar .fb-gap { flex: 1 1 0; min-width: 0; }
@@ -458,16 +457,11 @@
   .pill.tg:disabled { opacity: .6; cursor: default; }
   .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
   .two .card { margin-bottom: 0; }
-  .minikpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-  .minikpis .mk { background: var(--hover); border-radius: 12px; padding: 12px 14px; }
-  .minikpis .mk .l { color: var(--muted); font-size: 13px; }
-  .minikpis .mk .v { font-size: 20px; font-weight: 700; }
-  .minikpis .mk.warn { background: var(--amber-soft); }
   /* Einstellungen: Unterbereiche */
   .settings { display: block; }
   #main h2.sec { margin: 28px 0 10px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }   /* Abschnitt einer Einstellungsseite (statt Unterseiten) */
   #main .settings > h2.sec:first-child { margin-top: 0; }
-  .secseg { width: fit-content; max-width: 100%; margin: 0 0 16px; } .seg .sdot, #main h2.sec .sdot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); flex: none; }
+  .seg .sdot, #main h2.sec .sdot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); flex: none; }
   .tabs .sdot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); flex: none; }
   .tabs button.on .sdot { visibility: hidden; }   /* Platz bleibt – kein Springen */
   /* Modulliste */
@@ -483,7 +477,7 @@
   /* Herkunft („im Paket“, „hochgeladen“) unter der Version – nicht neben dem Namen, damit keine Zeile höher wird als die andere; schmal (Version ausgeblendet) neben dem Namen */
   .mods .mrow .srcb { display: none; margin-left: 6px; }
   @media (max-width: 900px) { .mods .mrow .srcb { display: inline-flex; } }
-  /* Gefährliche Aktion abgesetzt (B-4): im Fenster in eigener Zeile unter einer Linie, in einer Knopfzeile mit Abstand */
+  /* Gefährliche Aktion abgesetzt: im Fenster in eigener Zeile unter einer Linie, in einer Knopfzeile mit Abstand */
   #overlay .dz, .card .dz { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-soft); display: flex; }
   .btn.abgesetzt { margin-left: 24px; }
   .mods .mrow .mact { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }   /* Demo, Einstellungen exportieren/importieren … (später „Anleitung (PDF)“) */
@@ -497,8 +491,6 @@
   .menu .danger { color: var(--red); }
   .dots { width: 40px; height: 40px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
   .dots:hover, .dots.on { background: var(--hover); color: var(--ink); }
-  .modtbl td:nth-child(3), .modtbl td:nth-child(4) { white-space: nowrap; }
-  .extbtns { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
   .instopts { display: flex; flex-direction: column; gap: 10px; margin-bottom: 6px; }
   .mailgrid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; align-items: end; } .mailgrid > :nth-child(1) { grid-column: span 3; } .mailgrid > :nth-child(3) { grid-column: span 2; } .mailgrid > :nth-child(4), .mailgrid > :nth-child(5), .mailgrid > :nth-child(6), .mailgrid > :nth-child(7) { grid-column: span 3; }
   .mailgrid .btn { height: 40px; min-height: 40px; justify-content: center; }
@@ -533,8 +525,8 @@
   .invlist.bfl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 8px 12px; border-top: 1px solid var(--line-soft); min-width: 0; }
   .invlist.bfl > div:first-child { border-top: 0; }
   .invlist.bfl b { min-width: 0; overflow-wrap: anywhere; }
-  @media (max-width: 640px) { .pill.tg { height: 32px; padding: 0 12px; border-radius: 16px; } a.s[data-aplink] { display: inline-flex; align-items: center; min-height: 32px; } }   /* Handy: Tippfläche mind. 32 px (Freigaben-Fenster, 02.11.2026) */
-  @media (max-width: 640px) { .invlist > label { grid-template-columns: 22px auto minmax(0, 1fr); row-gap: 4px; } .invlist > label > b { grid-column: 2 / -1; } .invlist > label > b + span { grid-column: 2; } }   /* Handy: Name über die ganze Zeile, Schild und E-Mail darunter – sonst Wortsäule bei langen Namen (02.11.2026) */
+  @media (max-width: 640px) { .pill.tg { height: 32px; padding: 0 12px; border-radius: 16px; } a.s[data-aplink] { display: inline-flex; align-items: center; min-height: 32px; } }   /* Handy: Tippfläche mind. 32 px (Freigaben-Fenster) */
+  @media (max-width: 640px) { .invlist > label { grid-template-columns: 22px auto minmax(0, 1fr); row-gap: 4px; } .invlist > label > b { grid-column: 2 / -1; } .invlist > label > b + span { grid-column: 2; } }   /* Handy: Name über die ganze Zeile, Schild und E-Mail darunter – sonst Wortsäule bei langen Namen */
   .letter { page-break-after: always; text-align: center; padding-top: 18mm; }
   .letter:last-child { page-break-after: auto; }
   .letter ol { text-align: left; display: inline-block; margin: 0 auto; font-size: 12pt; line-height: 1.6; }
@@ -584,7 +576,7 @@
   .toact { display: inline-flex; gap: 6px; } .toact .btn { width: 40px; justify-content: center; }
   /* Benutzer & Rollen */
   .ugrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; } .ugrid .wall { grid-column: 1 / -1; }
-  .rolegrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin-top: 12px; }   /* Spaltenlücke wie .ugrid darüber: Karten fluchten (02.11.2026) */
+  .rolegrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin-top: 12px; }   /* Spaltenlücke wie .ugrid darüber: Karten fluchten */
   .permgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
   .permgrid label.chk, .ucard { align-items: flex-start; line-height: 1.4; } .permgrid input, .ucard input { margin-top: 3px; flex: none; }
   .ucard { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; box-sizing: border-box; min-height: 60px; }
@@ -644,7 +636,7 @@
     .mods .mrow .ver, .mods .mrow .st, .mods .mrow.head { display: none; }
     .split { grid-template-columns: 1fr; }
     .row[style*="nowrap"] { flex-wrap: wrap !important; }
-    /* Knopfzeilen am Handy (Entscheidung 09.11.2026, Prüfstand-Regel knopfreihe-ungleich): besteht eine Zeile nur aus Knöpfen, sind alle gleich breit – bricht sie um, steht nie einer schmaler allein darunter */
+    /* Knopfzeilen am Handy: besteht eine Zeile nur aus Knöpfen, sind alle gleich breit – bricht sie um, steht nie einer schmaler allein darunter */
     @media (max-width: 700px) {
       :is(.row, .btns, .acts):not(.tbl *, .knopfspalte):not(:has(> :not(.btn, span:empty))):has(> .btn ~ .btn) { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); justify-content: stretch; white-space: normal; }
       :is(.row, .btns, .acts):not(.tbl *, .knopfspalte):not(:has(> :not(.btn, span:empty))) > span:empty { display: none; }
@@ -653,11 +645,10 @@
       :is(.row, .btns, .acts):not(.tbl *, .knopfspalte):not(:has(> :not(.btn, span:empty))):has(> .btn ~ .btn) > .btn { width: 100%; justify-content: center; margin-left: 0; margin-right: 0; white-space: nowrap; }
       /* Knöpfe in der letzten Tabellenzelle (z. B. „Herunterladen …“ und „Wiederherstellen …“): brechen sie um, steht jeder in voller Breite – nie zwei verschieden breite übereinander (Prüfstand knopfreihe-ungleich, System › Datensicherung) */
       .tbl td:has(> .btn ~ .btn):not(:has(> :not(.btn))) { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-      .tbl td:has(> .btn ~ .btn):not(:has(> :not(.btn))) > .btn { flex: 1 1 auto; justify-content: center; margin: 0; } .tbl td:has(> .btn ~ .btn):not(:has(> :not(.btn))) > .btn.abgesetzt { margin-left: 24px; }   /* rote Aktion bleibt abgesetzt (B-4) */
+      .tbl td:has(> .btn ~ .btn):not(:has(> :not(.btn))) > .btn { flex: 1 1 auto; justify-content: center; margin: 0; } .tbl td:has(> .btn ~ .btn):not(:has(> :not(.btn))) > .btn.abgesetzt { margin-left: 24px; }   /* rote Aktion bleibt abgesetzt */
     }
     .preview iframe, .preview img { height: 50vh; }
     .mailgrid { grid-template-columns: 1fr; } .mailgrid > * { grid-column: auto !important; }
-    .minikpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   /* Module am Handy: Name und Schalter in einer Zeile, die Beschreibung darunter über die ganze Breite (sonst eine Wortsäule) */
   @media (max-width: 560px) {
@@ -673,7 +664,7 @@
     .tbl td { width: 100% !important; }   /* feste Spaltenbreiten (style="width:…", .ltbl td.r) gelten in der Kartenansicht nicht – sonst ragt der Inhalt heraus */
     .tbl tr:first-child:has(th) { display: none; }
     .tbl tr { border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; margin-bottom: 10px; background: var(--card); }
-    :is(.scroll, .ml-rc):has(> table.tbl) { border: 0; border-radius: 0; background: none; }   /* Zeilen sind am Handy selbst Karten: kein zweiter Rahmen drumherum (Rahmen lagen seitlich aufeinander, 02.11.2026) */
+    :is(.scroll, .ml-rc):has(> table.tbl) { border: 0; border-radius: 0; background: none; }   /* Zeilen sind am Handy selbst Karten: kein zweiter Rahmen drumherum */
     .card > table.tbl { margin-top: 12px; }   /* Zeilen-Karten berühren den Kartenrand nicht (Karten mit Tabelle haben oben/unten keinen Innenabstand) */
     .tbl td { border: 0; height: auto; min-height: 34px; padding: 5px 0 !important; display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: right; }
     .tbl td::before { content: attr(data-label); color: var(--muted); font-size: 13px; text-align: left; flex: none; max-width: 45%; }
@@ -683,88 +674,64 @@
     .tbl td.r::before { margin-right: auto; }
     .tbl td input:not([type=checkbox]):not([type=radio]), .tbl td select { max-width: 60%; }
     .tbl tr.sum { background: var(--brand-soft); }
-    /* Kompakte Handy-Liste (B-7): <table class="tbl kompakt"> – erste Spalte fett, rechts die Knöpfe der letzten Spalte, darunter die übrigen Werte klein
-       nebeneinander in ihrer ganzen Breite – was nicht mehr passt, rutscht in die nächste Zeile; nur ein Wert, der länger ist als die ganze Zeile, endet mit … (voller Text im title). Leere Zellen fallen weg */
-    .tbl.kompakt tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding: 6px 12px; }
-    .tbl.kompakt tr::after { content: ''; order: 2; flex-basis: 100%; }
-    .tbl.kompakt td { display: block; order: 3; flex: 0 1 auto; max-width: 100%; width: auto !important; min-width: 0; min-height: 0; padding: 0 !important; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; font-size: 13px; line-height: 16px; color: var(--muted); }
-    .tbl.kompakt td::before { content: none; }
-    .tbl.kompakt td.r:not(:first-child) { font-size: 14px; line-height: 16px; }   /* Zahlen in der kleinen Zeile so groß wie die übrigen Werte – nicht größer */
-    .tbl.kompakt td.k-lang:not(:first-child) { flex: 1 1 0; min-width: 96px; } .tbl.kompakt td.k-lang:has(> b:first-child) { flex-basis: 100%; } .tbl.kompakt td:has(input, select, textarea) { flex: 1 1 0; } .tbl.kompakt td:not(:first-child):has(select) { flex-basis: 100%; overflow: visible; } .tbl.kompakt td select { width: 100%; max-width: 100%; }   /* Auswahl bekommt eine eigene Zeile: kurze Werte („– frei, sperrt nichts –“) stehen ganz da (02.11.2026) */   /* lange Werte und Eingabefelder füllen den Rest der Zeile statt eine neue zu beginnen */
-    .tbl.kompakt td > .tcell, .tbl.kompakt td > .tcell > div { text-align: left; overflow: hidden; text-overflow: ellipsis; }   /* „…“ zeichnet der Browser nur im Block, der den Text selbst hält – sonst wäre der Wert hart abgeschnitten */
-    .tbl.kompakt td:first-child { order: 0; flex: 1 1 120px; max-width: none; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--ink); white-space: normal; overflow-wrap: anywhere; }
-    .tbl.kompakt.k-name-voll td:first-child { flex: 1 1 auto; }   /* Name so breit wie nötig: ein langer Name steht allein in der Zeile, der Knopf rutscht darunter; kurze Namen bleiben neben dem Knopf („Rücklastschrift“) */
-    .tbl.kompakt td:last-child:not(:first-child):has(button, a.btn, .acts) { order: 1; flex: none; overflow: visible; max-width: 100%; white-space: normal; } .tbl.kompakt td:last-child .btn { white-space: nowrap; }   /* mehrere Knöpfe rutschen in die nächste Zeile statt aus der Karte zu ragen (Safari setzt breiter) */
-    .tbl.kompakt .pill.k-wrap { max-width: 100%; height: auto; padding: 2px 10px; line-height: 1.25; white-space: normal; }   /* lange Schilder („gehört nicht zu Clubwerk“) brechen um statt am Rand abgeschnitten zu werden */
-    .tbl.kompakt td.k-sum { display: block; }
-    .tbl.kompakt td:not(:first-child):has(> .chk) { flex: 0 0 auto; max-width: none; overflow: visible; }   /* nicht die erste Spalte: dort steht der Name samt Häkchen und füllt die Zeile (3.101) */
-    .tbl.kompakt td > .chk { gap: 6px; font-size: 13px; }
-    .tbl.kompakt tr[data-row] { cursor: pointer; }
-    .tbl.kompakt td:empty, .tbl.kompakt .k-weg { display: none; }   /* k-weg: am Handy weglassen (steht beim Antippen bzw. Bearbeiten) – ganze Zelle oder ein Teil davon */
-    .tbl.kompakt td.k-lbl::before { content: attr(data-label) ' '; display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }   /* k-lbl: Spaltenname davor (z. B. „Benutzer: 3“) */
-    .tbl.kompakt td.k-1z { white-space: normal; overflow-wrap: break-word; font-size: 14px; }   /* k-1z: Namen etwas kleiner; lange Namen brechen um statt abgeschnitten zu werden (3.101) */
-    .tbl.kompakt td.k-datei { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }   /* k-datei: Dateinamen einzeilig, voller Name im title (Länge hängt von Datum und Uhrzeit ab) */
-    .tbl.kompakt td:first-child .muted { font-weight: 400; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .tbl.kompakt td:first-child .k-sum { display: block; width: 0; min-width: 100%; white-space: normal; overflow-wrap: break-word; }   /* k-sum in der ersten Spalte: Zusatzzeile nur am Handy (z. B. die Tätigkeit unter dem Namen) – bricht um statt „…“ (3.101) */
-    .tbl.kompakt tr:has(> td:last-child .acts > :nth-child(2)) > td:first-child { flex-basis: 64px; min-width: min-content; }   /* zwei Knöpfe rechts: Platz für beide in der ersten Zeile – aber nie schmaler als das längste Wort des Namens, sonst rutschen die Knöpfe darunter (3.101; vorher Wortsäule) */
-    .tbl.kompakt td[colspan] { flex: 1 1 100%; max-width: none; white-space: normal; }
-    h2.page { font-size: 22px; line-height: 30px; overflow-wrap: break-word; }   /* lange Titel (Turniername) brechen um statt „…“ (3.101) */
+    h2.page { font-size: 22px; line-height: 30px; overflow-wrap: break-word; }   /* lange Titel (Turniername) brechen um statt „…“ */
     .dialog { padding: 18px 16px; } .dialog > .btns:last-child { margin: 20px -16px -18px; padding: 12px 16px 16px; }
   }
+  /* Kompakte Tabellen stehen als Liste statt Tabelle: am Handy und im Tablet-Format (html.cw-liste, theme-init.js: bis 1279 px, im Tablet-Rahmen bis 1399 px).
+     Nur ab 701 px zusätzlich: Spalten, die am Handy wegfallen, erscheinen mit Überschrift (unten). Die Zeilen stehen einmal hier, nicht je Breite. */
+  :where(html.cw-liste) table.tbl.kompakt, :where(html.cw-liste) .tbl.kompakt tbody, :where(html.cw-liste) .tbl.kompakt tr { display: block; width: 100%; }
+  :where(html.cw-liste) .tbl.kompakt tr:first-child:has(th) { display: none; }
+  :where(html.cw-liste) .tbl.kompakt tr { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; background: var(--card); }
+  :where(html.cw-liste) :is(.scroll, .ml-rc):has(> table.tbl.kompakt) { border: 0; border-radius: 0; background: none; }   /* Zeilen sind selbst Karten: kein zweiter Rahmen drumherum */
+  :where(html.cw-liste) .card > table.tbl.kompakt { margin-top: 12px; }   /* Zeilen-Karten berühren den Kartenrand nicht (Karten mit Tabelle haben oben/unten keinen Innenabstand) */
+  :where(html.cw-liste) .tbl.kompakt td { border: 0; height: auto; }
+  :where(html.cw-liste) .tbl.kompakt td input:not([type=checkbox]):not([type=radio]) { max-width: 60%; }
+  :where(html.cw-liste) .tbl.kompakt tr.sum { background: var(--brand-soft); }
+  :where(html.cw-liste) .tbl.kompakt .k-handy { display: inline; } :where(html.cw-liste) .tbl.kompakt td.k-mob { display: block; } :where(html.cw-liste) .tbl.kompakt .k-desk { display: none !important; }   /* Handy-Karten: Status beim Namen, Ort in der kleinen Zeile (Zieltabelle) */
+  /* Kompakte Handy-Liste: <table class="tbl kompakt"> – erste Spalte fett, rechts die Knöpfe der letzten Spalte, darunter die übrigen Werte klein
+     nebeneinander in ihrer ganzen Breite – was nicht mehr passt, rutscht in die nächste Zeile; nur ein Wert, der länger ist als die ganze Zeile, endet mit … (voller Text im title). Leere Zellen fallen weg */
+  :where(html.cw-liste) .tbl.kompakt tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding: 6px 12px; }
+  :where(html.cw-liste) .tbl.kompakt tr::after { content: ''; order: 2; flex-basis: 100%; }
+  :where(html.cw-liste) .tbl.kompakt td { display: block; order: 3; flex: 0 1 auto; max-width: 100%; width: auto !important; min-width: 0; min-height: 0; padding: 0 !important; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; font-size: 13px; line-height: 16px; color: var(--muted); }
+  :where(html.cw-liste) .tbl.kompakt td::before { content: none; }
+  :where(html.cw-liste) .tbl.kompakt td.r:not(:first-child) { font-size: 14px; line-height: 16px; }   /* Zahlen in der kleinen Zeile so groß wie die übrigen Werte – nicht größer */
+  :where(html.cw-liste) .tbl.kompakt td.k-lang:not(:first-child) { flex: 1 1 0; min-width: 96px; } :where(html.cw-liste) .tbl.kompakt td.k-lang:has(> b:first-child) { flex-basis: 100%; } :where(html.cw-liste) .tbl.kompakt td:has(input, select, textarea) { flex: 1 1 0; } :where(html.cw-liste) .tbl.kompakt td:not(:first-child):has(select) { flex-basis: 100%; overflow: visible; } :where(html.cw-liste) .tbl.kompakt td select { width: 100%; max-width: 100%; }   /* Auswahl bekommt eine eigene Zeile: kurze Werte („– frei, sperrt nichts –“) stehen ganz da */   /* lange Werte und Eingabefelder füllen den Rest der Zeile statt eine neue zu beginnen */
+  :where(html.cw-liste) .tbl.kompakt td > .tcell, :where(html.cw-liste) .tbl.kompakt td > .tcell > div { text-align: left; overflow: hidden; text-overflow: ellipsis; }   /* „…“ zeichnet der Browser nur im Block, der den Text selbst hält – sonst wäre der Wert hart abgeschnitten */
+  :where(html.cw-liste) .tbl.kompakt td:first-child { order: 0; flex: 1 1 120px; max-width: none; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--ink); white-space: normal; overflow-wrap: anywhere; }
+  :where(html.cw-liste) .tbl.kompakt.k-name-voll td:first-child { flex: 1 1 auto; }   /* Name so breit wie nötig: ein langer Name steht allein in der Zeile, der Knopf rutscht darunter; kurze Namen bleiben neben dem Knopf („Rücklastschrift“) */
+  :where(html.cw-liste) .tbl.kompakt td:last-child:not(:first-child):has(button, a.btn, .acts) { order: 1; flex: none; overflow: visible; max-width: 100%; white-space: normal; } :where(html.cw-liste) .tbl.kompakt td:last-child .btn { white-space: nowrap; }   /* mehrere Knöpfe rutschen in die nächste Zeile statt aus der Karte zu ragen (Safari setzt breiter) */
+  :where(html.cw-liste) .tbl.kompakt .pill.k-wrap { max-width: 100%; height: auto; padding: 2px 10px; line-height: 1.25; white-space: normal; }   /* lange Schilder („gehört nicht zu Clubwerk“) brechen um statt am Rand abgeschnitten zu werden */
+  :where(html.cw-liste) .tbl.kompakt td.k-sum { display: block; }
+  :where(html.cw-liste) .tbl.kompakt td:not(:first-child):has(> .chk) { flex: 0 0 auto; max-width: none; overflow: visible; }   /* nicht die erste Spalte: dort steht der Name samt Häkchen und füllt die Zeile */
+  :where(html.cw-liste) .tbl.kompakt td > .chk { gap: 6px; font-size: 13px; }
+  :where(html.cw-liste) .tbl.kompakt tr[data-row] { cursor: pointer; }
+  :where(html.cw-liste) .tbl.kompakt td:empty, :where(html.cw-liste) .tbl.kompakt .k-weg { display: none; }   /* k-weg: am Handy weglassen (steht beim Antippen bzw. Bearbeiten) – ganze Zelle oder ein Teil davon */
+  :where(html.cw-liste) .tbl.kompakt td.k-lbl::before { content: attr(data-label) ' '; display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }   /* k-lbl: Spaltenname davor (z. B. „Benutzer: 3“) */
+  :where(html.cw-liste) .tbl.kompakt td.k-1z { white-space: normal; overflow-wrap: break-word; font-size: 14px; }   /* k-1z: Namen etwas kleiner; lange Namen brechen um statt abgeschnitten zu werden */
+  :where(html.cw-liste) .tbl.kompakt td.k-datei { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }   /* k-datei: Dateinamen einzeilig, voller Name im title (Länge hängt von Datum und Uhrzeit ab) */
+  :where(html.cw-liste) .tbl.kompakt td:first-child .muted { font-weight: 400; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  :where(html.cw-liste) .tbl.kompakt td:first-child .k-sum { display: block; width: 0; min-width: 100%; white-space: normal; overflow-wrap: break-word; }   /* k-sum in der ersten Spalte: Zusatzzeile nur am Handy (z. B. die Tätigkeit unter dem Namen) – bricht um statt „…“ */
+  :where(html.cw-liste) .tbl.kompakt tr:has(> td:last-child .acts > :nth-child(2)) > td:first-child { flex-basis: 64px; min-width: min-content; }   /* zwei Knöpfe rechts: Platz für beide in der ersten Zeile – aber nie schmaler als das längste Wort des Namens, sonst rutschen die Knöpfe darunter */
+  :where(html.cw-liste) .tbl.kompakt td[colspan] { flex: 1 1 100%; max-width: none; white-space: normal; }
   @media (min-width: 1280px) { .tbl.kompakt td:first-child:has(> b), .tbl.kompakt td:first-child:has(> a > b), .tbl.kompakt td.k-1z { min-width: 11em; } }   /* Namen „Nachname, Vorname“ bekommen in der Tabelle Platz für eine Zeile (Einzug, Stunden, Altersstufen); ein Stresstext-Name darf umbrechen, die Spalte wächst nicht darüber hinaus */
-  /* Tablet-Breite (Fenster 701–1279 px, mit Seitenmenü rund 690–940 px Inhalt): kompakte Tabellen stehen als Liste statt umzubrechen („bis / einschl. 17“, „Möller, / Paula“,
-     Beiträge & Abteilungen, 10.11.2026). KOPIE der Handy-Regeln oben (Zeilen für .tbl / .tbl.kompakt), nur auf .tbl.kompakt:not(.k-tabelle) eingeschränkt – bei Änderungen beide anpassen
-     (Prüfung `kompakt-kopie` in gate.py). k-tabelle am <table> hält eine Tabelle in der Tabellenform. Spalten mit hide-md/k-eng/k-mid/k-breit erscheinen in der Liste wieder (die Regeln unten sind spezifischer). */
-  @media (min-width: 701px) and (max-width: 1279px) {
-    table.tbl.kompakt:not(.k-tabelle), .tbl.kompakt:not(.k-tabelle) tbody, .tbl.kompakt:not(.k-tabelle) tr, .tbl.kompakt:not(.k-tabelle) td { display: block; width: 100%; }
-    .tbl.kompakt:not(.k-tabelle) .k-handy { display: inline; } .tbl.kompakt:not(.k-tabelle) td.k-mob { display: block; } .tbl.kompakt:not(.k-tabelle) .k-desk { display: none !important; }   /* Handy-Karten: Status beim Namen, Ort in der kleinen Zeile (Zieltabelle) */
-    .tbl.kompakt:not(.k-tabelle) td { width: 100% !important; }   /* feste Spaltenbreiten (style="width:…", .ltbl td.r) gelten in der Kartenansicht nicht – sonst ragt der Inhalt heraus */
-    .tbl.kompakt:not(.k-tabelle) tr:first-child:has(th) { display: none; }
-    .tbl.kompakt:not(.k-tabelle) tr { border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; margin-bottom: 10px; background: var(--card); }
-    :is(.scroll, .ml-rc):has(> table.tbl.kompakt:not(.k-tabelle)) { border: 0; border-radius: 0; background: none; }   /* Zeilen sind am Handy selbst Karten: kein zweiter Rahmen drumherum (Rahmen lagen seitlich aufeinander, 02.11.2026) */
-    .card > table.tbl.kompakt:not(.k-tabelle) { margin-top: 12px; }   /* Zeilen-Karten berühren den Kartenrand nicht (Karten mit Tabelle haben oben/unten keinen Innenabstand) */
-    .tbl.kompakt:not(.k-tabelle) td { border: 0; height: auto; min-height: 34px; padding: 5px 0 !important; display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: right; }
-    .tbl.kompakt:not(.k-tabelle) td::before { content: attr(data-label); color: var(--muted); font-size: 13px; text-align: left; flex: none; max-width: 45%; }
-    .tbl.kompakt:not(.k-tabelle) td:not([data-label])::before, .tbl.kompakt:not(.k-tabelle) td[data-label=""]::before { content: none; }
-    .tbl.kompakt:not(.k-tabelle) td > .tcell { min-width: 0; text-align: right; }
-    .tbl.kompakt:not(.k-tabelle) td.r { white-space: normal; flex-wrap: wrap; justify-content: flex-end; }
-    .tbl.kompakt:not(.k-tabelle) td.r::before { margin-right: auto; }
-    .tbl.kompakt:not(.k-tabelle) td input:not([type=checkbox]):not([type=radio]), .tbl.kompakt:not(.k-tabelle) td select { max-width: 60%; }
-    .tbl.kompakt:not(.k-tabelle) tr.sum { background: var(--brand-soft); }
-    /* Kompakte Handy-Liste (B-7): <table class="tbl kompakt"> – erste Spalte fett, rechts die Knöpfe der letzten Spalte, darunter die übrigen Werte klein
-       nebeneinander in ihrer ganzen Breite – was nicht mehr passt, rutscht in die nächste Zeile; nur ein Wert, der länger ist als die ganze Zeile, endet mit … (voller Text im title). Leere Zellen fallen weg */
-    .tbl.kompakt:not(.k-tabelle) tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding: 6px 12px; }
-    .tbl.kompakt:not(.k-tabelle) tr::after { content: ''; order: 2; flex-basis: 100%; }
-    .tbl.kompakt:not(.k-tabelle) td { display: block; order: 3; flex: 0 1 auto; max-width: 100%; width: auto !important; min-width: 0; min-height: 0; padding: 0 !important; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; font-size: 13px; line-height: 16px; color: var(--muted); }
-    .tbl.kompakt:not(.k-tabelle) td::before { content: none; }
-    .tbl.kompakt:not(.k-tabelle) td.r:not(:first-child) { font-size: 14px; line-height: 16px; }   /* Zahlen in der kleinen Zeile so groß wie die übrigen Werte – nicht größer */
-    .tbl.kompakt:not(.k-tabelle) td.k-lang:not(:first-child) { flex: 1 1 0; min-width: 96px; } .tbl.kompakt:not(.k-tabelle) td.k-lang:has(> b:first-child) { flex-basis: 100%; } .tbl.kompakt:not(.k-tabelle) td:has(input, select, textarea) { flex: 1 1 0; } .tbl.kompakt:not(.k-tabelle) td:not(:first-child):has(select) { flex-basis: 100%; overflow: visible; } .tbl.kompakt:not(.k-tabelle) td select { width: 100%; max-width: 100%; }   /* Auswahl bekommt eine eigene Zeile: kurze Werte („– frei, sperrt nichts –“) stehen ganz da (02.11.2026) */   /* lange Werte und Eingabefelder füllen den Rest der Zeile statt eine neue zu beginnen */
-    .tbl.kompakt:not(.k-tabelle) td > .tcell, .tbl.kompakt:not(.k-tabelle) td > .tcell > div { text-align: left; overflow: hidden; text-overflow: ellipsis; }   /* „…“ zeichnet der Browser nur im Block, der den Text selbst hält – sonst wäre der Wert hart abgeschnitten */
-    .tbl.kompakt:not(.k-tabelle) td:first-child { order: 0; flex: 1 1 120px; max-width: none; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--ink); white-space: normal; overflow-wrap: anywhere; }
-    .tbl.kompakt:not(.k-tabelle).k-name-voll td:first-child { flex: 1 1 auto; }   /* Name so breit wie nötig: ein langer Name steht allein in der Zeile, der Knopf rutscht darunter; kurze Namen bleiben neben dem Knopf („Rücklastschrift“) */
-    .tbl.kompakt:not(.k-tabelle) td:last-child:not(:first-child):has(button, a.btn, .acts) { order: 1; flex: none; overflow: visible; max-width: 100%; white-space: normal; } .tbl.kompakt:not(.k-tabelle) td:last-child .btn { white-space: nowrap; }   /* mehrere Knöpfe rutschen in die nächste Zeile statt aus der Karte zu ragen (Safari setzt breiter) */
-    .tbl.kompakt:not(.k-tabelle) .pill.k-wrap { max-width: 100%; height: auto; padding: 2px 10px; line-height: 1.25; white-space: normal; }   /* lange Schilder („gehört nicht zu Clubwerk“) brechen um statt am Rand abgeschnitten zu werden */
-    .tbl.kompakt:not(.k-tabelle) td.k-sum { display: block; }
-    .tbl.kompakt:not(.k-tabelle) td:not(:first-child):has(> .chk) { flex: 0 0 auto; max-width: none; overflow: visible; }   /* nicht die erste Spalte: dort steht der Name samt Häkchen und füllt die Zeile (3.101) */
-    .tbl.kompakt:not(.k-tabelle) td > .chk { gap: 6px; font-size: 13px; }
-    .tbl.kompakt:not(.k-tabelle) tr[data-row] { cursor: pointer; }
-    .tbl.kompakt:not(.k-tabelle) td:empty, .tbl.kompakt:not(.k-tabelle) .k-weg { display: none; }   /* k-weg: am Handy weglassen (steht beim Antippen bzw. Bearbeiten) – ganze Zelle oder ein Teil davon */
-    .tbl.kompakt:not(.k-tabelle) td.k-lbl::before { content: attr(data-label) ' '; display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }   /* k-lbl: Spaltenname davor (z. B. „Benutzer: 3“) */
-    .tbl.kompakt:not(.k-tabelle) td.k-1z { white-space: normal; overflow-wrap: break-word; font-size: 14px; }   /* k-1z: Namen etwas kleiner; lange Namen brechen um statt abgeschnitten zu werden (3.101) */
-    .tbl.kompakt:not(.k-tabelle) td.k-datei { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }   /* k-datei: Dateinamen einzeilig, voller Name im title (Länge hängt von Datum und Uhrzeit ab) */
-    .tbl.kompakt:not(.k-tabelle) td:first-child .muted { font-weight: 400; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .tbl.kompakt:not(.k-tabelle) td:first-child .k-sum { display: block; width: 0; min-width: 100%; white-space: normal; overflow-wrap: break-word; }   /* k-sum in der ersten Spalte: Zusatzzeile nur am Handy (z. B. die Tätigkeit unter dem Namen) – bricht um statt „…“ (3.101) */
-    .tbl.kompakt:not(.k-tabelle) tr:has(> td:last-child .acts > :nth-child(2)) > td:first-child { flex-basis: 64px; min-width: min-content; }   /* zwei Knöpfe rechts: Platz für beide in der ersten Zeile – aber nie schmaler als das längste Wort des Namens, sonst rutschen die Knöpfe darunter (3.101; vorher Wortsäule) */
-    .tbl.kompakt:not(.k-tabelle) td[colspan] { flex: 1 1 100%; max-width: none; white-space: normal; }
+  /* Ab 701 px (Tablet-Liste) mehr als am Handy: Spalten, die am Handy wegfallen (k-weg), und reine Zahlen (k-zbl) erscheinen mit ihrer Spaltenüberschrift – bei 690 px Inhalt ist Platz, und „bisher“, Rhythmus, Art usw. sind Teil der Entscheidung. „–“ ohne Wert fällt weg. */
+  @media (min-width: 701px) {
+    :where(html.cw-liste) .tbl.kompakt td.k-weg:not(:empty):not(.k-dash) { display: block; }
+    :where(html.cw-liste) .tbl.kompakt td.k-weg:not(:empty):not(.k-dash):not(.k-lbl):not(.k-zbl)::before { content: attr(data-label) ' '; display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }
+    :where(html.cw-liste) .tbl.kompakt td.k-dash { display: none; }
+    html.cw-liste .tbl.kompakt td { border: 0; }   /* Linien von Zellen-Regeln (Summenzeile, Module) gelten in der Tablet-Liste nicht; am Handy bleiben sie wie bisher (Aussehen unverändert) */
+    :where(html.cw-liste) .tbl.kompakt td.k-zbl::before { content: attr(data-label) ' '; display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }   /* k-zbl: reine Zahl (auch Datum/Uhrzeit allein) ohne Einheit bekommt ihre Spaltenüberschrift (Gebinde 24, Mindestbestand 0) – von labelTables in admin.js gesetzt; nur in der Tablet-Liste: am Handy würden die Zeilen über die 96 px wachsen */
+    :where(html.cw-liste) .filterbar .search { max-width: none; }   /* Tablet: die Suche füllt den Rest der ersten Zeile – rechts fluchtet sie mit der Zeile der Auswahlfelder darunter */
   }
-  /* Tablet-Liste (701–1279 px) zeigt mehr als die Handy-Liste: Spalten, die am Handy wegfallen (k-weg), und reine Zahlen (k-zbl) erscheinen mit ihrer Spaltenüberschrift – bei 690 px Inhalt ist Platz, und „bisher“, Rhythmus, Art usw. sind Teil der Entscheidung. „–“ ohne Wert fällt weg. Nicht Teil der Kopie (`kompakt-kopie`). */
-  @media (min-width: 701px) and (max-width: 1279px) {
-    .tbl.kompakt:not(.k-tabelle) td.k-weg:not(:empty):not(.k-dash) { display: block; }
-    .tbl.kompakt:not(.k-tabelle) td.k-weg:not(:empty):not(.k-dash):not(.k-lbl):not(.k-zbl)::before { content: attr(data-label) ' '; display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }
-    .tbl.kompakt:not(.k-tabelle) td.k-dash { display: none; }
-    .tbl.kompakt:not(.k-tabelle) td.k-zbl::before { content: attr(data-label) ' '; display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }   /* k-zbl: reine Zahl (auch Datum/Uhrzeit allein) ohne Einheit bekommt ihre Spaltenüberschrift (Gebinde 24, Mindestbestand 0) – von labelTables in admin.js gesetzt; nur in der Tablet-Liste: am Handy würden die Zeilen über die 96 px (B-7) wachsen */
-    .filterbar .search { max-width: none; }   /* Tablet: die Suche füllt den Rest der ersten Zeile – rechts fluchtet sie mit der Zeile der Auswahlfelder darunter (Fehler 11.11.2026) */
-  }
+
+  /* Hilfsklassen statt Inline-Stil (admin.js): „!important“ wie zuvor der Inline-Stil, damit Regeln mit mehr Gewicht (z. B. Karten, Handy-Regeln) sie nicht kippen */
+  .mt0 { margin-top: 0 !important; } .mt6 { margin-top: 6px !important; } .mt8 { margin-top: 8px !important; } .mt10 { margin-top: 10px !important; } .mt12 { margin-top: 12px !important; } .mt14 { margin-top: 14px !important; } .mt16 { margin-top: 16px !important; }
+  .m0 { margin: 0 !important; } .m-8-0-0 { margin: 8px 0 0 !important; } .m-10-0-0 { margin: 10px 0 0 !important; } .m-12-0-0 { margin: 12px 0 0 !important; }
+  .m-0-0-6 { margin: 0 0 6px !important; } .m-0-0-8 { margin: 0 0 8px !important; } .m-0-0-10 { margin: 0 0 10px !important; } .m-0-0-12 { margin: 0 0 12px !important; }
+  .mb12 { margin-bottom: 12px !important; } .mb14 { margin-bottom: 14px !important; } .mr-auto { margin-right: auto !important; }
+  .fx1 { flex: 1 !important; } .fx1-0 { flex: 1 !important; min-width: 0 !important; } .fx1-140 { flex: 1 !important; min-width: 140px !important; } .fx1-180 { flex: 1 !important; min-width: 180px !important; }
+  .fx1-200 { flex: 1 !important; min-width: 200px !important; } .fx1-220 { flex: 1 !important; min-width: 220px !important; } .fx1-240 { flex: 1 !important; min-width: 240px !important; }
+  .db { display: block !important; } .ws-nw { white-space: nowrap !important; } .ta-l { text-align: left !important; }
 
   /* Druck: nur die Abtippliste */
   #printArea { display: none; }
@@ -788,13 +755,13 @@
   .ds-top li { display: grid; grid-template-columns: 24px minmax(0, 240px) minmax(0, 1fr) 56px 44px 64px; gap: 10px; align-items: center; min-height: 32px; font-size: 13.5px; line-height: 18px; }
   .ds-top li .ds-d { justify-self: end; }
   .ds-top .n { width: 24px; height: 24px; border-radius: 12px; background: var(--hover); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
-  .ds-top li:nth-child(-n+3) .n { background: var(--brand); color: var(--on-brand); } .ds-top b { font-weight: 600; overflow-wrap: break-word; }   /* lange Artikelnamen brechen um statt „…“ (3.101) */ .ds-top .r { text-align: right; font-family: var(--num); font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .ds-top li:nth-child(-n+3) .n { background: var(--brand); color: var(--on-brand); } .ds-top b { font-weight: 600; overflow-wrap: break-word; }   /* lange Artikelnamen brechen um statt „…“ */ .ds-top .r { text-align: right; font-family: var(--num); font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
   .ds-donut { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px 24px; align-items: center; }   /* Legende rutscht unter den Ring, wenn der Platz für lange Kategorien („Erfrischungsgetränke“) nicht reicht – nie mitten im Wort getrennt */
   .ds-dring { position: relative; width: 180px; height: 180px; } .ds-dc { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
   .ds-dc b { font-family: var(--num); font-size: 30px; line-height: 32px; font-weight: 600; font-variant-numeric: tabular-nums; max-width: 110px; } .ds-dc span { font-size: 12px; color: var(--muted); }
   .ds-dleg { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; flex: 1 1 260px; min-width: 0; }
   .ds-dleg li { display: grid; grid-template-columns: 12px minmax(0, 1fr) 64px; gap: 10px; align-items: center; min-height: 26px; font-size: 13.5px; line-height: 18px; }
-  .ds-dleg i { width: 12px; height: 12px; border-radius: 3px; } .ds-dleg b { font-weight: 600; overflow-wrap: break-word; }   /* lange Kategorien brechen um (3.101) */ .ds-dleg .r { text-align: right; font-family: var(--num); font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .ds-dleg i { width: 12px; height: 12px; border-radius: 3px; } .ds-dleg b { font-weight: 600; overflow-wrap: break-word; }   /* lange Kategorien brechen um */ .ds-dleg .r { text-align: right; font-family: var(--num); font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--muted); }
   .ds-mini { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr));   /* Spaltenzahl per --n – ein fester Stil würde die Handy-Regel unten überstimmen */ gap: 12px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line-soft); }
   .ds-two .card > .ds-donut + .ds-mini { margin-top: 20px; }
   .ds-mini > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .ds-mini span { font-size: 12.5px; color: var(--muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-mini b { font-family: var(--num); font-weight: 600; font-size: 26px; line-height: 32px; letter-spacing: .01em; } .ds-mini small { font-size: 12.5px; color: var(--muted); }
@@ -848,8 +815,6 @@
   .pr.nf .prfoot { margin-top: 28px; font-size: 10pt; color: #222; }
   .pr .prfoot { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 8.5pt; color: #555; }
   /* Sprachen */
-  .lgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .lgrid .muted.s { font-weight: 400; }
   .ltbl td { vertical-align: middle; }
   .lcov, .lname, .lcode { white-space: nowrap; }
   .ltbl td.r { width: 1%; white-space: nowrap; }
@@ -865,13 +830,8 @@
   .lgimp { display: grid; grid-template-columns: 160px 1fr auto; gap: 12px; align-items: end; margin-top: 8px; }
   .lgimp .btn { height: 40px; display: inline-flex; align-items: center; }
   .lrej { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
-  .langpick { display: grid; gap: 8px; }
-  .langpick .lp { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
-  .langpick .lp.on, .langpick .lp:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
-  .langpick .lp span { flex: 1; font-weight: 600; }
-  .langpick .lp small { color: var(--muted); font-family: ui-monospace, monospace; }
   @media (max-width: 1150px) { .lbar { width: 60px; } }   /* Sprachen-Tabelle passt bei 1024 px ohne Scrollen (Herkunft-Spalte: hide-md) */
-  @media (max-width: 760px) { .lgrid, .lgimp { grid-template-columns: 1fr; } }
+  @media (max-width: 760px) { .lgimp { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>

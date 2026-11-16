@@ -12,7 +12,7 @@ const WEEKDAY_RE = /^(mo|di|mi|do|fr|sa|so)\.?$/i;
 const SCORE_RE = /^\d+\s*:\s*\d+$/;
 const NOISE_RE = /^(anzeigen|zurückgezogen|gast\s*-\s*w\.?\s*o\.?|heim\s*-\s*w\.?\s*o\.?|w\.?\s*o\.?|spielfrei|abgesagt|verlegt|nicht angetreten|-|–|\[routenplan\]|routenplan|spielbericht|info|zum spiel)$/i;
 const LEAGUE_RE = /\(\s*\d+\s*er\s*\)|\b(KA|KB|KC|KK|KL|BL|BZ|BOL|BK|VL|HL|OL|RL|LL|GL)\b|liga|klasse|staffel|pokal|junior|jugend|senioren|herren|damen|mixed|freizeit/i;
-const pad = n => String(n).padStart(2, '0');
+const { pad } = require('./util');
 const clean = s => String(s == null ? '' : s).replace(/[​-‍﻿]/g, '').replace(/\[Routenplan\]/gi, '').replace(/\s+/g, ' ').trim();
 const norm = s => clean(s).toLowerCase().replace(/[^a-z0-9äöüß]+/g, '');
 
@@ -184,4 +184,23 @@ function numberTeams(games, club) {
   return games;
 }
 
-module.exports = { splitRows, fromRows, fromIcs, xlsxRows, guessClub, isHomeGame, teamOf, norm, clubName, parseDate, parseTime, teamNo, numberTeams };
+/** Import-Weiche (Buchungssystem, Spielbetrieb): Datei (base64 in file, Excel am Namen .xlsx erkannt) oder eingefügter Text;
+    Kalenderdateien (.ics) erkennt der Inhalt. → { games, skipped } – wirft mit fertiger Meldung (zu groß, unlesbar, keine Spiele). */
+async function parse({ file, name, text }) {
+  let parsed;
+  try {
+    if (file) {
+      const buf = Buffer.from(String(file), 'base64');
+      if (buf.length > 3 * 1024 * 1024) throw Object.assign(new Error('Die Datei ist zu groß (höchstens 3 MB).'), { fertig: true });
+      if (/\.xlsx$/i.test(String(name || ''))) parsed = fromRows(await xlsxRows(buf, require('exceljs')));
+      else { const t = buf.toString('utf8'); parsed = /BEGIN:VCALENDAR/i.test(t) ? fromIcs(t) : fromRows(splitRows(t)); }
+    } else {
+      const t = String(text || '').slice(0, 500000);
+      parsed = /BEGIN:VCALENDAR/i.test(t) ? fromIcs(t) : fromRows(splitRows(t));
+    }
+  } catch (e) { throw e.fertig ? e : new Error('Die Daten konnten nicht gelesen werden: ' + e.message); }
+  if (!parsed.games.length) throw new Error('Keine Spiele erkannt. Bitte die ganze Tabelle mit Datum, Heim- und Gastmannschaft einfügen (oder eine CSV-, Excel- oder Kalenderdatei wählen).');
+  return parsed;
+}
+
+module.exports = { parse, splitRows, fromRows, fromIcs, xlsxRows, guessClub, isHomeGame, norm, clubName, teamNo, numberTeams };

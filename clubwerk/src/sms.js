@@ -24,8 +24,8 @@ const validDevice = d => DEV_RE.test(String(d || ''));
 /** mögliche Anschlüsse (by-id zuerst – bleibt beim Umstecken gleich) */
 function candidates() {
   const out = [];
-  try { for (const f of fs.readdirSync('/dev/serial/by-id')) out.push(path.join('/dev/serial/by-id', f)); } catch (e) { /* keine */ }
-  try { for (const f of fs.readdirSync('/dev')) if (/^tty(USB|ACM)\d+$/.test(f)) out.push('/dev/' + f); } catch (e) { /* */ }
+  try { for (const f of fs.readdirSync('/dev/serial/by-id')) out.push(path.join('/dev/serial/by-id', f)); } catch (e) { /* Ordner fehlt: keine Geräte */ }
+  try { for (const f of fs.readdirSync('/dev')) if (/^tty(USB|ACM)\d+$/.test(f)) out.push('/dev/' + f); } catch (e) { /* Ordner nicht lesbar: keine Geräte */ }
   return [...new Set(out)];
 }
 
@@ -70,7 +70,7 @@ async function open(dev) {
       if (last !== 'OK') { const e = new Error(errText(last)); e.code = last; throw e; }
       return out;
     },
-    close() { try { rs.destroy(); } catch (e) { /* */ } try { fs.closeSync(fd); } catch (e) { /* schon zu */ } },
+    close() { try { rs.destroy(); } catch (e) { /* schon geschlossen */ } try { fs.closeSync(fd); } catch (e) { /* schon zu */ } },
   };
 }
 function errText(code) {
@@ -159,4 +159,4 @@ function send(number, text) {
 
 const ready = () => on() && Boolean(device());
 
-module.exports = { send, status, detect, ready, on, device, validDevice, normPhone, maskPhone, gsmSafe, candidates };
+module.exports = { send, status, detect, ready, on, device, validDevice, normPhone, maskPhone, candidates };

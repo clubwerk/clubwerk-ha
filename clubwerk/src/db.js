@@ -5,15 +5,22 @@ const Database = require('better-sqlite3');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
-const DB_FILE = require('./dbfile')(DATA_DIR);
+const DB_FILE = path.join(DATA_DIR, 'clubwerk.db');
+const { qid, mixColor } = require('./util');
 
 const db = new Database(DB_FILE);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.pragma('busy_timeout = 3000');
-db.pragma('synchronous = NORMAL');     // mit WAL sicher gegen Abstürze der App, deutlich weniger fsync als FULL
+db.pragma(process.env.CW_DEMO_KOPIE === '1' ? 'synchronous = NORMAL' : 'synchronous = FULL');   // jede bestätigte Buchung steht auch nach einem Stromausfall auf der Platte (NORMAL verlor die letzten Sekunden); die Demo-Kopie ist ein Wegwerf-Sandkasten
 db.pragma('cache_size = -16000');       // 16 MB Seitencache
 db.pragma('temp_store = MEMORY');
+/* Nach einem Stromausfall oder Absturz (src/prozess.js): Datenbank kurz prüfen, bevor etwas hineingeschrieben wird. Ist sie beschädigt,
+   startet der Server im Notfallmodus (src/notfall.js) statt in einer Neustart-Schleife. */
+if (require('./prozess').unsauber) {
+  const r = db.pragma('quick_check', { simple: true });
+  if (r !== 'ok') { console.error('Datenbank beschädigt:', String(r).slice(0, 300)); throw Object.assign(new Error('Die Datenbank ist beschädigt (Prüfung nach dem Neustart).'), { code: 'SQLITE_CORRUPT' }); }
+}
 /* Vorbereitete Abfragen wiederverwenden: der Code ruft db.prepare(sql) meist direkt in Schleifen auf – ohne Cache wird dieselbe SQL
    jedes Mal neu kompiliert (bei der Übersicht der Helferdienste z. B. 5000-mal je Aufruf). Sicher, weil nirgends .iterate()/.pluck()/.raw()
    benutzt wird (ein geteiltes Statement darf nicht gleichzeitig durchlaufen werden). Schemaänderungen erkennt SQLite selbst und kompiliert neu. */
@@ -34,10 +41,9 @@ END`;
 /* Sicherheit: Trigger und Views laufen bei jedem Schreiben mit. Clubwerk legt nur den Trigger oben an – alles andere (z. B. aus einer
    untergeschobenen Sicherung) wird beim Start entfernt, und bookings_snapshot gilt nur genau in dieser Fassung. */
 {
-  const qn = n => `"${String(n).replace(/"/g, '""')}"`;
   for (const o of db.prepare("SELECT type, name, sql FROM sqlite_master WHERE type IN ('trigger','view')").all()) {
     if (o.type === 'trigger' && o.name === 'bookings_snapshot' && o.sql === SNAPSHOT_TRIGGER) continue;
-    db.prepare(`DROP ${o.type === 'view' ? 'VIEW' : 'TRIGGER'} IF EXISTS ${qn(o.name)}`).run();
+    db.prepare(`DROP ${o.type === 'view' ? 'VIEW' : 'TRIGGER'} IF EXISTS ${qid(o.name)}`).run();
     if (o.name !== 'bookings_snapshot') console.log(`Sicherheit: fremder Datenbank-${o.type === 'view' ? 'View' : 'Trigger'} entfernt (${String(o.name).slice(0, 60)}).`);
   }
 }
@@ -244,32 +250,6 @@ function customArticleId() {
 }
 customArticleId();
 
-/* Bisherige Veranstaltungsbuchungen (Version 1.1/1.2: bar oder angeschrieben je Buchung) in Listen umwandeln */
-(function migrateEventGuests() {
-  const done = db.prepare("SELECT value FROM settings WHERE key = 'mig_event_guests'").get();
-  if (done) return;
-  db.transaction(() => {
-    const rows = db.prepare(`SELECT b.event_id, b.member_id, m.name FROM bookings b JOIN members m ON m.id = b.member_id
-      WHERE b.event_id IS NOT NULL AND b.event_guest_id IS NULL AND b.member_id IS NOT NULL
-        AND (b.kind = 'event' OR b.transferred_at IS NOT NULL) GROUP BY b.event_id, b.member_id`).all();
-    for (const r of rows) {
-      const gid = Number(db.prepare("INSERT INTO event_guests(event_id, name, member_id, created_by) VALUES (?,?,?, 'Umstellung')")
-        .run(r.event_id, r.name, r.member_id).lastInsertRowid);
-      db.prepare(`UPDATE bookings SET event_guest_id = ? WHERE event_id = ? AND member_id = ? AND event_guest_id IS NULL
-        AND (kind = 'event' OR transferred_at IS NOT NULL)`).run(gid, r.event_id, r.member_id);
-      const paid = db.prepare(`SELECT COALESCE(SUM(total_cents),0) c FROM bookings WHERE event_guest_id = ? AND kind = 'event'
-        AND paid_cash = 1 AND cancelled_at IS NULL`).get(gid).c;
-      if (paid) {
-        const pid = Number(db.prepare("INSERT INTO event_payments(event_id, guest_id, method, cents, by_user) VALUES (?,?, 'bar', ?, 'Umstellung')")
-          .run(r.event_id, gid, paid).lastInsertRowid);
-        db.prepare("UPDATE bookings SET payment_id = ? WHERE event_guest_id = ? AND kind = 'event' AND paid_cash = 1").run(pid, gid);
-      }
-      db.prepare("UPDATE bookings SET paid_cash = 0 WHERE event_guest_id = ? AND kind = 'event'").run(gid);
-    }
-    db.prepare("INSERT INTO settings(key, value) VALUES ('mig_event_guests', '1')").run();
-  })();
-})();
-
 /** Lesbare Änderungsliste fürs Protokoll – nie interne Schlüssel: „Vorlauf (Tage): 7 → 14 · Gastgebühr: 5,00 € → 6,00 €“.
  *  labels: { schlüssel: 'Bezeichnung' | ['Bezeichnung', 'bool'|'euro'|'text'|'list'] } – Schlüssel ohne Bezeichnung erscheinen nicht. */
 function auditDiff(labels, before = {}, after = {}) {
@@ -356,8 +336,13 @@ CREATE TABLE IF NOT EXISTS admin_roles (
 addColumn('admin_users', 'roles', "TEXT NOT NULL DEFAULT '[]'");
 addColumn('admin_users', 'departments', "TEXT NOT NULL DEFAULT '[]'");
 addColumn('admin_users', 'member_id', 'INTEGER');
-(function seedRoles() {
-  if (db.prepare("SELECT value FROM settings WHERE key = 'roles_seeded'").get()) return;
+/** Einmal-Umzug: fn läuft in einer Transaktion, solange der Merker key in settings fehlt; danach steht der Merker.
+ *  Wirft fn einen Fehler, bleibt alles beim Alten und der nächste Start versucht es wieder. */
+function once(key, fn) {
+  if (db.prepare('SELECT 1 FROM settings WHERE key = ?').get(key)) return;
+  db.transaction(() => { fn(); db.prepare("INSERT OR REPLACE INTO settings(key, value) VALUES (?, '1')").run(key); })();
+}
+once('roles_seeded', function seedRoles() {
   const ins = db.prepare('INSERT OR IGNORE INTO admin_roles(name, description, perms, dept_scope, sort) VALUES (?,?,?,?,?)');
   const R = [
     ['Vorstand', 'Mitglieder, Anträge, Auswertungen, Dokumente, Nachrichten, Veranstaltungen und Helferdienste – ohne Bankdaten und Einzug.', ['mitglieder', 'mitglieder_dokumente', 'export', 'veranstaltungen', 'arbeitseinsatz', 'konten', 'app', 'email']],
@@ -367,41 +352,28 @@ addColumn('admin_users', 'member_id', 'INTEGER');
     ['Kassenprüfer', 'Nur ansehen und exportieren.', ['export']],
   ];
   R.forEach(([n, d, p, s], i) => ins.run(n, d, JSON.stringify(p), s ? 1 : 0, i + 1));
-  db.prepare("INSERT OR REPLACE INTO settings(key, value) VALUES ('roles_seeded', '1')").run();
-})();
+});
 // Einmalig (3.45): Die Seite „Mitglieder-App“ einzurichten hing bisher am Recht „Mitglieder anlegen“ (konten).
 // Wer es hat, bekommt das neue Recht „Mitglieder-App einrichten“ (app) dazu – so verliert niemand etwas.
-(function migrateAppPerm() {
-  if (db.prepare("SELECT 1 FROM settings WHERE key = 'mig_app_perm'").get()) return;
+once('mig_app_perm', function migrateAppPerm() {
   const fresh = !db.prepare('SELECT 1 FROM admin_users LIMIT 1').get();   // frische Installation: Rollenvorlagen bleiben wie ausgeliefert
   const add = v => { let a; try { a = JSON.parse(v || '[]'); } catch (e) { return null; } return Array.isArray(a) && a.includes('konten') && !a.includes('app') ? JSON.stringify([...a, 'app']) : null; };
-  db.transaction(() => {
-    if (!fresh) for (const t of ['admin_roles', 'admin_users']) for (const r of db.prepare(`SELECT id, perms FROM ${t}`).all()) { const n = add(r.perms); if (n) db.prepare(`UPDATE ${t} SET perms = ? WHERE id = ?`).run(n, r.id); }
-    db.prepare("INSERT OR REPLACE INTO settings(key, value) VALUES ('mig_app_perm', '1')").run();
-  })();
-})();
+  if (!fresh) for (const t of ['admin_roles', 'admin_users']) for (const r of db.prepare(`SELECT id, perms FROM ${t}`).all()) { const n = add(r.perms); if (n) db.prepare(`UPDATE ${t} SET perms = ? WHERE id = ?`).run(n, r.id); }
+});
 
 // Einmalig (3.47): Anschrift, E-Mail und Telefon des Vereins stehen jetzt zentral unter Einstellungen › Verein.
 // Wer sie bisher in Mitglieder oder Buchhaltung eingetragen hat, behält sie: die erste vorhandene Angabe wird übernommen.
-(function migrateClubAddress() {
-  if (db.prepare("SELECT 1 FROM settings WHERE key = 'mig_club_address'").get()) return;
+once('mig_club_address', function migrateClubAddress() {
   const get = k => { const r = db.prepare('SELECT value FROM settings WHERE key = ?').get(k); return r && String(r.value || '').trim() ? String(r.value).trim() : ''; };
   const from = { club_street: ['ext_mitglieder_club_street', 'ext_buchhaltung_street'], club_city: ['ext_mitglieder_club_city', 'ext_buchhaltung_city'],
     club_phone: ['ext_buchhaltung_phone'], club_email: ['ext_buchhaltung_email'] };
-  db.transaction(() => {
-    for (const [k, olds] of Object.entries(from)) { if (get(k)) continue; const v = olds.map(get).find(Boolean); if (v) db.prepare('INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)').run(k, v); }
-    db.prepare("INSERT OR REPLACE INTO settings(key, value) VALUES ('mig_club_address', '1')").run();
-  })();
-})();
+  for (const [k, olds] of Object.entries(from)) { if (get(k)) continue; const v = olds.map(get).find(Boolean); if (v) db.prepare('INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)').run(k, v); }
+});
 // Einmalig (3.62): Die Mitglieder-App startet mit „Für mich“. Ein früher fest gewählter Start-Bereich wird einmal zurückgesetzt;
 // wer danach wieder einen festen Bereich will, wählt ihn unter Mitglieder-App › Bereiche.
-(function migrateAppStart() {
-  if (db.prepare("SELECT 1 FROM settings WHERE key = 'mig_app_start'").get()) return;
-  db.transaction(() => {
-    db.prepare("DELETE FROM settings WHERE key = 'app_start'").run();
-    db.prepare("INSERT OR REPLACE INTO settings(key, value) VALUES ('mig_app_start', '1')").run();
-  })();
-})();
+once('mig_app_start', function migrateAppStart() {
+  db.prepare("DELETE FROM settings WHERE key = 'app_start'").run();
+});
 
 /* ---------- Sortierung (überall gleich: Personen nach Nachname, Artikel nach Kategorie und Name) ----------
    de_key: deutsche Sortierung nach DIN 5007 (ä=a, ö=o, ü=u, ß=ss, ohne Groß/Klein)
@@ -422,14 +394,8 @@ function splitPersonName(name) {
   return { first: w.slice(0, i).join(' '), last: w.slice(i).join(' ') };
 }
 /* ---------- Vereinsfarbe (Verwaltung → Einstellungen) – für Oberflächen, Mails, Excel und App gleich ---------- */
-const DEFAULT_COLOR = /^#[0-9a-f]{6}$/i.test(process.env.CLUB_COLOR || '') ? process.env.CLUB_COLOR.toLowerCase() : '#1f6b3a';
+const DEFAULT_COLOR = '#1f6b3a';
 const clubColor = () => { const c = getSetting('club_color', DEFAULT_COLOR); return /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : DEFAULT_COLOR; };
-/** Farbe mischen: to = 'white' | 'black' | '#rrggbb', t = Anteil (0 = Farbe, 1 = Ziel) */
-function mixColor(hex, to, t) {
-  const a = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
-  const b = to === 'white' ? [255, 255, 255] : to === 'black' ? [0, 0, 0] : [1, 3, 5].map(i => parseInt(to.slice(i, i + 2), 16));
-  return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
-}
 /** Personenkonten: Mitglieder und „Kein Mitglied“ (z. B. Trainer) – Namen als „Nachname, Vorname“, Tablet-PIN, Konto im Verkauf */
 const PERSON_KINDS = ['mitglied', 'nichtmitglied'];
 const isPerson = kind => !kind || PERSON_KINDS.includes(kind);
@@ -477,6 +443,7 @@ function settingCache(req, res, next) {
   res.on('finish', end); res.on('close', end);   // danach (z. B. in einem Zeitgeber, der den Kontext erbt) wieder frisch lesen
   settingMemo.run(m, next);
 }
+/** @param {string} key @param {any} [fallback] @returns {any} */
 function getSetting(key, fallback = null) {
   if (!db.open) return fallback;   // beim Beenden schon geschlossen
   const m = settingMemo.getStore();
@@ -485,6 +452,11 @@ function getSetting(key, fallback = null) {
   if (m && !m.done) m.set(key, row ? row.value : null);
   return row ? row.value : fallback;
 }
+/** Einstellung als JSON lesen: fehlt sie, ist sie kein gültiges JSON oder fällt sie durch check (Standard: nicht null), gilt def */
+function getJsonSetting(key, def, check = v => v != null) {
+  try { const v = JSON.parse(getSetting(key, '') || 'null'); return check(v) ? v : def; } catch (e) { return def; }
+}
+const isObj = v => Boolean(v) && typeof v === 'object';
 function setSetting(key, value) {
   db.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
     .run(key, value);
@@ -533,26 +505,6 @@ addColumn('bookings', 'settled_id', 'INTEGER REFERENCES member_settlements(id)')
 addColumn('bookings', 'credit_for', 'INTEGER');   // Gutschrift für eine schon abgerechnete Buchung
 db.exec('CREATE INDEX IF NOT EXISTS ix_bookings_open ON bookings(member_id) WHERE settled_id IS NULL');
 
-/* Bisherige Stichtag-Abschlüsse einmalig in die neue Form übernehmen */
-(function migrateSettlements() {
-  if (db.prepare("SELECT 1 FROM settings WHERE key = 'mig_member_settle'").get()) return;
-  db.transaction(() => {
-    for (const st of db.prepare('SELECT * FROM settlements ORDER BY until_date, id').all()) {
-      const rows = db.prepare(`SELECT member_id, SUM(total_cents) c, SUM(qty) n FROM bookings
-        WHERE kind = 'konto' AND cancelled_at IS NULL AND settled_id IS NULL AND member_id IS NOT NULL AND date(created_at) <= ? AND created_at <= ?
-        GROUP BY member_id`).all(st.until_date, st.created_at);
-      for (const r of rows) {
-        const id = Number(db.prepare(`INSERT INTO member_settlements(member_id, cents, items, until_at, batch, note, by_user, created_at)
-          VALUES (?,?,?,?,?,?,?,?)`).run(r.member_id, r.c, r.n, st.until_date + ' 23:59:59', 'stichtag-' + st.id,
-          'Abschluss bis ' + st.until_date, 'übernommen', st.created_at).lastInsertRowid);
-        db.prepare(`UPDATE bookings SET settled_id = ? WHERE member_id = ? AND kind = 'konto' AND cancelled_at IS NULL
-          AND settled_id IS NULL AND date(created_at) <= ? AND created_at <= ?`).run(id, r.member_id, st.until_date, st.created_at);
-      }
-    }
-    db.prepare("INSERT INTO settings(key, value) VALUES ('mig_member_settle', '1')").run();
-  })();
-})();
-
 /** Datum der letzten Gesamtabrechnung (alle Konten) – Startpunkt für Auswertungen. YYYY-MM-DD oder null. */
 function lastSettlement() {
   const a = db.prepare('SELECT MAX(until_date) d FROM settlements').get().d;
@@ -566,9 +518,6 @@ addColumn('bookings', 'article_name', 'TEXT');
 addColumn('bookings', 'article_category', 'TEXT');
 // bookings_snapshot (Fassung siehe SNAPSHOT_TRIGGER oben) – fremde Trigger/Views hat der Start schon entfernt
 if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = 'bookings_snapshot'").get()) db.prepare(SNAPSHOT_TRIGGER).run();
-// einmalig: bisherige Buchungen bekommen den heutigen Namen (der damalige ist nicht mehr bekannt)
-db.prepare(`UPDATE bookings SET article_name = (SELECT name FROM articles a WHERE a.id = bookings.article_id),
-  article_category = (SELECT category FROM articles a WHERE a.id = bookings.article_id) WHERE article_name IS NULL`).run();
 
 /* v2.10: IDs nie doppelt vergeben (alle Tabellen auf AUTOINCREMENT, vorher Sicherung) */
 try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.error('IDs: Umstellung nicht möglich, Daten unverändert –', e.message); }
@@ -625,7 +574,6 @@ CREATE INDEX IF NOT EXISTS ix_guests_member ON event_guests(member_id);
 /* ---------- Verweise auf Mitglieder (Kern und Module) ----------
    Module legen eigene Tabellen mit REFERENCES members(id) an (mv_person, bk_booking, aw_entry …). Beim Zusammenführen oder
    endgültigen Löschen eines Mitglieds müssen diese Zeilen umgehängt bzw. entfernt werden, sonst scheitert der Fremdschlüssel. */
-const qid = n => `"${String(n).replace(/"/g, '""')}"`;
 /** Alle Spalten aller Tabellen, die auf members(id) verweisen → [{ table, column }]. Wird jedes Mal frisch ermittelt (billig; Module legen Tabellen beim Start an). */
 function memberRefs() {
   const out = [];
@@ -657,5 +605,5 @@ function rewireMemberRef(table, column, fromId, intoId) {
   }
 }
 
-module.exports = { PERSON_KINDS, isPerson, deKey, nameKey, splitPersonName, lastFirst, clubColor, mixColor, db, DB_FILE, DATA_DIR, getSetting, setSetting, settingCache, stockList, lastSettlement, audit, auditDiff, customArticleId, memberRefs, rewireMemberRef };
+module.exports = { isPerson, deKey, nameKey, splitPersonName, lastFirst, clubColor, mixColor, db, DB_FILE, DATA_DIR, getSetting, getJsonSetting, isObj, setSetting, settingCache, stockList, lastSettlement, audit, auditDiff, customArticleId, memberRefs, rewireMemberRef, once };
 loadCategoryOrder();

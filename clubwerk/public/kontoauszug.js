@@ -59,8 +59,8 @@
   /** Buchung prüfen: alle Vorschläge, bei Rücklastschriften Gebühr und Mandat, von Hand zuordnen oder „gehört nicht zu Clubwerk“ */
   async function checkDialog(e, again) {
     const ret = e.kind === 'ruecklastschrift', deb = e.kind === 'abbuchung';
-    const all = await api('kontoauszug/targets');
-    const targets = all.filter(t => (t.kind || 'zahlung') === (ret ? 'ruecklastschrift' : deb ? 'ausgabe' : 'zahlung'));
+    const kindQ = `kind=${ret ? 'ruecklastschrift' : deb ? 'ausgabe' : 'zahlung'}&limit=60`;   // der Server filtert und kürzt (bei vielen offenen Posten sonst viel zu viel Datenverkehr)
+    let targets = await api('kontoauszug/targets?' + kindQ), none = !targets.length;
     const c0 = e.cands[0];
     dialog(`<h2>${ret ? 'Rücklastschrift' : deb ? 'Abbuchung' : 'Zahlungseingang'} zuordnen</h2>
       <p style="margin:0 0 4px"><b class="num">${deDate(e.date)}</b> · <b class="num ${e.cents < 0 ? 'neg' : ''}">${euro(e.cents)}</b>${ret && e.fee_cents ? ` <span class="muted s">(davon Gebühr der Bank ${euro(e.fee_cents)})</span>` : ''}</p>
@@ -75,13 +75,12 @@
       <div class="btns">${e.status === 'offen' ? '<button class="btn ghost" id="kaIgn" style="margin-right:auto">Gehört nicht zu Clubwerk</button>' : ''}<button class="btn ghost" id="kaNo">Abbrechen</button>${e.cands.length ? '<button class="btn primary" id="kaOk">Übernehmen</button>' : ''}</div>`);
     const opts = () => (ret ? { fee: GK.toCents($('kaFee').value) || 0, revoke: $('kaRev').checked } : undefined);
     const showT = () => {
-      const q = String($('kaQ').value || '').toLowerCase();
-      const list = targets.filter(t => !q || `${t.label} ${t.sub}`.toLowerCase().includes(q)).slice(0, 60);
+      const list = targets;
       $('kaT').innerHTML = list.length ? `<table class="tbl kompakt">${list.map((t, i) => `<tr><td><b translate="no">${esc(t.label)}</b><div class="muted s"><span class="k-handy num">${euro(t.cents)} · </span><span class="k-desk">${esc(t.moduleName)} · </span>${esc(t.sub)}</div></td>${sign(t.cents).replace('<td class="', '<td class="k-desk ')}<td class="r"><button class="btn small" data-kt="${targets.indexOf(t)}">Zuordnen</button></td></tr>`).join('')}</table>`
-        : `<p class="empty">${targets.length ? 'Nichts gefunden.' : ret ? 'Keine Lastschriften der letzten 13 Monate.' : deb ? 'Keine Ausgabe ohne Abbuchung – neue Ausgaben unter Buchhaltung › Ausgaben erfassen.' : 'Nichts offen.'}</p>`;
+        : `<p class="empty">${!none ? 'Nichts gefunden.' : ret ? 'Keine Lastschriften der letzten 13 Monate.' : deb ? 'Keine Ausgabe ohne Abbuchung – neue Ausgaben unter Buchhaltung › Ausgaben erfassen.' : 'Nichts offen.'}</p>`;
       $('kaT').querySelectorAll('[data-kt]').forEach(b => { b.onclick = () => GK.busy(b, () => assign(e, targets[+b.dataset.kt], opts(), again)); });
     };
-    $('kaQ').oninput = showT; showT();
+    let tq; $('kaQ').oninput = () => { clearTimeout(tq); tq = GK.later(async () => { try { targets = await api('kontoauszug/targets?' + kindQ + '&q=' + encodeURIComponent(String($('kaQ').value || ''))); showT(); } catch (err) { fail(err); } }, 250, $('kaQ')); }; showT();
     $('kaNo').onclick = closeDialog;
     if ($('kaOk')) $('kaOk').onclick = () => GK.busy($('kaOk'), () => assign(e, e.cands[Number((document.querySelector('[name="kaC"]:checked') || {}).value || 0)], opts(), again));
     if ($('kaIgn')) $('kaIgn').onclick = async () => { try { await api(`kontoauszug/entries/${e.id}/ignore`, 'POST', {}); closeDialog(); toast('Als „gehört nicht zu Clubwerk“ markiert.'); again(); } catch (err) { fail(err); } };

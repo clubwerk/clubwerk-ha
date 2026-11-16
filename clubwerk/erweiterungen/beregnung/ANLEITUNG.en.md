@@ -10,7 +10,7 @@ The module works on its own. All you need is a controller that Clubwerk can swit
 ## Setting up {#einrichten}
 
 1. **Settings › Modules:** switch on “Irrigation”. With “Demo” you can try the module with made-up data first; the demo never switches real valves.
-2. **Connect the controller:** add your manufacturer’s integration in Home Assistant (each zone then appears there as a valve or switch). In Clubwerk, open Irrigation › Settings › “Connection” and choose the manufacturer.
+2. **Connect the controller:** add your manufacturer’s integration in Home Assistant (each zone then appears there as a valve or switch). In Clubwerk, open Irrigation › Settings › “Connection” and choose the manufacturer. **Important:** set a maximum run time in the device or in Home Assistant (see “Connection”).
 3. **Create courts and zones:** tab “Courts & zones”, “+ Court”, assign the zones and enter the run times.
 4. **Who may operate it?** Set a club PIN, or limit operation to authorised members or users (tab “Settings”).
 5. **Test it:** tab “Operate”, start a court and stop it again straight away. If the valve runs, you are ready.
@@ -103,6 +103,7 @@ The tab consists of five cards, each with its own “Save”.
 Here you choose the **controller manufacturer**: Hunter Hydrawise (via Home Assistant or directly with an API key), Rain Bird, Rachio, OpenSprinkler, Orbit B-hyve, Gardena, Shelly relays on solenoid valves, ESPHome or “Other manufacturer”. The banner at the top shows whether the connection is up.
 
 - **Via Home Assistant:** under the field it says which integration you need to add in Home Assistant. The zones then appear as a choice in “Courts & zones”. If the list is empty, the add-on has no access to Home Assistant; rebuild and restart the add-on.
+- **Maximum run time in the device (via Home Assistant):** Clubwerk switches each zone off after its run time. If that fails, Clubwerk tries again every 10 seconds, even after a restart; the operating page then shows “Stop will follow”, and no further zone starts in the meantime. After 5 minutes without success, a security warning is sent. If Home Assistant or the network fails completely, however, nobody closes the valve. So set a maximum run time in the device or in Home Assistant, such as “Switch off automatically” on the relay or an automation that closes the zone after 60 minutes at most. Hydrawise knows the run time itself and does not need this.
 - **Directly with Hydrawise:** enter the **API key** (from hydrawise.com › Account › Settings). It stays on the server and is never visible in the browser. “Delete key” removes it after a confirmation; afterwards Clubwerk cannot switch anything.
 - **Changing manufacturer:** if this changes the type of connection (Home Assistant or direct), Clubwerk asks first, because the courts have to be created again afterwards.
 - **“Other manufacturer”** (free choice of all valves and switches) can only be chosen by users with all permissions.

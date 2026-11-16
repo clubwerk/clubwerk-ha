@@ -41,7 +41,7 @@ Die Karte zeigt, ab wann heute Licht möglich ist (**Dunkel ab**), wann die **Na
 
 #### Lichtanlagen
 
-Jede Lichtanlage ist eine Kachel. Brennt das Licht, ist sie farbig hinterlegt und zeigt, bis wann („An bis 20:30 Uhr · noch 42 Min.“) und warum („Buchung Becker, Anna“, „Vereinsbuchung“, „App: …“). Ist es aus, steht dort, wann die Automatik es als Nächstes einschaltet.
+Jede Lichtanlage ist eine Kachel. Brennt das Licht, ist sie farbig hinterlegt und zeigt, bis wann („An bis 20:30 Uhr · noch 42 Min.“) und warum („Buchung Becker, Anna“, „Vereinsbuchung“, „App: …“). Ist es aus, steht dort, wann die Automatik es als Nächstes einschaltet. Stimmt die Uhrzeit von Clubwerk nach einem Neustart nicht (rote Warnung in der Übersicht), schaltet die Automatik nichts ein, bis die Uhr stimmt; Ausschalten und die Nachtruhe gehen weiter.
 
 - **Einschalten:** öffnet ein Fenster, in dem ihr die Dauer wählt (30 Minuten bis 8 Stunden). Aus der Verwaltung geht das auch vor der Dunkelheit, nach der Nachtruhe und ohne Lichtgeld.
 - **+30 Min.:** verlängert das Licht (die Minutenzahl stellt ihr in den Einstellungen ein).
@@ -87,7 +87,7 @@ Clubwerk rechnet den Sonnenuntergang selbst aus dem **Breiten- und Längengrad**
 
 ![Karte „Nachtruhe“: Uhrzeit je Wochentag.](bild: seite=flutlicht-zeiten; ziel=.card:has(#flQ1))
 
-Je Wochentag die Uhrzeit, zu der alles ausgeht, was Mitglieder, Tablet und Automatik eingeschaltet haben (zwischen 17:00 und 24:00 Uhr; Vorgabe 22:00 Uhr). Bis 6 Uhr morgens bleibt dann alles aus. Wird ein Licht in dieser Zeit in Home Assistant eingeschaltet, schaltet Clubwerk es wieder aus. Nur die Verwaltung darf nach der Nachtruhe einschalten, mit fester Dauer.
+Je Wochentag die Uhrzeit, zu der alles ausgeht, was Mitglieder, Tablet und Automatik eingeschaltet haben (zwischen 17:00 und 24:00 Uhr; Vorgabe 22:00 Uhr). Bis 6 Uhr morgens bleibt dann alles aus. Wird ein Licht in dieser Zeit in Home Assistant eingeschaltet, schaltet Clubwerk es wieder aus. Nur die Verwaltung darf nach der Nachtruhe einschalten, mit fester Dauer. Meldet Home Assistant den Zustand eines Lichts nicht (Gerät oder Verbindung gestört), schaltet Clubwerk es zur Nachtruhe trotzdem einmal aus. Als Rückfall, falls Clubwerk selbst ausfällt, empfehlen wir eine Automation in Home Assistant, die das Flutlicht zur Nachtruhe ausschaltet.
 
 #### Saison
 

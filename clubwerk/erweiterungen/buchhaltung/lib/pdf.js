@@ -18,114 +18,19 @@
  *   donation(club, d)     → Promise<Buffer>
  *   amountInWords(cents)  → „einhundertdreiundzwanzig Euro und fünfundvierzig Cent“
  */
-const PDFDocument = require('pdfkit');
 const giro = require('../../../src/girocode');
-const QR = 80, QZ = 10;   // QR-Code für Überweisungen: Kantenlänge (≈ 28 mm) und weiße Ruhezone
-
-/* ---------- Raster & Farben ---------- */
-const PW = 595.28, PH = 841.89;
-const L = 56.7, R = PW - 56.7, W = R - L;          // 20 mm links und rechts
-const TOP = 40, BOTTOM = PH - 70, FOOT = PH - 44;  // Inhalt endet über der (zweizeiligen) Fußzeile
-const INK = '#1b1f24', MUTED = '#6b7280', SOFT = '#9aa1ab', LINE = '#d5d9df', FAINT = '#f3f4f6';
-const DEFAULT_COLOR = /^#[0-9a-f]{6}$/i.test(process.env.CLUB_COLOR || '') ? process.env.CLUB_COLOR : '#1f6b3a';
-
-const euro = c => (Math.round(c || 0) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const B = require('../../../src/brief');
+const { PH, L, R, W, TOP, INK, MUTED, SOFT, LINE, FAINT, euro, fmtIban, collect, brand, newDoc, head, headSmall, box } = B;
 const { deD, today: todayIso } = require('../../../src/util');   // 'JJJJ-MM-TT' → 'TT.MM.JJJJ', anderes unverändert
-const fmtIban = v => String(v || '').replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
-const mix = (hex, t) => '#' + [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).map(v => Math.round(v + (255 - v) * t).toString(16).padStart(2, '0')).join('');
+const QR = 80, QZ = 10;   // QR-Code für Überweisungen: Kantenlänge (≈ 28 mm) und weiße Ruhezone
+const BOTTOM = PH - 70, FOOT = PH - 44;   // Inhalt endet über der (zweizeiligen) Fußzeile
 const qtyFmt = q => Number(q == null ? 1 : q).toLocaleString('de-DE', { maximumFractionDigits: 3 });
 const pct = v => `${Number(v || 0).toLocaleString('de-DE')} %`;
-const keepEV = s => String(s || '').replace(/\s+(e\.)\s*(V\.)/g, ' $1 $2');   // „e. V.“ nie allein in der nächsten Zeile
 
-function collect(doc) {
-  return new Promise((resolve, reject) => { const ch = []; doc.on('data', c => ch.push(c)); doc.on('end', () => resolve(Buffer.concat(ch))); doc.on('error', reject); });
-}
-const isImg = b => Buffer.isBuffer(b) && b.length > 100 && ((b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) || (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff));
-
-/* ---------- Vereinslogo & Vereinsfarbe (aus den Einstellungen des Kerns) ---------- */
-let core = null;
-try { core = require('../../../src/db'); } catch (e) { core = null; }
-function brand(club = {}) {
-  const g = (k, d = '') => { try { return core ? core.getSetting(k, d) : d; } catch (e) { return d; } };
-  let color = club.color || g('club_color', '');
-  if (!/^#[0-9a-f]{6}$/i.test(color)) color = DEFAULT_COLOR;
-  let logo = isImg(club.logo) ? club.logo : null;
-  if (!logo && club.logo !== false) {
-    const type = g('club_logo_type');
-    try {
-      if (type === 'png' || type === 'jpg') logo = Buffer.from(g('club_logo'), 'base64');
-      else if (type && g('club_logo_png') && g('club_logo_png_ver') === g('club_logo_ver', 'std')) logo = Buffer.from(g('club_logo_png'), 'base64');   // SVG-Logo: vom Browser gezeichnetes PNG
-    } catch (e) { logo = null; }
-    if (!isImg(logo)) logo = null;
-  }
-  return { color, soft: mix(color, 0.9), logo };
-}
-
-/* ---------- gemeinsame Bausteine ---------- */
-function newDoc(club, title) {
-  return new PDFDocument({ size: 'A4', margins: { top: TOP, bottom: 20, left: L, right: PW - R }, bufferPages: true, info: { Title: title, Author: club.name || '' } });
-}
-/** Kopf: Logo + Vereinsname links, Anschrift rechtsbündig, darunter eine feine Linie in Vereinsfarbe → y unter der Linie */
-function head(doc, club, b) {
-  const H = 46, y0 = TOP;
-  let x = L;
-  if (b.logo) {
-    try {
-      const img = doc.openImage(b.logo);
-      const k = Math.min(130 / img.width, H / img.height);
-      const w = img.width * k, h = img.height * k;
-      doc.image(img, L, y0 + (H - h) / 2, { width: w, height: h });
-      x = L + w + 14;
-    } catch (e) { x = L; }
-  }
-  const addr = [club.street, club.city].filter(Boolean);
-  const nameW = R - x - 170;
-  const name = keepEV(club.name);
-  doc.font('Helvetica-Bold').fontSize(13).fillColor(INK);
-  const nh = doc.heightOfString(name, { width: nameW });
-  doc.text(name, x, y0 + (H - nh) / 2, { width: nameW });
-  if (addr.length) {
-    doc.font('Helvetica').fontSize(8.5).fillColor(MUTED);
-    const ah = doc.heightOfString(addr.join('\n'), { width: 160, lineGap: 1.5 });
-    doc.text(addr.join('\n'), R - 160, y0 + (H - ah) / 2, { width: 160, align: 'right', lineGap: 1.5 });
-  }
-  const ly = y0 + H + 10;
-  doc.moveTo(L, ly).lineTo(R, ly).lineWidth(1.4).strokeColor(b.color).stroke();
-  return ly + 1;
-}
-/** schmaler Kopf für Folgeseiten */
-function headSmall(doc, club, b, title) {
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(INK).text(club.name || '', L, TOP, { width: W / 2, lineBreak: false });
-  doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(title, L + W / 2, TOP, { width: W / 2, align: 'right', lineBreak: false });
-  doc.moveTo(L, TOP + 16).lineTo(R, TOP + 16).lineWidth(0.8).strokeColor(b.color).stroke();
-  return TOP + 34;
-}
-/** Fußzeile auf allen Seiten: Verein · Anschrift, darunter Kontakt/Steuernummer/Freitext; Seitenzahl bei mehreren Seiten */
+/** Fußzeile: Verein · Anschrift, darunter Kontakt/Steuernummer/Freitext; Seitenzahl bei mehreren Seiten */
 function footer(doc, club, { numbers = true, tax = true } = {}) {
-  const range = doc.bufferedPageRange();
-  const l1 = [club.name, club.street, club.city].filter(Boolean).join(' · ');
-  const l2 = [club.phone && `Tel. ${club.phone}`, club.email, tax && club.tax_no && `St.-Nr. ${club.tax_no}`, tax && club.vat_id && `USt-IdNr. ${club.vat_id}`, club.footer].filter(Boolean).join(' · ');
-  for (let i = range.start; i < range.start + range.count; i++) {
-    doc.switchToPage(i);
-    const mb = doc.page.margins.bottom; doc.page.margins.bottom = 0;
-    doc.moveTo(L, FOOT - 8).lineTo(R, FOOT - 8).lineWidth(0.5).strokeColor(LINE).stroke();
-    doc.font('Helvetica').fontSize(7.2).fillColor(SOFT);
-    doc.text(l1, L, FOOT, { width: W - 74, height: 9, ellipsis: true, lineBreak: false });
-    if (l2) doc.text(l2, L, FOOT + 10, { width: W - 74, height: 9, ellipsis: true, lineBreak: false });
-    if (numbers && range.count > 1) doc.text(`Seite ${i - range.start + 1} von ${range.count}`, R - 70, FOOT, { width: 70, align: 'right', lineBreak: false });
-    doc.page.margins.bottom = mb;
-  }
-}
-/** Falz- und Lochmarken am linken Rand (DIN 5008) */
-function foldMarks(doc) {
-  doc.lineWidth(0.5).strokeColor(SOFT);
-  for (const y of [297.64, 595.28]) doc.moveTo(14, y).lineTo(24, y).stroke();
-  doc.moveTo(14, PH / 2).lineTo(20, PH / 2).stroke();
-}
-/** Kästchen (angekreuzt oder leer) */
-function box(doc, x, y, on, color = INK) {
-  doc.rect(x, y, 9, 9).lineWidth(0.8).strokeColor(on ? color : '#8a919b').stroke();
-  if (on) doc.moveTo(x + 1.8, y + 4.6).lineTo(x + 3.9, y + 7).lineTo(x + 7.4, y + 1.9).lineWidth(1.4).strokeColor(color).stroke();
+  const line2 = [club.phone && `Tel. ${club.phone}`, club.email, tax && club.tax_no && `St.-Nr. ${club.tax_no}`, tax && club.vat_id && `USt-IdNr. ${club.vat_id}`, club.footer].filter(Boolean).join(' · ');
+  B.footer(doc, club, { numbers, line2, foot: FOOT });
 }
 /** Anschriftzeilen eines Empfängers (DIN 5008: Name, z. Hd., Straße, PLZ Ort, Land in Großbuchstaben) */
 function addressLines(p = {}) {
@@ -146,12 +51,7 @@ function periodText(p) {
  * Brief-Kopf im Fensterbereich: Rücksendeangabe, Anschrift, rechts Infoblock, Betreff → y für den Text
  */
 function letterHead(doc, club, b, lines, title, info) {
-  head(doc, club, b);
-  foldMarks(doc);
-  const ret = [club.name, club.street, club.city].filter(Boolean).join(' · ');
-  let rs = 6.8; doc.font('Helvetica'); while (rs > 5.2 && doc.fontSize(rs).widthOfString(ret) > 240) rs -= 0.2;
-  doc.fontSize(rs).fillColor(SOFT).text(ret, L, 128, { width: 240, height: 9, ellipsis: true });
-  doc.moveTo(L, 137).lineTo(L + 240, 137).lineWidth(0.4).strokeColor(LINE).stroke();
+  B.letterTop(doc, club, b);
   doc.font('Helvetica').fontSize(10.5).fillColor(INK).text(lines.slice(0, 6).join('\n'), L, 146, { width: 240, lineGap: 1.5, height: 100, ellipsis: true });
   const IW = 200, ix = R - IW, lw = 92;
   let iy = 146;

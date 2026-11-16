@@ -11,8 +11,7 @@
       el.innerHTML = `<div class="vh-status"><span class="vh-dot busy" id="flDot"></span><span id="flSt">Verbinde …</span></div>
         <div id="flTiles" class="vh-tiles lights"></div><div id="flFee"></div><p class="vh-note">Schalten geht nur im WLAN des Vereinsheims. Das Licht geht von selbst wieder aus.</p>`;
       let v = null, timer = null, alive = true;
-      const sheet = () => { let sh = document.getElementById('flSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'flSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); } return sh; };
-      const close = () => { const s = document.getElementById('flSheet'); if (s) s.classList.remove('show'); };
+      const { open: sheet, close } = VA.sheet('flSheet');
       async function refresh() {
         clearTimeout(timer);
         try {

@@ -7,7 +7,7 @@
   else root.CWCore = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-  var PH = /\{(\d+|[a-zA-Z_][a-zA-Z0-9_]*)\}/g;
+  var PH = /\{(\d+|[a-zA-ZÄÖÜäöüß_][a-zA-Z0-9_ÄÖÜäöüß]*)\}/g;
   var DW = 'Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag|Mo|Di|Mi|Do|Fr|Sa|So|Jan|Feb|Mär|Apr|Jun|Jul|Aug|Sep|Okt|Nov|Dez';
   var DATEWORD = new RegExp('(^|[^A-Za-zÄÖÜäöüß])(' + DW + ')(?![A-Za-zÄÖÜäöüß])'), DATEWORD_G = new RegExp('(?<![A-Za-zÄÖÜäöüß])(' + DW + ')(?![A-Za-zÄÖÜäöüß])', 'g');
   var ABBR = /(?:(?:^|[\s(])(?:z|d|u|o|s)\.(?: [A-Za-z]\.)?|\b(?:ca|Nr|bzw|evtl|inkl|max|min|Std|usw|vgl|ggf|bspw|etc|Tel|Str|Kd|Art|Kunden-Nr|Mo|Di|Mi|Do|Fr|Sa|So)\.)$/;
@@ -74,7 +74,7 @@
         if (p.weight < 12 && t.length - p.hint.length > 120) continue;
         // ein eingesetzter Teil mit Satzende davor/danach ist meist ein zweiter Satz → lieber Satz für Satz übersetzen
         var multi = false;
-        for (var c = 1; c < m.length; c++) if (m[c] && /[.!?] (?=[A-ZÄÖÜ„"(])/.test(m[c]) && !ABBR.test(m[c].split(/[.!?] (?=[A-ZÄÖÜ„"(])/)[0] + '.')) { multi = true; break; }
+        for (var c = 1; c < m.length; c++) if (m[c] && d.exact.get(norm(m[c])) === undefined && /[.!?] (?=[A-ZÄÖÜ„"(])/.test(m[c]) && !ABBR.test(m[c].split(/[.!?] (?=[A-ZÄÖÜ„"(])/)[0] + '.')) { multi = true; break; }
         if (multi) continue;
         var vars = {};
         for (var j = 0; j < p.names.length; j++) {
@@ -98,6 +98,9 @@
               if (hit2) sub = items.join(', ');
             }
           }
+          // Tagesworte am Anfang eines eingesetzten Teils („morgen 14:00 Uhr“, vom Server zusammengesetzt) je Sprache übersetzen
+          var dwm = /^(heute|morgen|gestern|übermorgen|(?:Mo|Di|Mi|Do|Fr|Sa|So)(?=\s\d))(?=\s|$)/.exec(sub !== null ? sub : val || '');
+          if (dwm && d.exact.get(dwm[1]) !== undefined) sub = (sub !== null ? sub : val).replace(dwm[1], d.exact.get(dwm[1]));
           if (sub !== null) { var ws = /^(\s*)[\s\S]*?(\s*)$/.exec(val); sub = ws[1] + sub + ws[2]; }
           vars[p.names[j]] = sub !== null ? sub : val;
         }

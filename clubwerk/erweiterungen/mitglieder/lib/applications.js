@@ -15,7 +15,7 @@ function register(sh) {
   const admin = C.admin, db = C.db;
   const P = need('mitglieder');
   const isDate = fees.isDate;
-  const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street: S('club_street'), city: S('club_city'), ci: S('creditor_id') });
+  const club = () => { const { street, city } = C.clubAddress(); return { name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street, city, ci: S('creditor_id') }; };
   const formFees = () => db.prepare('SELECT id, name, cents, interval, family, age_min, age_max, work_minutes FROM mv_fee WHERE active = 1 AND on_form = 1 AND kind != \'zusatz\' ORDER BY sort, name').all();
 
   /** Abteilungen mit Zusatzbeiträgen (je Person ankreuzbar) */
@@ -93,15 +93,7 @@ function register(sh) {
     const a = fees.ageAt(birth, today());
     return formFees().filter(f => !f.family && fees.fitsAge(f, a)).sort(fees.higherFirst)[0] || null;
   }
-  /* Unterschrift: PNG (App und Formular liefern 600 px Breite). Die Maße im Bildkopf begrenzen – ein winzig gepacktes PNG mit
-     riesigen Maßen ließe sonst beim PDF-Bau Gigabytes an Speicher reservieren und den Server blockieren. */
-  const sigOk = s => {
-    if (typeof s !== 'string' || s.length >= 280000 || !/^data:image\/png;base64,[A-Za-z0-9+/=]{400,}$/.test(s)) return false;
-    const h = Buffer.from(s.slice(22, 22 + 44), 'base64');
-    if (h.length < 24 || h.readUInt32BE(0) !== 0x89504e47 || h.toString('latin1', 12, 16) !== 'IHDR') return false;
-    const w = h.readUInt32BE(16), ht = h.readUInt32BE(20);
-    return w > 0 && ht > 0 && w <= 1200 && ht <= 1200;
-  };
+  const { sigOk } = C.util;   // Unterschrift: PNG (App und Formular liefern 600 px Breite), Maße begrenzt (src/util.js)
   const hashOf = (data, a, b, at) => crypto.createHash('sha256').update(JSON.stringify({ data, sig_member: a, sig_mandate: b, signed_at: at })).digest('hex');
 
   /** Unterschrift abschließen: Prüfwert, PDF, Benachrichtigung */
@@ -217,24 +209,29 @@ function register(sh) {
   /* Code zur Unterschrift am Tablet (6 Ziffern, 3 Std.): gesalzen (scrypt) wie PINs – ein heller sha256 ließe sich aus einer
      Datenbank-Kopie sofort zurückrechnen. Nachschlagen: die wenigen wartenden Anträge der Reihe nach prüfen. (planung/geheimnisse.md) */
   const codeHash = c => C.auth.hashSecret('mvcode:' + c);
-  const appByCode = code => db.prepare("SELECT * FROM mv_application WHERE status = 'unterschrift' AND code_hash IS NOT NULL AND code_expires > ? ORDER BY id DESC LIMIT 200").all(Date.now())
-    .find(a => C.auth.verifySecret('mvcode:' + code, a.code_hash)) || null;
-  admin.post('/applications', P, (req, res) => {
+  const vorfilter = C.require('./tabletcode').vorfilter();   // ein falscher Code kostet kein scrypt (src/tabletcode.js)
+  const appByCode = code => vorfilter.finde(code, {
+    einer: id => db.prepare("SELECT * FROM mv_application WHERE id = ? AND status = 'unterschrift' AND code_hash IS NOT NULL AND code_expires > ?").get(id, Date.now()),
+    alle: () => db.prepare("SELECT * FROM mv_application WHERE status = 'unterschrift' AND code_hash IS NOT NULL AND code_expires > ? ORDER BY id DESC LIMIT 200").all(Date.now()),
+    pruefe: a => C.auth.verifySecret('mvcode:' + code, a.code_hash) });
+  admin.post('/applications', P, async (req, res) => {
     const b = req.body || {};
     const r = validate(b.data, { needBank: true }); if (r.error) return bad(res, r.error);
     if (!r.v.consents || !consentList().filter(c => c.required).every(c => r.v.consents[c.key])) { /* Pflicht-Einwilligungen gibt die Person beim Unterschreiben */ }
     const code = newCode();
     const data = { ...r.v, auto_accept: b.auto_accept !== false };
     const id = Number(db.prepare("INSERT INTO mv_application(source, status, data, code_hash, code_expires, created_by) VALUES ('verwaltung', 'unterschrift', ?, ?, ?, ?)")
-      .run(JSON.stringify(data), codeHash(code), Date.now() + 3 * 3600000, uname(req)).lastInsertRowid);
+      .run(JSON.stringify(data), await codeHash(code), Date.now() + 3 * 3600000, uname(req)).lastInsertRowid);
+    vorfilter.merke(id, code);
     C.audit(req.user, 'Beitrittserklärung zur Unterschrift ans Tablet', r.v.persons.map(p => `${p.first_name} ${p.last_name}`).join(', '));
     res.json({ id, code, expires_in_min: 180 });
   });
-  admin.post('/applications/:id/code', P, (req, res) => {
+  admin.post('/applications/:id/code', P, async (req, res) => {
     const a = db.prepare('SELECT * FROM mv_application WHERE id = ?').get(int(req.params.id));
     if (!a || a.status !== 'unterschrift') return bad(res, 'Dieser Antrag wartet nicht auf eine Unterschrift.');
     const code = newCode();
-    db.prepare('UPDATE mv_application SET code_hash = ?, code_expires = ? WHERE id = ?').run(codeHash(code), Date.now() + 3 * 3600000, a.id);
+    db.prepare('UPDATE mv_application SET code_hash = ?, code_expires = ? WHERE id = ?').run(await codeHash(code), Date.now() + 3 * 3600000, a.id);
+    vorfilter.merke(a.id, code);
     res.json({ code, expires_in_min: 180 });
   });
   admin.put('/applications/:id', P, (req, res) => {
@@ -290,8 +287,8 @@ function register(sh) {
 
   /* ---------- Tablet ---------- */
   const T = C.tablet;
-  const tFails = C.require('./security').limiter({ per: 8, baseMs: 15 * 60000 });
-  const tAll = C.require('./security').limiter({ per: 30, baseMs: 15 * 60000 });   // zusätzlich für alle Tablets zusammen – der 6-stellige Code lässt sich nicht von mehreren Geräten im WLAN durchprobieren
+  /* Sperre je Tablet; über alle Tablets zusammen nur eine Sicherheitswarnung, keine Sperre (src/tabletcode.js) */
+  const tBremse = C.require('./tabletcode').bremse({ alarmAlle: () => C.securityAlert('antragscode', 'Beitrittserklärung am Tablet: über alle Tablets mehr als 30 falsche Codes in 15 Minuten – bitte prüfen, wer Codes durchprobiert.') });
   T.get('/antrag/config', (req, res) => {
     const c = formConfig();
     res.json({ ...c, waiting: db.prepare("SELECT COUNT(*) n FROM mv_application WHERE status = 'unterschrift' AND code_expires > ?").get(Date.now()).n });
@@ -305,23 +302,25 @@ function register(sh) {
     res.json(await finalize(id, 'tablet', b.sig_member, b.sig_mandate));
   }));
   /** Antrag aus der Verwaltung mit dem Code öffnen */
-  function byCode(req, res) {
+  // nacheinander (scrypt rechnet asynchron): die Sperren werden erst in der Reihe gelesen
+  const byCode = (req, res) => C.auth.nacheinander('mvcode', () => byCodeJetzt(req, res));
+  async function byCodeJetzt(req, res) {
     const ip = req.ip || '?';
-    const w = Math.max(tFails.blocked(ip), tAll.blocked('*'));
+    const w = tBremse.wartet(ip);
     if (w) { bad(res, `Zu viele falsche Codes – bitte ${w} Min. warten.`, 429); return null; }
     const code = String((req.body || {}).code || '').replace(/\D/g, '');
-    const a = code.length === 6 ? appByCode(code) : null;
-    if (!a) { tFails.fail(ip); if (tAll.fail('*').locked) C.securityAlert('antragscode', 'Beitrittserklärung am Tablet: 30-mal ein falscher Code – die Code-Eingabe ist für alle Tablets gesperrt.'); bad(res, 'Der Code stimmt nicht oder ist abgelaufen.', 404); return null; }
-    tFails.ok(ip);
+    const a = code.length === 6 ? await appByCode(code) : null;
+    if (!a) { tBremse.falsch(ip); bad(res, 'Der Code stimmt nicht oder ist abgelaufen.', 404); return null; }
+    tBremse.richtig(ip);
     return a;
   }
-  T.post('/antrag/open', rateLimit('mvcode', 20, 10 * 60000), (req, res) => {
-    const a = byCode(req, res); if (!a) return;
+  T.post('/antrag/open', rateLimit('mvcode', 20, 10 * 60000), async (req, res) => {
+    const a = await byCode(req, res); if (!a) return;
     const d = JSON.parse(a.data);
     res.json({ id: a.id, data: { ...d, iban: sepa.fmtIban(d.iban) }, config: formConfig() });
   });
   T.post('/antrag/sign', rateLimit('mvcode', 20, 10 * 60000), ar(async (req, res) => {
-    const a = byCode(req, res); if (!a) return;
+    const a = await byCode(req, res); if (!a) return;
     const b = req.body || {};
     if (!sigOk(b.sig_member) || !sigOk(b.sig_mandate)) return bad(res, 'Bitte beide Unterschriften leisten.');
     // Einwilligungen gibt die Person selbst am Tablet

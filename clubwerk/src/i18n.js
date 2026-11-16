@@ -96,7 +96,7 @@ function list() {
     const m = meta(code); const b = builtin().get(code); const c = customRow(code);
     let done = total;
     if (code !== 'de') { const s = strings(code); const norm = new Set(Object.keys(s).filter(k => s[k]).map(Core.norm)); done = cat.filter(k => norm.has(k)).length; }
-    let customCount = 0; if (c) { try { customCount = Object.keys(JSON.parse(c.strings)).length; } catch (e) { /* egal */ } }
+    let customCount = 0; if (c) { try { customCount = Object.keys(JSON.parse(c.strings)).length; } catch (e) { /* beschädigte eigene Texte: wie ohne */ } }
     return { code, name: m ? m.name : code, locale: m ? m.locale : code, dir: m ? m.dir : 'ltr', builtin: code === 'de' || Boolean(b && b.own), plugin: Boolean(b && !b.own),
       custom: Boolean(c), customCount, updatedAt: c ? c.updated_at : null, total, done, coverage: total ? Math.round(done / total * 1000) / 10 : 100 };
   }).sort((a, b) => (a.code === 'de' ? -1 : b.code === 'de' ? 1 : a.name.localeCompare(b.name)));
@@ -222,7 +222,7 @@ function exportJson(code, { template = false, appVersion = '' } = {}) {
   const sn = new Map(Object.entries(s).map(([k, v]) => [Core.norm(k), v]));
   const out = {};
   for (const k of cat) out[k] = code === 'de' && !template ? (sn.get(k) || k) : (sn.get(k) || '');
-  if (code === 'de' && !template) { const c = customRow('de'); if (c) { try { for (const [k, v] of Object.entries(JSON.parse(c.strings))) out[Core.norm(k)] = v; } catch (e) { /* egal */ } } }
+  if (code === 'de' && !template) { const c = customRow('de'); if (c) { try { for (const [k, v] of Object.entries(JSON.parse(c.strings))) out[Core.norm(k)] = v; } catch (e) { /* beschädigte eigene Texte: wie ohne */ } } }
   return { _anleitung: code === 'de' && !template ? 'Deutsch ist die Ausgangssprache. Werte ändern, um Begriffe anzupassen (z. B. „Spieler“ statt „Mitglieder“), und wieder importieren. ' + AI_HINT.replace('Anleitung: ', '') : AI_HINT,
     _meta: { code: m.code, name: m.name, locale: m.locale, dir: m.dir, basis: 'de', app: 'Clubwerk ' + appVersion, texte: cat.length }, strings: out };
 }
@@ -372,5 +372,4 @@ function init(o) {
   patchGlobals();
 }
 
-module.exports = { aliases, init, reload, list, catalog, strings, meta, exists, resolve, clubLang, normCode, dict, tr, T, current, run, locale,
-  middleware, exportJson, exportXlsx, parseUpload, importData, remove, pageScript, pageAsset, sendPage, LANG_DIR };
+module.exports = { aliases, init, reload, list, catalog, strings, meta, exists, resolve, clubLang, normCode, dict, tr, T, current, run, locale, middleware, exportJson, exportXlsx, parseUpload, importData, remove, sendPage };

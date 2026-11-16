@@ -5,14 +5,14 @@
    Nur aktive Module werden gefragt, je Modul höchstens 3 Sekunden; ein Fehler im Hook wird selbst zum Fund.
    Gespeichert werden nur Ergebnis und Zeitpunkt (Anzahlen, höchstens 5 Namen) – keine Inhalte aus dem Tresor.
    Die Knöpfe führen immer zur Stelle, an der man es selbst behebt; Geld wird nie per Knopf korrigiert. */
-const { db, getSetting, setSetting } = require('./db');
+const { db, getJsonSetting, setSetting } = require('./db');
 const plugins = require('./plugins');
 
 const KEY = 'datenqualitaet';
 const str = (v, n) => String(v == null ? '' : v).slice(0, n);
 
 /** Prüfungen des Kerns */
-function kern() {
+async function kern() {
   const out = [];
   if (plugins.isActive('getraenke')) {
     // Verkauf: Kontostände werden aus den Buchungen berechnet – Geld kann nur auf gelöschten Konten „verschwinden“
@@ -23,7 +23,7 @@ function kern() {
   }
   out.push({ id: 'vereinsname', title: 'Vereinsname fehlt', level: 'r', count: require('./vereinsname').isSet() ? 0 : 1,
     why: 'Ohne Namen steht überall „Unser Verein“, und es werden keine E-Mails und Hinweise an Mitglieder verschickt.', fix: { label: 'Vereinsnamen eintragen', page: 'einstellungen' } });
-  out.push(require('./gobd').healthCheck());   // Prüfkette des Änderungsjournals
+  out.push(await require('./gobd').healthCheck());   // Prüfkette des Änderungsjournals
   const inv = db.prepare(`SELECT COUNT(*) n FROM member_devices d JOIN members m ON m.id = d.member_id AND m.deleted = 0
     WHERE d.invite_hash IS NOT NULL AND d.token_hash IS NULL AND d.blocked_at IS NULL AND d.invite_expires < ?`).get(Date.now()).n;
   out.push({ id: 'einladungen', title: 'Abgelaufene Einladungen', level: 'a', count: inv,
@@ -41,7 +41,7 @@ const sauber = (c, mod) => ({
 /** Alle Prüfungen laufen lassen und das Ergebnis speichern */
 async function pruefen() {
   const list = [];
-  try { kern().forEach(c => list.push(sauber(c))); } catch (e) { list.push(sauber({ id: 'fehler', title: 'Prüfung des Kerns fehlgeschlagen', level: 'r', count: 1, why: e.message })); }
+  try { (await kern()).forEach(c => list.push(sauber(c))); } catch (e) { list.push(sauber({ id: 'fehler', title: 'Prüfung des Kerns fehlgeschlagen', level: 'r', count: 1, why: e.message })); }
   for (const p of plugins.withHook('healthChecks')) {
     const mod = { id: p.meta.id, name: p.meta.name };
     try {
@@ -57,7 +57,7 @@ async function pruefen() {
 }
 
 function stand() {
-  try { const r = JSON.parse(getSetting(KEY, '')); if (r && Array.isArray(r.list)) return r; } catch (e) { /* noch nie geprüft */ }
+  const r = getJsonSetting(KEY, null, x => Boolean(x && Array.isArray(x.list))); if (r) return r;   // sonst: noch nie geprüft
   return { at: '', list: [] };
 }
 const funde = r => r.list.filter(c => c.count > 0);

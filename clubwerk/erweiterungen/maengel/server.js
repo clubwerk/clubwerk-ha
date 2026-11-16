@@ -40,8 +40,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
   const { lastFirst } = ctx.require('./db');
   const DIR = path.join(ctx.require('./db').DATA_DIR, 'fotos', 'maengel');   // unter „fotos“: Tresor und Komplettsicherung erfassen den Ordner mit
   const P = need('maengel');
-  const S = (k, d) => ctx.getSetting('ext_maengel_' + k, d);
-  const SET = (k, v) => ctx.setSetting('ext_maengel_' + k, String(v));
+  const S = ctx.setting, SET = ctx.setSetting2;
   const cfg = () => ({ keep_months: Math.min(120, Math.max(1, int(S('keep_months', '12')) || 12)), mail_on: S('mail_on', '1') === '1', notify: S('notify', '') });
   const CFG_LABELS = { keep_months: 'Erledigte Meldungen löschen nach (Monaten)', mail_on: ['E-Mail bei neuen Meldungen', 'bool'], notify: 'Weitere E-Mail-Empfänger' };
   const clubName = () => ctx.getSetting('club_name', 'Verein');
@@ -288,7 +287,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
   function dropOrphans() {
     const known = new Set(db.prepare('SELECT file, thumb FROM mg_photo').all().flatMap(r => [r.file, r.thumb]));
     let list = []; try { list = fs.readdirSync(DIR); } catch (e) { return; }
-    for (const f of list) if (!known.has(f)) try { fs.unlinkSync(path.join(DIR, f)); } catch (e) { /* weiter */ }
+    for (const f of list) if (!known.has(f)) try { fs.unlinkSync(path.join(DIR, f)); } catch (e) { /* schon gelöscht: nächste Datei */ }
   }
   try { dropOrphans(); } catch (e) { console.error('Mängel – verwaiste Fotos:', e.message); }
   setInterval(() => { try { cleanup(); } catch (e) { console.error('Mängel – Aufräumen:', e.message); } }, process.env.CW_TEST_FAST ? 1500 : 3600000).unref();

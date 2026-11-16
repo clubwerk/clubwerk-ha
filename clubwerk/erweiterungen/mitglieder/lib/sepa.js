@@ -4,6 +4,7 @@
  * (ältere Versionen wie pain.008.001.02 werden dann nicht mehr angenommen).
  * Dazu: Prüfung von IBAN, BIC und Gläubiger-ID, SEPA-Zeichensatz, Bankarbeitstage (TARGET2).
  */
+const { addDays } = require('../../../src/util');
 
 const IBAN_LEN = { AD: 24, AT: 20, BE: 16, BG: 22, CH: 21, CY: 28, CZ: 24, DE: 22, DK: 18, EE: 20, ES: 24, FI: 18, FR: 27, GB: 22, GI: 23, GR: 27, HR: 21, HU: 28,
   IE: 22, IS: 26, IT: 27, LI: 21, LT: 20, LU: 20, LV: 21, MC: 27, MT: 31, NL: 18, NO: 15, PL: 28, PT: 25, RO: 24, SE: 24, SI: 19, SK: 24, SM: 27, VA: 22 };
@@ -70,7 +71,6 @@ function isBankDay(s) {
   const em = new Date(e); em.setUTCDate(e.getUTCDate() + 1);
   return s !== isoD(gf) && s !== isoD(em);
 }
-function addDays(s, n) { const d = parseD(s); d.setUTCDate(d.getUTCDate() + n); return isoD(d); }
 function nextBankDay(s) { let d = s; while (!isBankDay(d)) d = addDays(d, 1); return d; }
 function addBankDays(s, n) { let d = s, k = 0; while (k < n) { d = addDays(d, 1); if (isBankDay(d)) k++; } return d; }
 /**

@@ -43,7 +43,8 @@ const CORE = {
   'notfall': ['Notfall-Passwort gesetzt', 'r', 'Das Notfall-Passwort wurde gesetzt.'],
   'tresor.aus': ['Tresor ausgeschaltet', 'r', 'Die Verschlüsselung der persönlichen Daten wurde ausgeschaltet.'],
   'tresor.code': ['Tresor mit Wiederherstellungscode', 'r', 'Der Tresor wurde mit dem Wiederherstellungscode geöffnet oder ein falscher Code eingegeben.'],
-  'tresor.wartet': ['Tresor gesperrt – Sicherung wartet', 'r', 'Clubwerk wurde neu gestartet: Sicherung und E-Mails warten, bis sich ein Admin anmeldet.'],
+  'tresor.wartet': ['Tresor gesperrt – Sicherung wartet', 'r', 'Der Tresor ist seit dem Neustart gesperrt: Sicherung und E-Mails warten, bis sich ein Admin anmeldet.'],
+  'pin.pfeffer': ['PINs nach Wiederherstellung ungültig', 'r', 'Nach einer Wiederherstellung müssen die PINs neu gesetzt werden.'],
   'tresor.neu': ['Neuer Wiederherstellungscode', 'i', 'Ein neuer Wiederherstellungscode wurde erzeugt.'],
   'sicherung.ziel': ['Sicherungsziel geändert', 'r', 'Ein Ziel der Datensicherung wurde geändert.'],
   'sicherung.passwort': ['Sicherungspasswort geändert', 'a', 'Das Sicherungspasswort wurde geändert.'],
@@ -53,9 +54,13 @@ const CORE = {
   'sicherung.probe': ['Probe-Wiederherstellung mit Befund', 'r', 'Die Probe-Wiederherstellung der Datensicherung hat etwas gefunden.'],
   'datenqualitaet': ['Fehler in den Daten', 'a', 'Die Prüfung der Daten hat Fehler gefunden.'],
   'gobd': ['Änderungsjournal (GoBD) unterbrochen', 'r', 'Die Prüfkette des Änderungsjournals ist unterbrochen.'],
+  'uhr': ['Uhrzeit stimmt nicht', 'r', 'Die Uhrzeit von Clubwerk stimmt nicht – Geldläufe und zeitgesteuerte Geräte sind gesperrt.'],
+  'absturz': ['Clubwerk stürzt häufig ab', 'r', 'Clubwerk wurde mehrfach unerwartet beendet.'],
+  'datenbank': ['Datenbank beschädigt', 'r', 'Die wöchentliche Prüfung hat Fehler in der Datenbank gefunden.'],
   'speicher': ['Speicher fast voll', 'r', 'Der Speicher von Clubwerk ist fast voll.'],
   'speicher.knapp': ['Speicher wird knapp', 'a', 'Der Speicher von Clubwerk wird knapp.'],
   'update': ['Update eingespielt', 'i', 'Clubwerk wird aktualisiert.'],
+  'update.aelter': ['Ältere Version auf neuerer Datenbank', 'r', 'Clubwerk läuft in einer älteren Version als zuletzt – bitte in der Verwaltung ansehen.'],
   'erweiterung': ['Erweiterung hochgeladen oder freigegeben', 'r', 'Eine Erweiterung wurde hochgeladen oder freigegeben.'],
   'erweiterung.entfernt': ['Erweiterung entfernt', 'i', 'Eine Erweiterung wurde entfernt.'],
   'konto.verein': ['Konto kostenfrei gestellt', 'a', 'Ein Konto wurde auf „Verein (kostenfrei)“ umgestellt.'],
@@ -80,7 +85,7 @@ const clean = t => String(t == null ? '' : t)
   .replace(/(?<!Request-Id )\b(?=[A-Za-z0-9+/_=-]*\d)(?=[A-Za-z0-9+/_=-]*[A-Za-z])([A-Za-z0-9+/_=-]{4})[A-Za-z0-9+/_=-]{20,}/g, '$1…')
   .slice(0, 400);
 
-const stamp = (d = new Date()) => { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
+const { nowTs: stamp } = require('./util');   // lokale Zeit 'JJJJ-MM-TT HH:MM:SS' (Test-Uhr wie überall)
 const DAY_MAX = 10;
 
 /** Empfänger: aktive Benutzer mit dem Recht „Sicherheitswarnungen“ (bei „alle Rechte“ automatisch) */
@@ -257,7 +262,7 @@ function knownHosts() {
   for (const h of String(getSetting('allowed_hosts', '')).split(/[\s,]+/)) if (h) set.add(h.toLowerCase());
   const a = hostOf(getSetting('app_url', '')); if (a) set.add(a);
   if (getSetting('ext_tunnel', '0') === '1') { const t = hostOf(getSetting('ext_tunnel_url', '')); if (t) set.add(t); }
-  try { const b = hostOf(JSON.parse(getSetting('ext_beregnung_cfg', '{}')).webappUrl || ''); if (b) set.add(b); } catch (e) { /* */ }
+  try { const b = hostOf(JSON.parse(getSetting('ext_beregnung_cfg', '{}')).webappUrl || ''); if (b) set.add(b); } catch (e) { /* ungültige Einstellung: keine Zusatzadresse */ }
   hostCache = { at: Date.now(), set };
   return set;
 }
@@ -307,7 +312,7 @@ function v6Prefix64(ip) {   // die ersten vier Blöcke einer (ggf. verkürzten) 
 }
 function ownV6Prefixes() {
   const out = new Set();
-  try { for (const l of Object.values(require('os').networkInterfaces())) for (const a of l || []) if (a.family === 'IPv6' && /^[23]/.test(a.address)) { const p = v6Prefix64(a.address.toLowerCase()); if (p) out.add(p); } } catch (e) { /* */ }
+  try { for (const l of Object.values(require('os').networkInterfaces())) for (const a of l || []) if (a.family === 'IPv6' && /^[23]/.test(a.address)) { const p = v6Prefix64(a.address.toLowerCase()); if (p) out.add(p); } } catch (e) { /* Schnittstellen nicht lesbar: keine eigenen IPv6-Netze */ }
   return out;
 }
 function lanSource(raw, { extra } = {}) {
@@ -317,10 +322,10 @@ function lanSource(raw, { extra } = {}) {
   if (/^127\./.test(ip) || ip === '::1') return true;
   // Sind Vereinsnetze eingetragen, gelten nur diese (plus Seitenleiste/Proxy über „extra“) – nicht mehr jedes private Netz
   let clubList = false;
-  try { const ma = require('./memberapp'); clubList = ma.hasClubNets(); if (clubList) return ma.inClubNets(ip); } catch (e) { /* */ }
+  try { const ma = require('./memberapp'); clubList = ma.hasClubNets(); if (clubList) return ma.inClubNets(ip); } catch (e) { /* ohne Mitglieder-App: eigene Netze ermitteln */ }
   if (privateSource(ip)) return true;
   if (/^[23][0-9a-f]{3}:/.test(ip)) {
-    try { if (require('./memberapp').inClubNets(ip)) return true; } catch (e) { /* */ }
+    try { if (require('./memberapp').inClubNets(ip)) return true; } catch (e) { /* ohne Mitglieder-App: nur eigene Netze */ }
     const p = v6Prefix64(ip); if (p && ownV6Prefixes().has(p)) return true;
   }
   return false;

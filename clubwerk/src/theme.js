@@ -9,11 +9,11 @@ const FL = {   // muted: gedämpfter Text (--muted) – er bleibt auch auf dem S
   hcLight: { bg: '#ffffff', card: '#ffffff', hover: '#eceeea', muted: '#2b322d' },
   hcDark: { bg: '#000000', card: '#0b0e0c', hover: '#1b211d', muted: '#dde3df' },
 };
-const INK = '#131a16', DARK_INK = '#0e1310';
+const DARK_INK = '#0e1310';
 
 const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 /** Farbe mischen: t = Anteil des Ziels (0 = Farbe, 1 = Ziel) */
-const mix = (a, b, t) => { const x = rgb(a), y = rgb(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+const { mixColor: mix } = require('./util');
 const lum = h => { const v = rgb(h).map(x => x / 255).map(x => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
 const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 /** Farbe schrittweise Richtung „toward“ (Schwarz/Weiß) schieben, bis sie auf allen Flächen den Mindestkontrast erreicht */

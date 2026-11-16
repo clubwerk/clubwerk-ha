@@ -11,6 +11,8 @@
 const crypto = require('crypto');
 const L = require('./logik');
 const ha = require('../../src/ha');   // Home Assistant (gemeinsam mit Beregnung und Zugang)
+const G = require('../../src/geraete');   // Tablet-PIN: falsche Versuche zählen und sperren
+const Monat = require('../../src/monatsprotokoll');   // Protokoll je Monat: Liste, Excel, Auszug für die Sicherung
 const util = require('../../src/util');
 const { deD, euro } = util;
 let db, getSetting, setSetting, audit, H, lastFirst;
@@ -90,12 +92,9 @@ function sunsetToday(c, st) {
 function darkFrom(c, st) { const s = sunsetToday(c, st); return s ? L.addMin(s, c.sun.offset || 0) : null; }
 
 /* =================== Home Assistant =================== */
-let cache = { at: 0, states: null, err: null };
-async function states(force) {
-  if (!force && Date.now() - cache.at < 3000) { if (cache.err) throw cache.err; return cache.states; }
-  try { const s = await ha.call('GET', '/states'); const m = new Map((Array.isArray(s) ? s : []).map(x => [x.entity_id, x])); cache = { at: Date.now(), states: m, err: null }; return m; }
-  catch (e) { cache = { at: Date.now(), states: null, err: e }; throw e; }
-}
+/** Zustände aus Home Assistant – gemeinsamer Zwischenspeicher im Kern (eine Abfrage für alle Geräte-Module) */
+let lastErr = null;
+async function states(force) { try { const m = await ha.states(force ? 1000 : 3000); lastErr = null; return m; } catch (e) { lastErr = e; throw e; } }
 async function trySt() { if (sim()) return new Map(); try { return await states(); } catch (e) { return null; } }
 const cmd = new Map();   // Lichtanlage → { on, at, seenOn } – letzter Befehl von Clubwerk
 async function switchHa(light, on) {
@@ -103,7 +102,6 @@ async function switchHa(light, on) {
   cmd.set(light.id, { on, at: Date.now(), seenOn: false });
   if (sim()) return;
   await ha.call('POST', `/services/${dom}/${on ? 'turn_on' : 'turn_off'}`, { entity_id: light.ref });
-  cache.at = 0;
 }
 /** Zustand laut Home Assistant: true/false, null = nicht erreichbar */
 function haOn(light, st) {
@@ -165,6 +163,7 @@ function addClaim(light, { source, member_id = null, who = null, start, end, pay
 /* =================== Zeitgeber =================== */
 let lastAuto = 0, busy = false, durchlauf = 0;   // durchlauf: abgeschlossene Abgleiche (nur im Testbetrieb in /lights sichtbar – Tests warten auf den nächsten statt fester Pause)
 const failed = new Map();   // Lichtanlage → letzter Fehlertext (nur einmal ins Protokoll)
+const blind = new Map();    // Lichtanlage → Nacht, in der sie ohne bekannten Zustand ausgeschaltet wurde (einmal je Nacht)
 async function tick() {
   if (busy) return; busy = true;
   try { await tickInner(); } catch (e) { console.error('Flutlicht:', e.message); } finally { busy = false; durchlauf++; }
@@ -178,9 +177,9 @@ async function tickInner() {
   if (L.isQuiet(c, now)) for (const x of db.prepare("SELECT id, light FROM fl_claim WHERE ended_at IS NULL AND source <> 'verwaltung'").all()) { closeClaim(x.id, nowTs, 'nachtruhe'); ended.push(x.light); }
   // Licht, das Clubwerk eingeschaltet hatte (auch vor einem Neustart), gilt als „von Clubwerk an“ – es wird ausgeschaltet, nicht als fremd übernommen
   for (const id of ended) if (!cmd.has(id)) cmd.set(id, { on: true, at: 0, seenOn: true });
-  const st = await trySt();
+  const st = c.lights.length ? await trySt() : null;   // ohne Lichtanlage Home Assistant nicht abfragen
   // 3. Automatik aus der Platzbuchung (höchstens einmal je Minute; im Test bei jedem Durchlauf)
-  if (Date.now() - lastAuto >= (process.env.CW_TEST_FAST ? 0 : 55000)) { lastAuto = Date.now(); await automatik(c, now, st); }
+  if (Date.now() - lastAuto >= (process.env.CW_TEST_FAST ? 0 : 55000) && H.uhrOk()) { lastAuto = Date.now(); await automatik(c, now, st); }   // falsche Uhrzeit (src/uhr.js): keine Automatik
   // 4. Abgleich mit Home Assistant
   const open = openClaims();
   for (const light of c.lights) {
@@ -189,7 +188,15 @@ async function tickInner() {
     if (isOn === true && k && k.on) k.seenOn = true;
     try {
       if (sim()) { if (!k || k.on !== want) await switchHa(light, want); continue; }
-      if (isOn === null) continue;   // nicht erreichbar → Übersicht meldet es
+      if (isOn === null) {   // nicht erreichbar → Übersicht meldet es
+        // Nachtruhe: trotzdem einmal ausschalten („blind“) – Home Assistant oder das Gerät melden sich vielleicht nur nicht
+        const night = L.dayOf(L.addMin(now, -12 * 60));   // eine Nacht zählt als ein Tag (auch nach Mitternacht)
+        if (!want && L.isQuiet(c, now) && blind.get(light.id) !== night) {
+          await switchHa(light, false); blind.set(light.id, night);
+          log('nachtruhe', light.name, null, 'zur Nachtruhe ausgeschaltet (Zustand unbekannt)');
+        }
+        continue;
+      }
       if (want && !isOn) {
         if (k && k.on && k.seenOn) {   // war an und ist jetzt aus: außerhalb von Clubwerk ausgeschaltet
           for (const x of activeAt(mine, nowTs)) closeClaim(x.id, nowTs, 'extern');
@@ -240,7 +247,7 @@ async function automatik(c, now, st) {
     if (seen.has(key(w.light, w.booking)) || w.start > now || w.end <= now) continue;
     const light = c.lights.find(l => l.id === w.light);
     const m = w.member_id ? db.prepare('SELECT name, kind FROM members WHERE id = ?').get(w.member_id) : null;
-    try { addClaim(light, { source: 'auto', member_id: w.pays ? w.member_id : null, who: m ? m.name : null, start: now, end: w.end, pays: w.pays, booking: { src: w.src, id: w.booking, bookStart: w.bookStart, bookEnd: w.bookEnd } }); } catch (e) { /* gleichzeitig angelegt – Eindeutigkeit greift */ }
+    try { addClaim(light, { source: 'auto', member_id: w.pays ? w.member_id : null, who: m ? m.name : null, start: now, end: w.end, pays: w.pays, booking: { src: w.src, id: w.booking, bookStart: w.bookStart, bookEnd: w.bookEnd } }); } catch (e) { if (!/UNIQUE/.test(e.message)) console.error('Flutlicht: automatisches Einschalten fehlgeschlagen:', e.message); }   // UNIQUE: gleichzeitig angelegt – Eindeutigkeit greift
   }
 }
 
@@ -381,25 +388,16 @@ function memberRoutes(r, ctx) {
 }
 
 /* =================== Tablet: Name wählen + App-PIN (wie Zugang) =================== */
-const T_FAILS = { ip: new Map(), member: new Map(), all: [] };
-const tFail = (map, key, max) => {
-  const now = Date.now(); const f = map.get(key) || { times: [], until: 0 };
-  f.times = f.times.filter(t => now - t < 15 * 60000); f.times.push(now);
-  if (f.times.length >= max) { f.until = now + 30 * 60000; f.times = []; }
-  if (map.size > 1000) map.delete(map.keys().next().value);
-  map.set(key, f);
-};
-const tBlocked = (map, key) => { const f = map.get(key); return Boolean(f && f.until > Date.now()); };
-function tabletFail(ip, who, memberId) {
-  const now = Date.now();
-  tFail(T_FAILS.ip, ip, 5); tFail(T_FAILS.member, memberId, 3);
-  T_FAILS.all = T_FAILS.all.filter(t => now - t < 24 * 3600000); T_FAILS.all.push(now);
-  if (T_FAILS.all.length >= 10) {
-    const c = cfg(); c.header = false; save(c); T_FAILS.all = [];
+const tabletPin = G.tabletPin({   // Zählung falscher PINs: src/geraete.js
+  texte: { ip: 'Zu viele falsche PINs an diesem Gerät – bitte in 30 Minuten erneut versuchen.', member: 'Für diesen Namen wurde zu oft eine falsche PIN eingegeben – bitte in 30 Minuten erneut versuchen.' },
+  pruefen: (id, pin) => H.invites.checkMember(APP, id, pin),
+  name: id => { const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id); return m ? m.name : String(id); },
+  sperren: who => {
+    const c = cfg(); c.header = false; save(c);
     log('abgelehnt', null, null, 'Licht am Tablet nach 10 falschen PINs abgeschaltet');
     H.securityAlert('tablet', 'Am Vereinstablet wurde beim Flutlicht 10-mal eine falsche App-PIN eingegeben (zuletzt für „' + who + '“). Das Schalten am Tablet ist deshalb abgeschaltet. In der Verwaltung unter Einstellungen › Tablet kann es wieder eingeschaltet werden.');
-  }
-}
+  },
+});
 function tabletRoutes(r, ctx) {
   r.use((req, res, next) => (cfg().header ? next() : res.status(404).json({ error: 'Flutlicht am Tablet ist nicht eingeschaltet.' })));
   r.get('/members', (req, res) => {
@@ -415,14 +413,7 @@ function tabletRoutes(r, ctx) {
     if (!['on', 'extend', 'off'].includes(b.action)) return res.status(400).json({ error: 'Unbekannte Aktion.' });
     const id = parseInt(b.member, 10);
     if (!id) return res.status(400).json({ error: 'Bitte deinen Namen wählen.' });
-    const ip = req.ip || req.socket.remoteAddress || '';
-    if (tBlocked(T_FAILS.ip, ip)) return res.status(429).json({ error: 'Zu viele falsche PINs an diesem Gerät – bitte in 30 Minuten erneut versuchen.' });
-    if (tBlocked(T_FAILS.member, id)) return res.status(429).json({ error: 'Für diesen Namen wurde zu oft eine falsche PIN eingegeben – bitte in 30 Minuten erneut versuchen.' });
-    const chk = H.invites.checkMember(APP, id, b.pin);
-    if (!chk.ok) {
-      if (chk.pin || chk.status === 401) { const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id); tabletFail(ip, m ? m.name : String(id), id); }
-      return res.status(chk.status).json({ error: chk.error, pin: chk.pin });
-    }
+    const chk = await tabletPin(req, res, id, b.pin); if (!chk) return;
     const acc = H.access.check(chk.memberId, MOD);
     if (!acc.ok) return res.status(403).json({ error: acc.reason || 'Du bist für das Flutlicht nicht freigeschaltet.' });
     try { res.json({ ok: true, ...(await doAction(light, b.action, { kind: 'tablet', member_id: chk.memberId, name: chk.name }, b.minutes)) }); }
@@ -528,7 +519,7 @@ function activate(ctx) {
   createTables();
   const { need, bad, cleanName } = ctx;
   const P = need('flutlicht'), PB = need('flutlicht', 'flutlicht_bedienen');
-  const uname = req => req.user.name || req.user.username;
+  const uname = ctx.userName;
 
   ctx.hooks.tabletVisible = () => { const c = cfg(); return Boolean(c.header && c.lights.length && c.who.tablet); };
   ctx.hooks.tabletSwitch = { get: () => Boolean(cfg().header), set: on => { const c = cfg(); c.header = on; save(c); } };
@@ -592,7 +583,7 @@ function activate(ctx) {
   ctx.hooks.overview = async () => {
     const c = cfg(), alerts = [];
     const v = await view('admin');
-    if (!v.online && c.lights.length) alerts.push({ level: 'r', text: 'Keine Verbindung zum Flutlicht.', detail: cache.err ? cache.err.message : '' });
+    if (!v.online && c.lights.length) alerts.push({ level: 'r', text: 'Keine Verbindung zum Flutlicht.', detail: lastErr ? lastErr.message : '' });
     for (const l of v.lights) if (v.online && l.offline) alerts.push({ level: 'r', text: `${l.name}: Schalter nicht erreichbar` });
     for (const [id, msg] of failed) { const l = c.lights.find(x => x.id === id); if (l) alerts.push({ level: 'r', text: `${l.name}: Licht ließ sich nicht schalten`, detail: msg }); }
     if (!v.darkFrom && c.sun.source === 'calc' && c.lights.length) alerts.push({ level: 'a', text: 'Flutlicht: Standort für den Sonnenuntergang fehlt.', sec: ['tab_flutlicht-zeiten', ''] });
@@ -640,7 +631,7 @@ function activate(ctx) {
   });
   admin.get('/lights', PB, async (req, res) => {
     const v = await view('admin'), c = cfg();
-    res.json({ ...v, auto: c.who.auto && H.isModuleActive('buchung'), error: !v.online && cache.err ? cache.err.message : null, ...(process.env.CW_TEST_FAST ? { durchlauf } : {}) });
+    res.json({ ...v, auto: c.who.auto && H.isModuleActive('buchung'), error: !v.online && lastErr ? lastErr.message : null, ...(process.env.CW_TEST_FAST ? { durchlauf } : {}) });
   });
   admin.post('/lights/:id/:action', PB, async (req, res) => {
     const light = lightById(cfg(), req.params.id), action = req.params.action;
@@ -658,8 +649,7 @@ function activate(ctx) {
     res.json({ ok: true });
   });
   /* Verlauf: Anforderungen eines Monats, Ereignisse, Betriebsstunden im Jahr */
-  const nextMonth = m => { const [y, mo] = m.split('-').map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`; };
-  const monthRows = m => db.prepare('SELECT * FROM fl_claim WHERE start >= ? AND start < ? ORDER BY start DESC, id DESC').all(m + '-01', nextMonth(m) + '-01');
+  const monthRows = m => db.prepare('SELECT * FROM fl_claim WHERE start >= ? AND start < ? ORDER BY start DESC, id DESC').all(m + '-01', Monat.nextMonth(m) + '-01');
   const endOf = x => (x.ended_at ? (x.ended_at < x.planned_end ? x.ended_at : x.planned_end) : null);
   const minutes = x => { const e = endOf(x); return e ? Math.max(0, Math.round((L.parse(e) - L.parse(x.start)) / 60000)) : null; };
   function claimRows(rows) {
@@ -667,34 +657,28 @@ function activate(ctx) {
     return rows.map(x => ({ id: x.id, light: x.light_name, start: x.start, end: endOf(x) || x.planned_end, running: !x.ended_at, minutes: minutes(x), source: SOURCE[x.source] || x.source,
       who: x.who ? lastFirst(x.who) : x.source === 'auto' ? 'Vereinsbuchung' : '', reason: x.end_reason ? REASON[x.end_reason] || x.end_reason : '', fee: x.fee_cents || 0, feeStatus: stat(x), quarters: x.fee_quarters || 0 }));
   }
-  admin.get('/log', P, (req, res) => {
-    const months = db.prepare('SELECT DISTINCT substr(start,1,7) m FROM fl_claim UNION SELECT DISTINCT substr(at,1,7) FROM fl_log ORDER BY m DESC').all().map(r => r.m);
-    const cur = L.ts(nowD()).slice(0, 7);
-    if (!months.includes(cur)) months.unshift(cur);
+  Monat.einrichten(ctx, admin, {
+    perm: P, cur: () => L.ts(nowD()).slice(0, 7),
+    months: () => db.prepare('SELECT DISTINCT substr(start,1,7) m FROM fl_claim UNION SELECT DISTINCT substr(at,1,7) FROM fl_log ORDER BY m DESC').all().map(r => r.m),
     // ohne Wahl: laufender Monat – ist er (am Monatsanfang) noch leer, der letzte Monat mit Einträgen
-    const m = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : monthRows(cur).length ? cur : months.find(x => x < cur) || cur;
-    const year = m.slice(0, 4);
-    const hours = {};
-    for (const x of db.prepare('SELECT * FROM fl_claim WHERE start >= ? AND start < ? AND ended_at IS NOT NULL ORDER BY light, start').all(year + '-01-01', (+year + 1) + '-01-01')) {
-      // überlappende Anforderungen derselben Anlage nur einmal zählen (Betriebsstunden = Zeit, in der das Licht wirklich brannte)
-      const h = hours[x.light_name] || (hours[x.light_name] = { min: 0, last: '' });
-      const s = x.start > h.last ? x.start : h.last, e = endOf(x);
-      if (e > s) { h.min += Math.round((L.parse(e) - L.parse(s)) / 60000); h.last = e; }
-    }
-    res.json({ month: m, months, year, rows: claimRows(monthRows(m)), events: db.prepare('SELECT * FROM fl_log WHERE at >= ? AND at < ? ORDER BY at DESC, id DESC').all(m + '-01', nextMonth(m) + '-01'),
-      hours: Object.entries(hours).map(([name, h]) => ({ name, minutes: h.min })).sort((a, b) => a.name.localeCompare(b.name, 'de')) });
-  });
-  admin.get('/log.xlsx', P, async (req, res) => {
-    const m = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : L.ts(nowD()).slice(0, 7);
-    const ExcelJS = ctx.require('exceljs');
-    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Flutlicht ' + m);
-    ws.columns = [{ header: 'Lichtanlage', key: 'light', width: 20 }, { header: 'Von', key: 'start', width: 18 }, { header: 'Bis', key: 'end', width: 10 }, { header: 'Minuten', key: 'minutes', width: 10 },
-      { header: 'Auslöser', key: 'source', width: 22 }, { header: 'Wer', key: 'who', width: 24 }, { header: 'Ende', key: 'reason', width: 22 }, { header: 'Lichtgeld €', key: 'fee', width: 12 }, { header: 'Status', key: 'feeStatus', width: 14 }];
-    ws.getRow(1).font = { bold: true };
-    for (const r of claimRows(monthRows(m)).reverse()) ws.addRow({ ...r, start: deD(r.start.slice(0, 10)) + ' ' + hhmm(r.start), end: hhmm(r.end), fee: r.fee ? r.fee / 100 : null, feeStatus: r.feeStatus || '' });
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="flutlicht-${m}.xlsx"`);
-    res.end(Buffer.from(await wb.xlsx.writeBuffer()));
+    start: (cur, months) => (monthRows(cur).length ? cur : months.find(x => x < cur) || cur),
+    rows: m => claimRows(monthRows(m)),
+    mehr: m => {
+      const year = m.slice(0, 4);
+      const hours = {};
+      for (const x of db.prepare('SELECT * FROM fl_claim WHERE start >= ? AND start < ? AND ended_at IS NOT NULL ORDER BY light, start').all(year + '-01-01', (+year + 1) + '-01-01')) {
+        // überlappende Anforderungen derselben Anlage nur einmal zählen (Betriebsstunden = Zeit, in der das Licht wirklich brannte)
+        const h = hours[x.light_name] || (hours[x.light_name] = { min: 0, last: '' });
+        const s = x.start > h.last ? x.start : h.last, e = endOf(x);
+        if (e > s) { h.min += Math.round((L.parse(e) - L.parse(s)) / 60000); h.last = e; }
+      }
+      return { year, events: db.prepare('SELECT * FROM fl_log WHERE at >= ? AND at < ? ORDER BY at DESC, id DESC').all(m + '-01', Monat.nextMonth(m) + '-01'),
+        hours: Object.entries(hours).map(([name, h]) => ({ name, minutes: h.min })).sort((a, b) => a.name.localeCompare(b.name, 'de')) };
+    },
+    sheet: m => `Flutlicht ${m}`, file: m => `flutlicht-${m}.xlsx`,
+    columns: [{ header: 'Lichtanlage', key: 'light', width: 20 }, { header: 'Von', key: 'start', width: 18 }, { header: 'Bis', key: 'end', width: 10 }, { header: 'Minuten', key: 'minutes', width: 10 },
+      { header: 'Auslöser', key: 'source', width: 22 }, { header: 'Wer', key: 'who', width: 24 }, { header: 'Ende', key: 'reason', width: 22 }, { header: 'Lichtgeld €', key: 'fee', width: 12 }, { header: 'Status', key: 'feeStatus', width: 14 }],
+    row: r => ({ ...r, start: deD(r.start.slice(0, 10)) + ' ' + hhmm(r.start), end: hhmm(r.end), fee: r.fee ? r.fee / 100 : null, feeStatus: r.feeStatus || '' }),
   });
   /* Lichtgeld stornieren (wie eine Platzgebühr) */
   admin.post('/claims/:id/fee-cancel', P, (req, res) => {

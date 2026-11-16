@@ -79,7 +79,6 @@
     const late = d.matches.filter(m => m.overdue);
     const groupOpen = d.matches.filter(m => m.phase === 'gruppe' && !m.done).length, groupAll = d.matches.filter(m => m.phase === 'gruppe').length;
     const reg = d.players.filter(p => p.singles || p.doubles).length, hasD = s.doubles.length > 0;
-    const regDone = !s.regOpen;
     const pending = d.matches.some(m => !m.done);
     let step = '';
     const btn = (id, l, prim) => `<button class="btn${prim ? ' primary' : ''}" id="${id}">${l}</button>`;

@@ -3,7 +3,7 @@
    voraussichtlicher Uhrzeit und Verzug, dazu Warteschlange und letzte Ergebnisse. Aktualisiert sich alle 15 Sekunden selbst. */
 (() => {
   const $ = id => document.getElementById(id);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const T = (t, v) => (window.T ? window.T(t, v) : String(t).replace(/\{(\d+)\}/g, (m, i) => (v && v[i] != null ? v[i] : m)));
   const pad = n => String(n).padStart(2, '0');
   const clock = () => { const d = new Date(); $('tvClock').textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`; };

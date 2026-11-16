@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 /* ---------- Geheimnisse der Maschine (ab 2026.11, planung/geheimnisse.md) ----------
    Zugangsdaten, mit denen Clubwerk selbst bei anderen Diensten anklopft (Postfach, Dropbox, Sicherungsziele, Hydrawise),
@@ -39,6 +40,7 @@ function melden(name, text) { if (/^[a-z0-9_*-]{3,80}$/.test(name)) KATALOG.set(
 const row = name => db.prepare('SELECT value FROM main.geheimnisse WHERE name = ?').get(String(name));
 const has = name => { const r = row(name); return Boolean(r && r.value != null && r.value !== ''); };
 /** Wert lesen – gesperrter Tresor oder nicht vorhanden → fallback */
+/** @param {string} name @param {string|null} [fallback] @returns {string|null} */
 function get(name, fallback = '') {
   const r = row(name);
   if (!r || r.value == null || r.value === '') return fallback;
@@ -90,6 +92,7 @@ function umziehen() {
    → dort genauso umziehen, Wiederherstellen geht weiter. Anderer oder kein Tresor → Werte entfernen (nach dem Zurückspielen
    neu eintragen). Danach VACUUM. Eine Datei, die nicht klappt, bleibt unverändert und wird gemeldet. */
 function schnappschuesse(dir) {
+  /** @type {{ bereinigt: string[], fehler: string[] }} */
   const out = { bereinigt: [], fehler: [] };
   let files = []; try { files = fs.readdirSync(dir).filter(f => /^[\w.-]+\.db$/.test(f)); } catch (e) { return out; }
   const Database = require('better-sqlite3'), v = vault();
@@ -116,7 +119,7 @@ function schnappschuesse(dir) {
       d.pragma('journal_mode = DELETE');
       out.bereinigt.push(f);
     } catch (e) { out.fehler.push(`${f}: ${e.message}`); }
-    finally { if (d) try { d.close(); } catch (e) { /* zu */ } for (const x of ['-wal', '-shm']) { try { fs.unlinkSync(file + x); } catch (e) { /* keine */ } } }
+    finally { if (d) try { d.close(); } catch (e) { /* schon geschlossen */ } for (const x of ['-wal', '-shm']) { try { fs.unlinkSync(file + x); } catch (e) { /* Datei gibt es nicht */ } } }
   }
   if (out.bereinigt.length) console.log(`Geheimnisse: ${out.bereinigt.length} ältere Schnappschüsse bereinigt.`);
   if (out.fehler.length) console.error('Geheimnisse – Schnappschüsse nicht bereinigt:', out.fehler.join(' · '));
@@ -129,4 +132,4 @@ function fuerModul(id) {
   return { get: (k, fb) => get(n(k), fb), has: k => has(n(k)), set: (k, v) => set(n(k), v), drop: k => drop(n(k)), locked: k => locked(n(k)), melden: (k, text) => melden(n(k), text) };
 }
 
-module.exports = { get, has, set, drop, locked, wartet, status, umziehen, schnappschuesse, melden, label, bekannt, fuerModul, KATALOG, DATA_DIR };
+module.exports = { get, has, set, drop, locked, wartet, status, umziehen, schnappschuesse, melden, label, bekannt, fuerModul, DATA_DIR };

@@ -10,16 +10,9 @@
   const RES = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/></svg>';
   const GO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>';
   let list = [], onChange = () => {};
-  const toast = (msg, error = false) => { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (error ? ' error' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 5000); };
-  const dlg = html => { $('dialog').innerHTML = html; $('overlay').classList.remove('hidden'); };
-  const closeDlg = () => { $('overlay').classList.add('hidden'); $('dialog').innerHTML = ''; };
-  async function call(url, body) {
-    const r = await fetch('../../api/tablet/x/turniere/ft' + url, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const j = await r.json().catch(() => ({}));
-    if (r.status === 401 && j.gate) throw Object.assign(new Error('Seite gesperrt'), { gate: true });
-    if (!r.ok) throw Object.assign(new Error(j.error || T('Das hat nicht geklappt.')), { status: r.status });
-    return j;
-  }
+  const toast = GKTab.toast(5000);
+  const { dlg, closeDlg } = GKTab;
+  const call = (url, body) => GKTab.api('../../api/tablet/x/turniere/ft' + url, body, T('Das hat nicht geklappt.'));
   const done = async msg => { closeDlg(); toast(msg); await onChange(); };
   const side = (m, s) => m[s] || m[s + '_ph'] || T('offen');
   const line = m => `${side(m, 'a')} – ${side(m, 'b')}`;
@@ -35,15 +28,10 @@
     if (!d.code) { dlg(`<h2>${esc(T('Turnierleitung'))}</h2><p class="tl-p">${esc(T('Für dieses Turnier ist kein Code der Turnierleitung festgelegt. Ergebnisse trägt die Turnierleitung dann in der Verwaltung ein (Turnierplaner › Einstellungen › Code der Turnierleitung).'))}</p><div class="dlg-btns"><button id="tx">${esc(T('Schließen'))}</button></div>`); $('tx').onclick = closeDlg; return; }
     const c = stored(d.ft.id);
     if (c) { keep(d.ft.id, c); return then(c); }
-    let pin = '';
-    dlg(GKPin.pad(esc(T('Turnierleitung')), esc(T('Bitte den Code der Turnierleitung eingeben'))));
-    const dots = () => { $('dots').innerHTML = GKPin.dots(pin.length); };
-    const go = async () => {
-      if (pin.length < 4) { $('perr').textContent = T('Bitte mindestens 4 Ziffern.'); return; }
+    GKPin.ask({ show: dlg, close: closeDlg, title: esc(T('Turnierleitung')), sub: esc(T('Bitte den Code der Turnierleitung eingeben')), min: 4, minText: T('Bitte mindestens 4 Ziffern.') }, async pin => {
       try { await call(`/${d.ft.id}/pruefen`, { code: pin }); keep(d.ft.id, pin); then(pin); }
-      catch (e) { if (e.gate) return closeDlg(); $('perr').textContent = e.message; pin = ''; dots(); }
-    };
-    $('dialog').querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { const k = b.dataset.k; if (k === 'x') return closeDlg(); if (k === 'ok') return go(); if (pin.length < 6) { pin += k; dots(); } }; });
+      catch (e) { if (e.gate) return closeDlg(); return e.message; }
+    });
   }
   /** Schreiben mit Code; ein abgelehnter Code wird vergessen */
   async function write(d, url, body, code) {

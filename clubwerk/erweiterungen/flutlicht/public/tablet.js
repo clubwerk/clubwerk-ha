@@ -4,7 +4,7 @@
   const API = '../../api/tablet/x/flutlicht/';
   const F = window.FlutlichtTiles;
   const $ = id => document.getElementById(id);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   let v = null, members = [], pending = null, timer = null, who = null, min = 60;
   function toast(msg, err) { const t = $('toast'); t.textContent = msg; t.className = 'vh-toast show' + (err ? ' err' : ''); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 3500); }
   async function refresh() {

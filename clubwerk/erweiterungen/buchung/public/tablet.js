@@ -2,7 +2,7 @@
 /* Tablet: Platzbelegung für heute, buchen und stornieren mit Name + PIN (wie bei den Getränken) */
 (() => {
   const $ = id => document.getElementById(id);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const BASE = '../../api/tablet/';
   const tm = s => +s.slice(0, 2) * 60 + +s.slice(3, 5);
   /** alle offenen Plätze mit gleicher Öffnungszeit? Dann steht sie nicht unter jedem Spaltenkopf (die Zeitachse zeigt sie) */
@@ -11,21 +11,13 @@
   const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   const dur = m => (m % 60 ? (m > 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} Std.` : `${m} Min.`) : `${m / 60} Std.`);
   const first = n => String(n || '').split(/[ ,]+/)[0];
-  const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // einmal anlegen statt je Betrag
-  const euro = c => EUR.format((c || 0) / 100);
+  const euro = CW.euro;
   let state = null, area = null, day = null;   // day: gewählter Tag (null = heute)
   /** Spieler samt Gerät als Mitspieler („+ Ballmaschine“) bzw. Allein-Training („· Ballwand“) */
   const whoTxt = (b, f = x => x) => `${(b.who || []).map(f).join(', ')}${b.partner_device_name ? ` + ${b.partner_device_name}` : ''}${b.solo_label ? ` · ${b.solo_label}` : ''}`;
-  function toast(msg, error = false) { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (error ? ' error' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 4000); }
-  async function call(p, body) {
-    const r = await fetch(BASE + p, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const d = await r.json().catch(() => ({}));
-    if (r.status === 401 && d.gate) { showGate(); throw Object.assign(new Error(d.error || 'Gesperrt'), { gate: true }); }
-    if (!r.ok) throw Object.assign(new Error(d.error || 'Das hat nicht geklappt.'), { status: r.status });
-    return d;
-  }
-  const dlg = html => { $('dialog').innerHTML = html; $('overlay').classList.remove('hidden'); };
-  const closeDlg = () => { $('overlay').classList.add('hidden'); $('dialog').innerHTML = ''; };
+  const toast = GKTab.toast(4000);
+  const call = (p, body) => GKTab.api(BASE + p, body);
+  const { dlg, closeDlg } = GKTab;
   $('overlay').addEventListener('mousedown', e => { if (e.target === $('overlay')) closeDlg(); });
 
   function slots(r) {
@@ -144,16 +136,7 @@
   }
   /** Ziffernblock (4–6 Ziffern) → onDone(pin) gibt true zurück oder eine Fehlermeldung */
   function pad(title, sub, onDone) {
-    let pinVal = '', busy = false;
-    dlg(GKPin.pad(esc(title), esc(sub)));
-    const dots = () => { $('dots').innerHTML = GKPin.dots(pinVal.length); };
-    const submit = async () => {
-      if (busy) return; busy = true;
-      const r = await onDone(pinVal); busy = false;
-      if (r !== true && $('perr')) { $('perr').textContent = r || ''; pinVal = ''; dots(); }
-    };
-    dots();
-    $('dialog').querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { const k = b.dataset.k; if (k === 'x') return closeDlg(); if (k === 'ok') return submit(); if (pinVal.length < 6) { pinVal += k; dots(); } if (pinVal.length === 6) submit(); }; });
+    GKPin.ask({ show: dlg, close: closeDlg, title: esc(title), sub: esc(sub), auto: true }, async pin => { const r = await onDone(pin); return r === true ? undefined : r || ''; });
   }
   function unlock(p, title, next) {
     if (!p.pin) return firstPin(p, title, next);
@@ -240,18 +223,7 @@
     };
   }
 
-  let gateShown = false;
-  function showGate() { if (gateShown) return; gateShown = true; closeDlg(); $('gate').classList.remove('hidden'); $('gatePw').value = ''; $('gateErr').textContent = ''; setTimeout(() => $('gatePw').focus(), 50); }
-  async function gateLogin() {
-    try {
-      const r = await fetch('../../api/gate/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('gatePw').value }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { $('gateErr').textContent = d.error || 'Das hat nicht geklappt.'; return; }
-      gateShown = false; $('gate').classList.add('hidden'); load();
-    } catch (e) { $('gateErr').textContent = 'Keine Verbindung zum Server.'; }
-  }
-  $('gateGo').onclick = gateLogin;
-  $('gatePw').addEventListener('keydown', e => { if (e.key === 'Enter') gateLogin(); });
+  GKTab.gate(load, closeDlg);
   let idle = 0; document.addEventListener('pointerdown', () => { idle = 0; }, true);
   setInterval(() => { idle += 30; if (idle >= 120 && day) { day = null; pastOpen = false; } if ($('overlay').classList.contains('hidden')) load(); }, 30000);   // nach 2 Minuten ohne Eingabe wieder „heute“
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });

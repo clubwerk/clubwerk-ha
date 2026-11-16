@@ -11,9 +11,9 @@
       const [r] = await Promise.all([fetch('../../api/tablet/x/turniere/state'), window.TurnierTag.load(load).then(x => { lk = x; }).catch(e => { if (e.gate) throw e; }),
         window.TurnierFrei.load(load).then(x => { ft = x; }).catch(e => { if (e.gate) throw e; })]);
       d = await r.json().catch(() => ({}));
-      if (r.status === 401 && d.gate) return showGate();
+      if (r.status === 401 && d.gate) return GKTab.showGate();
       if (!r.ok) throw new Error(d.error || 'Keine Verbindung zum Server.');
-    } catch (e) { if (e.gate) return showGate(); $('view').innerHTML = `<div class="tk-empty">${esc(e.message)}</div>`; return; }
+    } catch (e) { if (e.gate) return GKTab.showGate(); $('view').innerHTML = `<div class="tk-empty">${esc(e.message)}</div>`; return; }
     const day = (ft ? ft.html : '') + (lk ? lk.html : '');
     const bind = () => { if (ft) ft.bind(); if (lk) lk.bind(); };
     const sub = ft ? `${ft.list.map(x => x.ft.name).join(' · ')} – Spiele, Ergebnisse und Tabellen.` : lk ? `${lk.day.name} – einchecken, Matches starten und Ergebnisse eintragen.` : '';
@@ -32,18 +32,7 @@
     $('view').innerHTML = day + ko + rel + (leagues || (day ? '' : '<div class="tk-empty">Die Gruppen sind noch nicht ausgelost – Anmeldung in der Mitglieder-App unter „Turniere“.</div>')) + dbl + hon;
     bind();
   }
-  let gateShown = false;
-  function showGate() { if (gateShown) return; gateShown = true; $('gate').classList.remove('hidden'); $('gatePw').value = ''; $('gateErr').textContent = ''; setTimeout(() => $('gatePw').focus(), 50); }
-  async function gateLogin() {
-    try {
-      const r = await fetch('../../api/gate/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('gatePw').value }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { $('gateErr').textContent = d.error || 'Das hat nicht geklappt.'; return; }
-      gateShown = false; $('gate').classList.add('hidden'); load();
-    } catch (e) { $('gateErr').textContent = 'Keine Verbindung zum Server.'; }
-  }
-  $('gateGo').onclick = gateLogin;
-  $('gatePw').addEventListener('keydown', e => { if (e.key === 'Enter') gateLogin(); });
+  GKTab.gate(load);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && $('overlay').classList.contains('hidden')) load(); });
   setInterval(() => { if (!document.hidden && $('overlay').classList.contains('hidden') && document.querySelector('#tlIn, [data-ftres]')) load(); }, 30000);   // Turniertag: Plätze aktuell halten
   load();

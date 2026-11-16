@@ -34,6 +34,7 @@ const DEF = {
 };
 const ha = require('../../src/ha');   // Home Assistant (gemeinsam mit Beregnung bzw. Zugang)
 const G = require('../../src/geraete');   // Geräte neu zuordnen: Rechte und eigenes Passwort
+const Monat = require('../../src/monatsprotokoll');   // Protokoll je Monat: Liste, Excel, Auszug für die Sicherung
 const { pad, today, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 /* IDs von Türen und Zeitprofilen werden nie doppelt vergeben – auch nicht nach dem Löschen (Protokoll und Freischaltungen verweisen darauf).
    Die Prüfung in cleanCfg() arbeitet auf einer Kopie (`used`) ohne Datenbankzugriff; gespeichert wird erst mit der Konfiguration (saveUsedIds). */
@@ -144,17 +145,14 @@ function mayOpen(memberId, door, c = cfg()) {
   const p = c.profiles.find(x => x.id === chk.row.profile) || c.profiles.find(x => x.isDefault);
   if (!p) return { ok: false, reason: 'Kein Zeitprofil zugeordnet.' };
   if (door && p.doors !== 'all' && !(p.doors || []).includes(door.id)) return { ok: false, reason: `${door.name} ist für dich nicht freigegeben.`, hide: true };
+  if (H && !H.uhrOk() && profileText(p) !== 'rund um die Uhr') return { ok: false, reason: 'Die Uhrzeit von Clubwerk stimmt gerade nicht – Zugang nach Zeitprofil ist gesperrt, bis sie stimmt.', time: true };
   if (!profileAllows(p)) { const n = nextAllowed(p); return { ok: false, reason: n ? `Jetzt nicht – wieder möglich ab ${n}.` : 'Dein Zeitprofil erlaubt derzeit keinen Zugang.', time: true, next: n }; }
   return { ok: true, profile: p };
 }
 
 /* =================== Home Assistant =================== */
-let cache = { at: 0, states: null, err: null };
-async function states(force) {
-  if (!force && Date.now() - cache.at < 3000) { if (cache.err) throw cache.err; return cache.states; }
-  try { const s = await ha.call('GET', '/states'); const m = new Map((Array.isArray(s) ? s : []).map(x => [x.entity_id, x])); cache = { at: Date.now(), states: m, err: null }; return m; }
-  catch (e) { cache = { at: Date.now(), states: null, err: e }; throw e; }
-}
+/** Zustände aus Home Assistant – gemeinsamer Zwischenspeicher im Kern (eine Abfrage für alle Geräte-Module) */
+const states = force => ha.states(force ? 1000 : 3000);
 /** Geräteliste für die Verwaltung. strict (Benutzer ohne „alle Rechte“): nur Geräte der Hersteller-Integration – nennt
  *  Home Assistant sie nicht (oder „Gemischt / anderer Hersteller“), keine schaltbaren Geräte. Türkontakte bleiben (nur lesend). */
 async function deviceList(c, strict) {
@@ -200,22 +198,54 @@ async function act(door, action) {
   } else if (dom === 'button') {
     await ha.call('POST', '/services/button/press', { entity_id: door.ref });
   } else {
-    await ha.call('POST', '/services/switch/turn_on', { entity_id: door.ref });
     clearTimeout((pulseTimers.get(door.id) || {}).timer);
     const sec = Math.max(1, Math.min(30, parseInt(door.pulseSec, 10) || 3));
-    const off = () => { pulseTimers.delete(door.id); return ha.call('POST', '/services/switch/turn_off', { entity_id: door.ref }).catch(e => notify(`${door.name}: Türöffner ließ sich nicht ausschalten (${e.message}).`)); };
+    // Ausschalten schon vor dem Einschalten vormerken: auch eine Zeitüberschreitung beim Einschalten endet sicher mit „aus“
+    const off = () => pulseOff(door);
     pulseTimers.set(door.id, { timer: setTimeout(off, sec * 1000), off });
+    await ha.call('POST', '/services/switch/turn_on', { entity_id: door.ref });
   }
-  cache.at = 0;
+}
+/* Impuls-Schalter ausschalten: bei einem Fehler nach 2, 4, 8 … s erneut (höchstens 5-mal), dann Sicherheitswarnung – danach
+   übernimmt watch(): Steht ein Impuls-Schalter länger als seine Impulsdauer an (auch nach einem Neustart), schaltet es ihn aus. */
+async function pulseOff(door, n = 0) {
+  pulseTimers.delete(door.id);
+  try { await ha.call('POST', '/services/switch/turn_off', { entity_id: door.ref }); }
+  catch (e) {
+    if (n < 5) { const t = setTimeout(() => pulseOff(door, n + 1), (process.env.CW_TEST_FAST ? 200 : 2000) * 2 ** n); pulseTimers.set(door.id, { timer: t, off: () => pulseOff(door, n + 1) }); return; }
+    pulseAlert(door, e.message);
+  }
+}
+function pulseAlert(door, why) {
+  stuckTold.add(door.id);   // watch() versucht es weiter, ohne erneut zu melden
+  log('alarm', null, door.name, `Türöffner ließ sich nicht ausschalten (${why})`);
+  notify(`${door.name}: Türöffner ließ sich nicht ausschalten (${why}).`);
+  H.securityAlert('oeffner', `Zugang: Der Türöffner von ${door.name} ließ sich nicht ausschalten (${why}). Die Tür ist womöglich dauerhaft offen. Clubwerk versucht es weiter – bitte vor Ort prüfen.`, { key: door.id });
 }
 const notify = text => ha.notify(cfg().notify, 'Zugang', text);
 
-/* Tür steht zu lange offen → einmal melden */
-const openSince = new Map();
+/* Tür steht zu lange offen → einmal melden. Impuls-Schalter, die länger als ihre Impulsdauer an sind (Ausschalten gescheitert,
+   Neustart während des Impulses, von Hand in Home Assistant eingeschaltet) → ausschalten und melden. */
+const openSince = new Map(), stuckTold = new Set(), onSeen = new Map();
+const pulseDoors = c => c.doors.filter(d => d.type === 'impulse' && d.ref.split('.')[0] === 'switch');
 async function watch() {
-  const c = cfg();
-  if (!c.openAlertMin || !c.doors.some(d => d.sensor)) return;
+  const c = cfg(), alertOpen = c.openAlertMin && c.doors.some(d => d.sensor);
+  if (!alertOpen && !pulseDoors(c).length) return;   // nichts zu beobachten: Home Assistant nicht abfragen
   let st; try { st = await states(); } catch (e) { return; }
+  for (const d of pulseDoors(c)) {
+    const s = st.get(d.ref);
+    if (!s || s.state !== 'on') { stuckTold.delete(d.id); onSeen.delete(d.id); continue; }
+    if (!onSeen.has(d.id)) onSeen.set(d.id, Date.now());
+    const since = Date.parse(s.last_changed || '') || onSeen.get(d.id);   // seit wann an (laut Home Assistant, sonst seit dem ersten Blick)
+    if (pulseTimers.has(d.id) || Date.now() - since <= ((parseInt(d.pulseSec, 10) || 3) + 10) * 1000) continue;   // Impuls läuft noch
+    try {
+      await ha.call('POST', '/services/switch/turn_off', { entity_id: d.ref });
+      if (!stuckTold.has(d.id)) { log('alarm', null, d.name, 'Türöffner stand dauerhaft an – ausgeschaltet'); notify(`${d.name}: Der Türöffner stand dauerhaft an und wurde ausgeschaltet.`); H.securityAlert('oeffner', `Zugang: Der Türöffner von ${d.name} stand länger als seine Impulsdauer an und wurde ausgeschaltet. Bitte prüfen, ob die Tür zu ist.`, { key: d.id }); }
+    }
+    catch (e) { if (!stuckTold.has(d.id)) pulseAlert(d, e.message); }
+    stuckTold.add(d.id);
+  }
+  if (!alertOpen) return;
   for (const d of c.doors.filter(x => x.sensor)) {
     const s = st.get(d.sensor);
     if (s && s.state === 'on') {
@@ -291,37 +321,25 @@ function memberRoutes(r, ctx) {
     const c = cfg();
     if (c.wlanOnly && (req.away || req.viaTunnel || !isLocalIp(req.socket.remoteAddress))) return res.status(403).json({ error: 'Öffnen geht nur im Vereins-WLAN.' });
     const door = pickDoor(c, req.body || {}, res); if (!door) return;
-    if (!req.pinOk()) return;
+    if (!await req.pinOk()) return;
     await operate(res, c, req.member, door, req.body.action);
   });
 }
 
 /* Vereinstablet (optional): Name wählen + App-PIN */
-/* Schutz am Tablet: Die Tablet-Seite ist nur erreichbar, wenn sie unter Einstellungen › Tablet eingeschaltet ist.
-   Falsche PINs werden je Mitglied (3 in 15 Min.), je Gerät/Adresse (5 in 15 Min. → je 30 Min. Pause) und insgesamt gezählt – nie auf das Handy des Mitglieds. Nach 10 Fehlversuchen
-   innerhalb von 24 Stunden – egal bei welchem Mitglied – schaltet sich das Öffnen am Tablet ab (Warnung an den Vorstand),
-   bis ein Admin es wieder einschaltet. Erraten über viele Mitglieder hinweg ist so ausgeschlossen. */
-const T_FAILS = { ip: new Map(), member: new Map(), all: [] };
-const tFail = (map, key, max) => {
-  const now = Date.now(); const f = map.get(key) || { times: [], until: 0 };
-  f.times = f.times.filter(t => now - t < 15 * 60000); f.times.push(now);
-  if (f.times.length >= max) { f.until = now + 30 * 60000; f.times = []; }
-  if (map.size > 1000) map.delete(map.keys().next().value);
-  map.set(key, f);
-};
-const tBlocked = (map, key) => { const f = map.get(key); return Boolean(f && f.until > Date.now()); };
-function tabletBlocked(ip) { return tBlocked(T_FAILS.ip, ip); }
-function tabletFail(ip, who, memberId) {
-  const now = Date.now();
-  tFail(T_FAILS.ip, ip, 5);              // je Gerät: 5 in 15 Min. → 30 Min. Pause
-  tFail(T_FAILS.member, memberId, 3);    // je Mitglied am Tablet: 3 in 15 Min. → 30 Min. Pause (Handy bleibt unberührt)
-  T_FAILS.all = T_FAILS.all.filter(t => now - t < 24 * 3600000); T_FAILS.all.push(now);
-  if (T_FAILS.all.length >= 10) {
-    const c = cfg(); c.header = false; save(c); cache.at = 0; T_FAILS.all = [];
+/* Schutz am Tablet (Zählung falscher PINs: src/geraete.js) – die Tablet-Seite ist nur erreichbar, wenn sie unter Einstellungen › Tablet eingeschaltet ist.
+   Nach 10 Fehlversuchen schaltet sich das Öffnen am Tablet ab (Warnung an den Vorstand), bis ein Admin es wieder einschaltet. */
+const tabletPin = G.tabletPin({
+  texte: { ip: 'Zu viele falsche PINs an diesem Gerät – bitte in 30 Minuten erneut versuchen oder die Mitglieder-App benutzen.',
+    member: 'Für diesen Namen wurde am Tablet zu oft eine falsche PIN eingegeben – bitte in 30 Minuten erneut versuchen oder die Mitglieder-App benutzen.' },
+  pruefen: (id, pin) => H.invites.checkMember(APP, id, pin),
+  name: id => { const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id); return m ? m.name : String(id); },
+  sperren: who => {
+    const c = cfg(); c.header = false; save(c);
     log('sperre', null, null, 'Öffnen am Tablet nach 10 falschen PINs abgeschaltet');
     H.securityAlert('tablet', 'Am Vereinstablet wurde beim Öffnen der Türen 10-mal eine falsche App-PIN eingegeben (zuletzt für „' + who + '“). Das Öffnen am Tablet ist deshalb abgeschaltet. In der Verwaltung unter Zugang → Einstellungen kann es wieder eingeschaltet werden. Die Mitglieder-App funktioniert weiter.');
-  }
-}
+  },
+});
 function tabletRoutes(r, ctx) {
   const { rateLimit } = ctx;
   // nur, wenn „am Tablet anzeigen“ eingeschaltet ist – sonst gibt es diese Seite gar nicht
@@ -334,7 +352,7 @@ function tabletRoutes(r, ctx) {
   });
   r.get('/status', async (req, res) => {
     const c = cfg();
-    let st = null; try { st = await states(); } catch (e) { /* offline */ }
+    let st = null; try { st = await states(); } catch (e) { /* Home Assistant offline: Antwort zeigt online = false */ }
     res.json({ online: Boolean(st), doors: c.doors.map(d => ({ id: d.id, name: d.name, type: d.type, ...doorState(d, st) })) });
   });
   r.post('/door', rateLimit('zdoor', 30, 60000), async (req, res) => {
@@ -344,14 +362,7 @@ function tabletRoutes(r, ctx) {
     const id = parseInt(b.member, 10);
     if (!id) return res.status(400).json({ error: 'Bitte deinen Namen wählen.' });
     if (c.wlanOnly && !isLocalIp(req.socket.remoteAddress)) return res.status(403).json({ error: 'Öffnen geht nur im Vereins-WLAN.' });
-    const ip = req.ip || req.socket.remoteAddress || '';
-    if (tabletBlocked(ip)) return res.status(429).json({ error: 'Zu viele falsche PINs an diesem Gerät – bitte in 30 Minuten erneut versuchen oder die Mitglieder-App benutzen.' });
-    if (tBlocked(T_FAILS.member, id)) return res.status(429).json({ error: 'Für diesen Namen wurde am Tablet zu oft eine falsche PIN eingegeben – bitte in 30 Minuten erneut versuchen oder die Mitglieder-App benutzen.' });
-    const chk = H.invites.checkMember(APP, id, b.pin);
-    if (!chk.ok) {
-      if (chk.pin || chk.status === 401) { const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id); tabletFail(ip, m ? m.name : String(id), id); }
-      return res.status(chk.status).json({ error: chk.error, pin: chk.pin });
-    }
+    const chk = await tabletPin(req, res, id, b.pin); if (!chk) return;
     await operate(res, c, { id: chk.memberId, name: chk.name }, door, b.action, 'am Tablet');
   });
 }
@@ -465,7 +476,7 @@ function activate(ctx) {
   const { need, bad, cleanName } = ctx;
   ctx.hooks.tabletVisible = () => { const c = cfg(); return Boolean(c.header && c.doors.length); };
   // Schalter „am Tablet zeigen“ liegt zentral unter Einstellungen › Tablet (Schlüssel header bleibt)
-  ctx.hooks.tabletSwitch = { get: () => Boolean(cfg().header), set: on => { const c = cfg(); c.header = on; save(c); cache.at = 0; } };
+  ctx.hooks.tabletSwitch = { get: () => Boolean(cfg().header), set: on => { const c = cfg(); c.header = on; save(c); } };
   ctx.hooks.usedEntities = () => cfg().doors.map(d => d.ref);
   // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
   ctx.hooks.securityEvents = () => [
@@ -473,6 +484,7 @@ function activate(ctx) {
     { id: 'tueren', label: 'Zugang: Türen geändert', level: 'r', push: 'Im Modul Zugang wurden die Türen geändert.' },
     { id: 'abschliessen', label: 'Tür ließ sich nicht abschließen', level: 'r', push: 'Eine Tür ließ sich nicht abschließen – bitte prüfen.' },
     { id: 'offen', label: 'Tür steht zu lange offen', level: 'a', push: 'Eine Tür steht zu lange offen.' },
+    { id: 'oeffner', label: 'Türöffner ließ sich nicht ausschalten', level: 'r', push: 'Ein Türöffner ließ sich nicht ausschalten – bitte prüfen.' },
     { id: 'abgelehnt', label: 'Viele abgelehnte Türöffnungen', level: 'a', push: 'Auffällig viele abgelehnte Türöffnungen.' },
   ];
   /* Datenschutz: Türöffnungen zeigen, wer wann da war – nach der Frist löschen (Einstellungen › Datenschutz, src/datenschutz.js) */
@@ -502,7 +514,7 @@ function activate(ctx) {
     const before = cfg();
     const { out, commit } = cleanCfg(b, ctx.cleanName);   // nach dem Warten neu (sonst ginge eine Änderung dazwischen verloren)
     nachgeprueft(geprueft, before, out);
-    db.transaction(() => { save(out); commit(); })(); cache.at = 0;
+    db.transaction(() => { save(out); commit(); })();
     if (!info.dry) doorAlert(before, out, info.user ? `${info.user.name || info.user.username} per Funktionsimport` : 'Funktionsimport');   // Geräte über den Import geändert: gleiche Warnung wie in den Einstellungen
     if (Number.isInteger(data.keepDays) && data.keepDays >= 7 && data.keepDays <= 365) ctx.setSetting2('keep_days', String(data.keepDays));
     return `${out.doors.length} Türen, ${out.profiles.length} Zeitprofile${out.blockDays.length ? `, ${out.blockDays.length} Sperrzeiträume` : ''}`;
@@ -547,7 +559,7 @@ function activate(ctx) {
   // Geräte neu zuordnen nur mit eigenem Passwort (src/geraete.js) – falsche Versuche je Benutzer gebremst
   admin.put('/config', need('zugang'), async (req, res) => {
     const b = req.body || {};
-    const pw = G.bestaetigt(req, res, ctx.ownPwOk); if (!pw) return;
+    const pw = await G.bestaetigt(req, res, ctx.ownPwOk); if (!pw) return;
     let geprueft;
     try { geprueft = await geraetePruefen(cfg(), cleanCfg(b, cleanName).out, { user: req.user, confirmed: pw.confirmed }); }
     catch (e) { if (G.antwort(res, e)) return; return bad(res, e.message); }
@@ -555,11 +567,10 @@ function activate(ctx) {
     const before = cfg();
     try { ({ out, commit } = cleanCfg(b, cleanName)); nachgeprueft(geprueft, before, out); } catch (e) { return bad(res, e.message); }   // prüft nur, schreibt nichts
     db.transaction(() => { save(out); commit(); })();   // Konfiguration, vergebene IDs und Zeitprofil-Zuordnungen zusammen
-    cache.at = 0;
-    if (before.blockAll !== out.blockAll) { log('sperre', req.user.name || req.user.username, null, out.blockAll ? 'Zugang für alle gesperrt' : 'Sperre für alle aufgehoben'); audit(req.user, out.blockAll ? 'Zugang: alle gesperrt' : 'Zugang: Sperre aufgehoben', ''); }
+    if (before.blockAll !== out.blockAll) { log('sperre', ctx.userName(req), null, out.blockAll ? 'Zugang für alle gesperrt' : 'Sperre für alle aufgehoben'); audit(req.user, out.blockAll ? 'Zugang: alle gesperrt' : 'Zugang: Sperre aufgehoben', ''); }
     else audit(req.user, 'Zugang eingerichtet', `${out.doors.length} Türen, ${out.profiles.length} Zeitprofile`);
     // Geänderte Türgeräte (oder ein neues „Wer darf immer“-Profil) dem Vorstand melden
-    doorAlert(before, out, req.user.name || req.user.username);
+    doorAlert(before, out, ctx.userName(req));
     res.json({ ok: true, cfg: out, profileTexts: Object.fromEntries(out.profiles.map(p => [p.id, profileText(p)])) });
   });
   admin.get('/doors', need('zugang', 'zugang_bedienen'), async (req, res) => {
@@ -571,7 +582,7 @@ function activate(ctx) {
     const door = cfg().doors.find(d => d.id === req.params.id);
     const action = ['auf', 'zu', 'oeffnen'].includes(req.params.action) ? req.params.action : null;
     if (!door || !action) return bad(res, 'Unbekannte Tür oder Aktion.', 404);
-    const who = req.user.name || req.user.username;
+    const who = ctx.userName(req);
     try { await act(door, action === 'oeffnen' ? 'auf' : action); log(action, who, door.name, 'Fernbedienung aus der Verwaltung'); audit(req.user, 'Zugang: Fernbedienung', `${door.name}: ${action}`); res.json({ ok: true }); }
     catch (e) { log('fehler', who, door.name, e.message); bad(res, `${door.name} reagiert nicht: ${e.message}`, 502); }
   });
@@ -580,8 +591,8 @@ function activate(ctx) {
     const on = Boolean((req.body || {}).on);
     let raw = {}; try { raw = JSON.parse(getSetting('ext_zugang_cfg', '{}')) || {}; } catch (e) { raw = {}; }
     if (Boolean(raw.blockAll) !== on) {
-      save({ ...raw, blockAll: on }); cache.at = 0;
-      log('sperre', req.user.name || req.user.username, null, on ? 'Zugang für alle gesperrt' : 'Sperre für alle aufgehoben');
+      save({ ...raw, blockAll: on });
+      log('sperre', ctx.userName(req), null, on ? 'Zugang für alle gesperrt' : 'Sperre für alle aufgehoben');
       audit(req.user, on ? 'Zugang: alle gesperrt' : 'Zugang: Sperre aufgehoben', '');
     }
     res.json({ ok: true, blockAll: on });
@@ -598,37 +609,19 @@ function activate(ctx) {
     const members = db.prepare("SELECT id, name, kind FROM members WHERE kind IN ('mitglied','nichtmitglied') AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
     res.json({ rows, members, profiles: c.profiles.map(p => ({ id: p.id, name: p.name, isDefault: p.isDefault })) });
   });
-  /* Protokoll */
-  const nextMonth = m => { const [y, mo] = m.split('-').map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${pad(mo + 1)}`; };
-  const monthRows = m => db.prepare('SELECT * FROM zugang_log WHERE at >= ? AND at < ? ORDER BY at DESC, id DESC').all(m + '-01', nextMonth(m) + '-01');
-  admin.get('/log', need('zugang'), (req, res) => {
-    const months = db.prepare('SELECT DISTINCT substr(at,1,7) m FROM zugang_log ORDER BY m DESC').all().map(r => r.m);
-    const cur = localTs().slice(0, 7);
-    if (!months.includes(cur)) months.unshift(cur);
-    const m = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : cur;
-    res.json({ month: m, months, rows: monthRows(m) });
-  });
-  async function logXlsx(m) {
-    const ExcelJS = ctx.require('exceljs');
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Zugang ' + m);
-    ws.columns = [{ header: 'Zeitpunkt', key: 'at', width: 18 }, { header: 'Aktion', key: 'action', width: 16 }, { header: 'Tür', key: 'door', width: 22 }, { header: 'Wer', key: 'who', width: 24 }, { header: 'Hinweis', key: 'detail', width: 50 }];
-    ws.getRow(1).font = { bold: true };
-    const A = { auf: 'Aufgeschlossen', zu: 'Abgeschlossen', oeffnen: 'Geöffnet', abgelehnt: 'Abgelehnt', fehler: 'Fehler', freischaltung: 'Freischaltung', alarm: 'Alarm', sperre: 'Sperre' };
-    for (const r of monthRows(m).reverse()) ws.addRow({ ...r, at: r.at.slice(0, 10).split('-').reverse().join('.') + ' ' + r.at.slice(11, 16), action: A[r.action] || r.action });
-    return Buffer.from(await wb.xlsx.writeBuffer());
-  }
-  // lesbarer Auszug für die nächtliche Datensicherung (Kern): Türprotokoll des laufenden Monats
-  ctx.hooks.backupExports = async () => { const m = localTs().slice(0, 7); return [{ name: `Zugang-Protokoll_${m}.xlsx`, buffer: await logXlsx(m) }]; };
-  admin.get('/log.xlsx', need('zugang'), async (req, res) => {
-    const m = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : localTs().slice(0, 7);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="zugang-${m}.xlsx"`);
-    res.end(await logXlsx(m));
+  /* Protokoll (Monatsliste, Excel, Auszug für die nächtliche Datensicherung) */
+  const A = { auf: 'Aufgeschlossen', zu: 'Abgeschlossen', oeffnen: 'Geöffnet', abgelehnt: 'Abgelehnt', fehler: 'Fehler', freischaltung: 'Freischaltung', alarm: 'Alarm', sperre: 'Sperre' };
+  Monat.einrichten(ctx, admin, {
+    perm: need('zugang'), cur: () => localTs().slice(0, 7),
+    months: () => db.prepare('SELECT DISTINCT substr(at,1,7) m FROM zugang_log ORDER BY m DESC').all().map(r => r.m),
+    rows: m => db.prepare('SELECT * FROM zugang_log WHERE at >= ? AND at < ? ORDER BY at DESC, id DESC').all(m + '-01', Monat.nextMonth(m) + '-01'),
+    sheet: m => `Zugang ${m}`, file: m => `zugang-${m}.xlsx`, backup: m => `Zugang-Protokoll_${m}.xlsx`,
+    columns: [{ header: 'Zeitpunkt', key: 'at', width: 18 }, { header: 'Aktion', key: 'action', width: 16 }, { header: 'Tür', key: 'door', width: 22 }, { header: 'Wer', key: 'who', width: 24 }, { header: 'Hinweis', key: 'detail', width: 50 }],
+    row: r => ({ ...r, at: r.at.slice(0, 10).split('-').reverse().join('.') + ' ' + r.at.slice(11, 16), action: A[r.action] || r.action }),
   });
 
 
-  setInterval(() => { if (ctx.isActive()) watch(); }, 30000).unref();
+  setInterval(() => { if (ctx.isActive()) watch(); }, process.env.CW_TEST_FAST ? 1000 : 30000).unref();
 }
 
 module.exports = { activate, profileAllows, profileText, nextAllowed };

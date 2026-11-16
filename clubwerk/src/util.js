@@ -41,13 +41,51 @@ function zipBudget(max, msg = 'Das ZIP-Archiv ist zu groß.') {
     read: (f, as = 'nodebuffer') => new Promise((resolve, reject) => {
       const parts = []; let done = false;
       const h = f.internalStream('uint8array');
-      const stop = e => { if (!done) { done = true; try { h.pause(); } catch (x) { /* */ } reject(e); } };
+      const stop = e => { if (!done) { done = true; try { h.pause(); } catch (x) { /* Datenstrom schon zu */ } reject(e); } };
       h.on('data', d => { if (done) return; left -= d.length; if (left < 0) return stop(Object.assign(new Error(msg), { tooBig: true })); parts.push(Buffer.from(d.buffer, d.byteOffset, d.length)); })
         .on('error', stop)
         .on('end', () => { if (done) return; done = true; const b = Buffer.concat(parts); resolve(as === 'string' ? b.toString('utf8') : b); })
         .resume();
     }),
   };
+}
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+/** Dateiformat am Inhalt erkennen (nicht an Endung oder Angabe des Browsers): 'png' | 'jpg' | 'webp' | 'gif' | 'pdf' | 'heic' | null */
+function imageType(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 4) return null;
+  const s = (a, b) => buf.subarray(a, b).toString('latin1');
+  if (buf.subarray(0, 8).equals(PNG_SIG)) return 'png';
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  if (s(0, 4) === 'RIFF' && s(8, 12) === 'WEBP') return 'webp';
+  if (s(0, 4) === 'GIF8') return 'gif';
+  if (s(0, 5) === '%PDF-') return 'pdf';
+  if (s(4, 8) === 'ftyp' && /^(heic|heix|hevc|heim|heis|mif1|msf1)$/.test(s(8, 12))) return 'heic';
+  return null;
+}
+/** SQL-Bezeichner (Tabelle, Spalte) in Anführungszeichen */
+const qid = n => `"${String(n).replace(/"/g, '""')}"`;
+/** Farbe mischen: to = 'white' | 'black' | '#rrggbb', t = Anteil (0 = Farbe, 1 = Ziel) */
+function mixColor(hex, to, t) {
+  const a = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const b = to === 'white' ? [255, 255, 255] : to === 'black' ? [0, 0, 0] : [1, 3, 5].map(i => parseInt(to.slice(i, i + 2), 16));
+  return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+/** Excel-Datei (.xlsx) lesen und die Überschriftenzeile suchen: in jedem Blatt die ersten `rows` Zeilen, je Schlüssel aus `want`
+ *  ({ schlüssel: [normierte Überschriften] }) die erste passende Spalte. Gefunden, sobald ok(spalten) stimmt → { ws, cols, head } oder null.
+ *  Wirft verständliche Fehler, wenn die Datei kein .xlsx ist (Text notXlsx) oder sich nicht lesen lässt. */
+async function readSheet(buf, { want, norm, rows, ok, notXlsx }) {
+  if (!buf || buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) throw new Error(notXlsx);
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  try { await wb.xlsx.load(buf); } catch (e) { throw new Error('Die Excel-Datei lässt sich nicht lesen.'); }
+  for (const ws of wb.worksheets) {
+    for (let r = 1; r <= Math.min(ws.rowCount, rows); r++) {
+      const cols = {};
+      ws.getRow(r).eachCell((cell, col) => { const h = norm(cell.text); for (const [k, list] of Object.entries(want)) if (!cols[k] && list.includes(h)) cols[k] = col; });
+      if (ok(cols)) return { ws, cols, head: r };
+    }
+  }
+  return null;
 }
 /** Satzende anhängen, außer der Text endet schon auf „.“ (z. B. Vereinsname „… e. V.“) – nie „..“ */
 const endDot = s => { const t = String(s == null ? '' : s).replace(/\s+$/, ''); return /[.!?]$/.test(t) ? t : t + '.'; };
@@ -60,4 +98,16 @@ const sigOk = s => {
   const w = h.readUInt32BE(16), ht = h.readUInt32BE(20);
   return w > 0 && ht > 0 && w <= 1200 && ht <= 1200;
 };
-module.exports = { sigOk, endDot, pad, jetzt, today, nowTs, fileStamp, isDate, addDays, addMonths, deD, euro, esc, zipSize, zipUnsafe, zipBudget };
+/** Fehlende Spalten einer Tabelle nachrüsten: addColumns(db, 'tabelle', { spalte: 'TEXT NOT NULL DEFAULT …' }) → Namen der neu angelegten Spalten
+ *  (Module: ctx.addColumns(tabelle, spalten); der Rückgabewert erlaubt einmalige Umzüge, z. B. `if (addColumns(…).includes('x')) db.exec('UPDATE …')`) */
+function addColumns(db, table, cols) {
+  const have = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name));
+  const added = [];
+  for (const [c, def] of Object.entries(cols)) if (!have.has(c)) { db.exec(`ALTER TABLE ${table} ADD COLUMN ${c} ${def}`); added.push(c); }
+  return added;
+}
+/** nächster Monat zu 'JJJJ-MM' */
+const nextMonth = m => { const [y, mo] = m.split('-').map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${pad(mo + 1)}`; };
+/** Cent → '1.234,56 €' als schlichter Text (gewöhnliches Leerzeichen vor dem €, für PDF und Excel-Zellen; euro() oben ist die Währungsschreibweise) */
+const euroText = c => (Math.round(c || 0) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+module.exports = { imageType, readSheet, qid, mixColor, sigOk, endDot, pad, jetzt, today, nowTs, fileStamp, isDate, addDays, addMonths, deD, euro, esc, zipSize, zipUnsafe, zipBudget, addColumns, nextMonth, euroText };

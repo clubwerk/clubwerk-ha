@@ -48,7 +48,7 @@ function save(id, dataUrl, use, who) {
   require('./vault').writeFile(path.join(DIR, name), buf);   // verschlüsselt, wenn der Tresor eingeschaltet ist
   const old = file(r);
   db.prepare('UPDATE members SET photo = ?, photo_use = ? WHERE id = ?').run(name, JSON.stringify(cleanUse(use)), r.id);
-  if (old) try { fs.unlinkSync(old); } catch (e) { /* weg */ }
+  if (old) try { fs.unlinkSync(old); } catch (e) { /* schon gelöscht */ }
   audit(who || null, 'Profilbild gespeichert', r.name);
 }
 const cleanUse = use => [...new Set((Array.isArray(use) ? use : []).filter(k => USES[k]))];
@@ -57,7 +57,7 @@ function remove(id, who) {
   const r = row(id); if (!r) return;
   const f = file(r);
   db.prepare("UPDATE members SET photo = NULL WHERE id = ?").run(r.id);
-  if (f) try { fs.unlinkSync(f); } catch (e) { /* weg */ }
+  if (f) try { fs.unlinkSync(f); } catch (e) { /* schon gelöscht */ }
   audit(who || null, 'Profilbild entfernt', r.name);
 }
 /** Bild ausliefern (use = Zweck, den das Mitglied freigegeben haben muss; null = Verwaltung/eigenes Bild) */
@@ -70,8 +70,9 @@ function send(res, id, use) {
     if (!fs.existsSync(d) || !db.prepare("SELECT 1 FROM settings WHERE key = 'demo_build'").get()) return res.status(404).end();
     buf = fs.readFileSync(d);
   } else try { buf = require('./vault').readFile(f, { cacheIt: true }); } catch (e) { return res.status(404).end(); }   // gesperrt: Initialen statt Bild
-  res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400', 'Content-Security-Policy': "default-src 'none'", 'X-Content-Type-Options': 'nosniff' });
+  // Kennung (?v=) ist Teil des Dateinamens: passt sie, ändert sich das Bild unter dieser Adresse nie
+  res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': res.req && res.req.query && r.photo && res.req.query.v === r.photo.slice(-16, -4) ? 'private, max-age=31536000, immutable' : 'private, max-age=86400', 'Content-Security-Policy': "default-src 'none'", 'X-Content-Type-Options': 'nosniff' });
   res.end(buf);
 }
 
-module.exports = { USES, MODULE_OF, version, info, save, setUse, remove, send, DIR };
+module.exports = { version, info, save, setUse, remove, send, DIR };

@@ -1,20 +1,54 @@
+// @ts-check
 'use strict';
 const crypto = require('crypto');
 const { db, getSetting, setSetting } = require('./db');
 
-function hashSecret(secret) {
+/* Hashes für alles, was ein Mensch eingibt (Passwort, PIN, Code): scrypt mit Salt. Asynchron (Härtung 31): scrypt rechnet im
+   Thread-Pool von Node und hält den Server nicht an (x86 ~40 ms, Raspberry Pi ~200 ms je Prüfung).
+   Formate:  „salt:hash“                 – Passwörter, Codes, ältere PINs
+             „pf1:<kennung>:salt:hash“   – PINs mit Pfeffer (src/pfeffer.js): scrypt über HMAC(Pfeffer, PIN) */
+const scrypt = (s, salt) => new Promise((ok, no) => crypto.scrypt(s, salt, 32, (e, k) => (e ? no(e) : ok(k))));
+async function hashSecret(secret) {
   const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(String(secret), salt, 32).toString('hex');
-  return `${salt}:${hash}`;
+  return `${salt}:${(await scrypt(String(secret), salt)).toString('hex')}`;
 }
+/** PIN speichern (4–6 Ziffern) – mit Pfeffer, damit sich PINs aus einer Datenbank-Kopie nicht durchprobieren lassen.
+ *  Wartet der Pfeffer noch auf das Entsperren (Wiederherstellung auf neuem Gerät), vorerst ohne – wird beim nächsten Prüfen umgestellt. */
+async function hashPin(pin) {
+  const pf = require('./pfeffer'), id = pf.bereit();
+  if (!id) return hashSecret(pin);
+  const salt = crypto.randomBytes(16).toString('hex');
+  return `pf1:${id}:${salt}:${(await scrypt(pf.mix(id, String(pin)), salt)).toString('hex')}`;
+}
+/** PIN-Hash im alten Format (ohne Pfeffer) und Pfeffer bereit → nach erfolgreichem Prüfen neu speichern */
+const pinUmstellen = stored => typeof stored === 'string' && !stored.startsWith('pf1:') && Boolean(require('./pfeffer').bereit());
 
-function verifySecret(secret, stored) {
+async function verifySecret(secret, stored) {
   if (!stored || typeof stored !== 'string' || !stored.includes(':')) return false;
   if (String(secret).length > 200) return false;            // überlange Eingaben gar nicht erst rechnen
-  const [salt, hash] = stored.split(':');
-  const test = crypto.scryptSync(String(secret), salt, 32);
-  const ref = Buffer.from(hash, 'hex');
-  return ref.length === test.length && crypto.timingSafeEqual(ref, test);
+  let input = String(secret), parts = stored.split(':');
+  if (parts[0] === 'pf1') {
+    if (parts.length !== 4) return false;
+    input = require('./pfeffer').mix(parts[1], input);      // wirft (423/409), wenn der Pfeffer fehlt – mit Meldung für die Oberfläche
+    parts = parts.slice(2);
+  }
+  const [salt, hash] = parts;
+  const ref = Buffer.from(hash || '', 'hex');
+  if (ref.length !== 32) return false;
+  return crypto.timingSafeEqual(ref, await scrypt(input, salt));
+}
+
+/* Prüfen nacheinander je Schlüssel (Konto, Mitglied, Gerät): Seit scrypt asynchron rechnet, könnten sonst viele gleichzeitige
+   Anfragen alle die Sperre „noch nicht gesperrt“ lesen, bevor der erste Fehlversuch zählt. fn liest den Zähler deshalb erst
+   innerhalb der Reihe. */
+const reihen = new Map();
+function nacheinander(key, fn) {
+  const vor = reihen.get(key) || Promise.resolve();
+  const p = vor.then(() => fn());
+  const ende = p.then(() => {}, () => {});
+  reihen.set(key, ende);
+  ende.then(() => { if (reihen.get(key) === ende) reihen.delete(key); });
+  return p;
 }
 
 /** Selbst gewählte PIN prüfen (Tablet, Mitglieder-App) → Fehlertext oder '' – 4 bis 6 Ziffern, keine leicht zu erratende
@@ -22,7 +56,7 @@ function verifySecret(secret, stored) {
 function pinProblem(pin) {
   const p = typeof pin === 'string' ? pin : '';
   if (!/^\d{4,6}$/.test(p)) return 'Die PIN muss 4 bis 6 Ziffern haben.';
-  const steps = new Set([...p].slice(1).map((c, i) => c - p[i]));
+  const steps = new Set([...p].slice(1).map((c, i) => Number(c) - Number(p[i])));
   if (steps.size === 1 && [0, 1, -1].includes([...steps][0])) return 'Diese PIN ist zu leicht zu erraten (z. B. 1111 oder 1234) – bitte eine andere wählen.';
   return '';
 }
@@ -50,6 +84,7 @@ const PERMS = {
 };
 
 /* Rechte abgeschalteter Module zählen nicht (setzt plugins.js) */
+/** @type {(perm: string) => boolean} */
 let permFilter = () => true;
 function setPermFilter(fn) { permFilter = fn; }
 const parse = v => { try { const x = JSON.parse(v || '[]'); return Array.isArray(x) ? x : []; } catch (e) { return []; } };
@@ -84,7 +119,7 @@ function memberAllowed(user, memberId) {
   try { return require('./plugins').withHook('memberInScope').some(p => p.hooks.memberInScope(memberId, user.depts)); } catch (e) { return false; }
 }
 
-const DUMMY_HASH = hashSecret(crypto.randomBytes(8).toString('hex'));
+const DUMMY_HASH = (() => { const salt = crypto.randomBytes(16).toString('hex'); return `${salt}:${crypto.scryptSync(crypto.randomBytes(8).toString('hex'), salt, 32).toString('hex')}`; })();   // einmal beim Start
 
 /* ---------- Admin-Sitzungen (im Speicher, 8 Stunden) ---------- */
 const ADMIN_TTL_MS = 8 * 60 * 60 * 1000;
@@ -100,17 +135,19 @@ function adminConfigured() {
   return db.prepare('SELECT COUNT(*) n FROM admin_users').get().n > 0;
 }
 
-function createUser({ username, name, password, role = 'admin', perms = [], builtin = false, roles = [], departments = [], memberId = null }) {
+async function createUser({ username, name, password, role = 'admin', perms = [], builtin = false, roles = [], departments = [], memberId = null }) {
+  const pwHash = await hashSecret(password);
   const r = db.prepare('INSERT INTO admin_users(username, name, pw_hash, role, perms, builtin, roles, departments, member_id) VALUES (?,?,?,?,?,?,?,?,?)')
-    .run(username, name || username, hashSecret(password), role, JSON.stringify(perms.filter(p => PERMS[p])), builtin ? 1 : 0, JSON.stringify(roles), JSON.stringify(departments), memberId);
+    .run(username, name || username, pwHash, role, JSON.stringify(perms.filter(p => PERMS[p])), builtin ? 1 : 0, JSON.stringify(roles), JSON.stringify(departments), memberId);
   vaultHook('onPassword', Number(r.lastInsertRowid), password);
   return Number(r.lastInsertRowid);
 }
 
 /* Tresor (verschlüsselte persönliche Daten): Anmeldung entsperrt ihn, neue Passwörter bekommen eine Schlüsselkopie */
 function vaultHook(fn, ...a) { try { require('./vault')[fn](...a); } catch (e) { console.error('Tresor:', e.message); } }
-function setPassword(userId, pw) {
-  db.prepare('UPDATE admin_users SET pw_hash = ? WHERE id = ?').run(hashSecret(pw), userId);
+async function setPassword(userId, pw) {
+  const h = await hashSecret(pw);
+  db.prepare('UPDATE admin_users SET pw_hash = ? WHERE id = ?').run(h, userId);
   vaultHook('onPassword', userId, pw);
   for (const [k, v] of sessions) if (v.userId === userId) sessions.delete(k);
 }
@@ -144,15 +181,18 @@ function knownDevice(req, username) {
   return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(deviceSig(name, rnd), 'hex'));
 }
 
-function login(username, pw, ip = '', scope = 'admin', { trusted = false, known = false, tablet = false } = {}) {
+function login(username, pw, ip = '', scope = 'admin', opts = {}) {
   const name = String(username || '').trim().toLowerCase();
+  return nacheinander('login:' + name, () => loginJetzt(name, pw, ip, scope, opts));
+}
+async function loginJetzt(name, pw, ip, scope, { trusted = false, known = false, tablet = false }) {
   const key = name + '|' + String(ip || '');
   const now = Date.now();
   if (ipLimit.blocked(key)) return { ok: false, error: 'Zu viele Fehlversuche. Bitte in ein paar Minuten erneut versuchen.' };
   const accMin = trusted || known ? 0 : accountLimit.blocked(name);
   if (accMin) return { ok: false, error: `Für dieses Konto gab es zu viele Fehlversuche – Anmeldung in ${accMin} Min. wieder möglich (über die Home-Assistant-Seitenleiste sofort).` };
   const u = db.prepare('SELECT * FROM admin_users WHERE username = ? AND active = 1').get(name);
-  const ok = verifySecret(pw, u ? u.pw_hash : DUMMY_HASH);   // gleiche Rechenzeit, auch wenn es den Namen nicht gibt
+  const ok = await verifySecret(pw, u ? u.pw_hash : DUMMY_HASH);   // gleiche Rechenzeit, auch wenn es den Namen nicht gibt
   if (!u || !ok) {
     const { locked } = ipLimit.fail(key);
     const uf = userFails.get(name) || { n: 0, since: now };
@@ -247,7 +287,7 @@ setInterval(() => {
 }, 60 * 1000).unref();
 
 module.exports = {
-  PERMS, DEPT_PERMS, hashSecret, verifySecret, pinProblem, permInfo, setPermFilter, memberAllowed, deviceCookie, knownDevice,
+  PERMS, DEPT_PERMS, hashSecret, hashPin, pinUmstellen, verifySecret, nacheinander, pinProblem, permInfo, setPermFilter, memberAllowed, deviceCookie, knownDevice,
   adminConfigured, createUser, setPassword, login, logout, dropUserSessions, parseCookies, sessionCookie, currentUser, requireAdmin, need,
   issueTabletToken, checkTabletToken, dropTabletToken,
 };

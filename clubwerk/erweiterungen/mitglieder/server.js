@@ -355,7 +355,7 @@ function daily() {
 /* ---------------------------------------------------------------- Aktivierung */
 function activate(ctx) {
   C = ctx;
-  store.init({ db: ctx.db, getSetting: ctx.getSetting, setSetting: ctx.setSetting });
+  store.init({ db: ctx.db, getSetting: ctx.getSetting, setSetting: ctx.setSetting, bank: ctx.bank });
   DOC_DIR = path.join(ctx.require('./db').DATA_DIR, 'mitglieder-dokumente');
   const demoDocs = () => demoDocuments().catch(e => console.error('Demo-Dokumente:', e.message));
   demoDocs(); ctx.require('./vault').onUnlock(demoDocs);
@@ -364,7 +364,7 @@ function activate(ctx) {
   const { need, bad, int } = ctx;
   const admin = ctx.admin;
   const P = need('mitglieder'), PB = need('mitglieder_bank'), PD = need('mitglieder_dokumente');
-  const uname = req => req.user.name || req.user.username;
+  const uname = ctx.userName;
   const ar = fn => ctx.asyncRoute(fn);
   const express = ctx.require('express');
 
@@ -382,7 +382,7 @@ function activate(ctx) {
     ctx.db.prepare('INSERT INTO mv_change(member_id, kind, data, created_by) VALUES (?,?,?,?)').run(memberId, kind, JSON.stringify(data), uname(req));
     store.hist(memberId, uname(req), 'Zur Bestätigung', null, text);
     ctx.audit(req.user, 'Abteilung: zur Bestätigung gemeldet', text);
-    if (shared && shared.notifyBoard) shared.notifyBoard(`Zur Bestätigung: ${text}`, [`${req.user.name || req.user.username} (Abteilungsleitung) hat gemeldet: ${text}.`, '', 'Bitte in der Verwaltung unter Mitgliederverwaltung → Anträge bestätigen oder ablehnen.']).catch(() => {});
+    if (shared && shared.notifyBoard) shared.notifyBoard(`Zur Bestätigung: ${text}`, [`${ctx.userName(req)} (Abteilungsleitung) hat gemeldet: ${text}.`, '', 'Bitte in der Verwaltung unter Mitgliederverwaltung → Anträge bestätigen oder ablehnen.']).catch(() => {});
   }
   /** Hinweise, die ein Abteilungsadmin selbst erledigen kann (Beiträge, Bank und Mandat macht die Vereinsverwaltung) */
   const scopedIssues = list => (list || []).filter(i => !/Mandat|Bankverbindung|IBAN|Beitrag|Altersstufe/.test(i));
@@ -457,13 +457,13 @@ function activate(ctx) {
   });
   admin.get('/list', P, (req, res) => res.json(listRows(req.query)));
   admin.get('/member/:id', P, (req, res) => {
-    try { store.fillNames(int(req.params.id)); } catch (e) { /* */ }
+    try { store.fillNames(int(req.params.id)); } catch (e) { console.error('Mitglieder: Name nicht übernommen:', e.message); }
     const d = detail(int(req.params.id), req.user);
     if (!d) return bad(res, 'Mitglied nicht gefunden.', 404);
     res.json(d);
   });
   /* Unterschriebene Beitrittserklärung (Papier) vorab hochladen – wird beim Anlegen dem neuen Mitglied zugeordnet.
-     Nicht zugeordnete Uploads werden nach einem Tag gelöscht. */
+     Nicht zugeordnete Uploads werden nach 2 Std. gelöscht, je Benutzer bleiben höchstens die 10 neuesten (sonst ließe sich der Speicher füllen). */
   /* Hinweise anderer Module im Austritts-Fenster (z. B. „Hat noch Schlüssel Nr. 07“) */
   admin.get('/member/:id/exit-notes', P, (req, res) => {
     const id = int(req.params.id);
@@ -474,16 +474,17 @@ function activate(ctx) {
     let name = ''; try { name = decodeURIComponent(String(req.get('X-Filename') || '')); } catch (e) { name = ''; }
     try {
       const docId = saveDocument(null, req.body, { kind: 'antrag', title: 'Beitrittserklärung' + (name ? ` (${one(name, 80)})` : ''), filename: name, user: uname(req) });
+      for (const d of ctx.db.prepare('SELECT * FROM mv_document WHERE member_id IS NULL AND application_id IS NULL AND by_user = ? ORDER BY id DESC LIMIT -1 OFFSET 10').all(uname(req))) { deleteDocumentFile(d); ctx.db.prepare('DELETE FROM mv_document WHERE id = ?').run(d.id); }
       const d = ctx.db.prepare('SELECT id, title, size, mime FROM mv_document WHERE id = ?').get(docId);
       res.json({ doc_id: d.id, title: d.title, size: d.size, mime: d.mime });
     } catch (e) { bad(res, e.message); }
   });
   const dropOrphans = () => {
     try {
-      for (const d of ctx.db.prepare("SELECT * FROM mv_document WHERE member_id IS NULL AND application_id IS NULL AND created_at < datetime('now','localtime','-1 day')").all()) { deleteDocumentFile(d); ctx.db.prepare('DELETE FROM mv_document WHERE id = ?').run(d.id); }
-    } catch (e) { /* beim nächsten Mal */ }
+      for (const d of ctx.db.prepare("SELECT * FROM mv_document WHERE member_id IS NULL AND application_id IS NULL AND created_at < datetime('now','localtime','-2 hours')").all()) { deleteDocumentFile(d); ctx.db.prepare('DELETE FROM mv_document WHERE id = ?').run(d.id); }
+    } catch (e) { console.error('Mitglieder: verwaiste Dokumente nicht aufgeräumt (nächster Versuch in 15 Minuten):', e.message); }
   };
-  setTimeout(dropOrphans, 30000).unref(); setInterval(dropOrphans, 6 * 3600000).unref();
+  setTimeout(dropOrphans, 30000).unref(); setInterval(dropOrphans, 15 * 60000).unref();
 
   admin.post('/member', P, async (req, res) => {
     const pi = personInput(req.body || {}); if (pi.error) return bad(res, pi.error);
@@ -1135,7 +1136,7 @@ function activate(ctx) {
       .sort((a, b) => nameKey(a.name, 'mitglied').localeCompare(nameKey(b.name, 'mitglied'), 'de'));
   }
   function settingsView(user) {
-    const s = { club_name: ctx.getSetting('club_name', ''), club_street: S('club_street'), club_city: S('club_city'), creditor_id: S('creditor_id'), creditor_name: S('creditor_name') || ctx.getSetting('club_name', ''),
+    const s = { club_name: ctx.getSetting('club_name', ''), club_street: ctx.clubAddress().street, club_city: ctx.clubAddress().city, creditor_id: S('creditor_id'), creditor_name: S('creditor_name') || ctx.getSetting('club_name', ''),
       club_iban: user && user.perms.includes('mitglieder_finanzen') ? store.account().iban : sepa.maskIban(store.account().iban), club_bic: store.account().bic, club_bank: store.account().bank,
       sepa_account: Number(S('sepa_account')) || null, account_name: store.account().name, account_central: store.account().central,
       mandate_prefix: S('mandate_prefix'), sepa_purpose: S('sepa_purpose'), sepa_purpose_default: require('./lib/money').ZWECK_VORGABE, member_no_start: S('member_no_start', '1'), member_no_mode: S('member_no_mode', 'start') === 'max' ? 'max' : 'start', year_start: S('year_start', '01-01'), fiscal_month: ctx.geschaeftsjahr.month(), prenotify_days: parseInt(S('prenotify_days', '14'), 10) || 14,
@@ -1154,7 +1155,7 @@ function activate(ctx) {
     const put = (k, v) => pending.push([k, v]);
     const str = (k, max) => { if (b[k] !== undefined) put(k, one(b[k], max)); };
     const long = (k, max) => { if (b[k] !== undefined) put(k, txt(b[k], max)); };
-    str('club_street', 80); str('club_city', 80); str('creditor_name', 70); str('club_bank', 70); str('notify_to', 300);
+    str('creditor_name', 70); str('club_bank', 70); str('notify_to', 300);
     long('due_text', 600); long('app_intro', 1500); long('work_text', 600); long('invoice_text', 800);
     if (b.satzung_url !== undefined) { const u = one(b.satzung_url, 300); if (u && !/^https?:\/\//i.test(u)) errors.push('Die Satzung bitte als Adresse mit https:// angeben.'); else put('satzung_url', u); }
     if (b.creditor_id !== undefined) { const c = sepa.checkCreditorId(b.creditor_id); if (b.creditor_id && !c.ok) errors.push(c.error); else put('creditor_id', c.ci); }
@@ -1194,7 +1195,7 @@ function activate(ctx) {
     const fiscalBefore = ctx.geschaeftsjahr.month();
     ctx.db.transaction(() => { for (const [k, v] of pending) SET(k, v); if (fiscal) ctx.geschaeftsjahr.set(fiscal); })();
     if (fiscal && fiscal !== fiscalBefore) { const MN = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']; ctx.audit(req.user, 'Einstellungen geändert', `Geschäftsjahr beginnt am 1.: ${MN[fiscalBefore - 1]} → ${MN[fiscal - 1]}`); }
-    { const L = { club_street: 'Straße', club_city: 'PLZ und Ort', creditor_name: 'Zahlungsempfänger', club_bank: 'Kreditinstitut', notify_to: 'Benachrichtigung an', due_text: ['Hinweis zu Beitrag & Fälligkeit', 'text'],
+    { const L = { creditor_name: 'Zahlungsempfänger', club_bank: 'Kreditinstitut', notify_to: 'Benachrichtigung an', due_text: ['Hinweis zu Beitrag & Fälligkeit', 'text'],
         app_intro: ['Begrüßung im Formular', 'text'], work_text: ['Hinweis Arbeitseinsatz', 'text'], invoice_text: ['Rechnungstext', 'text'], satzung_url: 'Satzung (Link)', creditor_id: 'Gläubiger-ID', club_iban: ['Vereins-IBAN', 'text'],
         sepa_account: ['Konto für Lastschriften', 'text'], club_bic: 'BIC', mandate_prefix: 'Mandatsreferenz-Vorsilbe', member_no_start: 'Mitgliedsnummern ab', member_no_mode: 'Mitgliedsnummern vergeben', year_start: 'Beginn des Beitragsjahres', prenotify_days: 'Vorabinformation (Tage)',
         drinks_due: 'Einzug Verkauf am', app_tablet: ['Beitrittserklärung am Tablet', 'bool'], app_online: ['Online-Beitrittserklärung', 'bool'], return_fee_cents: ['Rücklastschrift-Gebühr', 'euro'], dunning_levels: ['Mahnstufen', 'text'], dunning_deadline_days: 'Zahlungsfrist in Mahnungen (Tage)',
@@ -1456,7 +1457,6 @@ function activate(ctx) {
   ctx.hooks.functionNames = () => [...new Set(ctx.db.prepare('SELECT name FROM mv_function').all().map(x => String(x.name).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
   ctx.hooks.fees = () => ctx.db.prepare("SELECT id, name FROM mv_fee WHERE active = 1 AND kind != 'zusatz' ORDER BY sort, name").all();
   ctx.hooks.memberNumbers = () => Object.fromEntries(ctx.db.prepare('SELECT member_id, member_no FROM mv_person WHERE member_no IS NOT NULL').all().map(r => [r.member_id, r.member_no]));
-  ctx.hooks.clubInfo = () => ({ street: S('club_street', ''), city: S('club_city', ''), yearStart: S('year_start', '01-01') });
   /* für andere Module (Arbeitseinsatz) */
   /* Helferdienste „Familienpool“: Familienmitgliedschaft (family_of), ohne eine solche die Zahlergruppe – siehe store.familyOf */
   ctx.hooks.familyOf = id => store.familyOf(id);
@@ -1531,9 +1531,10 @@ function activate(ctx) {
   ctx.hooks.memberInfos = memberInfos;
   ctx.hooks.memberInfo = id => memberInfos([id]).get(Number(id)) || null;
   /* Familie bzw. Zahlergruppe (wie familyOf) für viele Mitglieder auf einmal → Map id → { head, members, kind } */
+  ctx.hooks.clubInfo = () => ({ yearStart: S('year_start', '01-01') });   // Beginn des Beitragsjahres (Arbeitseinsatz); die Anschrift gibt es nur über ctx.clubAddress()
   ctx.hooks.familiesOf = list => { const rel = store.relations(); return new Map([...new Set((list || []).map(Number))].map(id => [id, store.familyOf(id, rel)])); };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
-  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'sepa_purpose', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max', 'welcome_subject', 'welcome_text', 'exit_mail_subject', 'exit_mail_text'];
+  const CONFIG_KEYS = ['creditor_name', 'mandate_prefix', 'sepa_purpose', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max', 'welcome_subject', 'welcome_text', 'exit_mail_subject', 'exit_mail_text'];
   ctx.hooks.exportConfig = () => ({ depts: ctx.db.prepare('SELECT name, federation, sort, active FROM mv_department').all(),
     fees: ctx.db.prepare('SELECT f.name, f.kind, d.name AS department, f.cents, f.interval, f.prorate, f.age_min, f.age_max, f.family, f.work_minutes, f.on_form, f.sort, f.active, f.note FROM mv_fee f LEFT JOIN mv_department d ON d.id = f.department_id').all(),
     settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });

@@ -9,7 +9,7 @@
   const hash = location.hash;
   const key = (hash.match(/[#&]k=([A-Za-z0-9_-]{32})/) || [])[1] || '';
   const me = +((hash.match(/[#&]t=(\d+)/) || [])[1] || 0);
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = CW.esc;
   const T = (t, v) => (window.T ? window.T(t, v) : String(t).replace(/\{(\d+)\}/g, (m, i) => (v && v[i] != null ? v[i] : m)));
   const pad = n => String(n).padStart(2, '0');
   const phone = () => window.matchMedia('(max-width: 760px)').matches;
@@ -17,7 +17,6 @@
   const clock = () => { const n = new Date(); $('mClock').textContent = `${pad(n.getHours())}:${pad(n.getMinutes())}`; };
   const side = (m, s) => m[s] || m[s + '_ph'] || T('offen');
   const mine = m => me && [...(m.a_ids || []), ...(m.b_ids || [])].includes(me);
-  const courtWord = () => T(d.cfg.court === 'Spielfeld' ? 'Spielfeld' : d.cfg.court === 'Feld' ? 'Feld' : 'Platz');
   /** Ergebnis aus Sicht von a: „2:1“, „1:1, n. N. 4:3“, „6:4 3:6 10:7“ */
   const score = m => (m.sets && m.sets.length ? m.sets.map(x => x.join(':')).join(' ') : `${m.score_a}:${m.score_b}`);
   const dec = m => (m.decider ? `${m.decider.kind === 'nm' ? T('n. N.') : T('Tiebreak')} ${m.decider.a}:${m.decider.b}` : m.result === 'wo' ? T('w. o.') : m.result === 'aufgabe' ? T('Aufgabe') : '');

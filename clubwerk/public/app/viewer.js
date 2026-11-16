@@ -8,7 +8,7 @@
   if (!VA || VA.view) return;
   const VER = (() => { try { return new URL(document.currentScript.src).searchParams.get('v') || ''; } catch (e) { return ''; } })();
   const asset = f => new URL(f + (VER ? '?v=' + encodeURIComponent(VER) : ''), document.baseURI).href;
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const tx = (t, v) => window.CWI18N && window.CWI18N.T ? window.CWI18N.T(t, v) : (v || []).reduce((a, x, i) => a.replace('{' + i + '}', x), t);
 
   if (!document.getElementById('vvStyle')) {

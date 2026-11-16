@@ -5,7 +5,7 @@
   const embedded = /\/(x\/)?beregnung\//.test(location.pathname) || Boolean(document.querySelector('base[href*="x/beregnung/"]'));   // am Tablet (/beregnung/, alt: /x/beregnung/, oder als Start-Reiter unter „/“)
   const API = embedded ? '../../api/tablet/x/beregnung/' : 'api/';
   const $ = id => document.getElementById(id);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const T = window.BeregnungTiles;
 
   if (embedded) {

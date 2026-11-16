@@ -90,6 +90,7 @@
       .bk-plan .pastsh { position: absolute; left: 0; right: 0; top: 0; background: color-mix(in srgb, var(--hover) 70%, transparent); pointer-events: none; }
       .bk-plan .now { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 1; pointer-events: none; }
       .bk-blk { position: absolute; border-radius: 10px; padding: 5px 8px; box-sizing: border-box; overflow: hidden; font-size: 12.5px; line-height: 1.3; cursor: pointer; border: 1px solid transparent; text-align: left; font: inherit; }
+      .bk-blk .bk-pk { display: inline-block; white-space: nowrap; }
       .bk-blk b { display: block; font-size: 12px; font-variant-numeric: tabular-nums; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; } .bk-blk span { display: block; font-size: 12.5px; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }   /* Planblock: Silbentrennung, kein „…“, nur ganze Zeilen (02.11.2026) */
       .bk-blk.buchung { background: var(--brand-soft); color: var(--brand-ink); border-color: color-mix(in srgb, var(--brand) 30%, transparent); }
       .bk-blk.serie { background: color-mix(in srgb, var(--blue, #2f6fd6) 14%, var(--card)); color: var(--ink); border-color: color-mix(in srgb, var(--blue, #2f6fd6) 35%, transparent); }
@@ -246,6 +247,8 @@
   const blkText = b => (b.type === 'buchung'
     ? [b.label ? b.label.name : null, whoTxt(b) || (b.title && (!b.label || b.title !== b.label.name) ? b.title : '')].filter(Boolean)
     : [b.title || (b.label && b.label.name) || '', b.label && b.title && b.title !== b.label.name ? b.label.name : null].filter(Boolean));
+  /** Trennpunkt „·“ bleibt beim letzten Zeichen des Namens davor – auch wenn ein schmaler Block mitten im Wort umbricht, steht „·“ nie allein am Zeilenanfang */
+  const dotSafe = h => h.replace(/(&[a-z#0-9]+;|[^\s>;])( · )/g, '<span class="bk-pk">$1&nbsp;·</span> ');
   const monday = d => addDays(d, 1 - dow(d));
   async function showPlan(el) {
     st.view = st.view || 'tag';
@@ -303,7 +306,7 @@
               const time = `${b.start}–${b.end}`, n = Math.max(1, Math.floor((h - 8) / 15));
               let ln = t[0] ? [[t[0], 'b'], ...(t[1] ? [[t[1], '']] : []), [time, 'tm']] : [[time, 'tm']];
               if (ln.length > n) ln = n === 1 ? [[t[0] ? `${t[0]} · ${time}` : time, 'b']] : ln.slice(0, n);
-              return `<button lang="de" class="bk-blk ${b.type}${b.label ? ' lab' : ''}" data-b="${b.id}" title="${esc([...t, time].join(' · '))}" style="top:${y(tm(b.start)) + 1}px;height:${h}px;left:calc(${l * w}% + 3px);width:calc(${w}% - 6px);${blkStyle(b)}">${ln.map(([x, c]) => (c === 'b' ? `<b>${esc(x)}</b>` : `<span class="${c}">${esc(x)}</span>`)).join('')}</button>`; }).join('')}
+              return `<button lang="de" class="bk-blk ${b.type}${b.label ? ' lab' : ''}" data-b="${b.id}" title="${esc([...t, time].join(' · '))}" style="top:${y(tm(b.start)) + 1}px;height:${h}px;left:calc(${l * w}% + 3px);width:calc(${w}% - 6px);${blkStyle(b)}">${ln.map(([x, c]) => (c === 'b' ? `<b>${dotSafe(esc(x))}</b>` : `<span class="${c}">${dotSafe(esc(x))}</span>`)).join('')}</button>`; }).join('')}
           </div>`; }).join('')}
       </div></div>
       <div class="bk-legend">${[...used].map(([n, c]) => `<span><i style="background:${c}"></i>${esc(n)}</span>`).join('')}<span><i style="background:var(--brand-soft);border:1px solid var(--brand)"></i>Buchung</span><span><i style="background:var(--red-soft);border:1px solid var(--red)"></i>Sperre</span><span><i style="background:repeating-linear-gradient(135deg, var(--hover) 0 3px, transparent 3px 6px);border:1px solid var(--line)"></i>nicht buchbar</span></div>`
@@ -661,7 +664,7 @@
     st.lg = st.lg || { f: 'alle', year: new Date().getFullYear(), resource: '', sort: 'termin', q: '' };
     const g = st.lg;
     const qs = `year=${g.year}&resource=${g.resource}&f=${g.f}&sort=${g.sort}&q=${encodeURIComponent(g.q)}`;
-    const d = await api('log?' + qs);
+    const d = await api('log?' + qs + '&n=' + (g.n || 200));   // nur so viele Zeilen, wie angezeigt werden (die Excel-Datei bekommt alle)
     const STS = { storniert: ['r', 'Storniert'], abgeschlossen: ['', 'Abgeschlossen'], laeuft: ['g', 'Läuft gerade'], anstehend: ['b', 'Anstehend'] };
     const SRC = { app: 'Mitglieder-App', tablet: 'Tablet', verwaltung: 'Verwaltung' };
     const WDL = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
@@ -871,7 +874,7 @@
         <label class="f rs-pl">Mitspieler<select id="rsPR">${opt(0, 'optional', d.partner_required ? 1 : 0)}${opt(1, 'Pflicht', d.partner_required ? 1 : 0)}</select></label>
         <label class="f rs-pl">Allein trainieren erlaubt, Bezeichnung<input id="rsSL" maxlength="30" value="${esc(d.solo_label || '')}" placeholder="z. B. Ballwand – leer = nein"></label>
         <label class="chk rs-ar w2" style="align-self:end;min-height:40px"><input type="checkbox" id="rsAP" ${d.as_partner ? 'checked' : ''}> Als Mitspieler buchbar (z. B. Ballmaschine – auf allen Plätzen)</label>
-        <label class="f ${st.meta.departments.length ? 'w2' : 'wall'}">Hinweis für Mitglieder<input id="rsH" value="${esc(d.note || '')}" placeholder="z. B. Sand – nach dem Spiel abziehen"></label>
+        <label class="f ${st.meta.departments.length ? 'w2' : 'wall'}">Hinweis für Mitglieder<input id="rsH" value="${esc(d.note || '')}" placeholder="z. B. Nach dem Spiel abziehen"></label>
         ${st.meta.departments.length ? `<label class="f w2">Gehört der Abteilung<select id="rsD">${opt('', '– ganzer Verein –', d.department_id)}${st.meta.departments.map(x => opt(x.id, x.name, d.department_id)).join('')}</select></label>
         <label class="f rs-dep">Andere Mitglieder<select id="rsO">${opt('gebuehr', 'buchen mit Platzgebühr', d.outsiders)}${opt('gesperrt', 'dürfen nicht buchen', d.outsiders)}</select></label>
         <label class="f rs-dep">Platzgebühr je Person<input id="rsOF" inputmode="decimal" value="${centsToInput(d.outsider_fee_cents != null ? d.outsider_fee_cents : 500)}"></label>` : ''}

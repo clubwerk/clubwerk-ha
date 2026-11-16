@@ -489,8 +489,11 @@
   /* ---------------------------------------------------------------- Stunden */
   async function renderStunden() {
     await metaNow();
-    const [rows, open, run] = await Promise.all([api(`entries?status=${st.es}${st.es === 'alle' ? '&year=' + st.year : ''}`), st.es === 'offen' ? null : api('entries?status=offen'), st.es === 'laeuft' ? null : api('entries?status=laeuft')]);
-    const nOpen = (open || rows).length, nRun = (run || rows).length;
+    // „Alle“ seitenweise (erst 150, der Rest auf Knopfdruck); die Zahlen der Reiter kommen getrennt, ohne die Listen zu laden
+    const paged = st.es === 'alle', lim = st.esN || 150;
+    const [res, cnt] = await Promise.all([api(`entries?status=${st.es}${paged ? '&year=' + st.year + '&limit=' + lim : ''}`), api('entries/zaehler')]);
+    const rows = paged ? res.rows : res, total = paged ? res.total : rows.length;
+    const nOpen = cnt.offen, nRun = cnt.laeuft;
     head('Stunden', 'Gemeldete und gestempelte Stunden bestätigen oder ablehnen.');
     $('main').insertAdjacentHTML('beforeend', `<div class="toolbar">${st.es === 'offen' && rows.length ? '<button class="btn" id="esNo">Ausgewählte ablehnen</button>' : ''}<button class="btn ${st.es === 'offen' && rows.length ? '' : 'primary'}" id="esAdd">Stunden nachtragen …</button>${st.es === 'offen' && rows.length ? '<button class="btn primary" id="esOk">Ausgewählte bestätigen</button>' : ''}</div>
       ${chips('esSeg', [['offen', 'Zu bestätigen', nOpen], ['laeuft', 'Eingestempelt', nRun], ['alle', 'Alle']], st.es, true)}
@@ -499,10 +502,11 @@
           <td class="k-1z">${st.es === 'offen' ? `<label class="chk"><input type="checkbox" data-id="${r.id}" checked> <b>${esc(GK.lastFirst(r.name))}</b></label>` : `<b>${esc(GK.lastFirst(r.name))}</b>`}<div class="muted s k-sum" translate="no">${esc(r.event_title || r.text || '')}</div></td><td class="nw">${deDate(r.date)}${r.in_at ? `<span class="muted s k-weg hide-md"> ${r.in_at.slice(11, 16)}${r.out_at ? '–' + r.out_at.slice(11, 16) : ''}</span>` : ''}</td>
           <td class="k-1z k-weg" title="${esc(r.reason || '')}"><span translate="no">${esc(r.event_title || r.text || '')}</span>${r.reason ? ` <span class="muted s k-weg">${esc(r.reason)}</span>` : ''}</td><td class="k-weg k-eng">${esc(SRC[r.source] || r.source)}</td><td class="nw${st.es === 'alle' ? '' : ' k-weg'}">${pill(EST[r.status] || ['', r.status])}</td>
           <td class="r">${r.minutes ? h(r.minutes) : ''}</td><td class="r nw">${r.status === 'laeuft' ? `<button class="btn small" data-stop="${r.id}">Ausstempeln</button>` : `<button class="btn small" data-ed="${r.id}">Ändern</button>`}</td></tr>`).join('')}</table>`
-        : `<p class="empty">${st.es === 'offen' ? 'Nichts zu bestätigen.' : st.es === 'laeuft' ? 'Niemand eingestempelt.' : 'Keine Einträge.'}</p>`}</div>`);
+        : `<p class="empty">${st.es === 'offen' ? 'Nichts zu bestätigen.' : st.es === 'laeuft' ? 'Niemand eingestempelt.' : 'Keine Einträge.'}</p>`}${total > rows.length ? `<p style="text-align:center;margin:14px 0"><button class="btn small" type="button" id="esMore">Weitere ${Math.min(150, total - rows.length)} anzeigen</button> <span class="muted s">noch ${total - rows.length}</span></p>` : ''}</div>`);
     const el = $('main');
+    if ($('esMore')) $('esMore').onclick = () => { st.esN = lim + 150; const y0 = window.scrollY; renderStunden().then(() => window.scrollTo(0, y0)).catch(fail); };
     const again = () => { refreshPending(); renderStunden().catch(fail); };
-    onChips('esSeg', f => { st.es = f; again(); });
+    onChips('esSeg', f => { st.es = f; st.esN = 0; again(); });
     $('esAdd').onclick = () => addEntries(again);
     const sel = () => [...el.querySelectorAll('[data-id]')].filter(c => c.checked).map(c => +c.dataset.id);
     if ($('esAll')) $('esAll').onchange = () => el.querySelectorAll('[data-id]').forEach(c => { c.checked = $('esAll').checked; });

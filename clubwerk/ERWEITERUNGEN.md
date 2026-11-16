@@ -124,7 +124,6 @@ Alle Module folgen denselben Regeln. Vorbild ist die Verkaufsseite. Eigene Farbe
 | `.tk-chip` `.g` `.a` `.r` | Statusmarke | ein, zwei Wörter („da“, „nicht da“, „vergessen“) |
 | `.tk-empty` | Leerzustand | gestrichelter Kasten, ein Satz, der sagt, was als Nächstes geht |
 | `.tk-big` | Hauptknopf | 64 px, Vereinsfarbe – höchstens einer je Bereich |
-| `.tk-cols` | (nicht mehr verwenden) | Bereiche stehen untereinander, jeder mit `h2.sec` und eigenem `.tk-grid` |
 | `.overlay` > `.dialog`, `.pad`, `.pin-dots`, `.err`, `.done .big` | Fenster, PIN-Eingabe, Erfolgsmeldung | Ziffernblock 3 × 4, 68 px hohe Tasten |
 | `.gate` > `.gatecard` | Sperrseite (Tablet-Passwort) | unverändert übernehmen |
 
@@ -226,7 +225,6 @@ Texte werden auf Deutsch geschrieben – Clubwerk übersetzt die Oberfläche aut
 - **Knöpfe einer Seite** („+ Neu …“, Export) gehören rechts in die Reiterzeile: eine `<div class="toolbar">` nur mit Knöpfen ganz oben im Seiteninhalt wandert automatisch dorthin. Gezielt: `GK.tabTools(html, owner)` – die Knöpfe verschwinden, sobald `owner` nicht mehr angezeigt wird.
 - **Leerzustand:** `<p class="empty">Noch keine …</p>` – nie eine nackte graue Zeile.
 - **Namensauswahl am Tablet („Wer bist du?“):** Container `.vh-names`, Hinweis `.vh-names-hint`, Treffer als `<button><span>Nachname, Vorname</span></button>` (kit.css).
-- **Eigener Reiter auf der Seite „Mitglieder-App“:** `GK.registerAppSection({ key, label, perm, render(el) })`.
 - **Protokoll:** nie interne Schlüssel. Für Einstellungen `ctx.audit(user, 'Modul: Einstellungen geändert', ctx.auditDiff(LABELS, vorher, nachher))` mit `LABELS = { schluessel: 'Bezeichnung' | ['Bezeichnung', 'bool'|'euro'|'list'|'text'] }`.
 - **Hinweise auf der Übersicht** (`hooks.overview` → `alerts`) können mit `sec: ['tab_<seite>', '<reiter>']` und `link: 'Protokoll öffnen'` direkt in den Reiter führen, in dem sie erledigt werden.
 - **Beschriftungen** beginnen groß, gesperrte Knöpfe nur über `disabled` (der Kern färbt sie lesbar grau).

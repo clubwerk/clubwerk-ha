@@ -262,7 +262,7 @@
     }, 2500);
   }
   let rafT = 0;
-  new MutationObserver(() => { if (!cur()) return; cancelAnimationFrame(rafT); rafT = requestAnimationFrame(frame); }).observe(document.getElementById('app'), { childList: true, subtree: true });
+  CWDom.beobachte(() => { if (!cur()) return; cancelAnimationFrame(rafT); rafT = requestAnimationFrame(frame); }, { ziel: document.getElementById('app') });
   /* Eingaben in den Karten eines Schritts merken: „Weiter“ ohne „Speichern“ fragt nach (die Kern-Einstellungen beobachtet sonst niemand).
      Ein Knopf in der Karte (Speichern, Festlegen …) gilt als gespeichert. */
   let wdirty = false;

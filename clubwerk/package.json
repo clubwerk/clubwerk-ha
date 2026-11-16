@@ -1,7 +1,7 @@
 {
   "name": "clubwerk",
-  "version": "2026.11.49",
-  "verkaufVersion": "3.101.7",
+  "version": "2026.11.50",
+  "verkaufVersion": "3.101.9",
   "private": true,
   "description": "Clubwerk – modulare Vereinsverwaltung als Home-Assistant-Add-on",
   "main": "src/server.js",
@@ -14,16 +14,16 @@
   "license": "UNLICENSED",
   "dependencies": {
     "archiver": "5.3.2",
-    "basic-ftp": "6.2.3",
-    "better-sqlite3": "^13.0.3",
+    "basic-ftp": "6.2.6",
+    "better-sqlite3": "^13.2.0",
     "compression": "^1.8.1",
     "exceljs": "^4.4.0",
     "express": "^5.3.0",
     "jszip": "^3.10.1",
-    "nodemailer": "^10.1.1",
+    "nodemailer": "^10.6.0",
     "pdfkit": "^0.20.2",
     "qrcode": "^1.5.4",
-    "ssh2-sftp-client": "11.0.0",
+    "ssh2-sftp-client": "12.1.1",
     "web-push": "^3.6.7"
   },
   "overrides": {

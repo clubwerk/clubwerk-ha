@@ -250,6 +250,12 @@ Die Adresse der Fernseher-Anzeige: Im Browser des Fernsehers öffnen (im Vereins
 
 ![Karte „Fernseher im Clubhaus“.](bild: seite=turniertag; tab=einstellungen; ziel=[data-card="fernseher"])
 
+#### Code der Turnierleitung am Turniertag
+
+Freiwillig. Ohne Code checken die Spieler am Tablet selbst ein und tragen ihre Ergebnisse selbst ein. Legt ihr mit **Code festlegen** einen Code fest (4 bis 6 Ziffern), fragt das Tablet ihn vor Check-in, Nenngeld, „Match starten“ und Ergebnis ab – dann macht das nur die Turnierleitung. **Code entfernen** nimmt ihn zurück. Der Code wird nicht wieder angezeigt, also merken! Nach zehn falschen Codes ist die Eingabe für eine Weile gesperrt; ein neuer Code hebt die Sperre auf.
+
+![Karte „Code der Turnierleitung“ am Turniertag.](bild: seite=turniertag; tab=einstellungen; ziel=[data-card="code"])
+
 #### Turniertag
 
 Hier ändert ihr den **Namen** des Turniertags und seht, aus welchen Dateien er importiert wurde. **Turnier beenden …** schließt den Tag ab: Die Spieler-Links gelten nicht mehr, Sperren im Buchungssystem fallen weg, Ergebnisse bleiben für die Ergebnisliste. **Turnier wieder öffnen** macht das rückgängig. **Turniertag löschen** entfernt Spieler, Check-in, Nenngeld und Ergebnisse und hebt Sperren auf.
@@ -400,7 +406,7 @@ Ergebnisse tragen nur die Turnierleitung ein, hier in der Verwaltung oder am Tab
 
 **Am Tablet** (Reiter „Turniere“, ohne PIN) sieht man die Tabellen, die Endrunde und die Relegation der Clubmeisterschaft und die Ehrentafel. Am Turniertag erscheint darüber, was heute läuft:
 
-- **LK-Turniertag:** „Einchecken“ (Namen suchen, einchecken und Nenngeld bar oder digital bezahlen), „Ergebnis eintragen“ (Match antippen, Sätze eingeben; ein Ergebnis lässt sich am Tablet nur einmal eintragen, Kampflos und Aufgabe trägt ihr in der Verwaltung ein) und die Plätze: antippen zeigt das laufende und das nächste Match zum Starten.
+- **LK-Turniertag:** „Einchecken“ (Namen suchen, einchecken und Nenngeld bar oder digital bezahlen), „Ergebnis eintragen“ (Match antippen, Sätze eingeben; ein Ergebnis lässt sich am Tablet nur einmal eintragen, Kampflos und Aufgabe trägt ihr in der Verwaltung ein) und die Plätze: antippen zeigt das laufende und das nächste Match zum Starten. Habt ihr einen Code der Turnierleitung festgelegt, fragt das Tablet ihn vorher ab.
 - **Dorfturnier und andere freie Turniere:** Plätze mit laufendem und nächstem Spiel, Tabellen und Turnierbaum zum Ansehen. „Ergebnis eintragen“ und „Nächste Spiele starten“ gehen nur mit dem **Code der Turnierleitung** (Ziffernblock); er gilt auf dem Tablet 15 Minuten nach der letzten Eingabe.
 
 **In der Mitglieder-App** (Bereich „Turniere“, für alle Mitglieder sichtbar, solange eine Saison existiert):

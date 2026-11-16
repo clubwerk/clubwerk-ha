@@ -7,9 +7,8 @@
  *    Stichtag anteilig (volle Monate, der Eintrittsmonat zählt mit) – oder voll, wenn der Beitrag so eingestellt ist.
  *  - Ab dem Austritts- bzw. Enddatum beginnen keine neuen Zeiträume mehr.
  */
-const { pad, isDate, addDays, deD } = require('../../../src/util');   // gemeinsame Datums-Helfer des Kerns
+const { isDate, addDays, addMonths, deD } = require('../../../src/util');   // gemeinsame Datums-Helfer des Kerns
 const MONTHS = { jahr: 12, halbjahr: 6, quartal: 3, monat: 1, einmalig: 0 };
-const addMonths = (s, n) => { const [y, m, d] = s.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1 + n, 1)); const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate(); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(Math.min(d, last))}`; };
 const monthIndex = s => Number(s.slice(0, 4)) * 12 + Number(s.slice(5, 7)) - 1;
 
 /** nächster Stichtag (Beginn eines Zeitraums) nach dem Tag `from`; yearStart = 'MM-DD', step in Monaten */

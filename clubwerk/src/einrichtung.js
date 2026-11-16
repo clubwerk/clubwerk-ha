@@ -5,12 +5,12 @@
    setupSteps = () => [{ id, title, text, done, page, tab, sec, card }] (auch async; nur aktive Module werden gefragt).
    Stand je Schritt in der Einstellung setup_state: ok (bestätigt mit „Weiter“), skip („Später“), hide (aus der Checkliste genommen).
    Erledigt = Zustand erfüllt (Schritte mit Prüfung, done) bzw. bestätigt (Schritte ohne Prüfung). setup_auto = '1': Assistent öffnet sich nach der Anmeldung von selbst (erster Start). */
-const { getSetting, setSetting, audit } = require('./db');
+const { getSetting, getJsonSetting, setSetting, audit } = require('./db');
 const plugins = require('./plugins');
 
 const arr = v => (Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.length <= 80).slice(0, 200) : []);
 function state() {
-  let s = {}; try { s = JSON.parse(getSetting('setup_state', '{}')) || {}; } catch (e) { s = {}; }
+  let s = getJsonSetting('setup_state', {});
   return { ok: arr(s.ok), skip: arr(s.skip), hide: arr(s.hide) };
 }
 const save = s => setSetting('setup_state', JSON.stringify({ ok: [...new Set(s.ok)], skip: [...new Set(s.skip)], hide: [...new Set(s.hide)] }));
@@ -41,6 +41,8 @@ const CORE = c => [
     page: 'app', sec: ['cw_appsec', 'einstellungen'], card: ['Adresse & Aussehen'], done: () => Boolean(getSetting('app_url', '')), when: () => c.appModules() },
   { id: 'netz', title: 'Vereinsnetz', text: 'Welche Netze als Vereinsheim gelten. Dann kommen Gast-WLAN oder VPN nicht an Verwaltung und Tablet, und Türen oder Beregnung bleiben im Verein.',
     page: 'einstellungen', sec: SET('erreichbar'), card: ['Vereinsnetz'], done: () => c.clubNets() },
+  { id: 'https', title: 'Verschlüsselung (HTTPS)', text: 'Ohne HTTPS gehen Passwörter, PINs und Geräteschlüssel der Mitglieder-App lesbar durchs WLAN. HTTPS schaltest du in Home Assistant ein: Add-on › Konfiguration › „HTTPS für alle Geräte“ (Anleitung in der Installationsanleitung, Abschnitt 9c).',
+    page: 'einstellungen', sec: SET('erreichbar'), card: ['Verschlüsselung und Zugang von außen'], done: () => c.https() },
   { id: 'sicherung', title: 'Sicherungen', text: 'Wohin die nächtliche Komplettsicherung zusätzlich geht (NAS, Dropbox, Cloud) – und gleich die erste Sicherung anlegen.',
     page: 'sicherung', card: ['Sicherungsziele', 'Jetzt'], done: () => c.backupDone() },
 ];

@@ -16,7 +16,7 @@
   /* Letzter Stand von Vereinsname, Logo und Reitern: beim Seitenwechsel sofort zeichnen statt leer anfangen (sonst flackert die Kopfzeile) */
   const ready = f => { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', f, { once: true }); else f(); };   // Sperrseite steht im HTML erst nach der Kopfzeile
   const keep = { get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* egal */ } } };
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   /* Kopfzeile aufbauen: Logo · Vereinsname | Getränke · [Erweiterungen] · [Links] · Verwaltung · Uhr – überall identisch */
   const hdr = document.getElementById('gkHeader');
   if (hdr && !hdr.dataset.built) {
@@ -163,21 +163,6 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   window.GKNav = { reload: load };
   // Sperrbildschirm weg (Tablet-Passwort eingegeben): die Leiste war vorher nicht abrufbar – jetzt sofort nachladen
-  /* Fenster schließen: Abdunklung kurz nachklingen lassen (Aussehen in style.css, .tk-abblenden) – für alle Fenster der Tablet-Seiten,
-     egal wie die Seite sie schließt (Klasse „hidden“ an einem .overlay) */
-  ready(() => {
-    if (!document.body.classList.contains('tk')) return;
-    const glow = document.createElement('div'); glow.className = 'tk-abblenden'; glow.setAttribute('aria-hidden', 'true'); document.body.appendChild(glow);
-    glow.addEventListener('animationend', () => glow.classList.remove('an'));
-    new MutationObserver(recs => {
-      for (const r of recs) {
-        const e = r.target;
-        if (!e.classList.contains('overlay') || !e.classList.contains('hidden') || /(^|\s)hidden(\s|$)/.test(r.oldValue || '')) continue;
-        glow.style.background = getComputedStyle(e).backgroundColor;
-        glow.classList.remove('an'); void glow.offsetWidth; glow.classList.add('an');
-      }
-    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true });
-  });
   /* Letzter Datenstand einer Tablet-Seite im Tab (sessionStorage endet mit dem Tab): Beim Zurückkehren von einem anderen Reiter steht die Seite sofort
      mit Inhalt da, danach kommen die frischen Daten (Seiten der Module: Plätze, Licht, Stempeln, Dienste; die Startseite hat eigenen Speicher).
      Die Seite zeichnet den Stand vor dem Ende ihres Skripts und setzt dann <span id="gk-bereit"> (<link rel="expect" blocking="render">): so entsteht das erste Bild
@@ -188,7 +173,7 @@
     merken: (k, v) => { try { sessionStorage.setItem(MK + k, JSON.stringify(v)); } catch (e) { /* ohne Speicher: beim nächsten Seitenwechsel kurz ohne Inhalt */ } },
     leeren: () => { try { Object.keys(sessionStorage).filter(k => k.indexOf(MK) === 0).forEach(k => sessionStorage.removeItem(k)); } catch (e) { /* egal */ } },
   };
-  ready(() => { const g = document.getElementById('gate'); if (g) new MutationObserver(() => { if (g.classList.contains('hidden')) load(); else window.GKMerk.leeren(); }).observe(g, { attributes: true, attributeFilter: ['class'] }); });
+  ready(() => { const g = document.getElementById('gate'); if (g) CWDom.beobachte(() => { if (g.classList.contains('hidden')) load(); else window.GKMerk.leeren(); }, { typen: ['attributes'], ziel: g }); });
   /* PIN-Eingabe – auf allen Tablet-Seiten derselbe Aufbau: Name, „Bitte deine PIN eingeben – Aktion“, 6 Kreise (Stellen 5 und 6
      freiwillig, daher blass), Ziffernblock, Fehlerzeile (ohne Meldung ohne Platz). title/sub kommen fertig maskiert. */
   const dots = n => Array.from({ length: Math.max(6, n) }, (_, i) => `<span class="${i < n ? 'f' : i >= 4 ? 'opt' : ''}"></span>`).join('');
@@ -196,6 +181,67 @@
     dots,
     pad: (title, sub, n = 0) => `<h2>${title}</h2><div class="sub">${sub}</div><div class="pin-dots" id="dots">${dots(n)}</div>
       <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button class="fn" data-k="x">Abbrechen</button><button data-k="0">0</button><button class="fn" data-k="ok">OK</button></div><div class="err" id="perr"></div>`,
+  };
+
+  /* PIN-Fenster der Modul-Tablets: Ziffernblock zeigen und bedienen. o: { show(html), close(), title, sub (fertig maskiert), auto (bei der 6. Ziffer
+     gleich absenden), min + minText (zu kurz: nur Hinweis) }. submit(pin) liefert bei Erfolg nichts, bei Fehler den Text (kommt in die Fehlerzeile,
+     die Eingabe wird geleert). */
+  window.GKPin.ask = (o, submit) => {
+    const $e = id => document.getElementById(id);
+    let pin = '', busy = false;
+    o.show(window.GKPin.pad(o.title, o.sub));
+    const dots = () => { $e('dots').innerHTML = window.GKPin.dots(pin.length); };
+    const go = async () => {
+      if (busy) return;
+      if (pin.length < (o.min || 0)) { $e('perr').textContent = o.minText; return; }
+      busy = true; const r = await submit(pin); busy = false;
+      if (typeof r === 'string' && $e('perr')) { $e('perr').textContent = r; pin = ''; dots(); }
+    };
+    dots();
+    $e('dialog').querySelectorAll('[data-k]').forEach(b => {
+      b.onclick = () => {
+        const k = b.dataset.k;
+        if (k === 'x') return o.close();
+        if (k === 'ok') return go();
+        if (pin.length < 6) { pin += k; dots(); $e('perr').textContent = ''; }
+        if (o.auto && pin.length === 6) go();
+      };
+    });
+  };
+
+  /* Gerüst der Tablet-Seiten (Module): Hinweis, Fenster, Abruf mit Sperrbildschirm bei 401, Passwortfenster – bisher in jeder tablet.js einzeln gebaut.
+     GKTab.toast(ms) liefert die Hinweisfunktion, GKTab.api(url, body, fehlertext) ruft ab (401 mit gate → Sperrbildschirm, Fehler mit .gate),
+     GKTab.gate(weiter, schliessen) verdrahtet den Sperrbildschirm (weiter: Seite neu laden; schliessen: offenes Fenster vor dem Sperren zu). */
+  const gk$ = id => document.getElementById(id);
+  const gt = { shown: false, weiter: null, schliessen: null, t: 0 };
+  window.GKTab = {
+    toast: ms => (msg, error = false) => { const t = gk$('toast'); t.textContent = msg; t.className = 'toast' + (error ? ' error' : ''); clearTimeout(gt.t); gt.t = setTimeout(() => t.classList.add('hidden'), ms); },
+    dlg: html => { gk$('dialog').innerHTML = html; gk$('overlay').classList.remove('hidden'); },
+    closeDlg: () => { gk$('overlay').classList.add('hidden'); gk$('dialog').innerHTML = ''; },
+    async api(url, body, fehler = 'Das hat nicht geklappt.') {
+      const r = await fetch(url, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401 && d.gate) { window.GKTab.showGate(); throw Object.assign(new Error(d.error || 'Gesperrt'), { gate: true }); }
+      if (!r.ok) throw Object.assign(new Error(d.error || fehler), { status: r.status });
+      return d;
+    },
+    showGate() {
+      if (gt.shown) return; gt.shown = true; if (gt.schliessen) gt.schliessen();
+      gk$('gate').classList.remove('hidden'); gk$('gatePw').value = ''; gk$('gateErr').textContent = ''; setTimeout(() => gk$('gatePw').focus(), 50);
+    },
+    gate(weiter, schliessen) {
+      gt.weiter = weiter; gt.schliessen = schliessen || null;
+      const login = async () => {
+        try {
+          const r = await fetch('../../api/gate/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: gk$('gatePw').value }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) { gk$('gateErr').textContent = d.error || 'Das hat nicht geklappt.'; return; }
+          gt.shown = false; gk$('gate').classList.add('hidden'); gt.weiter();
+        } catch (e) { gk$('gateErr').textContent = 'Keine Verbindung zum Server.'; }
+      };
+      gk$('gateGo').onclick = login;
+      gk$('gatePw').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+    },
   };
 
   /* Nach 30 Sekunden ohne Eingabe zurück zum Start-Reiter – auf allen Tablet-Seiten außer dem Start-Reiter selbst

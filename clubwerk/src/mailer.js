@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
-const { db, DATA_DIR, getSetting, setSetting, audit, nameKey, splitPersonName, lastFirst } = require('./db');
+const { db, DATA_DIR, getSetting, setSetting, audit, nameKey, splitPersonName, lastFirst, once } = require('./db');
 const mail = require('./mail');
 const { nowTs: now, today, esc, addMonths } = require('./util');   // addMonths klemmt auf den Monatsletzten (31.01. + 1 Monat = 28./29.02., nicht 03.03.)
 
@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS mail_template (id INTEGER PRIMARY KEY AUTOINCREMENT, 
 {   // vorübergehend abgelehnte Empfänger (4xx): next_try = nächster Versuch (ms), tries = Versuche, first_temp = erste Ablehnung
   const cols = db.prepare('PRAGMA table_info(mail_recipient)').all().map(c => c.name);
   for (const [c, t] of [['next_try', 'INTEGER'], ['tries', 'INTEGER NOT NULL DEFAULT 0'], ['first_temp', 'INTEGER']]) if (!cols.includes(c)) db.exec(`ALTER TABLE mail_recipient ADD COLUMN ${c} ${t}`);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_mail_rcpt_wartet ON mail_recipient(next_try) WHERE status = 'wartet'");   // Teilindex: die Versandschleife schaut nur auf wartende Empfänger
 }
 db.exec(`
 CREATE TABLE IF NOT EXISTS msg_inbox (
@@ -75,18 +76,14 @@ CREATE TABLE IF NOT EXISTS msg_vote (
 `);
 // Einmalig (3.10): Wer bisher Rundmails aus der Mitgliederverwaltung schicken durfte, bekommt das neue Recht „E-Mail“.
 // Die Markierung wird erst gesetzt, wenn alles ohne Fehler durchlief – sonst beim nächsten Start noch einmal versuchen.
-(function migratePerm() {
-  if (getSetting('mail_perm_migrated', '')) return;
-  if (!db.prepare('SELECT 1 FROM admin_users LIMIT 1').get()) { setSetting('mail_perm_migrated', '1'); return; }   // frische Installation: Rollenvorlagen bleiben wie ausgeliefert
-  const add = v => { const a = J(v, []); return Array.isArray(a) && a.includes('mitglieder') && !a.includes('email') ? JSON.stringify([...a, 'email']) : null; };
-  try {
-    db.transaction(() => {
-      for (const r of db.prepare('SELECT id, perms FROM admin_roles').all()) { const n = add(r.perms); if (n) db.prepare('UPDATE admin_roles SET perms = ? WHERE id = ?').run(n, r.id); }
-      for (const u of db.prepare('SELECT id, perms FROM admin_users').all()) { const n = add(u.perms); if (n) db.prepare('UPDATE admin_users SET perms = ? WHERE id = ?').run(n, u.id); }
-    })();
-    setSetting('mail_perm_migrated', '1');
-  } catch (e) { console.error('E-Mail: Rechte übernehmen', e.message); }
-})();
+try {
+  once('mail_perm_migrated', function migratePerm() {
+    if (!db.prepare('SELECT 1 FROM admin_users LIMIT 1').get()) return;   // frische Installation: Rollenvorlagen bleiben wie ausgeliefert
+    const add = v => { const a = J(v, []); return Array.isArray(a) && a.includes('mitglieder') && !a.includes('email') ? JSON.stringify([...a, 'email']) : null; };
+    for (const r of db.prepare('SELECT id, perms FROM admin_roles').all()) { const n = add(r.perms); if (n) db.prepare('UPDATE admin_roles SET perms = ? WHERE id = ?').run(n, r.id); }
+    for (const u of db.prepare('SELECT id, perms FROM admin_users').all()) { const n = add(u.perms); if (n) db.prepare('UPDATE admin_users SET perms = ? WHERE id = ?').run(n, u.id); }
+  });
+} catch (e) { console.error('E-Mail: Rechte übernehmen', e.message); }
 
 /* ---------- HTML: nur einfache Formatierung durchlassen ---------- */
 const TAGS = new Set(['p', 'br', 'div', 'b', 'strong', 'i', 'em', 'u', 's', 'ul', 'ol', 'li', 'a', 'h2', 'h3', 'blockquote', 'hr', 'span']);
@@ -327,7 +324,7 @@ const safeName = n => String(n || 'Datei').replace(/[\\/:*?"<>|\u0000-\u001f]+/g
 const fileDir = id => path.join(DIR, String(id));
 const filePath = (id, f) => path.join(fileDir(id), `${f.id}.bin`);
 const BLOCK_EXT = /\.(exe|bat|cmd|com|scr|pif|vbs|vbe|js|jse|wsf|wsh|msi|msp|ps1|jar|lnk|reg|hta|cpl|dll)$/i;
-function removeFiles(id) { try { fs.rmSync(fileDir(id), { recursive: true, force: true }); } catch (e) { /* weg */ } }
+function removeFiles(id) { try { fs.rmSync(fileDir(id), { recursive: true, force: true }); } catch (e) { /* schon gelöscht */ } }
 /** Gesendete Rundmails samt Empfängern und Anhängen, verschickt vor dem Tag `before` (Löschfrist, src/datenschutz.js) */
 const oldSent = before => db.prepare("SELECT id FROM mail_message WHERE art IS NULL AND status IN ('gesendet', 'teilweise') AND pinned = 0 AND NOT EXISTS (SELECT 1 FROM msg_inbox WHERE message_id = mail_message.id) AND COALESCE(sent_at, created_at) < ?").all(before).map(r => r.id);   // was noch in der App steht (angeheftet oder nicht abgelaufen), bleibt
 function purgeSent(before) {
@@ -376,10 +373,11 @@ async function work(id) {
       }
       const r = dueOne.get(id, Date.now());
       if (!r) break;
-      const v = r.via === '__kopie' ? vars({ name: m.from_name, email: r.email }) : vars({ ...r, person: r.member_id ? all.get(r.member_id) : null });
-      const subject = (r.via === '__kopie' ? '[Kopie] ' : '') + fillText(m.subject, v);
-      const body = fillHtml(m.html, v) + sigBlock(m.signature_html);
       try {
+        // Vorbereitung gehört in den Versuch: ein unerwarteter Fehler betrifft nur diesen Empfänger, die übrigen werden weiter zugestellt
+        const v = r.via === '__kopie' ? vars({ name: m.from_name, email: r.email }) : vars({ ...r, person: r.member_id ? all.get(r.member_id) : null });
+        const subject = (r.via === '__kopie' ? '[Kopie] ' : '') + fillText(m.subject, v);
+        const body = fillHtml(m.html, v) + sigBlock(m.signature_html);
         await sess.send({ to: r.email, replyTo: m.reply_to || undefined, fromName: m.from_name ? `${m.from_name} · ${club()}` : club(), subject, html: wrap(body), text: toText(body), attachments: files, raw: true });
         upd.run('ok', null, now(), r.id); streak = 0; limitTries = 0;
       } catch (e) {
@@ -400,10 +398,14 @@ async function work(id) {
     }
     finish(id);
   } catch (e) {
+    // Fehler außerhalb eines einzelnen Empfängers (z. B. Postfach nicht erreichbar): niemand wird aufgegeben, die Wartenden werden später nachgeholt
     console.error('E-Mail: Versand', id, e.message);
-    db.prepare("UPDATE mail_recipient SET status = 'fehler', error = ?, next_try = NULL WHERE message_id = ? AND status = 'wartet'").run(String(e.message).slice(0, 300), id);
-    const c = countsOf(id);
-    db.prepare("UPDATE mail_message SET status = 'teilweise', sent = ?, failed = ? WHERE id = ?").run(c.ok || 0, c.bad || 0, id);
+    const t = Date.now(), msg = String(e.message || e).slice(0, 300);
+    for (const r of db.prepare("SELECT id, tries, first_temp FROM mail_recipient WHERE message_id = ? AND status = 'wartet'").all(id)) {
+      if (t - (r.first_temp || t) > mail.GIVE_UP_MS) db.prepare("UPDATE mail_recipient SET status = 'fehler', error = ?, next_try = NULL WHERE id = ?").run(`Nach 24 Stunden nicht zugestellt: ${msg}`.slice(0, 300), r.id);
+      else db.prepare('UPDATE mail_recipient SET next_try = ?, tries = tries + 1, first_temp = ?, error = ? WHERE id = ?').run(t + mail.backoffMs(r.tries || 0), r.first_temp || t, msg, r.id);
+    }
+    try { finish(id); } catch (e2) { console.error('E-Mail: Abschluss nicht gespeichert (bleibt „sendet“, der nächste Lauf holt nach):', e2.message); }
   } finally { if (sess) sess.close(); running.delete(id); }
 }
 // nach einem Neustart angefangene Versände fortsetzen
@@ -438,7 +440,7 @@ function cleanupInbox() {
   return old.length;
 }
 try { cleanupInbox(); } catch (e) { console.error('Nachrichten: Aufräumen', e.message); }
-setInterval(() => { try { cleanupInbox(); } catch (e) { /* nächster Versuch */ } }, 6 * 3600 * 1000).unref();
+setInterval(() => { try { cleanupInbox(); } catch (e) { console.error('E-Mail: Aufräumen fehlgeschlagen (nächster Versuch in 6 Stunden):', e.message); } }, 6 * 3600 * 1000).unref();
 
 /* ---------- Umfrage an einer App-Nachricht ----------
    poll = { question, options: [Text], multi, anonymous, show: 'stimme' | 'ende' | 'nie', ends_at: 'JJJJ-MM-TT HH:MM' | null }.
@@ -585,6 +587,13 @@ function routes(admin, { need, bad }) {
     res.json({ ...out(m), rcpt: rcpt.map(({ member_id, ...r }) => (m.art ? { ...r, person: Boolean(member_id) } : r)), waiting: rcpt.filter(r => r.status === 'wartet').length, wait: waitOf(m.id), ...(m.status === 'entwurf' ? {} : { reach: reachOf(m, rcpt), app: appStats(m) }) });
   });
 
+  entwurfRouten({ admin, bad, draftOf, P, visible });
+  versandRouten({ admin, bad, draftOf, mine, P, visible });
+  verteilerRouten({ admin, bad, P });
+}
+
+/** Entwürfe und Anhänge (Teil von routes) */
+function entwurfRouten({ admin, bad, draftOf, P, visible }) {
   /* Entwürfe */
   const draftFields = b => {
     const f = {};
@@ -651,7 +660,7 @@ function routes(admin, { need, bad }) {
     const m = draftOf(req, res); if (!m) return;
     const files = J(m.files, []), f = files.find(x => x.id === req.params.fid);
     if (!f) return bad(res, 'Anhang nicht gefunden.', 404);
-    try { fs.unlinkSync(filePath(m.id, f)); } catch (e) { /* weg */ }
+    try { fs.unlinkSync(filePath(m.id, f)); } catch (e) { /* schon gelöscht */ }
     db.prepare('UPDATE mail_message SET files = ? WHERE id = ?').run(JSON.stringify(files.filter(x => x.id !== f.id)), m.id);
     res.json({ ok: true });
   });
@@ -664,7 +673,10 @@ function routes(admin, { need, bad }) {
     res.set({ 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}`, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' });
     res.end(buf);
   });
+}
 
+/** Vorschau, Versand, Nachricht in der App, Umfrage, erneut versuchen, löschen (Teil von routes) */
+function versandRouten({ admin, bad, draftOf, mine, P, visible }) {
   /* Vorschau und Versand */
   const check = (req, m) => {
     const errs = [], ch = cleanChannels(m.channels), mailOn = ch.includes('mail'), appOn = ch.includes('app'), spec = cleanSpec(J(m.spec, {}));
@@ -786,7 +798,11 @@ function routes(admin, { need, bad }) {
     audit(req.user, 'Nachricht aus „Gesendet“ gelöscht', `Nr. ${m.id}`);
     res.json({ ok: true });
   });
+}
 
+
+/** Verteiler und Vorlagen (Teil von routes) */
+function verteilerRouten({ admin, bad, P }) {
   /* Verteiler und Vorlagen (für alle mit dem Recht gemeinsam) */
   const crud = (table, fields, label) => {
     admin.post(`/mail/${table === 'mail_list' ? 'lists' : 'templates'}`, P, (req, res) => {
@@ -825,4 +841,5 @@ function routes(admin, { need, bad }) {
   }, 'Vorlage');
 }
 
-module.exports = { routes, clean, toText, resolve, DIR, oldSent, purgeSent, oldAuto, purgeAuto, recordAuto, markAuto, forgetMember, autoOf, ARTEN, cleanChannels, inApp, fillHtml, fillText, vars, filePath, J, PUSH_KEY, everyone, club, sigBlock, pollOf, pollOpen, pollResult };
+
+module.exports = { routes, clean, toText, resolve, DIR, oldSent, purgeSent, oldAuto, purgeAuto, recordAuto, markAuto, forgetMember, autoOf, ARTEN, inApp, fillHtml, fillText, vars, filePath, J, club, sigBlock, pollOf, pollOpen, pollResult };

@@ -37,7 +37,7 @@ function register(sh) {
   });
   A.get('/issues/:id', P, send(req => { const i = db.prepare('SELECT * FROM sl_issue WHERE id = ?').get(int(req.params.id)); if (!i) throw fail('Nicht gefunden.', 404); return { ...issueView(i), protocols: db.prepare('SELECT id, no, kind, at, status FROM sl_protocol WHERE issue_id = ? ORDER BY id').all(i.id) }; }));
   A.put('/issues/:id', P, (req, res) => bad(res, 'Ein abgeschlossenes Protokoll lässt sich nicht ändern. Bei einem Fehler bitte stornieren und neu ausgeben.'));
-  A.get('/meta', P, (req, res) => res.json({ user: (req.user && (req.user.name || req.user.username)) || '', cfg: cfg(), mailReady: ctx.mail.ready(), mitglieder: mitgl(), adoptable: adoptable().length, today: today(), club: ctx.getSetting('club_name', 'Verein'), max: euro(cfg().max_cost_cents), frist: `${Math.round(cfg().keep_ohnepfand / 12)} ${Math.round(cfg().keep_ohnepfand / 12) === 1 ? 'Jahr' : 'Jahre'}`, kinds: sh.KINDS }));
+  A.get('/meta', P, (req, res) => res.json({ user: ctx.userName(req), cfg: cfg(), mailReady: ctx.mail.ready(), mitglieder: mitgl(), adoptable: adoptable().length, today: today(), club: ctx.getSetting('club_name', 'Verein'), max: euro(cfg().max_cost_cents), frist: `${Math.round(cfg().keep_ohnepfand / 12)} ${Math.round(cfg().keep_ohnepfand / 12) === 1 ? 'Jahr' : 'Jahre'}`, kinds: sh.KINDS }));
   A.get('/people', P, (req, res) => {
     const q = String(req.query.q || '').trim().replace(/\s+/g, ' ').toLowerCase(); if (q.length < 2) return res.json({ list: [] });
     const like = '%' + q.replace(/[%_\\]/g, m => '\\' + m) + '%';
@@ -88,7 +88,7 @@ function register(sh) {
     return { ext_first: first, ext_last: last, contact, ext_birth: p.birth_date || null };
   }
   /** Ausgabe anlegen: Stücke werden reserviert, Status „wartet“ (Tablet) bzw. „signiere“ (gleich in der Verwaltung) */
-  function createIssue(req, status) {
+  async function createIssue(req, status) {
     const b = req.body || {};
     const who = personIn(b);
     const ids = [...new Set((Array.isArray(b.pieces) ? b.pieces : []).map(Number))].filter(n => Number.isInteger(n) && n > 0);
@@ -97,26 +97,32 @@ function register(sh) {
     const tpl = db.prepare('SELECT id FROM sl_template WHERE id = ?').get(int(b.template_id)) || db.prepare('SELECT id FROM sl_template ORDER BY sort, id LIMIT 1').get();
     const due = b.due ? String(b.due) : null; if (due && (!isDate(due) || due < today())) throw fail('Das Rückgabedatum muss heute oder später sein.');
     const deposit = int(b.deposit_cents); if (!(deposit >= 0 && deposit <= 100000)) throw fail('Das Pfand muss zwischen 0 und 1000 € liegen.');
-    const by = one(b.issued_by, 60) || (req.user && (req.user.name || req.user.username)) || ''; if (by.length < 2) throw fail('Bitte eintragen, wer den Schlüssel ausgibt.');
+    const by = one(b.issued_by, 60) || ctx.userName(req); if (by.length < 2) throw fail('Bitte eintragen, wer den Schlüssel ausgibt.');
     const probe = { member_id: who.member_id || null, ext_birth: who.ext_birth || null };
     const minor = ageAt(personBirth(probe), today()) < 18;
     const guardian = one(b.guardian_name, 70);
     if (minor && guardian.length < 3) throw fail('Die Person ist minderjährig – bitte den Namen der erziehungsberechtigten Person eintragen.');
     const code = status === 'wartet' ? String(crypto.randomInt(100000, 1000000)) : null;
+    const codeH = code ? await codeHash(code) : null;   // vor der Transaktion (scrypt rechnet asynchron)
     const id = db.transaction(() => {
       for (const pid of ids) { const p = db.prepare('SELECT status FROM sl_piece WHERE id = ?').get(pid); if (!p) throw fail('Dieses Stück gibt es nicht.'); if (p.status !== 'vorraetig') throw fail('Ein gewähltes Stück ist nicht vorrätig.'); }
       const iid = Number(db.prepare(`INSERT INTO sl_issue(member_id, ext_first, ext_last, ext_birth, contact, guardian_name, status, issued_by, due, deposit_cents, template_id, code_hash, code_expires, created_by)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(who.member_id || null, who.ext_first || null, who.ext_last || null, who.ext_birth || null, who.contact || null, minor ? guardian : null, status, by, due, deposit, tpl.id,
-        code ? codeHash(code) : null, code ? Date.now() + 3 * 3600000 : null, (req.user && (req.user.name || req.user.username)) || null).lastInsertRowid);
+        codeH, code ? Date.now() + 3 * 3600000 : null, ctx.userName(req) || null).lastInsertRowid);
       for (const pid of ids) { db.prepare("INSERT INTO sl_issue_piece(issue_id, piece_id, state) VALUES (?,?,'reserviert')").run(iid, pid); db.prepare("UPDATE sl_piece SET status = 'reserviert' WHERE id = ?").run(pid); }
       return iid;
     })();
+    if (code) merke(id, code);
     return { id, code, minor };
   }
   /* Code für die Unterschrift am Tablet (6 Ziffern, 3 Std.): gesalzen (scrypt) wie PINs, Nachschlagen über die wenigen wartenden Ausgaben (planung/geheimnisse.md) */
   const codeHash = c => ctx.auth.hashSecret('slcode:' + c);
-  const issueByCode = code => db.prepare("SELECT * FROM sl_issue WHERE status = 'wartet' AND code_hash IS NOT NULL AND code_expires > ? ORDER BY id DESC LIMIT 200").all(Date.now())
-    .find(i => ctx.auth.verifySecret('slcode:' + code, i.code_hash)) || null;
+  const vorfilter = ctx.require('./tabletcode').vorfilter();   // ein falscher Code kostet kein scrypt
+  const merke = (id, code) => vorfilter.merke(id, code);
+  const issueByCode = code => vorfilter.finde(code, {
+    einer: id => db.prepare("SELECT * FROM sl_issue WHERE id = ? AND status = 'wartet' AND code_hash IS NOT NULL AND code_expires > ?").get(id, Date.now()),
+    alle: () => db.prepare("SELECT * FROM sl_issue WHERE status = 'wartet' AND code_hash IS NOT NULL AND code_expires > ? ORDER BY id DESC LIMIT 200").all(Date.now()),
+    pruefe: i => ctx.auth.verifySecret('slcode:' + code, i.code_hash) });
   function release(id) {   // Reservierung aufheben (Fehler oder Abbruch)
     db.prepare("UPDATE sl_piece SET status = 'vorraetig' WHERE status = 'reserviert' AND id IN (SELECT piece_id FROM sl_issue_piece WHERE issue_id = ?)").run(id);
     db.prepare('DELETE FROM sl_issue_piece WHERE issue_id = ?').run(id);
@@ -158,7 +164,7 @@ function register(sh) {
   A.post('/issues', P, send(async req => {
     const b = req.body || {};
     if (b.how === 'tablet') {
-      const r = createIssue(req, 'wartet');
+      const r = await createIssue(req, 'wartet');
       audit(req.user, 'Schlüssel: Übergabe zur Unterschrift ans Tablet', personName(db.prepare('SELECT * FROM sl_issue WHERE id = ?').get(r.id)));
       return { id: r.id, code: r.code, expires_in_min: 180, minor: r.minor };
     }
@@ -167,14 +173,15 @@ function register(sh) {
     const probe = b.member_id ? { member_id: int(b.member_id) } : { ext_birth: (b.person || {}).birth_date };
     const minor = ageAt(personBirth(probe), today()) < 18;
     const sigs = sigsOf(b, minor);
-    const r = createIssue(req, 'signiere');
-    try { return await finalizeIssue(r.id, sigs, (req.user && (req.user.name || req.user.username)) || '', 'verwaltung'); }
+    const r = await createIssue(req, 'signiere');
+    try { return await finalizeIssue(r.id, sigs, ctx.userName(req), 'verwaltung'); }
     catch (e) { release(r.id); db.prepare('DELETE FROM sl_issue WHERE id = ?').run(r.id); throw e; }
   }));
-  A.post('/issues/:id/code', P, send(req => {
+  A.post('/issues/:id/code', P, send(async req => {
     const i = db.prepare("SELECT * FROM sl_issue WHERE id = ? AND status = 'wartet'").get(int(req.params.id)); if (!i) throw fail('Diese Ausgabe wartet nicht auf eine Unterschrift.');
     const code = String(crypto.randomInt(100000, 1000000));
-    db.prepare('UPDATE sl_issue SET code_hash = ?, code_expires = ? WHERE id = ?').run(codeHash(code), Date.now() + 3 * 3600000, i.id);
+    db.prepare('UPDATE sl_issue SET code_hash = ?, code_expires = ? WHERE id = ?').run(await codeHash(code), Date.now() + 3 * 3600000, i.id);
+    merke(i.id, code);
     return { code, expires_in_min: 180 };
   }));
   A.delete('/issues/:id', P, send(req => {
@@ -216,7 +223,7 @@ function register(sh) {
     return { no, protocol: pid, sha256: sha };
   }
   A.post('/issues/:id/return', P, send(async req => {
-    const i = openIssue(req), b = req.body || {}, items = pickPieces(i, b), by = (req.user && (req.user.name || req.user.username)) || '';
+    const i = openIssue(req), b = req.body || {}, items = pickPieces(i, b), by = ctx.userName(req);
     if (!sigOk(b.sig_taker)) throw fail('Bitte die Unterschrift der annehmenden Person leisten.');
     const cond = b.condition === 'beschaedigt' ? 'beschaedigt' : 'ok', note = one(b.note, 200);
     if (cond === 'beschaedigt' && note.length < 3) throw fail('Bitte kurz eintragen, was beschädigt ist.');
@@ -238,7 +245,7 @@ function register(sh) {
     return r;
   }));
   A.post('/issues/:id/lost', P, send(async req => {
-    const i = openIssue(req), b = req.body || {}, items = pickPieces(i, b), by = (req.user && (req.user.name || req.user.username)) || '';
+    const i = openIssue(req), b = req.body || {}, items = pickPieces(i, b), by = ctx.userName(req);
     if (!sigOk(b.sig_taker)) throw fail('Bitte die Unterschrift der annehmenden Person leisten.');
     const date = isDate(b.date) ? b.date : today(); if (date > today()) throw fail('Das Datum liegt in der Zukunft.');
     const circ = txt(b.circumstances, 500); if (circ.length < 3) throw fail('Bitte kurz eintragen, wie es zum Verlust kam.');
@@ -258,7 +265,7 @@ function register(sh) {
     return r;
   }));
   A.post('/issues/:id/cancel', P, send(async req => {
-    const i = openIssue(req), b = req.body || {}, by = (req.user && (req.user.name || req.user.username)) || '';
+    const i = openIssue(req), b = req.body || {}, by = ctx.userName(req);
     const reason = one(b.reason, 200); if (reason.length < 3) throw fail('Bitte einen Grund für die Stornierung eintragen.');
     if (db.prepare("SELECT 1 FROM sl_protocol WHERE issue_id = ? AND kind IN ('rueckgabe','verlust')").get(i.id)) throw fail('Es gibt schon eine Rückgabe oder Verlustanzeige – bitte nicht stornieren, sondern weiterführen.');
     const items = itemsOf(i.id), ref = refProtocol(i);
@@ -303,7 +310,7 @@ function register(sh) {
           const ty = db.prepare('SELECT ident FROM sl_type WHERE id = ?').get(t.id), have = db.prepare('SELECT COUNT(*) n FROM sl_piece WHERE type_id = ?').get(t.id).n;
           p = { id: Number(db.prepare("INSERT INTO sl_piece(type_id, label, note) VALUES (?,?, 'bei der Übernahme ergänzt')").run(t.id, `${ty.ident}-${have + 1}`).lastInsertRowid) };
         }
-        const iid = Number(db.prepare("INSERT INTO sl_issue(member_id, status, legacy, legacy_no, issued_by, issued_at, created_by) VALUES (?, 'ausgegeben', 1, ?, 'übernommen', ?, ?)").run(int(it.member_id), String(it.no), nowTs(), (req.user && (req.user.name || req.user.username)) || null).lastInsertRowid);
+        const iid = Number(db.prepare("INSERT INTO sl_issue(member_id, status, legacy, legacy_no, issued_by, issued_at, created_by) VALUES (?, 'ausgegeben', 1, ?, 'übernommen', ?, ?)").run(int(it.member_id), String(it.no), nowTs(), (req.user && (ctx.userName(req))) || null).lastInsertRowid);
         db.prepare("INSERT INTO sl_issue_piece(issue_id, piece_id, state) VALUES (?,?, 'ausgegeben')").run(iid, p.id);
         db.prepare("UPDATE sl_piece SET status = 'ausgegeben' WHERE id = ?").run(p.id);
         count++;
@@ -320,32 +327,32 @@ function register(sh) {
     const sigs = sigsOf(b, minor);
     if (b.template_id) db.prepare('UPDATE sl_issue SET template_id = ? WHERE id = ?').run(int(b.template_id), i.id);
     if (b.issued_by) db.prepare('UPDATE sl_issue SET issued_by = ? WHERE id = ?').run(one(b.issued_by, 60), i.id);
-    else db.prepare('UPDATE sl_issue SET issued_by = ? WHERE id = ?').run((req.user && (req.user.name || req.user.username)) || '', i.id);
+    else db.prepare('UPDATE sl_issue SET issued_by = ? WHERE id = ?').run(ctx.userName(req), i.id);
     if (minor) db.prepare('UPDATE sl_issue SET guardian_name = ? WHERE id = ?').run(one(b.guardian_name, 70) || null, i.id);
     db.prepare("UPDATE sl_issue SET status = 'signiere' WHERE id = ?").run(i.id);
     const keepAt = i.issued_at;
     let r;
-    try { r = await finalizeIssue(i.id, sigs, (req.user && (req.user.name || req.user.username)) || '', 'verwaltung'); }
+    try { r = await finalizeIssue(i.id, sigs, ctx.userName(req), 'verwaltung'); }
     catch (e) { db.prepare("UPDATE sl_issue SET status = 'ausgegeben', issued_at = ? WHERE id = ?").run(keepAt, i.id); throw e; }   // bleibt „ohne Protokoll“
     db.prepare('UPDATE sl_issue SET legacy = 0, issued_at = ? WHERE id = ?').run(keepAt, i.id);   // Datum der Übergabe bleibt
     return r;
   }));
 
   /* ---------- Tablet: Code, prüfen, unterschreiben ---------- */
-  const security = ctx.require('./security');
-  const tFails = security.limiter({ per: 8, baseMs: 15 * 60000 }), tAll = security.limiter({ per: 30, baseMs: 15 * 60000 });
+  /* Sperre je Tablet; über alle Tablets nur eine Sicherheitswarnung (src/tabletcode.js) */
+  const tBremse = ctx.require('./tabletcode').bremse({
+    alarmTablet: () => ctx.securityAlert('code', 'Schlüsselübergabe am Tablet: 8-mal ein falscher Code – dieses Tablet ist für die Code-Eingabe vorübergehend gesperrt.', { key: 'tablet' }),
+    alarmAlle: () => ctx.securityAlert('code_alle', 'Schlüsselübergabe am Tablet: über alle Tablets mehr als 30 falsche Codes in 15 Minuten – bitte prüfen, wer Codes durchprobiert.', { key: 'alle' }) });
   const burst = ctx.rateLimit('sltab', 30, 10 * 60000);
-  function byCode(req, res) {
-    const ip = req.ip || '?', w = Math.max(tFails.blocked(ip), tAll.blocked('*'));
+  // nacheinander (scrypt rechnet asynchron): die Sperre wird erst in der Reihe gelesen
+  const byCode = (req, res) => ctx.auth.nacheinander('slcode', () => byCodeJetzt(req, res));
+  async function byCodeJetzt(req, res) {
+    const ip = req.ip || '?', w = tBremse.wartet(ip);
     if (w) { bad(res, `Zu viele falsche Codes – bitte ${w} Min. warten.`, 429); return null; }
     const code = String((req.body || {}).code || '').replace(/\D/g, '');
-    const i = code.length === 6 ? issueByCode(code) : null;
-    if (!i) {
-      if (tFails.fail(ip).locked) ctx.securityAlert('code', 'Schlüsselübergabe am Tablet: 8-mal ein falscher Code – dieses Tablet ist für die Code-Eingabe vorübergehend gesperrt.', { key: 'tablet' });
-      if (tAll.fail('*').locked) ctx.securityAlert('code_alle', 'Schlüsselübergabe am Tablet: 30-mal ein falscher Code – die Code-Eingabe ist für alle Tablets gesperrt.', { key: 'alle' });
-      bad(res, 'Der Code stimmt nicht oder ist abgelaufen.', 404); return null;
-    }
-    tFails.ok(ip);
+    const i = code.length === 6 ? await issueByCode(code) : null;
+    if (!i) { tBremse.falsch(ip); bad(res, 'Der Code stimmt nicht oder ist abgelaufen.', 404); return null; }
+    tBremse.richtig(ip);
     return i;
   }
   T.get('/config', (req, res) => res.json({ waiting: db.prepare("SELECT COUNT(*) n FROM sl_issue WHERE status = 'wartet' AND code_expires > ?").get(Date.now()).n, club: ctx.getSetting('club_name', 'Verein') }));
@@ -354,9 +361,9 @@ function register(sh) {
     return { id: i.id, person: personName(i), terms: renderTerms(tpl.text), issued_by: i.issued_by, due: i.due || '', deposit_cents: i.deposit_cents, guardian_required: Boolean(i.guardian_name), guardian_name: i.guardian_name || '',
       pieces: itemsOf(i.id).map(x => ({ id: x.id, ident: x.ident, label: x.label, name: x.name, opens: x.opens || '' })), club: ctx.getSetting('club_name', 'Verein') };
   };
-  T.post('/open', burst, (req, res) => { const i = byCode(req, res); if (i) res.json(tabletView(i)); });
+  T.post('/open', burst, ar(async (req, res) => { const i = await byCode(req, res); if (i) res.json(tabletView(i)); }));
   T.post('/sign', burst, ar(async (req, res) => {
-    const i = byCode(req, res); if (!i) return;
+    const i = await byCode(req, res); if (!i) return;
     const b = req.body || {};
     if (!b.agreed) return bad(res, 'Bitte bestätigen, dass Sie die Bedingungen gelesen haben und einverstanden sind.');
     let sigs; try { sigs = sigsOf(b, Boolean(i.guardian_name)); } catch (e) { return bad(res, e.message); }
@@ -364,22 +371,21 @@ function register(sh) {
   }));
 
   /* ---------- Excel ---------- */
-  const safe = v => typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? "'" + v : v;
+  const safe = ctx.xlsx.safe;
+  const cols = names => names.map(header => ({ header, width: 26 }));
   A.get('/export.xlsx', P, ar(async (req, res) => {
-    const ExcelJS = ctx.require('exceljs'), wb = new ExcelJS.Workbook();
+    const wb = ctx.xlsx.book();
     const rows = db.prepare("SELECT * FROM sl_issue WHERE status IN ('ausgegeben','zurueck','storniert') ORDER BY id").all().map(issueView).sort((a, b) => a.person.localeCompare(b.person, 'de'));
-    const w1 = wb.addWorksheet('Schlüsselausgaben'); w1.addRow(['Person', 'Schlüssel', 'seit', 'bis', 'Pfand', 'Status', 'Protokoll-Nr.']).font = { bold: true };
-    for (const r of rows) w1.addRow([safe(r.person), safe(r.pieces.map(p => `Nr. ${p.ident} ${p.name}`).join('; ')), r.issued_at ? deD(r.issued_at.slice(0, 10)) : '', r.due ? deD(r.due) : '', r.deposit_cents ? r.deposit_cents / 100 : '',
-      r.reclaim ? 'zurückfordern' : r.status === 'ausgegeben' ? (r.legacy ? 'übernommen, ohne Protokoll' : 'ausgegeben') : r.status, r.no]);
-    const w2 = wb.addWorksheet('Bestand'); w2.addRow(['Kennung', 'Bezeichnung', 'Art', 'gesamt', 'vorrätig', 'ausgegeben', 'verloren', 'gesperrt']).font = { bold: true };
-    for (const t of db.prepare('SELECT * FROM sl_type ORDER BY sort, ident').all()) { const c = db.prepare("SELECT status, COUNT(*) n FROM sl_piece WHERE type_id = ? GROUP BY status").all(t.id).reduce((m, r) => (m[r.status] = r.n, m), {});
-      w2.addRow([safe(t.ident), safe(t.name), sh.KINDS[t.kind], Object.entries(c).filter(([k]) => k !== 'ausgemustert').reduce((s, [, n]) => s + n, 0), c.vorraetig || 0, (c.ausgegeben || 0) + (c.reserviert || 0), c.verloren || 0, c.gesperrt || 0]); }
-    const w3 = wb.addWorksheet('Pfand'); w3.addRow(['Person', 'Schlüssel', 'Betrag in €', 'seit']).font = { bold: true };
-    let sum = 0; for (const r of rows.filter(r => r.deposit_state === 'gehalten')) { sum += r.deposit_cents; w3.addRow([safe(r.person), safe(r.pieces.map(p => `Nr. ${p.ident}`).join(', ')), r.deposit_cents / 100, r.issued_at ? deD(r.issued_at.slice(0, 10)) : '']); }
-    const sr = w3.addRow(['Summe (so viel Pfand hält der Verein)', '', sum / 100, '']); sr.font = { bold: true };
-    for (const w of [w1, w2, w3]) w.columns.forEach(c => { c.width = 26; });
-    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': 'attachment; filename="Schluessel.xlsx"' });
-    await wb.xlsx.write(res); res.end();
+    ctx.xlsx.sheet(wb, 'Schlüsselausgaben', cols(['Person', 'Schlüssel', 'seit', 'bis', 'Pfand', 'Status', 'Protokoll-Nr.']), rows.map(r => [safe(r.person), safe(r.pieces.map(p => `Nr. ${p.ident} ${p.name}`).join('; ')), r.issued_at ? deD(r.issued_at.slice(0, 10)) : '', r.due ? deD(r.due) : '', r.deposit_cents ? r.deposit_cents / 100 : '',
+      r.reclaim ? 'zurückfordern' : r.status === 'ausgegeben' ? (r.legacy ? 'übernommen, ohne Protokoll' : 'ausgegeben') : r.status, r.no]));
+    ctx.xlsx.sheet(wb, 'Bestand', cols(['Kennung', 'Bezeichnung', 'Art', 'gesamt', 'vorrätig', 'ausgegeben', 'verloren', 'gesperrt']), db.prepare('SELECT * FROM sl_type ORDER BY sort, ident').all().map(t => {
+      const c = db.prepare("SELECT status, COUNT(*) n FROM sl_piece WHERE type_id = ? GROUP BY status").all(t.id).reduce((m, r) => (m[r.status] = r.n, m), {});
+      return [safe(t.ident), safe(t.name), sh.KINDS[t.kind], Object.entries(c).filter(([k]) => k !== 'ausgemustert').reduce((s, [, n]) => s + n, 0), c.vorraetig || 0, (c.ausgegeben || 0) + (c.reserviert || 0), c.verloren || 0, c.gesperrt || 0];
+    }));
+    const held = rows.filter(r => r.deposit_state === 'gehalten');
+    const w3 = ctx.xlsx.sheet(wb, 'Pfand', cols(['Person', 'Schlüssel', 'Betrag in €', 'seit']), held.map(r => [safe(r.person), safe(r.pieces.map(p => `Nr. ${p.ident}`).join(', ')), r.deposit_cents / 100, r.issued_at ? deD(r.issued_at.slice(0, 10)) : '']));
+    w3.addRow(['Summe (so viel Pfand hält der Verein)', '', held.reduce((sum, r) => sum + r.deposit_cents, 0) / 100, '']).font = { bold: true };
+    await ctx.xlsx.send(res, 'Schluessel.xlsx', wb);
   }));
 
   sh.issueView = issueView; sh.reclaimOf = reclaimOf; sh.openItems = openItems; sh.adoptable = adoptable;

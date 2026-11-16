@@ -82,7 +82,7 @@ const notice = () => ({ text: getSetting('app_privacy_text', ''), at: getSetting
 
 /* ---------- Verzeichnis von Verarbeitungstätigkeiten (Vorlage zum Ergänzen) ---------- */
 function registry() {
-  const roles = db.prepare('SELECT name, perms FROM admin_roles ORDER BY sort, name').all().map(r => { let p = []; try { p = JSON.parse(r.perms) || []; } catch (e) { /* */ } return { name: r.name, perms: p }; });
+  const roles = db.prepare('SELECT name, perms FROM admin_roles ORDER BY sort, name').all().map(r => { let p = []; try { p = JSON.parse(r.perms) || []; } catch (e) { /* beschädigte Rechte-Liste: als leer zeigen */ } return { name: r.name, perms: p }; });
   const who = perm => { const want = [].concat(perm || []); const r = roles.filter(x => x.perms.some(q => want.includes(q))).map(x => x.name); return [...r, 'Benutzer mit allen Rechten'].join(', '); };
   const frist = list => list.map(x => `${x.label}: ${fristText(x)}`).join(' · ');
   const ret = all();
@@ -136,4 +136,4 @@ function routes(admin, { need, bad }) {
   admin.get('/datenschutz/verzeichnis', P, (req, res) => res.json(registry()));
 }
 
-module.exports = { routes, run, start, all, notice, RUN_ACTION };
+module.exports = { routes, run, start, all, notice };

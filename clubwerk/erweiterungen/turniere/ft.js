@@ -14,6 +14,7 @@ const { today, addDays, deD, nowTs, isDate } = require('../../src/util');
 const W = require('./lib/wertung');
 const F = require('./lib/frei');
 const Z = require('./lib/zeitplan');
+const Plaetze = require('./lib/plaetze');
 
 const J = (v, d) => { try { const x = JSON.parse(v); return x == null ? d : x; } catch (e) { return d; } };
 const txt = (v, max = 80) => String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -70,6 +71,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_ftmatch ON tu_ftmatch(ft_id);
   const cfgOf = ft => ({ ...F.config(ft.sport, J(ft.cfg, {})), sport: ft.sport, format: ft.format });
   const teamsOf = fid => db.prepare('SELECT * FROM tu_ftteam WHERE ft_id = ? ORDER BY id').all(fid).map(t => ({ ...t, players: J(t.players, []) }));
   const courtsOf = fid => db.prepare('SELECT * FROM tu_ftcourt WHERE ft_id = ? ORDER BY sort, id').all(fid);
+  const Pl = Plaetze({ db, int, hook, bookingOn, err, isTime });   // Plätze des Buchungssystems zuordnen und sperren
   const mrow = m => (m ? { ...m, sets: J(m.sets, []), decider: J(m.decider, null) } : m);
   const matchesOf = fid => db.prepare('SELECT * FROM tu_ftmatch WHERE ft_id = ? ORDER BY id').all(fid).map(mrow);
   const matchRow = id => mrow(db.prepare('SELECT * FROM tu_ftmatch WHERE id = ?').get(int(id)));
@@ -463,18 +465,14 @@ CREATE INDEX IF NOT EXISTS ix_tu_ftmatch ON tu_ftmatch(ft_id);
     if (!ft.locked || ft.finished_at) return [];
     return courtsOf(ft.id).filter(x => x.resource_id).map(x => ({ resource_id: x.resource_id, date: ft.date, start: ft.lock_from || '08:00', end: ft.lock_to || '22:00' }));
   }
-  async function syncLocks(ft, by, preview = false) {
-    if (!bookingOn()) return { made: 0, removed: 0, conflicts: [] };
-    const r = await hook('courtLock', { key: `tu:ft:${ft.id}`, locks: wantedLocks(ft), title: `Turnier: ${ft.name}`.slice(0, 160), by, preview });
-    if (r && r.error) throw err(r.error);
-    return r || { made: 0, removed: 0, conflicts: [] };
-  }
+  const syncLocks = Pl.abgleich('ft', wantedLocks);
   function lockSuggest(ft) {
     const L = ft.drawn_at ? load(ft) : null;
     const h = Math.max(0, Math.floor(minsOf(ft.start) / 60) - 1), endM = L && L.end ? minsOf(L.end) : minsOf(ft.start) + 6 * 60;
     const to = Math.min(24, Math.ceil(endM / 60) + 1);
     return { from: `${pad(h)}:00`, to: to >= 24 ? '24:00' : `${pad(to)}:00` };
   }
+  const sperre = Pl.sperre({ table: 'tu_ft', row: ftRow, courts: courtsOf, suggest: lockSuggest, sync: syncLocks, offen: ft => notFinished(ft) });
 
   /* ---------- Code der Turnierleitung (Tablet) ---------- */
   const hashCode = (code, salt = crypto.randomBytes(16).toString('hex')) => `${salt}:${crypto.scryptSync(String(code), salt, 32).toString('hex')}`;
@@ -735,31 +733,22 @@ CREATE INDEX IF NOT EXISTS ix_tu_ftmatch ON tu_ftmatch(ft_id);
   }));
   A.post('/ft/spiel/:mid/ergebnis', P, send(async req => saveResult(matchOr404(req.params.mid), req.body || {}, { by: req.user, admin: true })));
   /* Plätze, Sperre */
-  A.get('/ft-buchungsplaetze', P, send(async () => (bookingOn() ? (await hook('courtList')) || [] : [])));
+  A.get('/ft-buchungsplaetze', P, send(async () => Pl.liste()));
   A.post('/ft/:id/platz', P, send(async req => {
     const ft = notFinished(ftOr404(req.params.id)), name = txt((req.body || {}).name, 40);
     if (name.length < 2) throw err('Bitte einen Namen eintragen.');
-    if (courtsOf(ft.id).some(x => x.name.toLowerCase() === name.toLowerCase())) throw err('Diesen Platz gibt es schon.');
-    db.prepare('INSERT INTO tu_ftcourt(ft_id, name, sort) VALUES (?,?,?)').run(ft.id, name, courtsOf(ft.id).reduce((a, x) => Math.max(a, x.sort), 0) + 1);
+    db.prepare('INSERT INTO tu_ftcourt(ft_id, name, sort) VALUES (?,?,?)').run(ft.id, name, Pl.neu(courtsOf(ft.id), name));
     audit(req.user, 'Turniere: Platz angelegt', `${ft.name}: ${name}`);
     return { ok: true };
   }));
   A.put('/ft/platz/:cid', P, send(async req => {
     const x = db.prepare('SELECT * FROM tu_ftcourt WHERE id = ?').get(int(req.params.cid)); if (!x) throw err('Platz nicht gefunden.', 404);
     const ft = notFinished(ftRow(x.ft_id)), b = req.body || {};
-    let rid = x.resource_id;
-    if (b.resource_id !== undefined) {
-      rid = b.resource_id ? int(b.resource_id) : null;
-      if (rid) {
-        const list = bookingOn() ? (await hook('courtList')) || [] : [];
-        if (!list.some(r => r.id === rid)) throw err('Diesen Platz gibt es im Buchungssystem nicht.');
-        if (courtsOf(ft.id).some(y => y.id !== x.id && y.resource_id === rid)) throw err('Dieser Platz des Buchungssystems ist schon einem anderen Turnierplatz zugeordnet.');
-      }
-    }
+    const rid = await Pl.zuordnung(b, x, () => courtsOf(ft.id));
     const name = b.name !== undefined ? txt(b.name, 40) : x.name;
     if (name.length < 2) throw err('Bitte einen Namen eintragen.');
     db.prepare('UPDATE tu_ftcourt SET name = ?, resource_id = ? WHERE id = ?').run(name, rid, x.id);
-    const rn = new Map(((bookingOn() ? await hook('courtList') : null) || []).map(r => [r.id, r.name]));
+    const rn = await Pl.namen();
     const df = ctx.auditDiff({ name: 'Name', resource: 'Platz im Buchungssystem' }, { name: x.name, resource: rn.get(x.resource_id) || '–' }, { name, resource: rn.get(rid) || '–' });
     if (df) audit(req.user, 'Turniere: Platz geändert', `${ft.name}, ${x.name}: ${df}`);
     if (ft.locked && rid !== x.resource_id) await syncLocks(ftRow(ft.id), req.user);
@@ -775,19 +764,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_ftmatch ON tu_ftmatch(ft_id);
     if (ft.locked && x.resource_id) await syncLocks(ft, req.user);
     return { ok: true };
   }));
-  A.post('/ft/:id/sperre', P, send(async req => {
-    const ft = ftOr404(req.params.id), b = req.body || {};
-    if (!bookingOn()) throw err('Das Modul „Plätze“ ist nicht aktiv – es gibt nichts zu sperren.');
-    if (b.off) { db.prepare('UPDATE tu_ft SET locked = 0 WHERE id = ?').run(ft.id); const r = await syncLocks(ftRow(ft.id), req.user); return { ok: true, ...r }; }
-    notFinished(ft);
-    const from = b.from || ft.lock_from || lockSuggest(ft).from, to = b.to || ft.lock_to || lockSuggest(ft).to;
-    if (!isTime(from) || !(isTime(to) || to === '24:00') || to <= from) throw err('Bitte die Zeiten prüfen (z. B. 08:00 bis 20:00).');
-    if (!courtsOf(ft.id).some(x => x.resource_id)) throw err('Erst die Turnierplätze den Plätzen des Buchungssystems zuordnen.');
-    const next = { ...ft, locked: 1, lock_from: from, lock_to: to };
-    if (b.preview) return await syncLocks(next, req.user, true);
-    db.prepare('UPDATE tu_ft SET locked = 1, lock_from = ?, lock_to = ? WHERE id = ?').run(from, to, ft.id);
-    return { ok: true, ...(await syncLocks(ftRow(ft.id), req.user)) };
-  }));
+  A.post('/ft/:id/sperre', P, send(async req => sperre(ftOr404(req.params.id), req.body || {}, req.user)));
   /* Monitor-Link, QR-Codes, Code der Turnierleitung */
   A.post('/ft/:id/monitor', P, send(async req => {
     const ft = ftOr404(req.params.id);

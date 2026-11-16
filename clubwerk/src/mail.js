@@ -1,27 +1,17 @@
 'use strict';
 /* Zentraler E-Mail-Versand: ein Postfach für alle Module (Bestellung, Zeiterfassung, Erweiterungen).
-   Eingetragen unter Einstellungen → Postfach. Umgebungsvariablen SMTP_* nur als Rückfall. */
+   Eingetragen unter Einstellungen → Postfach. */
 const { getSetting, setSetting } = require('./db');
 
 const K = k => 'mail_smtp_' + k;
 const geheim = () => require('./geheim');
-// Einmalig: Postfach aus der Zeiterfassung (bis 2.4) übernehmen
-(function migrate() {
-  if (getSetting(K('host'), '') || !getSetting('ext_zeiterfassung_smtp_host', '')) return;
-  for (const k of ['host', 'port', 'user', 'pass', 'from']) {
-    const v = getSetting('ext_zeiterfassung_smtp_' + k, '');
-    if (v) setSetting(K(k), v);
-    setSetting('ext_zeiterfassung_smtp_' + k, '');
-  }
-  console.log('E-Mail-Versand: Postfach aus der Zeiterfassung in die Einstellungen übernommen.');
-})();
 
 function config() {
-  const g = (k, env) => getSetting(K(k), '') || process.env[env] || '';
-  const user = g('user', 'SMTP_USER');
+  const g = k => getSetting(K(k), '');
+  const user = g('user');
   // Passwort liegt im Tresor (src/geheim.js) – gesperrt nach einem Neustart: Mails warten (parked)
   const num = (k, def, max) => { const n = parseInt(getSetting(K(k), ''), 10); return n > 0 ? Math.min(n, max) : def; };
-  return { host: g('host', 'SMTP_HOST'), port: Number(g('port', 'SMTP_PORT')) || 587, user, pass: geheim().get(K('pass'), '') || process.env.SMTP_PASS || '', from: g('from', 'SMTP_FROM') || user,
+  return { host: g('host'), port: Number(g('port')) || 587, user, pass: geheim().get(K('pass'), ''), from: g('from') || user,
     perConn: num('perconn', 20, 500), perHour: num('perhour', 0, 100000) };   // Mails je Verbindung (Standard 20) und je Stunde (0 = unbegrenzt)
 }
 const ready = () => { const s = config(); return Boolean(s.host && s.from); };
@@ -145,7 +135,7 @@ async function send(o) {
 function session(perConn) {
   if (!require('./vereinsname').isSet()) throw new Error(require('./vereinsname').MSG);
   let cur = transport(true, perConn); let n = perConn || cur.s.perConn;
-  const close = () => { try { cur.t.close(); } catch (e) { /* zu */ } };
+  const close = () => { try { cur.t.close(); } catch (e) { /* schon geschlossen */ } };
   return { get perConn() { return n; },
     send: async o => { if (parked(o)) return { queued: true }; await cur.t.sendMail(message(cur.s, o)); noteSent(); },
     reopen: m => { close(); n = m || n; cur = transport(true, n); }, close };

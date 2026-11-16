@@ -170,7 +170,7 @@ function sftp(t, secret) {
     if (t.auth === 'key') cfg.privateKey = secret; else cfg.password = secret || '';
     try { await cl.connect(cfg); }
     catch (e) {
-      try { await cl.end(); } catch (x) { /* egal */ }
+      try { await cl.end(); } catch (x) { /* Verbindung schon zu */ }
       if (seen && (!t.hostKey || learn)) throw err('Fingerabdruck des Servers bitte prüfen und bestätigen.', { fingerprint: seen, needConfirm: true });
       if (seen && seen !== t.hostKey) throw err(`Der Server meldet sich mit einem ANDEREN Schlüssel (${seen}) als bestätigt. Aus Sicherheitsgründen abgebrochen – falls der Server neu eingerichtet wurde, das Ziel bearbeiten und den neuen Fingerabdruck bestätigen.`, { fingerprint: seen, changed: true });
       if (/authentication/i.test(e.message)) throw err('SFTP: Benutzername, Passwort oder Schlüssel falsch.');
@@ -210,7 +210,7 @@ function sftp(t, secret) {
       return st.size;
     },
     async remove(sub, name) { if (NAME_OK.test(name)) { await connect(); await c.delete(joinPath(dirOf(sub), name), true); } },
-    async close() { if (c) { try { await c.end(); } catch (e) { /* egal */ } c = null; } },
+    async close() { if (c) { try { await c.end(); } catch (e) { /* Verbindung schon zu */ } c = null; } },
   };
 }
 
@@ -357,4 +357,4 @@ function open(t, secret) {
 const publicView = (t, hasSecret) => ({ ...t, hasSecret: Boolean(hasSecret), typeLabel: t.type === 'ftp' ? (t.mode === 'ftp' ? 'FTP' : 'FTPS') : TYPES[t.type] });
 const where = t => (t.type === 'webdav' ? `${t.url}${t.folder}` : t.type === 'gdrive' ? `${t.folder.replace(/^\//, '')}${t.account ? ' · ' + t.account : ''}` : `${t.host}:${t.port}${t.folder}`);
 
-module.exports = { TYPES, clean, open, dropboxTarget, publicView, where, sshFingerprint };
+module.exports = { TYPES, clean, open, dropboxTarget, publicView, where };

@@ -3,16 +3,10 @@
 (() => {
   const $ = id => document.getElementById(id);
   const app = $('app');
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const BASE = '../../api/tablet/x/schluessel/';
   let idle = null, showing = 'start';
-  async function call(p, body) {
-    const r = await fetch(BASE + p, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const d = await r.json().catch(() => ({}));
-    if (r.status === 401 && d.gate) { showGate(); throw Object.assign(new Error(d.error || 'Gesperrt'), { gate: true }); }
-    if (!r.ok) throw Object.assign(new Error(d.error || 'Das hat nicht geklappt.'), { status: r.status });
-    return d;
-  }
+  const call = (p, body) => GKTab.api(BASE + p, body);
   /* Während etwas ausgefüllt wird, nicht nach 30 Sekunden zum Start-Reiter springen – höchstens 4 Minuten nach der letzten Eingabe */
   function armIdle(ms = 240000) { clearTimeout(idle); idle = setTimeout(start, ms); }
   ['pointerdown', 'keydown', 'input'].forEach(ev => document.addEventListener(ev, () => { if (idle) armIdle(); }, { passive: true }));
@@ -67,17 +61,6 @@
   }
 
   /* Passwortschutz der Tablet-Seiten */
-  let gateShown = false;
-  function showGate() { if (gateShown) return; gateShown = true; $('gate').classList.remove('hidden'); $('gatePw').value = ''; $('gateErr').textContent = ''; setTimeout(() => $('gatePw').focus(), 50); }
-  async function gateLogin() {
-    try {
-      const r = await fetch('../../api/gate/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('gatePw').value }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { $('gateErr').textContent = d.error || 'Das hat nicht geklappt.'; return; }
-      gateShown = false; $('gate').classList.add('hidden'); start();
-    } catch (e) { $('gateErr').textContent = 'Keine Verbindung zum Server.'; }
-  }
-  $('gateGo').onclick = gateLogin;
-  $('gatePw').addEventListener('keydown', e => { if (e.key === 'Enter') gateLogin(); });
+  GKTab.gate(start);
   start();
 })();

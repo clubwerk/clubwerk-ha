@@ -320,4 +320,4 @@ function bind({ refType, context, tell, audit }) {
   return { views, view, offer, update, cancel, join, leave, want, unwant, take, withdraw, dropRef, touch, due, purge, dataOf, mountMember, mountAdmin, events };
 }
 
-module.exports = { init, bind, events, DIRS, DIR_TEXT, MAX_SEATS, MAX_OPEN };
+module.exports = { init, bind, events, DIRS, MAX_OPEN };

@@ -3,6 +3,8 @@ const DEMO_KOPIE = process.env.CW_DEMO_KOPIE === '1';
 if (DEMO_KOPIE || process.env.CW_LESEKOPIE === '1') require('./abschottung');   // Demo-Kopie und Lesekopie der Teil-Wiederherstellung: nichts nach außen – vor allem anderen laden (src/demokopie.js, src/teilsicherung.js)
 require('./testuhr');   // Test-Uhr (nur mit CW_TEST_UHR, sonst ohne Wirkung)
 require('./logtime');   // Zeitstempel im Protokoll
+const prozess = require('./prozess');
+prozess.start();   // Merker „läuft“, Abstürze zählen, Notfallmodus bei kaputter Datenbank oder vollem Speicher – vor dem Öffnen der Datenbank
 if (process.env.CW_TEST_ROUTEN) require('./routen');   // nur Tests: merkt sich die Pfade aller Adressen (Testreihe rmatrix) – vor dem ersten Router
 const path = require('path');
 const fs = require('fs');
@@ -10,34 +12,23 @@ const crypto = require('crypto');
 const express = require('express');
 const backup = require('./backup');
 const restoredMsg = backup.applyPendingRestore();   // muss vor dem Öffnen der Datenbank laufen
+// Version gewechselt (Update, auch über Home Assistant, oder zurück)? Bisherigen Stand als „vor-update“ aufheben – vor den Umbauten der neuen Version
+const updMsg = DEMO_KOPIE || process.env.CW_LESEKOPIE === '1' ? null : (() => { try { backup.aufraeumen(); return backup.vorUpdate(require('../package.json').version); } catch (e) { return { fehler: e.message }; } })();
 const demo = require('./demo');
 const demoMsg = demo.applyPending(backup.DATA_DIR, backup.DB_FILE);   // Demo einrichten bzw. restlos löschen – ebenfalls vor dem Öffnen
-const { db, isPerson, splitPersonName, nameKey, lastFirst, customArticleId, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, auditDiff, memberRefs, rewireMemberRef } = require('./db');
+const { db, splitPersonName, lastFirst, DB_FILE, DATA_DIR, getSetting, getJsonSetting, isObj, setSetting, stockList, lastSettlement, audit, auditDiff, memberRefs, rewireMemberRef } = require('./db');
 const seitenleiste = require('./seitenleiste');
 const util = require('./util');
 const { euro } = util;   // Beträge überall gleich: „12,50 €“
-const { today, nowTs, isDate, addDays, deD } = util;
-const artIcons = require('./articleicons');
-const konfigio = require('./konfigio');
+const { today, nowTs, isDate, addDays } = util;
 const { securityAlert } = require('./security');
-/* v2.9: vorhandenen Artikeln einmalig ein passendes Symbol geben (danach frei änderbar) */
-if (!getSetting('art_icons_v1')) {
-  const upd = db.prepare('UPDATE articles SET icon = ? WHERE id = ?');
-  db.transaction(() => { for (const a of db.prepare('SELECT id, name, category FROM articles WHERE custom = 0 AND icon IS NULL').all()) { const k = artIcons.guess(a.name, a.category); if (k) upd.run(k, a.id); } })();
-  setSetting('art_icons_v1', '1');
-}
 const mail = require('./mail');
 const modules = require('./modules');
 const auth = require('./auth');
 const plugins = require('./plugins');
-const invoices = require('./invoices');
-const dropbox = require('./dropbox');
-const fullbackup = require('./fullbackup');
-const targets = require('./targets');
-const geheim = require('./geheim');
-const selfupdate = require('./selfupdate');
+require('./geheim');   // legt die Tabelle der Geheimnisse an – früh laden wie bisher
 const APP_VERSION = require('../package.json').version;
-const { buildWorkbook } = require('./export');
+const versioniert = require('./versioniert');
 const { seedIfEmpty } = require('./seed');
 
 const PORT = Number(process.env.PORT || 3100);
@@ -52,18 +43,19 @@ seedIfEmpty();
 
 /* Notfall: Passwort des Adminkontos vergessen → in Home Assistant unter Add-on → Konfiguration
    „notfall_passwort“ setzen und neu starten. Nur wer Home-Assistant-Admin ist, kommt dorthin. */
-(function emergencyPassword() {
+try { require('./pfeffer').start(); } catch (e) { console.error('PIN-Schlüssel:', e.message); }   // PINs mit Pfeffer: Datei laden bzw. nach Wiederherstellung aus dem Tresor holen (src/pfeffer.js)
+(async function emergencyPassword() {
   const pw = process.env.EMERGENCY_PW || '';
   if (!pw) return;
   if (pw.length < 8 || pw.length > 200) { console.error('Notfall-Passwort ignoriert: 8 bis 200 Zeichen nötig.'); return; }
   const authM = require('./auth');
   let u = db.prepare('SELECT * FROM admin_users WHERE builtin = 1').get();
-  if (!u) { authM.createUser({ username: 'admin', name: 'Adminkonto', password: pw, role: 'oberadmin', builtin: true }); u = { username: 'admin' }; }
-  else { db.prepare('UPDATE admin_users SET active = 1 WHERE id = ?').run(u.id); authM.setPassword(u.id, pw); }
+  if (!u) { await authM.createUser({ username: 'admin', name: 'Adminkonto', password: pw, role: 'oberadmin', builtin: true }); u = { username: 'admin' }; }
+  else { db.prepare('UPDATE admin_users SET active = 1 WHERE id = ?').run(u.id); await authM.setPassword(u.id, pw); }
   audit('system', 'Notfall-Passwort gesetzt', u.username);
   require('./security').securityAlert('notfall', `Beim Start wurde das Notfall-Passwort für „${u.username}“ gesetzt (Home Assistant › Add-on › Konfiguration). Wart ihr das nicht, hat jemand Zugriff auf Home Assistant.`);
   console.log(`Notfall-Passwort für das Adminkonto „${u.username}“ gesetzt. Bitte die Option „notfall_passwort“ wieder leeren und das Add-on neu starten.`);
-})();
+})().catch(e => console.error('Notfall-Passwort:', e.message));
 
 const app = express();
 app.disable('x-powered-by');
@@ -101,6 +93,12 @@ app.use((req, res, next) => {
 });
 app.use(require('./security').noTunnel({ msg: 'Die Verwaltung und die Tablet-Seiten sind von außen nicht erreichbar.', bypass: req => viaIngress(req) }));
 app.use(require('./security').hostGuard({ bypass: req => viaIngress(req) }));
+if (process.env.CW_TEST_PROZESS === '1') app.use((req, res, next) => {   // nur Testläufe (Testreihe strom): Hänger und Absturz nachstellen, keine Route (rmatrix)
+  if (req.method !== 'POST') return next();
+  if (req.path === '/api/test/haenger') { res.json({ ok: true }); setTimeout(() => { for (;;) { /* Ereignisschleife blockiert */ } }, 50); return; }   // pause-ok: Antwort erst senden
+  if (req.path === '/api/test/absturz') { res.json({ ok: true }); setTimeout(() => { throw new Error('Testabsturz'); }, 50); return; }   // pause-ok: Antwort erst senden
+  next();
+});
 if (require('./testuhr').stellbar) app.use((req, res, next) => (req.method === 'POST' && req.path === '/api/test/uhr/vor' ? res.json({ jetzt: require('./testuhr').vor(req.query.ms) }) : next()));   // nur Testläufe (CW_TEST_UHR_STELLBAR=1), nach Tunnel- und Host-Prüfung, keine Route (rmatrix): Uhr vorstellen statt Wartezeiten absitzen
 app.use(require('./security').hardenHeaders({ frame: 'SAMEORIGIN', camera: 'self' }));
 app.use(require('./security').compress());
@@ -155,99 +153,12 @@ app.use('/api/admin', (req, res, next) => {
 /* In der Demo-Kopie gibt es keine Updates, Sicherungen, Erweiterungen zum Einspielen und keinen Neustart */
 if (DEMO_KOPIE) app.use((req, res, next) => (require('./abschottung').blocked(req.method, req.path) ? res.status(403).json({ error: 'In der Demo nicht möglich.' }) : next()));
 
-/* ---------- Vereinsfarbe (Berechnung der Abstufungen und des Kontrasts: src/theme.js) ---------- */
 const { clubColor } = require('./db');
 const { normIp } = require('./security');
-const theme = require('./theme');
-/* Darstellung am Tablet (Einstellungen › Tablet): wie das Gerät oder vom Verein festgelegt – hell, dunkel, Hoher Kontrast */
-const TABLET_THEMES = ['auto', 'light', 'dark', 'hc'];
-const tabletTheme = () => { const t = getSetting('tablet_theme', 'auto'); return TABLET_THEMES.includes(t) ? t : 'auto'; };
-const clubColor2 = () => { const c = getSetting('club_color2', ''); return /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : ''; };
-/* ?vorschau=rrggbb[&vorschau2=rrggbb]: dieselbe Berechnung für eine andere Farbe (Design-Prüfstand) – öffentlich wie theme.css selbst */
-app.get('/theme.css', (req, res) => {
-  const q = k => (typeof req.query[k] === 'string' && /^[0-9a-f]{6}$/i.test(req.query[k]) ? '#' + req.query[k] : null);
-  const pv = q('vorschau');
-  res.type('text/css').set('Cache-Control', 'no-cache').send(pv ? theme.themeCss(pv, q('vorschau2') || '') : theme.themeCss(clubColor(), clubColor2()));
-});
-app.get('/icon.svg', (req, res) => {
-  // Vereinslogo als Symbol, sofern es ein SVG ist – sonst das Clubwerk-Symbol in Vereinsfarbe
-  const l = logoInfo();
-  let svg;
-  if (l && l.type === 'svg') svg = l.custom ? Buffer.from(getSetting('club_logo', ''), 'base64').toString('utf8') : fs.readFileSync(DEFAULT_LOGO, 'utf8');
-  else svg = fs.readFileSync(path.join(__dirname, '..', 'public', 'icon.svg'), 'utf8').replace(/#1f6b3a/gi, clubColor())
-    .replace(/#e8f2ea/gi, theme.vars(clubColor(), '', 'light')['brand-soft']);
-  res.type('image/svg+xml').set({ 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'" }).send(svg);
-});
 
-/* ---------- Vereinslogo (liegt in der Datenbank → steckt in jeder Sicherung) ---------- */
-const LOGO_TYPES = { svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' };
-const DEFAULT_LOGO = path.join(__dirname, '..', 'public', 'vereinslogo.svg');
-function logoInfo() {
-  const type = getSetting('club_logo_type');
-  if (type && LOGO_TYPES[type]) return { type, ver: getSetting('club_logo_ver', '1'), custom: true };
-  if (fs.existsSync(DEFAULT_LOGO)) return { type: 'svg', ver: 'std', custom: false };
-  return null;
-}
-const logoUrl = () => { const l = logoInfo(); return l ? `vereinslogo?v=${encodeURIComponent(l.ver)}` : null; };
-/** Erkennt das Bildformat am Inhalt; SVGs werden auf gefährliche Bestandteile geprüft und bereinigt. */
-function checkLogo(buf) {
-  if (!buf || !buf.length) return { error: 'Keine Datei empfangen.' };
-  if (buf.length > 2 * 1024 * 1024) return { error: 'Das Logo ist zu groß (max. 2 MB).' };
-  if (buf.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { type: 'png', data: buf };
-  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { type: 'jpg', data: buf };
-  if (buf.slice(0, 4).toString() === 'RIFF' && buf.slice(8, 12).toString() === 'WEBP') return { type: 'webp', data: buf };
-  let s = buf.toString('utf8').replace(/^﻿/, '');
-  if (!/<svg[\s>]/i.test(s)) return { error: 'Bitte ein Logo als SVG, PNG, JPG oder WebP hochladen.' };
-  if (/<!ENTITY|<!DOCTYPE[^>]*\[/i.test(s)) return { error: 'SVG mit eingebetteten Definitionen wird nicht angenommen.' };
-  if (/<\s*(script|foreignObject|iframe|embed|object|audio|video|handler|listener)\b/i.test(s)) return { error: 'Das SVG enthält Skripte oder eingebettete Inhalte – bitte eine einfache SVG-Datei verwenden.' };
-  // auch versteckte Varianten ablehnen: Zeichen-Codes (&#…), Namensräume (svg:script), Animation von Verweisen
-  if (/&#|\bscript\b|<\s*[\w-]+:(script|foreignObject|iframe|embed|object|handler|listener)\b|attributeName\s*=\s*["']?\s*(xlink:)?href/i.test(s)) return { error: 'Das SVG enthält Skripte oder versteckte Inhalte – bitte eine einfache SVG-Datei verwenden (oder PNG).' };
-  s = s.replace(/<\?xml[^>]*\?>/gi, '').replace(/<!DOCTYPE[^>]*>/gi, '').replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')                       // Ereignis-Attribute
-    .replace(/\s(?:xlink:)?href\s*=\s*("|')\s*(?!#|data:image\/(?:png|jpe?g|gif|webp);)[^"']*\1/gi, '') // nur interne Verweise
-    .replace(/url\(\s*(['"]?)\s*(?!#)[^)]*\)/gi, 'none')                                  // keine externen CSS-Quellen
-    .replace(/@import[^;]*;?/gi, '');
-  if (/javascript:/i.test(s)) return { error: 'Das SVG enthält Skripte – bitte eine einfache SVG-Datei verwenden.' };
-  return { type: 'svg', data: Buffer.from(s.trim(), 'utf8') };
-}
-app.get('/vereinslogo', (req, res) => {
-  const l = logoInfo();
-  if (!l) return res.status(404).end();
-  const data = l.custom ? Buffer.from(getSetting('club_logo', ''), 'base64') : fs.readFileSync(DEFAULT_LOGO);
-  res.set({ 'Content-Type': LOGO_TYPES[l.type], 'Cache-Control': req.query.v ? 'public, max-age=31536000, immutable' : 'no-cache',
-    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:", 'Content-Disposition': 'inline' });
-  res.send(data);
-});
-/* Symbol für Home-Bildschirm/Manifest: aus dem Logo erzeugtes PNG, sonst ein PNG/JPG-Logo, sonst das Standard-Symbol */
-/* Symbol neu zeichnen, wenn sich Logo, Vereinsfarbe oder die Gestaltung (ICON_DESIGN) ändern */
-const ICON_DESIGN = '2';   // 2: Vereinsfarbe als Hintergrund, Logo groß mit schmalem weißem Rahmen
-const iconKey = () => `${getSetting('club_logo_ver', 'std')}:${clubColor()}:${ICON_DESIGN}`;
-const iconFresh = () => Boolean(getSetting('club_icon', '')) && getSetting('club_icon_ver', '') === iconKey();
-/* Rundes Symbol für Android („maskable“, planung/leitfaeden-2.md): Hintergrund randlos, Logo ganz im Kreis mit 80 % Durchmesser
-   (Sicherheitszone) – Android schneidet rund, als Tropfen oder abgerundetes Quadrat zu. Erzeugt wie das normale Symbol (admin.js). */
-const maskFresh = () => Boolean(getSetting('club_icon_mask', '')) && getSetting('club_icon_mask_ver', '') === iconKey();
-const sendIcon = (res, mask) => {
-  res.set('Cache-Control', 'no-cache');
-  if (mask && maskFresh()) return res.type('image/png').send(Buffer.from(getSetting('club_icon_mask', ''), 'base64'));
-  if (iconFresh()) return res.type('image/png').send(Buffer.from(getSetting('club_icon', ''), 'base64'));   // maskable noch nicht erzeugt: lieber Vereinsbild als fremdes
-  const l = logoInfo();
-  if (l && l.custom && (l.type === 'png' || l.type === 'jpg')) return res.type(LOGO_TYPES[l.type]).send(Buffer.from(getSetting('club_logo', ''), 'base64'));
-  res.sendFile(path.join(__dirname, '..', 'public', mask ? 'icon-maskable-512.png' : 'icon-512.png'));
-};
-app.get('/vereinsicon.png', (req, res) => sendIcon(res, false));
-app.get('/vereinsicon-maskable.png', (req, res) => sendIcon(res, true));
-/* Tablet-Manifest mit dem Namen des Vereins (Whitelabel: auf dem Tablet erscheint der Verein, nicht das Produkt) */
-app.get('/manifest.webmanifest', (req, res) => {
-  const club = getSetting('club_name', process.env.CLUB_NAME || 'Verein');
-  res.set('Cache-Control', 'no-cache').type('application/manifest+json').send(JSON.stringify({
-    name: club, short_name: club.length > 14 ? club.slice(0, 14) : club, start_url: './', scope: './', display: 'fullscreen', orientation: 'landscape',
-    background_color: '#f6f5f1', theme_color: clubColor(),
-    icons: [{ src: 'vereinsicon.png', sizes: '512x512', type: 'image/png' }, { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' },
-      { src: 'vereinsicon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] }));
-});
-app.get('/api/branding', (req, res) => {
-  const l = logoInfo();
-  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), tabletTheme: tabletTheme(), demo: isDemo() || undefined, iconNeeded: Boolean(l) && (!iconFresh() || !maskFresh() || (l.type === 'svg' && getSetting('club_logo_png_ver', '') !== getSetting('club_logo_ver', 'std'))) });
+const isDemo = () => getSetting('demo_mode', '') === '1';
+const { checkLogo, clubColor2, iconKey, logoInfo, logoUrl, TABLET_THEMES, tabletTheme } = require('./logo')({
+  app, isDemo
 });
 
 /* ---------- Betrieb ohne Tablet (Einstellungen › Tablet › „Tablet im Vereinsheim“) ----------
@@ -255,7 +166,6 @@ app.get('/api/branding', (req, res) => {
    Fehlt die Einstellung (ältere Installation), läuft das Tablet wie bisher. Ein angemeldeter Benutzer der Verwaltung darf die
    Tablet-Schnittstellen weiter abrufen (Artikel- und Profilbilder in der Verwaltung) – er hat ohnehin mehr Rechte. */
 const tabletOn = () => getSetting('tablet_enabled', '1') !== '0';
-const isDemo = () => getSetting('demo_mode', '') === '1';
 const TABLET_OFF = 'Das Tablet ist ausgeschaltet. Einschalten unter Verwaltung › Einstellungen › Tablet.';
 const TABLET_PAGES = /^(|\/(index|verkauf|start|verwaltung|link)(\.html)?|\/x\/[a-z0-9-]+(\/[\w.-]+\.html)?)$/;
 const isTabletPage = n => TABLET_PAGES.test(n) || (/^\/[a-z0-9-]+(\/index\.html)?$/.test(n) && plugins.tabletSlugs().has(n.split('/')[1]));
@@ -281,18 +191,33 @@ app.get(['/', '/index.html'], (req, res, next) => {
 // Verkauf auch unter /verkauf (ohne Schrägstrich am Ende, damit alle relativen Adressen gleich bleiben)
 app.get('/verkauf', (req, res, next) => {
   if (!plugins.isActive('getraenke')) return next();
-  res.setHeader('Cache-Control', 'no-cache'); res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  res.setHeader('Cache-Control', 'no-cache'); res.type('html').send(versioniert.umgeschrieben(path.join(__dirname, '..', 'public', 'index.html'), versioniert.html));
 });
 app.get('/verkauf/', (req, res) => res.redirect(302, '../verkauf'));
 
 app.use('/app', (req, res) => res.status(404).end());   // Mitglieder-App nur über ihren eigenen Port
 // Seiten der Erweiterungen binden die gemeinsamen Stile relativ ein („style.css“) – am Tablet liegen sie zwei Ebenen höher
 app.get(/^\/x\/[a-z0-9-]+\/((style|kit|theme)\.css|theme-init\.js)$/, (req, res) => res.redirect(302, '../../' + req.path.split('/').pop()));   // theme-init.js: Beregnung bindet es relativ ein (eigene Webapp) – am Tablet fehlte es (404, 02.11.2026)
-app.use(express.static(path.join(__dirname, '..', 'public'), {
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+/* Seiten und Stile mit Version ausliefern: Kern-Dateien bekommen „?v=<Version>“ (src/versioniert.js), versionierte Abrufe
+   werden ein Jahr unveränderlich gehalten – Tablet und Verwaltung fragen so nicht mehr bei jedem Seitenwechsel nach */
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const m = req.path === '/' ? ['', 'index', 'html'] : /^\/([\w-]+)(?:\.(html|css))?$/.exec(req.path);
+  if (!m) return next();
+  const istCss = m[2] === 'css';
+  if (istCss ? !versioniert.passt(req) || m[1] === 'theme' : m[2] !== 'html' && m[1] !== 'index' && !/^(start|verwaltung|link|admin)$/.test(m[1] || '')) return next();
+  const f = path.join(PUBLIC_DIR, m[1] + (istCss ? '.css' : '.html'));
+  if (!fs.existsSync(f)) return next();
+  res.setHeader('Cache-Control', istCss ? versioniert.IMMUTABLE : 'no-cache');
+  res.type(istCss ? 'css' : 'html').send(versioniert.umgeschrieben(f, istCss ? versioniert.css : versioniert.html));
+});
+app.use(express.static(PUBLIC_DIR, {
   extensions: ['html'],
   setHeaders: (res, file) => {
-    if (/\.(html|js|css|webmanifest)$/.test(file)) res.setHeader('Cache-Control', 'no-cache');            // immer kurz nachfragen (ETag → 304), damit Updates sofort greifen
-    else if (/\.(woff2?|png|svg|ico)$/.test(file)) res.setHeader('Cache-Control', 'public, max-age=604800');   // Schriften/Icons ändern sich praktisch nie: eine Woche
+    const fest = versioniert.passt(res.req);
+    if (/\.(html|js|css|webmanifest)$/.test(file)) res.setHeader('Cache-Control', fest && /\.(js|css)$/.test(file) ? versioniert.IMMUTABLE : 'no-cache');   // ohne Version immer kurz nachfragen (ETag → 304), damit Updates sofort greifen
+    else if (/\.(woff2?|png|svg|ico)$/.test(file)) res.setHeader('Cache-Control', fest ? versioniert.IMMUTABLE : 'public, max-age=604800');   // Schriften/Icons ändern sich praktisch nie: eine Woche, mit Version ein Jahr
   },
 }));
 
@@ -319,7 +244,7 @@ function dropMemberExtras(fromId, intoId = null) {
   // Verweise ohne Fremdschlüssel im Kern: Benutzer-Verknüpfung, Empfänger gesendeter Mails
   const linked = intoId && db.prepare('SELECT 1 FROM admin_users WHERE member_id = ?').get(intoId);
   db.prepare('UPDATE admin_users SET member_id = ? WHERE member_id = ?').run(intoId && !linked ? intoId : null, fromId);
-  try { db.prepare('UPDATE mail_recipient SET member_id = ? WHERE member_id = ?').run(intoId, fromId); db.prepare('UPDATE mail_message SET member_id = ? WHERE member_id = ?').run(intoId, fromId); } catch (e) { /* Tabelle gibt es erst nach dem Start des Mailers */ }
+  try { db.prepare('UPDATE mail_recipient SET member_id = ? WHERE member_id = ?').run(intoId, fromId); db.prepare('UPDATE mail_message SET member_id = ? WHERE member_id = ?').run(intoId, fromId); } catch (e) { if (!/no such table/.test(e.message)) throw e; }   // Tabelle gibt es erst nach dem Start des Mailers
   const keep = intoId == null ? keepHistory() : null;
   for (const { table, column } of memberRefs()) {
     if (keep && keep.has(table)) continue;
@@ -331,7 +256,7 @@ const keepHistory = () => new Set([...KEEP_HISTORY, ...plugins.withHook('history
 /** Nach dem Aufräumen (dropMemberExtras): Bleibt Verlauf übrig, wird das Konto nur als gelöscht markiert (Namen bleiben lesbar), sonst ganz entfernt. → true = markiert */
 function removeMemberRow(id) {
   const keep = keepHistory();
-  const kept = memberRefs().some(({ table, column }) => keep.has(table) && db.prepare(`SELECT 1 FROM "${String(table).replace(/"/g, '""')}" WHERE "${String(column).replace(/"/g, '""')}" = ? LIMIT 1`).get(id));   // Namen aus dem Schema: maskiert
+  const kept = memberRefs().some(({ table, column }) => keep.has(table) && db.prepare(`SELECT 1 FROM ${util.qid(table)} WHERE ${util.qid(column)} = ? LIMIT 1`).get(id));   // Namen aus dem Schema: maskiert
   if (kept) db.prepare('UPDATE members SET deleted = 1, active = 0, pending = 0, pin_hash = NULL WHERE id = ?').run(id);
   else db.prepare('DELETE FROM members WHERE id = ?').run(id);
   return kept;
@@ -406,87 +331,6 @@ function validPin(pin) {
   return typeof pin === 'string' && /^\d{4,6}$/.test(pin);
 }
 
-/* =====================================================================
-   Tablet
-   ===================================================================== */
-/* „Ich bin öfter hier“: Anzahl und Zeitraum stellt ein Admin mit allen Rechten ein */
-const topN = () => Math.max(0, Math.min(60, int(getSetting('top_n', '15'), 15)));
-const topDays = () => Math.max(1, Math.min(365, int(getSetting('top_days', '30'), 30)));
-
-function activeEvent(withGuests = false) {
-  const ev = db.prepare('SELECT id, name, date FROM events WHERE active = 1 AND closed_at IS NULL LIMIT 1').get();
-  if (!ev) return null;
-  ev.articles = db.prepare(`SELECT a.id, a.name, a.category, ea.price_cents, a.icon, a.image
-    FROM event_articles ea JOIN articles a ON a.id = ea.article_id
-    WHERE ea.event_id = ? AND a.custom = 0 ORDER BY cat_rank(a.category), de_key(a.category), de_key(a.name)`).all(ev.id);
-  if (withGuests) {
-    // Für die Namensliste am Tablet: keine Beträge, nur ob jemand schon alles bezahlt hat
-    ev.guests = db.prepare(`SELECT g.id, g.name, g.member_id AS memberId, m.kind, m.pin_hash IS NOT NULL AS hasPin,
-        (SELECT COUNT(*) FROM bookings b WHERE b.event_guest_id = g.id AND b.cancelled_at IS NULL) AS n,
-        (SELECT COUNT(*) FROM bookings b WHERE b.event_guest_id = g.id AND b.cancelled_at IS NULL AND b.kind = 'event'
-           AND b.payment_id IS NULL AND b.transferred_at IS NULL) AS openN
-      FROM event_guests g LEFT JOIN members m ON m.id = g.member_id
-      WHERE g.event_id = ? ORDER BY name_key(g.name, 'mitglied')`).all(ev.id)
-      .map(g => ({ id: g.id, name: g.name, memberId: g.memberId, kind: g.kind, paid: g.n > 0 && g.openN === 0, open_cents: guestOpen(g.id) }));
-  }
-  return ev;
-}
-
-/** Offene (noch nicht bezahlte, nicht übernommene) Buchungen eines Namens auf der Veranstaltungsliste */
-const OPEN_GUEST = `kind = 'event' AND cancelled_at IS NULL AND payment_id IS NULL AND transferred_at IS NULL`;
-function guestOpen(guestId) {
-  return db.prepare(`SELECT COALESCE(SUM(total_cents),0) AS cents FROM bookings WHERE event_guest_id = ? AND ${OPEN_GUEST}`).get(guestId).cents;
-}
-/** Namen auf die Liste der laufenden Veranstaltung setzen (oder vorhandenen Eintrag zurückgeben). */
-function addGuest(ev, { memberId, name }, by) {
-  if (memberId) {
-    const m = db.prepare("SELECT * FROM members WHERE id = ? AND active = 1").get(int(memberId));
-    if (!m) throw new Error('Mitglied nicht gefunden.');
-    if (!['mitglied', 'nichtmitglied', 'mannschaft'].includes(m.kind)) throw new Error('Dieses Konto kann nicht auf die Liste.');
-    const g = db.prepare('SELECT * FROM event_guests WHERE event_id = ? AND member_id = ?').get(ev.id, m.id);
-    if (g) return g;
-    const id = Number(db.prepare('INSERT INTO event_guests(event_id, name, member_id, created_by) VALUES (?,?,?,?)').run(ev.id, m.name, m.id, by).lastInsertRowid);
-    return db.prepare('SELECT * FROM event_guests WHERE id = ?').get(id);
-  }
-  const n = cleanName(name, 60);
-  if (n.length < 2) throw new Error('Bitte einen Namen eingeben.');
-  const g = db.prepare('SELECT * FROM event_guests WHERE event_id = ? AND lower(name) = lower(?)').get(ev.id, n);
-  if (g) return g;
-  // Genau ein aktives Mitglied mit diesem Namen → gleich verknüpfen
-  const m = db.prepare("SELECT * FROM members WHERE lower(name) = lower(?) AND active = 1 AND kind IN ('mitglied','nichtmitglied','mannschaft')").all(n);
-  if (m.length === 1) return addGuest(ev, { memberId: m[0].id }, by);
-  if (db.prepare('SELECT COUNT(*) n FROM event_guests WHERE event_id = ?').get(ev.id).n >= 500) throw new Error('Die Liste ist voll.');
-  const id = Number(db.prepare('INSERT INTO event_guests(event_id, name, created_by) VALUES (?,?,?)').run(ev.id, n, by).lastInsertRowid);
-  return db.prepare('SELECT * FROM event_guests WHERE id = ?').get(id);
-}
-function guestResponse(g, ev) {
-  const r = { token: auth.issueTabletToken('guest:' + g.id), guest: { id: g.id, name: g.name, memberId: g.member_id },
-    event: { id: ev.id, name: ev.name }, private: true, open_cents: guestOpen(g.id) };
-  return r;
-}
-
-/** „Ich bin öfter hier“: die topN() Mitglieder mit den meisten Buchungen in den letzten topDays() Tagen (Standard 15 aus 30 Tagen). */
-function topMembers() {
-  // Nur die letzten Tage lesen (Index auf created_at) statt aller Verkäufe aller Jahre – sonst wuchs jede Tablet-Startseite mit der Zeit (planung/n-plus-1.md).
-  // Gleichstand wie bisher: kleinere Nummer zuerst.
-  return db.prepare(`SELECT b.member_id AS id, SUM(b.qty) AS n
-    FROM bookings b INDEXED BY ix_bookings_created JOIN members m ON m.id = b.member_id
-    WHERE b.cancelled_at IS NULL AND m.kind IN ('mitglied','nichtmitglied') AND m.active = 1
-      AND b.kind IN ('konto','event') AND b.created_at >= date('now','localtime', ?)
-    GROUP BY b.member_id ORDER BY n DESC, b.member_id LIMIT ?`).all(`-${topDays()} days`, topN()).map(r => r.id);
-}
-
-function eventOpen(memberId) {
-  return db.prepare(`SELECT COALESCE(SUM(total_cents),0) AS cents FROM bookings
-    WHERE member_id = ? AND event_guest_id IS NOT NULL AND ${OPEN_GUEST}`).get(memberId).cents;
-}
-/** eventOpen für alle Konten auf einmal → Funktion id → Cent (Listen: eine Abfrage statt einer je Konto) */
-function eventOpenAll() {
-  const m = new Map(db.prepare(`SELECT member_id, SUM(total_cents) AS cents FROM bookings
-    WHERE member_id IS NOT NULL AND event_guest_id IS NOT NULL AND ${OPEN_GUEST} GROUP BY member_id`).all().map(r => [r.member_id, r.cents || 0]));
-  return id => m.get(id) || 0;
-}
-
 /* ---------- Optional: Buchungsseite mit Masterpasswort schützen ----------
    Ist ein Passwort gesetzt, braucht jedes Gerät einmal das Passwort und bekommt dann ein langlebiges Cookie.
    Passwort ändern oder „alle Geräte abmelden“ macht alle bisherigen Freigaben ungültig.
@@ -527,12 +371,12 @@ const gateCookie = req => `${GATE_COOKIE}=${gateVer()}.${gateSig(gateVer())}; Ht
 
 app.get('/api/gate', (req, res) => res.json({ on: true, set: gateOn(), ok: gateOk(req) }));
 const gateAll = require('./security').limiter({ per: 30, baseMs: 15 * 60000 });   // insgesamt, über alle Geräte
-app.post('/api/gate/login', rateLimit('gate', 10, 10 * 60000), (req, res) => {
+app.post('/api/gate/login', rateLimit('gate', 10, 10 * 60000), (req, res) => auth.nacheinander('gate', async () => {
   if (!gateOn()) return bad(res, GATE_UNSET, 409);
   const wait = gateAll.blocked('all');
   if (wait) return bad(res, `Zu viele falsche Passwörter – bitte in ${wait} Min. erneut versuchen.`, 429);
   const pw = String((req.body || {}).password || '');
-  if (!pw || !auth.verifySecret(pw, getSetting('tablet_pw_hash'))) {
+  if (!pw || !(await auth.verifySecret(pw, getSetting('tablet_pw_hash')))) {
     if (gateAll.fail('all').locked) securityAlert('tablet.passwort', 'Für die Buchungsseite wurde 30-mal ein falsches Passwort eingegeben. Neue Geräte können sich vorübergehend nicht freischalten; bereits freigeschaltete Tablets funktionieren weiter.');
     audit(null, 'Buchungsseite: falsches Passwort', req.ip);
     return bad(res, 'Das Passwort stimmt nicht.', 401);
@@ -540,7 +384,7 @@ app.post('/api/gate/login', rateLimit('gate', 10, 10 * 60000), (req, res) => {
   audit(null, 'Buchungsseite freigeschaltet', `${req.ip} · ${String(req.get('User-Agent') || '').slice(0, 120)}`);
   res.setHeader('Set-Cookie', gateCookie(req));
   res.json({ ok: true });
-});
+}));
 app.use('/api/tablet', (req, res, next) => {
   if (gateOk(req)) return next();
   if (!gateOn()) return res.status(401).json({ error: GATE_UNSET, gate: true, unset: true });
@@ -549,394 +393,9 @@ app.use('/api/tablet', (req, res, next) => {
 
 // Pfad normalisiert prüfen (Groß-/Kleinschreibung, Schrägstrich am Ende) – Express nimmt beide Schreibweisen an
 const normPath = p => String(p || '').toLowerCase().replace(/\/+$/, '').replace(/\/{2,}/g, '/');
-const DRINK_TABLET = /^\/api\/tablet\/(state|unlock|undo|book|account|pin|member|tab|tab\/pay|event\/guest|logout|artikelbild(\/.*)?)$/;
-app.use((req, res, next) => (DRINK_TABLET.test(normPath(req.path)) && !plugins.isActive('getraenke')
-  ? res.status(404).json({ error: 'Das Modul „Verkauf“ ist ausgeschaltet.' }) : next()));
 
-/* Profilbilder am Tablet – nur wenn das Mitglied sie für diesen Zweck freigegeben hat (verkauf · buchung · helfer) */
-app.get('/api/tablet/photo/:id', (req, res) => {
-  const u = String(req.query.u || '');
-  if (!['verkauf', 'buchung', 'helfer'].includes(u)) return res.status(404).end();
-  require('./photos').send(res, int(req.params.id), u);
-});
-app.get('/api/tablet/artikelbild/:file', (req, res) => {
-  const p = artIcons.imagePath(DATA_DIR, req.params.file);
-  if (!p) return res.status(404).end();
-  res.setHeader('Content-Type', artIcons.mimeOf(req.params.file));
-  res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.sendFile(p);
-});
-
-app.get('/api/tablet/state', (req, res) => {
-  const photos = require('./photos');
-  // Profilbild-Kennung gleich mitlesen (photos.version nimmt die Zeile) statt je Mitglied eine eigene Abfrage
-  const members = db.prepare(`SELECT id, name, kind, pending, pin_hash IS NOT NULL AS hasPin, photo, photo_use
-    FROM members WHERE active = 1 AND deleted = 0 AND kind != 'extern' ORDER BY name_key(name, kind)`).all()   // Gastspieler/innen (Spielbetrieb) haben kein Konto
-    .map(({ photo, photo_use, ...m }) => ({ ...m, hasPin: Boolean(m.hasPin), pending: Boolean(m.pending), ph: m.kind === 'mitglied' ? photos.version({ photo, photo_use }, 'verkauf') : null }));
-  // Module können Konten in der Namensliste ausblenden (z. B. Angehörige, die über den Hauptzahler buchen)
-  const hidden = new Set();
-  for (const p of plugins.withHook('tabletMembers')) { try { const r = p.hooks.tabletMembers() || {}; (r.hidden || []).forEach(id => hidden.add(id)); } catch (e) { /* Modul-Fehler blendet nichts aus */ } }
-  members.forEach(m => { if (hidden.has(m.id)) m.hidden = true; });
-  const stock = new Map(stockList().map(s => [s.id, s]));
-  const articles = db.prepare('SELECT id, name, category, price_cents, icon, image FROM articles WHERE active = 1 AND custom = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)').all()
-    .map(a => {
-      const s = stock.get(a.id);
-      return { ...a, soldOut: Boolean(s && s.track_stock && s.delivered > 0 && s.stock <= 0) };
-    });
-  res.json({
-    clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'),
-    members, articles, top: topN() ? topMembers().filter(id => !hidden.has(id)) : [], topDays: topDays(), event: activeEvent(true), color: clubColor(), logo: logoUrl(),
-    tabs: openTabs(),
-  });
-});
-
-/* Datenschutz: Offene Beträge und Buchungsverlauf gibt es am Tablet nur für Konten mit PIN.
-   (Ein Token für ein Konto mit PIN wird nur nach richtiger PIN ausgegeben.) */
-const privateOk = m => Boolean(m && m.pin_hash);
-
-function unlockResponse(m) {
-  const r = {
-    token: auth.issueTabletToken(m.id),
-    member: { id: m.id, name: m.name, kind: m.kind, hasPin: Boolean(m.pin_hash), pending: Boolean(m.pending) },
-    private: privateOk(m),
-  };
-  if (r.private) { r.balance = memberBalance(m.id); r.eventOpen_cents = eventOpen(m.id); }
-  return r;
-}
-
-app.post('/api/tablet/unlock', rateLimit('unlock', 40, 60000), (req, res) => {
-  const { memberId, eventId, guestId, tabId, pin } = req.body || {};
-  if (tabId) {
-    const t = db.prepare("SELECT * FROM guest_tabs WHERE id = ? AND status = 'offen'").get(int(tabId));
-    if (!t) return bad(res, 'Dieser Deckel ist schon bezahlt oder geschlossen.', 404);
-    return res.json(tabResponse(t));
-  }
-  if (guestId) {
-    const ev = activeEvent();
-    const g = ev && db.prepare('SELECT * FROM event_guests WHERE id = ? AND event_id = ?').get(int(guestId), ev.id);
-    if (!g) return bad(res, 'Dieser Name steht nicht auf der Liste der laufenden Veranstaltung.', 404);
-    return res.json(guestResponse(g, ev));             // Thekenbetrieb: keine PIN
-  }
-  if (eventId) {
-    const ev = activeEvent();
-    if (!ev || ev.id !== int(eventId)) return bad(res, 'Diese Veranstaltung ist nicht aktiv.');
-    return res.json({ token: auth.issueTabletToken('event:' + ev.id), event: { id: ev.id, name: ev.name } });
-  }
-  const m = db.prepare('SELECT * FROM members WHERE id = ? AND active = 1').get(int(memberId));
-  if (!m) return bad(res, 'Konto nicht gefunden.', 404);
-  if (m.kind === 'mannschaft' && !m.pin_hash) return bad(res, 'Für dieses Mannschaftskonto ist noch keine PIN vergeben – bitte an den Vorstand wenden.', 403);
-  if (m.pin_hash) {
-    const err = checkPin(m, pin);
-    if (err) return bad(res, err.msg, err.code);
-  }
-  res.json(unlockResponse(m));
-});
-
-/* Falsche PINs über alle Mitglieder: Die Sperre je Mitglied bremst nicht, wer reihum bei vielen Mitgliedern rät (dieselbe PIN öffnet
-   auch Türen am Tablet). Gesperrt wird deshalb nichts (die Theke muss weiterlaufen), aber ab 25 Fehlversuchen in 24 Stunden geht eine
-   Sicherheitswarnung an den Vorstand (bei 25, dann je weitere 50). */
-let pinFails = [];
-function pinFailAll() {
-  const now = Date.now(); pinFails = pinFails.filter(t => now - t < 86400000).slice(-5000); pinFails.push(now);   // begrenzt (Speicher)
-  if (pinFails.length === 25 || (pinFails.length > 25 && pinFails.length % 50 === 0)) securityAlert('tablet.pins', `Am Tablet wurde in 24 Stunden ${pinFails.length}-mal eine falsche Mitglieder-PIN eingegeben (über mehrere Mitglieder). Rät jemand PINs durch? Bitte im Protokoll unter „PIN gesperrt“ nachsehen.`);
-}
-/** PIN prüfen inkl. Sperre nach 5 Fehlversuchen. Die Sperre verdoppelt sich bei jeder weiteren Fehlserie
- *  (5 min, 10, 20, 40 … höchstens 24 h) und steht im Protokoll. Gibt null oder { msg, code } zurück. */
-function checkPin(m, pin) {
-  if (m.locked_until && m.locked_until > new Date().toISOString()) {
-    const until = new Date(m.locked_until).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: process.env.TZ || 'Europe/Berlin' });
-    return { msg: `Zu viele falsche PINs – gesperrt bis ${until} Uhr. Der Vorstand kann die PIN zurücksetzen.`, code: 429 };
-  }
-  if (!auth.verifySecret(String(pin || ''), m.pin_hash)) {
-    pinFailAll();
-    const fails = m.failed_pins + 1;
-    if (fails >= 5) {
-      const strikes = (m.pin_strikes || 0) + 1;
-      const mins = Math.min(5 * 2 ** (strikes - 1), 24 * 60);
-      db.prepare('UPDATE members SET failed_pins = 0, pin_strikes = ?, locked_until = ? WHERE id = ?')
-        .run(strikes, new Date(Date.now() + mins * 60000).toISOString(), m.id);
-      audit('tablet', 'PIN gesperrt', `${m.name}: 5 falsche PINs, Sperre ${mins >= 60 ? Math.round(mins / 60) + ' h' : mins + ' min'}`);
-    } else db.prepare('UPDATE members SET failed_pins = ? WHERE id = ?').run(fails, m.id);
-    return { msg: 'PIN falsch.', code: 401 };
-  }
-  if (m.failed_pins || m.pin_strikes || m.locked_until) db.prepare('UPDATE members SET failed_pins = 0, pin_strikes = 0, locked_until = NULL WHERE id = ?').run(m.id);
-  return null;
-}
-
-/* Veranstaltung: Namen am Tablet auf die Abrechnungsliste setzen (aus der Mitgliederliste oder frei) */
-app.post('/api/tablet/event/guest', rateLimit('guest', 40, 10 * 60000), (req, res) => {
-  const ev = activeEvent();
-  if (!ev) return bad(res, 'Es läuft gerade keine Veranstaltung.');
-  const { memberId, name } = req.body || {};
-  let g;
-  try { g = addGuest(ev, { memberId, name }, 'tablet'); } catch (e) { return bad(res, e.message); }
-  res.json(guestResponse(g, ev));
-});
-
-/* ---------- Gäste-Deckel ---------- */
-const tabOpen = id => db.prepare('SELECT COALESCE(SUM(total_cents),0) c FROM bookings WHERE tab_id = ? AND cancelled_at IS NULL').get(id).c;
-function openTabs() {
-  return db.prepare(`SELECT t.id, t.name, t.created_at FROM guest_tabs t WHERE t.status = 'offen' ORDER BY t.created_at`).all()
-    .map(t => ({ ...t, open_cents: tabOpen(t.id) }));
-}
-function tabResponse(t) {
-  return { token: auth.issueTabletToken('tab:' + t.id), tab: { id: t.id, name: t.name }, open_cents: tabOpen(t.id) };
-}
-/* Neuen Deckel öffnen – gibt es schon einen offenen mit diesem Namen, wird der genommen */
-app.post('/api/tablet/tab', rateLimit('tab', 30, 10 * 60000), (req, res) => {
-  if (activeEvent()) return bad(res, 'Während der Veranstaltung bitte die Veranstaltungsliste nutzen.');
-  const name = cleanName((req.body || {}).name, 60);
-  if (name.length < 2) return bad(res, 'Bitte einen Namen eingeben, z. B. „Gastmannschaft SV Musterdorf“.');
-  let t = db.prepare("SELECT * FROM guest_tabs WHERE status = 'offen' AND lower(name) = lower(?)").get(name);
-  if (!t) {
-    if (db.prepare("SELECT COUNT(*) n FROM guest_tabs WHERE status = 'offen'").get().n >= 60) return bad(res, 'Zu viele offene Deckel. Bitte erst welche bezahlen lassen.');
-    const id = Number(db.prepare("INSERT INTO guest_tabs(name, created_by) VALUES (?, 'tablet')").run(name).lastInsertRowid);
-    t = db.prepare('SELECT * FROM guest_tabs WHERE id = ?').get(id);
-    audit('tablet', 'Gäste-Deckel geöffnet', name);
-  }
-  res.json(tabResponse(t));
-});
-/* Bezahlen am Tablet (Thekenpersonal): Deckel komplett bar oder mit Karte */
-app.post('/api/tablet/tab/pay', rateLimit('tabpay', 30, 10 * 60000), (req, res) => {
-  const { token, method } = req.body || {};
-  const who = auth.checkTabletToken(token);
-  if (typeof who !== 'string' || !who.startsWith('tab:')) return bad(res, 'Sitzung abgelaufen. Bitte den Deckel erneut wählen.', 401);
-  if (!['bar', 'karte'].includes(method)) return bad(res, 'Bitte bar oder Karte wählen.');
-  const t = db.prepare("SELECT * FROM guest_tabs WHERE id = ? AND status = 'offen'").get(int(who.slice(4)));
-  if (!t) return bad(res, 'Dieser Deckel ist schon geschlossen.');
-  const cents = closeTab(t, { status: 'bezahlt', method, by: 'tablet' });
-  auth.dropTabletToken(token);
-  res.json({ ok: true, cents, method, name: t.name });
-});
-/** Deckel schließen (bezahlt / übernommen / abgeschrieben). Leere Deckel werden einfach gelöscht. */
-function closeTab(t, { status, method = null, by, memberId = null, note = null }) {
-  const cents = tabOpen(t.id);
-  db.transaction(() => {
-    if (!cents && !db.prepare('SELECT 1 FROM bookings WHERE tab_id = ? AND cancelled_at IS NULL').get(t.id)) {
-      db.prepare('UPDATE bookings SET tab_id = NULL WHERE tab_id = ?').run(t.id);
-      db.prepare('DELETE FROM guest_tabs WHERE id = ?').run(t.id);
-      return;
-    }
-    db.prepare(`UPDATE guest_tabs SET status = ?, method = ?, cents = ?, member_id = ?, note = ?, closed_at = datetime('now','localtime'), closed_by = ? WHERE id = ?`)
-      .run(status, method, cents, memberId, note, by, t.id);
-    if (status === 'bezahlt') db.prepare('UPDATE bookings SET paid_cash = 1 WHERE tab_id = ? AND cancelled_at IS NULL').run(t.id);
-    if (status === 'uebernommen') db.prepare(`UPDATE bookings SET kind = 'konto', member_id = ?, transferred_at = datetime('now','localtime'), transferred_by = ?
-      WHERE tab_id = ? AND cancelled_at IS NULL`).run(memberId, by, t.id);
-    if (status === 'abgeschrieben') db.prepare("UPDATE bookings SET kind = 'verein', total_cents = 0 WHERE tab_id = ? AND cancelled_at IS NULL").run(t.id);
-  })();
-  const what = { bezahlt: method === 'karte' ? 'mit Karte bezahlt' : 'bar bezahlt', uebernommen: 'auf Konto übernommen', abgeschrieben: 'abgeschrieben' }[status];
-  audit(by, 'Gäste-Deckel ' + what, `${t.name}: ${euro(cents)}${note ? ' – ' + note : ''}`);
-  return cents;
-}
-
-/* Neu im Verein: jeder darf sich am Tablet anlegen, ein Admin bestätigt später. */
-const NEW_MEMBERS_PER_DAY = 15;   // mehr neue Namen je Tag am Tablet nur über den Vorstand (Schutz vor Unsinn-Einträgen)
-app.post('/api/tablet/member', rateLimit('member', 5, 10 * 60000), (req, res) => {
-  const name = cleanName((req.body || {}).name, 61);
-  if (name.length < 5 || name.split(' ').length < 2) return bad(res, 'Bitte Vor- und Nachnamen eingeben.');
-  if (name.length > 60 || /[<>{}]/.test(name)) return bad(res, 'Bitte nur den Namen eingeben.');
-  const same = db.prepare("SELECT * FROM members WHERE lower(name) = lower(?) AND deleted = 0 AND kind != 'extern'").get(name);
-  if (same && same.active) return bad(res, `„${same.name}“ gibt es schon – bitte in der Namensliste suchen.`);
-  if (same && !same.active) return bad(res, 'Dieser Name ist gesperrt. Bitte an den Vorstand wenden.');
-  const newToday = db.prepare(`SELECT COUNT(*) n FROM members WHERE pending = 1 AND date(created_at) = date('now','localtime')`).get().n;
-  if (newToday >= NEW_MEMBERS_PER_DAY) return bad(res, 'Heute wurden schon viele neue Namen angelegt. Bitte an den Vorstand wenden.', 429);
-  const id = Number(db.prepare("INSERT INTO members(name, kind, pending) VALUES (?, 'mitglied', 1)").run(name).lastInsertRowid);
-  res.json(unlockResponse(db.prepare('SELECT * FROM members WHERE id = ?').get(id)));
-});
-
-// Idempotenz beim Tablet-Buchen: Der Client schickt je Warenkorb-Absenden eine zufällige requestId. Kommt dieselbe ID
-// desselben Kontos binnen 2 Minuten erneut (Doppeltipp, Wiederholung bei wackeligem WLAN), wird die erste Antwort
-// zurückgegeben statt noch einmal zu buchen. Nur im Speicher – nach einem Neustart ist die Liste leer.
-const BOOK_REPLAY_MS = 2 * 60000;
-const bookReplay = new Map();                                      // "konto|requestId" -> { at, body }
-const replayKey = (who, requestId) => {
-  if (typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(requestId)) return null;
-  const now = Date.now();
-  for (const [k, v] of bookReplay) if (now - v.at > BOOK_REPLAY_MS) bookReplay.delete(k);
-  return `${who}|${requestId}`;
-};
-
-app.post('/api/tablet/book', rateLimit('book', 120, 60000), (req, res) => {
-  // „pay“ aus älteren Tablet-Versionen wird weiter angenommen, aber nicht mehr ausgewertet: ob bar oder angeschrieben,
-  // ergibt sich allein aus dem Konto (Deckel, Veranstaltungsliste, Mitglied …)
-  const { token, items, requestId } = req.body || {};
-  const who = auth.checkTabletToken(token);
-  if (!who) return bad(res, 'Sitzung abgelaufen. Bitte Namen erneut wählen.', 401);
-  const rkey = replayKey(who, requestId);
-  if (rkey && bookReplay.has(rkey)) return res.json(bookReplay.get(rkey).body);   // Wiederholung: Erstergebnis, keine neue Buchung
-  if (!Array.isArray(items) || !items.length) return bad(res, 'Keine Artikel gewählt.');
-  const ev = activeEvent();
-
-  let member = null, guest = null, tab = null, kind, paidCash = null;
-  if (typeof who === 'string' && who.startsWith('tab:')) {
-    tab = db.prepare("SELECT * FROM guest_tabs WHERE id = ? AND status = 'offen'").get(int(who.slice(4)));
-    if (!tab) return bad(res, 'Dieser Deckel ist schon bezahlt oder geschlossen.', 401);
-    if (ev) return bad(res, 'Während der Veranstaltung bitte die Veranstaltungsliste nutzen.');
-    kind = 'gast'; paidCash = 0;                          // angeschrieben, bezahlt wird am Ende
-  } else if (typeof who === 'string' && who.startsWith('event:')) {
-    if (!ev || ev.id !== int(who.slice(6))) return bad(res, 'Die Veranstaltung ist beendet.');
-    kind = 'event'; paidCash = 1;                         // Barverkauf ohne Namen
-  } else if (typeof who === 'string' && who.startsWith('guest:')) {
-    guest = db.prepare('SELECT * FROM event_guests WHERE id = ?').get(int(who.slice(6)));
-    if (!guest || !ev || guest.event_id !== ev.id) return bad(res, 'Die Veranstaltung ist beendet.', 401);
-    kind = 'event'; paidCash = 0;                         // wird auf der Veranstaltungsliste angeschrieben
-  } else {
-    member = db.prepare('SELECT * FROM members WHERE id = ? AND active = 1').get(who);
-    if (!member) return bad(res, 'Konto nicht gefunden.');
-    kind = { mitglied: 'konto', nichtmitglied: 'konto', mannschaft: 'konto', verein: 'verein', gast: 'gast' }[member.kind];
-    if (ev && (kind === 'verein' || kind === 'gast')) return bad(res, 'Während der Veranstaltung wird nur auf die Veranstaltungsliste gebucht – für Gäste „Barverkauf ohne Namen“.');
-    if (ev && kind === 'konto') {                         // während einer Veranstaltung immer auf deren Liste
-      guest = addGuest(ev, { memberId: member.id }, 'tablet');
-      kind = 'event'; paidCash = 0;
-    }
-  }
-
-  // Bei laufender Veranstaltung gelten nur deren Getränke und Preise
-  const evPrice = ev ? new Map(ev.articles.map(a => [a.id, a.price_cents])) : null;
-  const getArticle = db.prepare('SELECT * FROM articles WHERE id = ?');
-  const insB = db.prepare(`INSERT INTO bookings(member_id, article_id, event_id, kind, qty, unit_cents, total_cents, paid_cash, event_guest_id, note, tab_id)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
-  const ins = { run: (...a) => insB.run(...a, tab ? tab.id : null) };
-  const created = [];
-  const memberId = member ? member.id : (guest ? guest.member_id : null);
-  if (items.length > 30) return bad(res, 'Zu viele Positionen.');
-  const tx = db.transaction(() => {
-    for (const it of items) {
-      if (it && it.custom) {                              // frei eingegebener Betrag
-        if (!Number.isInteger(Number(it.cents))) throw new Error('Betrag bitte in ganzen Cent angeben.');   // keine Nachkommastellen stillschweigend abschneiden
-        const cents = int(it.cents);
-        if (cents < 10 || cents > 50000) throw new Error('Betrag bitte zwischen 0,10 € und 500 €.');
-        const note = cleanName(it.note, 60) || null;
-        const total = kind === 'verein' ? 0 : cents;
-        const r = ins.run(memberId, customArticleId(), ev ? ev.id : null, kind, 1, cents, total, paidCash, guest ? guest.id : null, note);
-        created.push({ id: Number(r.lastInsertRowid), name: 'Betrag' + (note ? ' (' + note + ')' : ''), qty: 1, total_cents: total, list_cents: cents });
-        continue;
-      }
-      if (!Number.isInteger(Number(it.qty))) throw new Error('Ungültige Menge.');
-      const qty = int(it.qty);
-      if (qty < 1 || qty > 99) throw new Error('Ungültige Menge.');
-      const a = getArticle.get(int(it.articleId));
-      if (!a || a.custom) throw new Error('Artikel nicht verfügbar.');
-      let price = a.price_cents;
-      if (evPrice) {
-        if (!evPrice.has(a.id)) throw new Error(`„${a.name}“ gibt es bei dieser Veranstaltung nicht.`);
-        price = evPrice.get(a.id);
-      } else if (!a.active) throw new Error('Artikel nicht verfügbar.');
-      const total = kind === 'verein' ? 0 : price * qty;
-      const r = ins.run(memberId, a.id, ev ? ev.id : null, kind, qty, price, total, paidCash, guest ? guest.id : null, null);
-      created.push({ id: Number(r.lastInsertRowid), name: a.name, qty, total_cents: total, list_cents: price * qty });
-    }
-  });
-  try { tx(); } catch (e) { return bad(res, e.message); }
-
-  const resp = { bookings: created, kind, paid_cash: paidCash, event: ev ? ev.name : null,
-    total_cents: created.reduce((s, b) => s + b.total_cents, 0) };
-  if (tab) {
-    resp.tab = { id: tab.id, name: tab.name }; resp.open_cents = tabOpen(tab.id);
-  } else if (guest) {
-    // Veranstaltungsliste ist exklusiv (nur Buchungen dieser Veranstaltung, nie das Getränkekonto) –
-    // das Thekenpersonal muss sie für jeden sehen können, auch ohne PIN
-    resp.guest = { id: guest.id, name: guest.name }; resp.private = true; resp.open_cents = guestOpen(guest.id);
-  } else if (member) {
-    resp.private = privateOk(member);
-    if (resp.private) {
-      resp.balance = memberBalance(member.id);
-      resp.eventOpen_cents = eventOpen(member.id);
-    }
-  }
-  if (rkey) bookReplay.set(rkey, { at: Date.now(), body: resp });
-  res.json(resp);
-});
-
-app.post('/api/tablet/undo', rateLimit('undo', 60, 60000), (req, res) => {
-  const { token, bookingIds } = req.body || {};
-  const who = auth.checkTabletToken(token);
-  if (!who) return bad(res, 'Sitzung abgelaufen. Rückgängig bitte über den Vorstand.', 401);
-  if (!Array.isArray(bookingIds) || !bookingIds.length) return bad(res, 'Nichts zum Zurücknehmen.');
-  const ids = bookingIds.map(i => int(i));
-  const rows = db.prepare(`SELECT * FROM bookings WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids);
-  const limit = new Date(Date.now() - UNDO_WINDOW_MIN * 60000);
-  for (const b of rows) {
-    if (b.kind === 'event') return bad(res, 'Bei Veranstaltungen storniert nur der Vorstand (Verwaltung → Buchungen).', 403);
-    const owners = [b.tab_id ? 'tab:' + b.tab_id : null, b.event_guest_id ? 'guest:' + b.event_guest_id : null, b.member_id, b.member_id === null && !b.event_guest_id && !b.tab_id ? 'event:' + b.event_id : null];
-    if (!owners.includes(who)) return bad(res, 'Diese Buchung gehört nicht zu diesem Konto.', 403);
-    if (b.tab_id && !db.prepare("SELECT 1 FROM guest_tabs WHERE id = ? AND status = 'offen'").get(b.tab_id)) return bad(res, 'Der Deckel ist schon bezahlt.');
-    if (b.payment_id || b.transferred_at) return bad(res, 'Schon bezahlt bzw. übernommen – bitte an den Vorstand wenden.');
-    // Abgerechnete Buchungen dürfen am Tablet nicht mehr storniert werden – sonst passen Abrechnung und Buchungen
-    // nicht mehr zusammen; eine Gutschrift kann nur die Verwaltung erteilen.
-    if (b.settled_id) return bad(res, 'Diese Buchung ist bereits abgerechnet – bitte an den Vorstand wenden.');
-    if (new Date(b.created_at.replace(' ', 'T')) < limit) {
-      return bad(res, `Rückgängig ist nur ${UNDO_WINDOW_MIN} Minuten lang möglich. Bitte an den Vorstand wenden.`);
-    }
-  }
-  // settled_id IS NULL auch hier: schützt gegen eine Abrechnung zwischen Prüfung und UPDATE
-  const upd = db.prepare(`UPDATE bookings SET cancelled_at = datetime('now','localtime'), cancelled_by = 'tablet'
-    WHERE id = ? AND cancelled_at IS NULL AND settled_id IS NULL`);
-  let cancelled = 0;
-  db.transaction(() => rows.forEach(b => { cancelled += upd.run(b.id).changes; }))();   // schon stornierte zählen nicht mit
-  if (!cancelled && rows.some(b => !b.cancelled_at)) return bad(res, 'Diese Buchung ist bereits abgerechnet – bitte an den Vorstand wenden.');
-  res.json({ ok: true, cancelled });
-});
-
-app.get('/api/tablet/account', (req, res) => {
-  const who = auth.checkTabletToken(req.query.token);
-  if (typeof who === 'string' && who.startsWith('tab:')) {
-    const t = db.prepare('SELECT * FROM guest_tabs WHERE id = ?').get(int(who.slice(4)));
-    if (!t) return bad(res, 'Sitzung abgelaufen.', 401);
-    const rows = db.prepare(`SELECT b.created_at, CASE WHEN a.custom = 1 THEN 'Betrag' || COALESCE(' (' || b.note || ')', '') ELSE COALESCE(b.article_name, a.name) END AS name,
-        b.qty, b.total_cents, b.kind FROM bookings b JOIN articles a ON a.id = b.article_id
-      WHERE b.tab_id = ? AND b.cancelled_at IS NULL ORDER BY b.created_at DESC LIMIT 200`).all(t.id);
-    return res.json({ tab: { id: t.id, name: t.name }, rows, open_cents: tabOpen(t.id) });
-  }
-  if (typeof who === 'string' && who.startsWith('guest:')) {
-    const g = db.prepare('SELECT g.*, e.name AS event FROM event_guests g JOIN events e ON e.id = g.event_id WHERE g.id = ?').get(int(who.slice(6)));
-    if (!g) return bad(res, 'Sitzung abgelaufen.', 401);
-    const rows = db.prepare(`SELECT b.created_at, CASE WHEN a.custom = 1 THEN 'Betrag' || COALESCE(' (' || b.note || ')', '') ELSE COALESCE(b.article_name, a.name) END AS name,
-        b.qty, b.total_cents, b.kind, b.payment_id, b.transferred_at, p.method
-      FROM bookings b JOIN articles a ON a.id = b.article_id LEFT JOIN event_payments p ON p.id = b.payment_id
-      WHERE b.event_guest_id = ? AND b.cancelled_at IS NULL ORDER BY b.created_at DESC LIMIT 200`).all(g.id);
-    return res.json({ guest: { id: g.id, name: g.name }, event: g.event, rows, open_cents: guestOpen(g.id) });
-  }
-  if (!who || typeof who !== 'number') return bad(res, 'Sitzung abgelaufen.', 401);
-  if (!privateOk(db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(who))) return bad(res, 'Konto und Verlauf sind nur mit PIN sichtbar.', 403);
-  // Offene Konto-Buchungen (seit der letzten Abrechnung dieses Mitglieds) + sonstige der letzten 60 Tage
-  const rows = db.prepare(`SELECT b.created_at, CASE WHEN a.custom = 1 THEN 'Betrag' || COALESCE(' (' || b.note || ')', '') ELSE COALESCE(b.article_name, a.name) END AS name,
-      b.qty, b.total_cents, b.kind, b.paid_cash, b.transferred_at, e.name AS event
-    FROM bookings b JOIN articles a ON a.id = b.article_id LEFT JOIN events e ON e.id = b.event_id
-    WHERE b.member_id = ? AND b.cancelled_at IS NULL
-      AND ((b.kind = 'konto' AND b.settled_id IS NULL) OR (b.kind <> 'konto' AND date(b.created_at) >= date('now','localtime','-60 days')))
-    ORDER BY b.created_at DESC LIMIT 200`).all(who);
-  const last = db.prepare('SELECT MAX(until_at) t FROM member_settlements WHERE member_id = ?').get(who).t;
-  res.json({ lastSettled: last, rows, balance: memberBalance(who), eventOpen_cents: eventOpen(who) });
-});
-
-app.post('/api/tablet/pin', rateLimit('pin', 20, 60000), (req, res) => {
-  const { token, currentPin, newPin } = req.body || {};
-  const who = auth.checkTabletToken(token);
-  if (!who || typeof who !== 'number') return bad(res, 'Sitzung abgelaufen.', 401);
-  const m = db.prepare('SELECT * FROM members WHERE id = ?').get(who);
-  if (!isPerson(m.kind)) return bad(res, 'Für dieses Konto kann keine PIN gesetzt werden.');
-  if (m.pin_hash) {
-    const err = checkPin(m, currentPin);                 // zählt in dieselbe Sperre wie das Entsperren
-    if (err) return bad(res, err.msg === 'PIN falsch.' ? 'Aktuelle PIN falsch.' : err.msg, err.code);
-  }
-  // Die PIN ist eine Zentralfunktion (Verkauf, Platzbuchung, Helferdienste) – entfernen kann sie nur der Vorstand (zurücksetzen)
-  if (newPin === '' || newPin === null) return bad(res, 'Die PIN kann nicht entfernt werden – sie gilt für Verkauf, Platzbuchung und Helferdienste. Vergessen? Der Vorstand setzt sie zurück.');
-  { const e = auth.pinProblem(newPin); if (e) return bad(res, e); }
-  db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL,
-      pin_changed_at = datetime('now','localtime'), pin_changed_by = 'Mitglied' WHERE id = ?`).run(auth.hashSecret(newPin), m.id);
-  // eine PIN für alles: gilt ab sofort auch in der Mitglieder-App
-  // nur mit der bisherigen PIN als Nachweis (die erste PIN am Tablet ändert eine vorhandene App-PIN nicht)
-  require('./invites').pinToApp(m.id, db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(m.id).pin_hash, m.pin_hash ? String(currentPin) : null);
-  audit('tablet', m.pin_hash ? 'PIN geändert' : 'PIN festgelegt', m.name);
-  require('./push').send(m.id, 'app.pin', { title: `${getSetting('club_name', 'Verein')}: PIN geändert`, body: 'Deine PIN wurde am Tablet geändert. Warst du das nicht, melde dich bitte beim Vorstand.' }).catch(() => {});
-  res.json({ ok: true, hasPin: true });
-});
-
-app.post('/api/tablet/logout', (req, res) => {
-  auth.dropTabletToken((req.body || {}).token);
-  res.json({ ok: true });
+const { addGuest, closeTab, eventOpen, eventOpenAll, guestOpen, OPEN_GUEST, topDays, topN } = require('./tablet-api')({
+  app, bad, cleanName, int, logoUrl, memberBalance, normPath, rateLimit, UNDO_WINDOW_MIN
 });
 
 /* =====================================================================
@@ -951,7 +410,7 @@ const cleanUser = u => { const pi = auth.permInfo(u); return { id: u.id, usernam
   extra: jarr(u.perms), roles: jarr(u.roles).map(Number), departments: jarr(u.departments).map(Number), member_id: u.member_id || null,
   active: Boolean(u.active), last_login: u.last_login, builtin: Boolean(u.builtin) }; };
 /** Abteilungen (aus der Mitgliederverwaltung, falls aktiv) */
-const departmentList = () => { for (const p of plugins.withHook('departments')) { try { return p.hooks.departments() || []; } catch (e) { /* */ } } return []; };
+const departmentList = () => { for (const p of plugins.withHook('departments')) { try { return p.hooks.departments() || []; } catch (e) { console.error(`Modul ${p.meta.id}: Abteilungen nicht lesbar:`, e.message); } } return []; };
 /** Benutzername-Vorschlag: erster Buchstabe Vorname + Nachname (ä → ae …), eindeutig */
 function suggestUsername(first, last, exceptId = 0, taken = null) {   // taken: vergebene Namen (klein geschrieben, ohne exceptId) – für Listen, statt je Vorschlag abzufragen
   const t = v => String(v || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
@@ -973,7 +432,7 @@ app.get('/api/admin/status', (req, res) => {
     modules: auth.adminConfigured() ? undefined : plugins.list().filter(p => !p.error).map(p => ({ id: p.id, name: p.name, description: p.short || p.description, active: p.active })),
     languages: auth.adminConfigured() ? undefined : i18n.list().map(l => ({ code: l.code, name: l.name })), language: auth.adminConfigured() ? undefined : i18n.clubLang(),
     demo: auth.adminConfigured() ? undefined : demo.freshDb(db), demoMode: isDemo() || undefined,
-    demoInfo: isDemo() && u && u.perms.includes('einstellungen') ? JSON.parse(getSetting('demo_info', '{}')) : undefined,
+    demoInfo: isDemo() && u && u.perms.includes('einstellungen') ? getJsonSetting('demo_info', {}) : undefined,
     demoCopy: DEMO_KOPIE ? { module: process.env.CW_DEMO_MODUL || '', minutes: Number(process.env.CW_DEMO_MINUTEN || 30) } : undefined });
 });
 
@@ -1005,7 +464,7 @@ function setupCodeOk(req, res) {
   bad(res, 'Der Einrichtungscode stimmt nicht. Er steht im Protokoll des Add-ons (Home Assistant → Einstellungen → Add-ons → Clubwerk → Protokoll).', 403);
   return false;
 }
-app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
+app.post('/api/admin/setup', rateLimit('setup', 10, 60000), async (req, res) => {
   if (auth.adminConfigured()) return bad(res, 'Das Adminkonto ist bereits eingerichtet.', 403);
   if (!setupCodeOk(req, res)) return;
   const { password, clubName, tabletPassword, wizard } = req.body || {};
@@ -1026,33 +485,33 @@ app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
   if (mods && typeof mods === 'object') for (const p of plugins.list()) if (mods[p.id] !== undefined && !p.error) setSetting(`ext_${p.id}_active`, mods[p.id] ? '1' : '0');
   require('./gobd').ensure();   // Änderungsjournal: Tabellen der eingeschalteten Module erfassen
   if (lang !== undefined) setSetting('language', i18n.normCode(lang));
-  const adminId = auth.createUser({ username: uname, name: fullName, password: String(password), role: 'oberadmin', builtin: true });
+  const adminId = await auth.createUser({ username: uname, name: fullName, password: String(password), role: 'oberadmin', builtin: true });
   if (process.env.CW_TEST_VAULT === '1') { const v = require('./vault'); v.prepare(adminId); v.enable(adminId, String(password)); }   // nur Tests: alles mit eingeschaltetem Tresor prüfen
-  if (tabletPassword !== undefined) { setSetting('tablet_pw_hash', auth.hashSecret(String(tabletPassword))); setSetting('tablet_pw_at', nowTs()); setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex')); }
+  if (tabletPassword !== undefined) { setSetting('tablet_pw_hash', await auth.hashSecret(String(tabletPassword))); setSetting('tablet_pw_at', nowTs()); setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex')); }
   if (wizard) require('./einrichtung').begin();
   audit(uname, 'Adminkonto eingerichtet', wizard ? 'mit dem Einrichtungs-Assistenten' : undefined);
   demo.dropTicket(DATA_DIR);
-  const r = auth.login(uname, String(password), req.ip, 'admin', { tablet: Boolean(req.cwTablet) });
+  const r = await auth.login(uname, String(password), req.ip, 'admin', { tablet: Boolean(req.cwTablet) });
   res.setHeader('Set-Cookie', [cookieOpts(r.token, req), 'csetup=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0']);
   res.json({ ok: true });
 });
 /* Demo ausprobieren (nur frische Installation, mit Einrichtungscode bzw. über die Seitenleiste – wie die Ersteinrichtung):
    Markierung anlegen, neu starten; beim Start ersetzt src/demo.js die leere Datenbank durch die Demo. Die zufälligen Passwörter
    bekommt nur, wer die Demo startet (und später angemeldete Admins im Demo-Hinweis). */
-app.post('/api/admin/demo/start', rateLimit('setup', 10, 60000), (req, res) => {
+app.post('/api/admin/demo/start', rateLimit('setup', 10, 60000), async (req, res) => {
   if (auth.adminConfigured() || !demo.freshDb(db)) return bad(res, 'Die Demo gibt es nur auf einer frisch installierten Clubwerk-Instanz.', 403);
   if (!setupCodeOk(req, res)) return;
-  const r = demo.markStart(DATA_DIR, auth.hashSecret);
+  const r = await demo.markStart(DATA_DIR, auth.hashSecret);
   console.log('Demo wird eingerichtet – Clubwerk startet neu.');
   res.json({ ok: true, restart: true, ...r });
   setTimeout(() => shutdown('Demo starten', 1), 300);
 });
 
-app.post('/api/admin/login', rateLimit('login', 15, 5 * 60000), (req, res) => {
+app.post('/api/admin/login', rateLimit('login', 15, 5 * 60000), async (req, res) => {
   const { username, password } = req.body || {};
   const known = auth.knownDevice(req, username);
   const before = db.prepare('SELECT last_login FROM admin_users WHERE username = ? AND active = 1').get(String(username || '').trim().toLowerCase());
-  const r = auth.login(String(username || ''), String(password || ''), req.ip, 'admin', { trusted: viaIngress(req), known, tablet: Boolean(req.cwTablet) });
+  const r = await auth.login(String(username || ''), String(password || ''), req.ip, 'admin', { trusted: viaIngress(req), known, tablet: Boolean(req.cwTablet) });
   if (!r.ok) {
     audit(String(username || '').slice(0, 30), r.locked ? 'Anmeldung gesperrt (5 Fehlversuche)' : 'Anmeldung fehlgeschlagen', req.ip);
     if (r.manyFails) securityAlert('login.viele', `Auffällig viele fehlgeschlagene Anmeldungen für „${String(username || '').slice(0, 30)}“ (zuletzt von ${req.ip}). Bitte prüfen, ob jemand versucht, das Passwort zu erraten.`, { key: String(username || '').trim().toLowerCase().slice(0, 30) });
@@ -1085,19 +544,19 @@ admin.use((req, res, next) => (VAULT_AREAS.test(normPath(req.path)) && require('
 app.use('/api/admin', admin);
 
 /** eigenes Passwort des angemeldeten Benutzers prüfen (Bestätigung heikler Aktionen) */
-function ownPwOk(req, pw) { const u = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id); return Boolean(u && pw && auth.verifySecret(String(pw), u.pw_hash)); }
+async function ownPwOk(req, pw) { const u = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id); return Boolean(u && pw && await auth.verifySecret(String(pw), u.pw_hash)); }
 /** nur für Benutzer mit allen Rechten */
 const owner = (req, res, next) => (req.user.role === 'oberadmin' ? next() : bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403));
 
-admin.post('/password', rateLimit('pwchange', 10, 10 * 60000), (req, res) => {
+admin.post('/password', rateLimit('pwchange', 10, 10 * 60000), async (req, res) => {
   const { current, next } = req.body || {};
   const u = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(req.user.id);
-  if (!ownPwOk(req, current)) return pwBad(res, 'Aktuelles Passwort falsch.');
+  if (!await ownPwOk(req, current)) return pwBad(res, 'Aktuelles Passwort falsch.');
   if (!pwOk(next)) return bad(res, PW_MSG);
-  auth.setPassword(u.id, String(next));
+  await auth.setPassword(u.id, String(next));
   audit(req.user, 'Eigenes Passwort geändert', u.username);
   securityAlert('benutzer.passwort', `„${u.username}“ hat das eigene Passwort geändert (Adresse ${req.ip}). Warst du es nicht, bitte sofort ein neues Passwort vergeben.`, { key: u.username });
-  const r = auth.login(u.username, String(next), req.ip, 'admin', { tablet: Boolean(req.cwTablet) });
+  const r = await auth.login(u.username, String(next), req.ip, 'admin', { tablet: Boolean(req.cwTablet) });
   res.setHeader('Set-Cookie', cookieOpts(r.token, req));
   res.json({ ok: true });
 });
@@ -1150,10 +609,10 @@ admin.delete('/bank-accounts/:id', (req, res) => {
 });
 /** Rechte fürs Protokoll mit ihren Namen („Lieferungen & Belege hochladen“), nie als interne Schlüssel */
 const permNames = list => (list || []).map(k => auth.PERMS[k] || k).join(', ') || 'keine';
-admin.post('/users', need('benutzer'), (req, res) => {
+admin.post('/users', need('benutzer'), async (req, res) => {
   const { username, name, password, role, perms } = req.body || {};
   const b = req.body || {};
-  if (role === 'oberadmin' && !ownerConfirm(req, res)) return;   // „alle Rechte“ vergeben nur mit dem eigenen Passwort
+  if (role === 'oberadmin' && !await ownerConfirm(req, res)) return;   // „alle Rechte“ vergeben nur mit dem eigenen Passwort
   const memberId = memberOk(b.member_id);
   if (b.member_id && !memberId) return bad(res, 'Mitglied nicht gefunden.');
   if (memberId && db.prepare('SELECT 1 FROM admin_users WHERE member_id = ?').get(memberId)) return bad(res, 'Für dieses Mitglied gibt es schon einen Benutzer.');
@@ -1165,7 +624,7 @@ admin.post('/users', need('benutzer'), (req, res) => {
   if (db.prepare('SELECT 1 FROM admin_users WHERE username = ?').get(un)) return bad(res, 'Diesen Benutzernamen gibt es schon.');
   if (!pwOk(password)) return bad(res, PW_MSG);
   const roles = roleIds(b.roles) || [], depts = deptIds(b.departments) || [];
-  const id = auth.createUser({ username: un, name: nm, password: String(password),
+  const id = await auth.createUser({ username: un, name: nm, password: String(password),
     role: role === 'oberadmin' ? 'oberadmin' : 'admin', perms: Array.isArray(perms) ? perms : [], roles, departments: depts, memberId });
   audit(req.user, 'Admin angelegt', `${un} (${role === 'oberadmin' ? 'alle Rechte' : [roles.map(r => (db.prepare('SELECT name FROM admin_roles WHERE id = ?').get(r) || {}).name).join(', '), Array.isArray(perms) ? permNames(perms) : ''].filter(Boolean).join(' · ')})`);
   securityAlert(role === 'oberadmin' ? 'benutzer.alle' : 'benutzer.rechte', `Neuer Benutzer der Verwaltung „${un}“${role === 'oberadmin' ? ' mit allen Rechten' : ''}, angelegt von ${req.user.name || req.user.username}.`, { key: un });
@@ -1210,7 +669,7 @@ admin.delete('/roles/:id', need('benutzer'), (req, res) => {
   res.json({ ok: true });
 });
 
-admin.put('/users/:id', need('benutzer'), (req, res) => {
+admin.put('/users/:id', need('benutzer'), async (req, res) => {
   const u = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(int(req.params.id));
   if (!u) return bad(res, 'Nicht gefunden.', 404);
   const b = req.body || {};
@@ -1221,7 +680,7 @@ admin.put('/users/:id', need('benutzer'), (req, res) => {
     if (b.name !== undefined && String(b.name).trim() !== u.name) return bad(res, 'Der Name des Adminkontos ist fest.');
   }
   if (u.id === req.user.id && (role !== 'oberadmin' || !active)) return bad(res, 'Du kannst dich nicht selbst herabstufen oder sperren.');
-  if (role === 'oberadmin' && u.role !== 'oberadmin' && !ownerConfirm(req, res)) return;   // auf „alle Rechte“ hochstufen nur mit dem eigenen Passwort
+  if (role === 'oberadmin' && u.role !== 'oberadmin' && !await ownerConfirm(req, res)) return;   // auf „alle Rechte“ hochstufen nur mit dem eigenen Passwort
   const perms = Array.isArray(b.perms) ? JSON.stringify(b.perms.filter(p => auth.PERMS[p])) : u.perms;
   const name = u.builtin ? u.name : (b.name !== undefined ? String(b.name).trim().slice(0, 60) : u.name);
   const roles = roleIds(b.roles), depts = deptIds(b.departments);
@@ -1254,14 +713,14 @@ admin.delete('/users/:id', need('benutzer'), (req, res) => {
   res.json({ ok: true });
 });
 
-admin.post('/users/:id/password', need('benutzer'), rateLimit('pwreset', 10, 10 * 60000), (req, res) => {
+admin.post('/users/:id/password', need('benutzer'), rateLimit('pwreset', 10, 10 * 60000), async (req, res) => {
   // mit dem eigenen Passwort bestätigen – eine fremde, offen gelassene Sitzung reicht nicht, um Passwörter zu ändern
-  if (!ownPwOk(req, (req.body || {}).myPassword)) return pwBad(res, 'Dein eigenes Passwort zur Bestätigung stimmt nicht.');
+  if (!await ownPwOk(req, (req.body || {}).myPassword)) return pwBad(res, 'Dein eigenes Passwort zur Bestätigung stimmt nicht.');
   const pw = String((req.body || {}).password || '');
   if (!pwOk(pw)) return bad(res, PW_MSG);
   const u = db.prepare('SELECT id, username FROM admin_users WHERE id = ?').get(int(req.params.id));
   if (!u) return bad(res, 'Nicht gefunden.', 404);
-  auth.setPassword(u.id, pw);
+  await auth.setPassword(u.id, pw);
   audit(req.user, 'Passwort neu vergeben', u.username);
   securityAlert('benutzer.passwort', `Das Passwort von „${u.username}“ wurde von ${req.user.name || req.user.username} neu vergeben.`, { key: u.username });
   res.json({ ok: true });
@@ -1291,11 +750,11 @@ admin.put('/settings/hosts', need('einstellungen'), (req, res) => {
   audit(req.user, 'Weitere Adressen geändert', getSetting('allowed_hosts', '') || '–');
   res.json({ ok: true, hosts: getSetting('allowed_hosts', '') });
 });
-admin.put('/settings/tablet-password', need('einstellungen'), (req, res) => {
+admin.put('/settings/tablet-password', need('einstellungen'), async (req, res) => {
   const pw = String((req.body || {}).password || '');
   const pe = tabletPwError(pw); if (pe) return bad(res, pe);
   const first = !gateOn();
-  setSetting('tablet_pw_hash', auth.hashSecret(pw));
+  setSetting('tablet_pw_hash', await auth.hashSecret(pw));
   setSetting('tablet_pw_at', nowTs());
   setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex'));   // bisherige Geräte müssen das neue Passwort eingeben
   audit(req.user, first ? 'Buchungsseite: Passwortschutz eingeschaltet' : 'Buchungsseite: Passwort geändert');
@@ -1304,11 +763,11 @@ admin.put('/settings/tablet-password', need('einstellungen'), (req, res) => {
 });
 /* Tablet im Vereinsheim ein- oder ausschalten. Einschalten ohne vergebenes Passwort geht nur zusammen mit einem neuen Passwort –
    so ist keine Tablet-Seite auch nur kurz ohne Passwort erreichbar. Ausschalten meldet alle freigeschalteten Geräte ab. */
-admin.put('/settings/tablet', need('einstellungen'), (req, res) => {
+admin.put('/settings/tablet', need('einstellungen'), async (req, res) => {
   const b = req.body || {}, on = Boolean(b.on), pw = String(b.password || ''), was = tabletOn();
   if (on && (pw || !gateOn())) {
     const pe = tabletPwError(pw); if (pe) return bad(res, gateOn() ? pe : 'Zum Einschalten bitte ein Passwort für das Tablet festlegen (mindestens 8 Zeichen).');
-    setSetting('tablet_pw_hash', auth.hashSecret(pw)); setSetting('tablet_pw_at', nowTs());
+    setSetting('tablet_pw_hash', await auth.hashSecret(pw)); setSetting('tablet_pw_at', nowTs());
   }
   if (!on || pw) setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex'));   // bisherige Freigaben erlöschen
   setSetting('tablet_enabled', on ? '1' : '0');
@@ -1331,26 +790,26 @@ admin.get('/vault', (req, res) => {
   res.json({ ...v.status(req.user.id), may: req.user.perms.includes('einstellungen'),
     oldPlain: v.on() ? undefined : (() => { try { return backup.list().length; } catch (e) { return 0; } })() });
 });
-admin.post('/vault/prepare', need('einstellungen'), vaultPwLimit, (req, res) => {
-  if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
+admin.post('/vault/prepare', need('einstellungen'), vaultPwLimit, async (req, res) => {
+  if (!await ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   try { res.json(require('./vault').prepare(req.user.id)); } catch (e) { bad(res, e.message); }
 });
 admin.post('/vault/enable', need('einstellungen'), vaultPwLimit, asyncRoute(async (req, res) => {
   const b = req.body || {}; const vault = require('./vault');
-  if (!ownPwOk(req, b.password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
+  if (!await ownPwOk(req, b.password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   try { if (!vault.confirmCode(req.user.id, b.typed)) return bad(res, 'Die Zeichen passen nicht zum Wiederherstellungscode – bitte auf dem Ausdruck nachsehen.'); } catch (e) { return bad(res, e.message); }
   try { await backup.snapshot(db, 'vor-verschluesselung'); } catch (e) { return bad(res, 'Vorher konnte keine Sicherung angelegt werden: ' + e.message); }
   let r; try { r = vault.enable(req.user.id, String(b.password)); } catch (e) { console.error('Tresor einschalten:', e); return bad(res, 'Das Einschalten ist fehlgeschlagen: ' + e.message, 500); }
   // alte, unverschlüsselte Schnappschüsse der Datenbank auf diesem Gerät entfernen (sie enthielten die Daten im Klartext)
   let removed = 0;
-  if (b.deleteOld) for (const f of fs.readdirSync(backup.BACKUP_DIR).filter(x => /\.db$/.test(x))) { try { fs.unlinkSync(path.join(backup.BACKUP_DIR, f)); removed++; } catch (e) { /* weiter */ } }
-  if (b.deleteOld) try { await backup.snapshot(db, 'verschluesselt'); } catch (e) { /* nächste Nacht */ }
+  if (b.deleteOld) for (const f of fs.readdirSync(backup.BACKUP_DIR).filter(x => /\.db$/.test(x))) { try { fs.unlinkSync(path.join(backup.BACKUP_DIR, f)); removed++; } catch (e) { /* nicht löschbar: bleibt liegen, zählt nicht mit */ } }
+  if (b.deleteOld) try { await backup.snapshot(db, 'verschluesselt'); } catch (e) { console.error('Sicherung: neue verschlüsselte Sicherung fehlgeschlagen (nächste Nacht):', e.message); }
   audit(req.user, 'Tresor eingeschaltet', `${r.files} Dateien verschlüsselt, ${removed} alte Schnappschüsse entfernt, ${r.ms} ms`);
   res.json({ ok: true, ...r, removed });
 }));
-admin.post('/vault/unlock', vaultPwLimit, (req, res) => {
+admin.post('/vault/unlock', vaultPwLimit, async (req, res) => {
   const b = req.body || {}; const vault = require('./vault');
-  if (!ownPwOk(req, b.password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
+  if (!await ownPwOk(req, b.password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   let ok = false; try { ok = vault.unlockWithCode(b.code); } catch (e) { return bad(res, e.message); }
   if (!ok) { audit(req.user, 'Tresor: falscher Wiederherstellungscode'); securityAlert('tresor.code', `Beim Tresor wurde von ${req.user.name || req.user.username} ein falscher Wiederherstellungscode eingegeben.`, { key: 'falsch' }); return pwBad(res, 'Der Wiederherstellungscode stimmt nicht.'); }
   vault.onPassword(req.user.id, String(b.password));   // ab jetzt öffnet auch die Anmeldung dieses Admins den Tresor
@@ -1358,12 +817,12 @@ admin.post('/vault/unlock', vaultPwLimit, (req, res) => {
   securityAlert('tresor.code', `Der Tresor wurde von ${req.user.name || req.user.username} mit dem Wiederherstellungscode geöffnet.`, { key: 'offen' });
   res.json({ ok: true });
 });
-admin.post('/vault/new-code', need('einstellungen'), vaultPwLimit, (req, res) => {
-  if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
+admin.post('/vault/new-code', need('einstellungen'), vaultPwLimit, async (req, res) => {
+  if (!await ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   try { const code = require('./vault').newRecovery(); audit(req.user, 'Tresor: neuer Wiederherstellungscode'); securityAlert('tresor.neu', `Für den Tresor wurde von ${req.user.name || req.user.username} ein neuer Wiederherstellungscode erzeugt.`); res.json({ code }); } catch (e) { bad(res, e.message, e.status || 400); }
 });
-admin.post('/vault/disable', need('einstellungen'), vaultPwLimit, (req, res) => {
-  if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
+admin.post('/vault/disable', need('einstellungen'), vaultPwLimit, async (req, res) => {
+  if (!await ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   try { require('./vault').disable(); audit(req.user, 'Tresor ausgeschaltet'); securityAlert('tresor.aus', `Die Verschlüsselung der persönlichen Daten (Tresor) wurde von ${req.user.name || req.user.username} ausgeschaltet.`); res.json({ ok: true }); } catch (e) { bad(res, e.message, e.status || 400); }
 });
 
@@ -1421,7 +880,7 @@ admin.post('/logo', need('einstellungen'), express.raw({ type: () => true, limit
    zeichnet es aus dem Vereinslogo und lädt es hier hoch. */
 admin.post('/logo-icon', need('einstellungen'), express.raw({ type: () => true, limit: '1mb' }), (req, res) => {
   const b = req.body;
-  if (!b || b.length < 100 || b.readUInt32BE(0) !== 0x89504e47) return bad(res, 'Kein PNG.');
+  if (!b || b.length < 100 || util.imageType(b) !== 'png') return bad(res, 'Kein PNG.');
   const mask = req.query.art === 'maskable';   // rundes Symbol für Android (maskable)
   setSetting(mask ? 'club_icon_mask' : 'club_icon', b.toString('base64'));
   setSetting(mask ? 'club_icon_mask_ver' : 'club_icon_ver', iconKey());
@@ -1430,7 +889,7 @@ admin.post('/logo-icon', need('einstellungen'), express.raw({ type: () => true, 
 /* Logo als schlichtes PNG (vom Browser aus dem SVG gezeichnet) – für PDFs und E-Mails; gilt für genau diesen Logo-Stand */
 admin.post('/logo-png', need('einstellungen'), express.raw({ type: () => true, limit: '2mb' }), (req, res) => {
   const b = req.body;
-  if (!b || b.length < 100 || b.readUInt32BE(0) !== 0x89504e47) return bad(res, 'Kein PNG.');
+  if (!b || b.length < 100 || util.imageType(b) !== 'png') return bad(res, 'Kein PNG.');
   setSetting('club_logo_png', b.toString('base64'));
   setSetting('club_logo_png_ver', getSetting('club_logo_ver', 'std'));
   res.json({ ok: true });
@@ -1440,7 +899,6 @@ admin.delete('/logo', need('einstellungen'), (req, res) => {
   audit(req.user, 'Vereinslogo entfernt');
   res.json({ ok: true, logo: logoUrl() });
 });
-const ADDRESS_MIRROR = { club_street: ['ext_mitglieder_club_street', 'ext_buchhaltung_street'], club_city: ['ext_mitglieder_club_city', 'ext_buchhaltung_city'], club_phone: ['ext_buchhaltung_phone'], club_email: ['ext_buchhaltung_email'] };
 const SETTINGS_LABELS = { club_name: 'Vereinsname', club_color: 'Vereinsfarbe', club_color2: 'Zweitfarbe', tablet_theme: 'Darstellung am Tablet' };
 const TABLET_THEME_TXT = { auto: 'wie das Gerät', light: 'hell', dark: 'dunkel', hc: 'Hoher Kontrast' };
 admin.put('/settings', need('einstellungen'), (req, res) => {
@@ -1463,8 +921,6 @@ admin.put('/settings', need('einstellungen'), (req, res) => {
     const v = String(b[k] || '').replace(/\s+/g, ' ').trim().slice(0, max);
     if (k === 'clubEmail' && v && !require('./mail').mailOk(v)) return bad(res, 'Bitte eine gültige E-Mail-Adresse für den Verein eintragen.');
     setSetting(key, v); addr.push(key);
-    // Module, die ihre Angaben noch selbst führen (Mitglieder, Buchhaltung), lesen weiter ihre eigenen Schlüssel – sie bleiben gleich
-    for (const old of ADDRESS_MIRROR[key]) setSetting(old, v);
   }
   if (b.topN !== undefined) { const n = int(b.topN, -1); if (n < 0 || n > 60) return bad(res, '„Ich bin öfter hier“: Anzahl 0–60 (0 = ausblenden).'); setSetting('top_n', String(n)); }
   if (b.topDays !== undefined) { const d = int(b.topDays, 0); if (d < 1 || d > 365) return bad(res, '„Ich bin öfter hier“: Zeitraum 1–365 Tage.'); setSetting('top_days', String(d)); }
@@ -1600,7 +1056,7 @@ admin.delete('/members/:id', need('konten', 'mitglieder'), (req, res) => {
   res.json({ ok: true, kept });
 });
 
-admin.post('/members', need('konten'), (req, res) => {
+admin.post('/members', need('konten'), async (req, res) => {
   const name = cleanName((req.body || {}).name);
   const kind = (req.body || {}).kind || 'mitglied';
   if (!name) return bad(res, 'Name fehlt.');
@@ -1611,12 +1067,12 @@ admin.post('/members', need('konten'), (req, res) => {
   const pin = String((req.body || {}).pin || '');
   if (kind === 'mannschaft' && !validPin(pin)) return bad(res, 'Mannschaftskonten brauchen eine PIN (4 bis 6 Ziffern), die der Vorstand vergibt.');
   const r = db.prepare(`INSERT INTO members(name, kind, pin_hash, pin_changed_at, pin_changed_by) VALUES (?,?,?,?,?)`)
-    .run(name, kind, kind === 'mannschaft' ? auth.hashSecret(pin) : null, kind === 'mannschaft' ? nowTs() : null, kind === 'mannschaft' ? req.user.username : null);
+    .run(name, kind, kind === 'mannschaft' ? await auth.hashPin(pin) : null, kind === 'mannschaft' ? nowTs() : null, kind === 'mannschaft' ? req.user.username : null);
   audit(req.user, 'Konto angelegt', `${name} (${kind})`);
   res.json({ id: Number(r.lastInsertRowid) });
 });
 
-admin.put('/members/:id', need('konten'), (req, res) => {
+admin.put('/members/:id', need('konten'), async (req, res) => {
   const m = db.prepare('SELECT * FROM members WHERE id = ? AND deleted = 0').get(int(req.params.id));   // gelöschte Konten lassen sich nicht „wiederbeleben“
   if (!m) return bad(res, 'Nicht gefunden.', 404);
   const b = req.body || {};
@@ -1640,7 +1096,7 @@ admin.put('/members/:id', need('konten'), (req, res) => {
   db.prepare('UPDATE members SET name = ?, kind = ?, active = ? WHERE id = ?').run(name, kind, active, m.id);
   if (kind !== m.kind) { audit(req.user, 'Kontoart geändert', `${name}: ${m.kind} → ${kind}`); if (kind === 'verein') securityAlert('konto.verein', `Das Konto „${name}“ wurde von ${req.user.name || req.user.username} auf „Verein (kostenfrei)“ umgestellt. Buchungen darauf kosten nichts.`, { key: m.id }); }
   if (pin) db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL, pin_changed_at = datetime('now','localtime'), pin_changed_by = ? WHERE id = ?`)
-    .run(auth.hashSecret(pin), req.user.username, m.id);
+    .run(await auth.hashPin(pin), req.user.username, m.id);
   audit(req.user, 'Konto geändert', `${m.name}${name !== m.name ? ' → ' + name : ''}${active ? '' : ', ausgeblendet'}${pin ? ', PIN neu vergeben' : ''}`);
   res.json({ ok: true });
 });
@@ -1708,38 +1164,26 @@ admin.post('/members/remove-inactive', need('konten'), (req, res) => {
 
 /* Mitgliederliste als Excel (Spalten „Vorname“ und „Nachname“): erst Vorschau, dann mit commit=1 anlegen */
 async function readMemberExcel(buf) {
-  const ExcelJS = require('exceljs');
-  const wb = new ExcelJS.Workbook();
-  if (!buf || buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) throw new Error('Bitte eine Excel-Datei (.xlsx) hochladen. Alte .xls-Dateien vorher in Excel als .xlsx speichern.');
-  try { await wb.xlsx.load(buf); } catch (e) { throw new Error('Die Excel-Datei lässt sich nicht lesen.'); }
   const norm = v => String(v || '').toLowerCase().replace(/[^a-zäöüß]/g, '');
   const txt = c => { try { return cleanName(c.text, 40); } catch (e) { return ''; } };
   // Überschriften auch in den anderen Sprachen erkennen (Vorlage aus einer englischen Verwaltung usw.)
   const H = { typ: i18n.aliases(['typ', 'kontotyp', 'art', 'konto'], norm), pin: i18n.aliases(['pin', 'pincode', 'mannschaftspin'], norm),
     vn: i18n.aliases(['vorname', 'vornamen', 'rufname', 'firstname'], norm), nn: i18n.aliases(['nachname', 'familienname', 'name', 'zuname', 'lastname'], norm) };
   const teamWords = new RegExp(['mannschaft', 'team', 'gruppe', ...i18n.aliases(['mannschaft'], norm)].map(w => w.replace(/[^a-z0-9äöüß]/g, '')).filter(Boolean).join('|'));
-  for (const ws of wb.worksheets) {
-    for (let r = 1; r <= Math.min(ws.rowCount, 15); r++) {
-      let vn = 0, nn = 0, tc = 0, pc = 0;
-      ws.getRow(r).eachCell((c, col) => {
-        const h = norm(c.text);
-        if (!tc && H.typ.includes(h)) tc = col;
-        if (!pc && H.pin.includes(h)) pc = col;
-        if (!vn && H.vn.includes(h)) vn = col;
-        if (!nn && H.nn.includes(h)) nn = col;
-      });
-      if (!vn || !nn) continue;
-      const out = [];
-      for (let i = r + 1; i <= ws.rowCount && out.length < 3000; i++) {
-        const row = ws.getRow(i);
-        const v = txt(row.getCell(vn)), n = txt(row.getCell(nn));
-        if (!v && !n) continue;
-        const t = tc ? norm(txt(row.getCell(tc))) : '';
-        const pin = pc ? String(row.getCell(pc).text || '').replace(/\D/g, '') : '';
-        out.push({ line: i, first: v, last: n, kind: teamWords.test(t) ? 'mannschaft' : /kein|nicht|trainer/.test(t) ? 'nichtmitglied' : 'mitglied', pin });
-      }
-      return { sheet: ws.name, rows: out };
+  const found = await util.readSheet(buf, { want: { tc: H.typ, pc: H.pin, vn: H.vn, nn: H.nn }, norm, rows: 15, ok: c => c.vn && c.nn,
+    notXlsx: 'Bitte eine Excel-Datei (.xlsx) hochladen. Alte .xls-Dateien vorher in Excel als .xlsx speichern.' });
+  if (found) {
+    const { ws, cols: { vn, nn, tc, pc } } = found;
+    const out = [];
+    for (let i = found.head + 1; i <= ws.rowCount && out.length < 3000; i++) {
+      const row = ws.getRow(i);
+      const v = txt(row.getCell(vn)), n = txt(row.getCell(nn));
+      if (!v && !n) continue;
+      const t = tc ? norm(txt(row.getCell(tc))) : '';
+      const pin = pc ? String(row.getCell(pc).text || '').replace(/\D/g, '') : '';
+      out.push({ line: i, first: v, last: n, kind: teamWords.test(t) ? 'mannschaft' : /kein|nicht|trainer/.test(t) ? 'nichtmitglied' : 'mitglied', pin });
     }
+    return { sheet: ws.name, rows: out };
   }
   throw new Error('Keine Überschriften „Vorname“ und „Nachname“ gefunden. Bitte die erste Zeile so beschriften (Vorlage herunterladen).');
 }
@@ -1765,8 +1209,9 @@ admin.post('/members/import-excel', need('konten'), express.raw({ type: () => tr
   const neu = rows.filter(r => r.status === 'neu');
   if (req.query.commit === '1') {
     const ins = db.prepare('INSERT INTO members(name, kind, first_name, last_name, pin_hash, pin_changed_at, pin_changed_by) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    for (const r of neu) if (r.kind === 'mannschaft' && !r.pinMissing) r.pinHash = await auth.hashPin(r.pin);   // vorher – die Transaktion läuft ohne await
     db.transaction(() => neu.forEach(r => {
-      const team = r.kind === 'mannschaft', pin = team && !r.pinMissing ? auth.hashSecret(r.pin) : null;
+      const team = r.kind === 'mannschaft', pin = team && !r.pinMissing ? r.pinHash : null;
       ins.run(r.name, r.kind, team ? null : r.first, team ? null : r.last, pin, pin ? nowTs() : null, pin ? req.user.username : null);
     }))();
     audit(req.user, 'Mitglieder aus Excel importiert', `${neu.length} neu, ${rows.length - neu.length} übersprungen`);
@@ -1788,1959 +1233,21 @@ admin.get('/members/import-vorlage.xlsx', need('konten'), asyncRoute(async (req,
   res.end();
 }));
 
-/* ---------- Artikel ---------- */
-function articleFromBody(b, base = {}) {
-  const a = {
-    name: b.name !== undefined ? cleanName(b.name) : base.name,
-    category: b.category !== undefined ? String(b.category).trim().slice(0, 40) || 'Sonstiges' : base.category,
-    price_cents: b.price_cents !== undefined ? int(b.price_cents, -1) : base.price_cents,
-    crate_size: b.crate_size !== undefined ? int(b.crate_size, 1) : base.crate_size,
-    min_stock: b.min_stock !== undefined ? int(b.min_stock, 0) : base.min_stock,
-    target_stock: b.target_stock !== undefined ? int(b.target_stock, 0) : (base.target_stock || 0),
-    track_stock: b.track_stock !== undefined ? (b.track_stock ? 1 : 0) : base.track_stock,
-    active: b.active !== undefined ? (b.active ? 1 : 0) : base.active,
-    sort: b.sort !== undefined ? int(b.sort, 100) : base.sort,
-    icon: b.icon !== undefined ? (b.icon && artIcons.has(String(b.icon)) ? String(b.icon) : null) : (base.icon === undefined ? null : base.icon),
-  };
-  if (!a.name) throw new Error('Name fehlt.');
-  if (!(a.price_cents >= 0)) throw new Error('Preis ungültig.');
-  if (!(a.crate_size >= 1 && a.crate_size <= 100)) throw new Error('Gebindegröße bitte zwischen 1 und 100.');
-  if (a.price_cents > 100000) throw new Error('Preis ungültig.');
-  return a;
-}
-
-admin.get('/articles', (req, res) => res.json(stockList()));
-
-/* Artikelliste als Excel: herunterladen, bearbeiten, wieder einspielen (auch zum Übernehmen von einem anderen Verein) */
-const ART_COLS = ['ID', 'Artikel', 'Kategorie', 'Preis', 'Gebinde', 'Bestand führen', 'Mindestbestand', 'Bestellen bis', 'Aktiv'];
-admin.get('/articles/export.xlsx', need('artikel'), asyncRoute(async (req, res) => {
-  const ExcelJS = require('exceljs');
-  const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Artikel');
-  ws.columns = ART_COLS.map((h, i) => ({ header: h, width: [8, 34, 16, 10, 8, 15, 15, 14, 8][i] }));
-  ws.getRow(1).font = { bold: true };
-  for (const a of db.prepare('SELECT * FROM articles WHERE custom = 0 AND deleted = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)').all()) {
-    ws.addRow([a.id, a.name, a.category, a.price_cents / 100, a.crate_size, a.track_stock ? 'ja' : 'nein', a.min_stock, a.target_stock, a.active ? 'ja' : 'nein']);
-  }
-  ws.getColumn(4).numFmt = '#,##0.00 "€"';
-  ws.getColumn(1).font = { color: { argb: 'FF8B958F' } };
-  res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': 'attachment; filename="Artikel.xlsx"' });
-  await wb.xlsx.write(res); res.end();
-}));
-admin.post('/articles/import-excel', need('artikel'), express.raw({ type: () => true, limit: '5mb' }), asyncRoute(async (req, res) => {
-  const ExcelJS = require('exceljs');
-  const buf = req.body;
-  if (!buf || buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) return bad(res, 'Bitte eine Excel-Datei (.xlsx) hochladen.');
-  const wb = new ExcelJS.Workbook();
-  try { await wb.xlsx.load(buf); } catch (e) { return bad(res, 'Die Excel-Datei lässt sich nicht lesen.'); }
-  const norm = v => String(v || '').toLowerCase().replace(/[^a-zäöüß]/g, '');
-  const want = { id: ['id', 'artikelid'], name: ['artikel', 'name', 'bezeichnung', 'produkt'], cat: ['spalte', 'kategorie', 'gruppe'], price: ['preis', 'vkpreis', 'verkaufspreis'],
-    crate: ['gebinde', 'gebindegröße', 'kiste', 'kistengröße', 'flaschenjekiste'], track: ['bestandführen', 'bestand'], min: ['mindestbestand', 'mindest'],
-    target: ['bestellenbis'], active: ['aktiv'] };
-  for (const k of Object.keys(want)) want[k] = i18n.aliases(want[k], norm);
-  let cols = null, ws = null, head = 0;
-  for (const w of wb.worksheets) {
-    for (let r = 1; r <= Math.min(w.rowCount, 10) && !cols; r++) {
-      const c = {};
-      w.getRow(r).eachCell((cell, col) => { const h = norm(cell.text); for (const [k, list] of Object.entries(want)) if (!c[k] && list.includes(h)) c[k] = col; });
-      if (c.name && c.price) { cols = c; ws = w; head = r; }
-    }
-    if (cols) break;
-  }
-  if (!cols) return bad(res, 'Keine Überschriften „Artikel“ und „Preis“ gefunden. Am einfachsten die Artikelliste als Excel herunterladen und als Vorlage nehmen.');
-  const txt = (row, k) => (cols[k] ? String(row.getCell(cols[k]).text || '').trim() : '');
-  const num = s => { if (String(s).trim() === '') return NaN; const n = Number(String(s).replace(/[€\s]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')); return Number.isFinite(n) ? n : NaN; };
-  const NO = new Set(['nein', 'n', '0', 'false', 'no', ...i18n.aliases(['nein'], v => String(v).toLowerCase().trim())]);
-  const yes = (s, d) => (s === '' ? d : !NO.has(String(s).toLowerCase().trim()));
-  // Abgleich: zuerst über die ID (nur Artikel, die es hier gibt), sonst über den Namen. Gelöschte Artikel werden nie wiederbelebt –
-  // ein gleichnamiger neuer Artikel bekommt eine neue ID. IDs aus der Datei, die es hier nicht gibt, werden nie übernommen.
-  const live = db.prepare('SELECT * FROM articles WHERE custom = 0 AND deleted = 0').all();
-  const byId = new Map(live.map(a => [a.id, a])), byName = new Map(live.map(a => [a.name.toLowerCase(), a]));
-  const FIELDS = ['name', 'category', 'price_cents', 'crate_size', 'track_stock', 'min_stock', 'target_stock', 'active'];
-  const rows = []; const seenName = new Set(), seenId = new Set();
-  for (let i = head + 1; i <= ws.rowCount && rows.length < 500; i++) {
-    const row = ws.getRow(i); const name = cleanName(txt(row, 'name'), 60);
-    if (!name) continue;
-    const price = num(txt(row, 'price'));
-    const fileId = /^\d{1,9}$/.test(txt(row, 'id')) ? Number(txt(row, 'id')) : null;
-    const a = { name, category: (txt(row, 'cat') || 'Sonstiges').slice(0, 40), price_cents: Math.round(price * 100),
-      crate_size: Math.max(1, Math.min(100, int(txt(row, 'crate'), 1))), track_stock: yes(txt(row, 'track'), true) ? 1 : 0,
-      min_stock: Math.max(0, int(txt(row, 'min'), 0)), target_stock: Math.max(0, int(txt(row, 'target'), 0)), active: yes(txt(row, 'active'), true) ? 1 : 0 };
-    const e = (fileId && byId.get(fileId)) || byName.get(name.toLowerCase()) || null;
-    let status = 'neu', match = null;
-    if (!Number.isFinite(price) || price < 0 || price > 1000) status = 'Preis ungültig';
-    else if ((e && seenId.has(e.id)) || seenName.has(name.toLowerCase())) status = 'doppelt';
-    else if (e) {
-      // Name gleich, aber andere ID in der Datei → trotzdem derselbe Artikel (Name ist hier eindeutig)
-      const diff = FIELDS.filter(k => e[k] !== a[k]);
-      status = diff.length ? 'ändern' : 'unverändert';
-      match = fileId === e.id ? 'id' : 'name';
-      a.id = e.id;
-      if (diff.length) a.current = Object.fromEntries(FIELDS.map(k => [k, e[k]]));
-      a.diff = diff;
-      // Umbenennen auf einen Namen, den schon ein anderer Artikel trägt, geht nicht
-      if (diff.includes('name')) { const o = byName.get(name.toLowerCase()); if (o && o.id !== e.id) { status = 'Name schon vergeben'; } }
-      seenId.add(e.id);
-    }
-    seenName.add(name.toLowerCase());
-    rows.push({ line: i, status, match, fileId, ...a });
-  }
-  const inFile = new Set(rows.filter(r => r.id).map(r => r.id));
-  const others = live.filter(a => a.active && !inFile.has(a.id));
-  // Entscheidung je Artikel: „take“ = IDs, bei denen die Werte aus der Datei übernommen werden; alle anderen behalten den Bestand
-  const take = new Set(String(req.query.take || '').split(',').filter(x => /^\d+$/.test(x)).map(Number));
-  if (req.query.commit === '1') {
-    if (req.query.hideOthers === '1') { const h = db.prepare('UPDATE articles SET active = 0 WHERE id = ?'); db.transaction(() => others.forEach(a => h.run(a.id)))(); }
-    const ins = db.prepare('INSERT INTO articles(name, category, price_cents, crate_size, track_stock, min_stock, target_stock, active, sort, icon) VALUES (?,?,?,?,?,?,?,?,?,?)');
-    const upd = db.prepare('UPDATE articles SET name = ?, category = ?, price_cents = ?, crate_size = ?, track_stock = ?, min_stock = ?, target_stock = ?, active = ? WHERE id = ?');
-    const setSort = db.prepare('UPDATE articles SET sort = ? WHERE id = ?');
-    // Reihenfolge der Datei = Reihenfolge am Tablet
-    db.transaction(() => rows.forEach((r, i) => {
-      const sort = (i + 1) * 10;
-      if (r.status === 'neu') ins.run(r.name, r.category, r.price_cents, r.crate_size, r.track_stock, r.min_stock, r.target_stock, r.active, sort, artIcons.guess(r.name, r.category));
-      if (r.status === 'ändern' && take.has(r.id)) upd.run(r.name, r.category, r.price_cents, r.crate_size, r.track_stock, r.min_stock, r.target_stock, r.active, r.id);
-      if (r.id && ((r.status === 'ändern' && take.has(r.id)) || r.status === 'unverändert')) setSort.run(sort, r.id);
-    }))();
-    const taken = rows.filter(r => r.status === 'ändern' && take.has(r.id));
-    audit(req.user, 'Artikel aus Excel importiert', `${rows.filter(r => r.status === 'neu').length} neu, ${taken.length} aus der Datei übernommen, ${rows.filter(r => r.status === 'ändern').length - taken.length} unverändert gelassen`);
-  }
-  res.json({ rows, newCount: rows.filter(r => r.status === 'neu').length, changeCount: rows.filter(r => r.status === 'ändern').length,
-    takenCount: req.query.commit === '1' ? rows.filter(r => r.status === 'ändern' && take.has(r.id)).length : undefined, others: others.map(a => a.name) });
-}));
-
-admin.post('/articles', need('artikel'), (req, res) => {
-  let a;
-  try { a = articleFromBody(req.body || {}, { category: 'Sonstiges', price_cents: 0, crate_size: 1, min_stock: 0, track_stock: 1, active: 1, sort: 100 }); }
-  catch (e) { return bad(res, e.message); }
-  if ((req.body || {}).icon === undefined) a.icon = artIcons.guess(a.name, a.category);
-  const r = db.prepare(`INSERT INTO articles(name, category, price_cents, crate_size, min_stock, target_stock, track_stock, active, sort, icon)
-    VALUES (@name,@category,@price_cents,@crate_size,@min_stock,@target_stock,@track_stock,@active,@sort,@icon)`).run(a);
-  audit(req.user, 'Artikel angelegt', `${a.name} ${euro(a.price_cents)}`);
-  res.json({ id: Number(r.lastInsertRowid) });
+const { belegFiles, buildExport, cleanupUploads, drinks, TRASH_DIR } = require('./verkauf')({
+  addGuest, admin, asyncRoute, bad, cleanName, closeTab, CUT, defaultRange, eventOpenAll, guestOpen, int, isTs, maxBookingId, need, OPEN_GUEST,
+  OPEN_KONTO, orderSettings, topDays, topN
 });
 
-admin.put('/articles/:id', need('artikel'), (req, res) => {
-  const base = db.prepare('SELECT * FROM articles WHERE id = ? AND deleted = 0').get(int(req.params.id));   // gelöschte Artikel bleiben gelöscht
-  if (!base || base.custom) return bad(res, 'Nicht gefunden.', 404);
-  let a;
-  try { a = articleFromBody(req.body || {}, base); } catch (e) { return bad(res, e.message); }
-  db.prepare(`UPDATE articles SET name=@name, category=@category, price_cents=@price_cents, crate_size=@crate_size,
-    min_stock=@min_stock, target_stock=@target_stock, track_stock=@track_stock, active=@active, sort=@sort, icon=@icon WHERE id=@id`).run({ ...a, id: base.id });
-  if (base.price_cents !== a.price_cents || base.name !== a.name || base.active !== a.active) {
-    audit(req.user, 'Artikel geändert', `${base.name}: ${euro(base.price_cents)} → ${euro(a.price_cents)}${a.active ? '' : ', ausgeblendet'}`);
-  }
-  res.json({ ok: true });
-});
-
-/* Eigenes Artikelbild: kommt im Browser bereits verkleinert (quadratisch, 384 px) als WebP/PNG/JPG an */
-admin.put('/articles/:id/image', need('artikel'), express.raw({ type: () => true, limit: artIcons.MAX_BYTES + 1024 }), (req, res) => {
-  const a = db.prepare('SELECT * FROM articles WHERE id = ? AND custom = 0 AND deleted = 0').get(int(req.params.id));
-  if (!a) return bad(res, 'Nicht gefunden.', 404);
-  let file;
-  try { file = artIcons.saveImage(DATA_DIR, a.id, Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0)); } catch (e) { return bad(res, e.message); }
-  if (a.image && a.image !== file) artIcons.removeImage(DATA_DIR, a.image);
-  db.prepare('UPDATE articles SET image = ? WHERE id = ?').run(file, a.id);
-  audit(req.user, 'Artikelbild geändert', a.name);
-  res.json({ ok: true, image: file });
-});
-admin.delete('/articles/:id/image', need('artikel'), (req, res) => {
-  const a = db.prepare('SELECT * FROM articles WHERE id = ? AND custom = 0').get(int(req.params.id));
-  if (!a) return bad(res, 'Nicht gefunden.', 404);
-  if (a.image) { artIcons.removeImage(DATA_DIR, a.image); db.prepare('UPDATE articles SET image = NULL WHERE id = ?').run(a.id); audit(req.user, 'Artikelbild entfernt', a.name); }
-  res.json({ ok: true });
-});
-
-/* Artikel löschen: nie verkauft/geliefert → endgültig; sonst aus allen Listen und vom Tablet entfernt,
-   alte Buchungen und Lieferungen bleiben (Bestand und Abrechnung stimmen weiter). */
-admin.delete('/articles/:id', need('artikel'), (req, res) => {
-  const a = db.prepare('SELECT * FROM articles WHERE id = ? AND deleted = 0').get(int(req.params.id));
-  if (!a) return res.json({ ok: true });
-  if (a.custom) return bad(res, 'Dieser Systemartikel kann nicht gelöscht werden.');
-  const n = db.prepare('SELECT COUNT(*) n FROM bookings WHERE article_id = ?').get(a.id).n
-    + db.prepare('SELECT COUNT(*) n FROM delivery_items WHERE article_id = ?').get(a.id).n
-    + db.prepare('SELECT COUNT(*) n FROM stock_moves WHERE article_id = ?').get(a.id).n;
-  db.transaction(() => {
-    db.prepare('DELETE FROM event_articles WHERE article_id = ?').run(a.id);
-    db.prepare('DELETE FROM supplier_map WHERE article_id = ?').run(a.id);
-    if (n) db.prepare('UPDATE articles SET deleted = 1, active = 0 WHERE id = ?').run(a.id);
-    else db.prepare('DELETE FROM articles WHERE id = ?').run(a.id);
-  })();
-  if (!n && a.image) artIcons.removeImage(DATA_DIR, a.image);
-  audit(req.user, 'Artikel gelöscht', a.name + (n ? ' (frühere Buchungen/Lieferungen bleiben erhalten)' : ''));
-  res.json({ ok: true, kept: Boolean(n) });
-});
-
-/* Reihenfolge der Kategorien (Tablet, Listen, Exporte); innerhalb einer Kategorie alphabetisch */
-const categoryList = () => db.prepare(`SELECT category, COUNT(*) n, SUM(active) act FROM articles WHERE custom = 0 AND deleted = 0
-  GROUP BY category ORDER BY cat_rank(category), de_key(category)`).all();
-admin.get('/categories', (req, res) => res.json(categoryList()));
-admin.put('/categories/order', need('artikel'), (req, res) => {
-  const order = Array.isArray((req.body || {}).order) ? req.body.order.map(c => String(c).trim().slice(0, 40)).filter(Boolean) : null;
-  if (!order) return bad(res, 'Ungültige Reihenfolge.');
-  setSetting('category_order', JSON.stringify([...new Set(order)].slice(0, 100)));
-  audit(req.user, 'Reihenfolge der Kategorien geändert', order.join(' · '));
-  res.json({ ok: true, categories: categoryList() });
-});
-/* „Einstellungen übertragen“ des Verkaufs (Verkauf › Einstellungen): Artikel (mit Bild), Kategorie-Reihenfolge, „Gerade oft hier“ und Lieferanten-Zuordnungen.
-   Nie dabei: Bestand, Buchungen, Lieferungen, Konten, Veranstaltungen. Import: gleicher Artikelname → aktualisieren, sonst neu, nichts wird gelöscht. */
-const EXPORT_BILD_MAX = 400 * 1024, EXPORT_BILDER_GESAMT = 12 * 1024 * 1024, IMPORT_ARTIKEL_MAX = 1000;
-plugins.get('getraenke').hooks.exportConfig = () => {
-  let bilder = 0;
-  const arts = db.prepare('SELECT * FROM articles WHERE custom = 0 AND deleted = 0 ORDER BY sort, id').all().map(a => {
-    const o = { name: a.name, category: a.category, price_cents: a.price_cents, crate_size: a.crate_size, min_stock: a.min_stock, target_stock: a.target_stock, track_stock: a.track_stock, active: a.active, sort: a.sort, icon: a.icon || null };
-    const f = a.image && artIcons.imagePath(DATA_DIR, a.image);
-    if (f) { const buf = fs.readFileSync(f); if (buf.length <= EXPORT_BILD_MAX && bilder + buf.length <= EXPORT_BILDER_GESAMT) { bilder += buf.length; o.image = { type: artIcons.mimeOf(a.image), data: buf.toString('base64') }; } }
-    return o;
-  });
-  const name = db.prepare('SELECT name FROM articles WHERE id = ?');
-  const suppliers = db.prepare('SELECT supplier, art_no, article_id, pack_size, text FROM supplier_map ORDER BY supplier, art_no').all()
-    .map(m => ({ supplier: m.supplier, art_no: m.art_no, article: m.article_id ? (name.get(m.article_id) || {}).name || null : null, pack_size: m.pack_size, text: m.text || null }));
-  return { settings: { top_n: String(topN()), top_days: String(topDays()), category_order: getSetting('category_order', '[]') }, articles: arts, suppliers };
-};
-plugins.get('getraenke').hooks.importConfig = (d, opts = {}) => {
-  const x = (d && d.settings) || null;
-  let n = 0, days = 0, order = null;
-  if (x) {
-    n = int(x.top_n, -1); days = int(x.top_days, 0);
-    if (n < 0 || n > 60 || days < 1 || days > 365) throw new Error('Die Datei enthält ungültige Werte für „Gerade oft hier“.');
-    try { order = JSON.parse(x.category_order || '[]'); } catch (e) { order = null; }
-    if (!Array.isArray(order)) throw new Error('Die Datei enthält keine gültige Reihenfolge der Kategorien.');
-  }
-  const z = konfigio.zaehler();
-  let ungueltig = 0;
-  db.transaction(() => {
-    const live = new Map(db.prepare('SELECT * FROM articles WHERE custom = 0 AND deleted = 0').all().map(a => [a.name.toLowerCase(), a]));
-    for (const e of konfigio.liste(d && d.articles, IMPORT_ARTIKEL_MAX)) {
-      const key = String(e.name || '').trim().toLowerCase(), old = live.get(key);
-      let a;
-      try { a = articleFromBody({ ...e, icon: e.icon || undefined }, old || { category: 'Sonstiges', price_cents: 0, crate_size: 1, min_stock: 0, track_stock: 1, active: 1, sort: 100 }); }
-      catch (err) { ungueltig++; continue; }
-      if (!old && e.icon === undefined) a.icon = artIcons.guess(a.name, a.category);
-      let id;
-      if (old) { db.prepare('UPDATE articles SET name=@name, category=@category, price_cents=@price_cents, crate_size=@crate_size, min_stock=@min_stock, target_stock=@target_stock, track_stock=@track_stock, active=@active, sort=@sort, icon=@icon WHERE id=@id').run({ ...a, id: old.id }); id = old.id; z('Artikel', 'aktualisiert'); }
-      else { id = Number(db.prepare('INSERT INTO articles(name, category, price_cents, crate_size, min_stock, target_stock, track_stock, active, sort, icon) VALUES (@name,@category,@price_cents,@crate_size,@min_stock,@target_stock,@track_stock,@active,@sort,@icon)').run(a).lastInsertRowid); z('Artikel', 'neu'); }
-      live.set(key, { ...(old || {}), ...a, id });
-      const img = e.image && typeof e.image.data === 'string' ? Buffer.from(e.image.data, 'base64') : null;
-      if (img) {
-        try {
-          const prev = old && old.image;
-          if (opts.dry) { artIcons.checkImage(img); z('Bilder', prev ? 'aktualisiert' : 'neu'); }   // Vorschau: keine Dateien schreiben
-          else {
-            const file = artIcons.saveImage(DATA_DIR, id, img);
-            if (prev && prev !== file) artIcons.removeImage(DATA_DIR, prev);
-            db.prepare('UPDATE articles SET image = ? WHERE id = ?').run(file, id); z('Bilder', prev ? 'aktualisiert' : 'neu');
-          }
-        } catch (err) { ungueltig++; }
-      }
-    }
-    const cats = new Set(db.prepare('SELECT DISTINCT category FROM articles WHERE custom = 0 AND deleted = 0').all().map(r => r.category));
-    if (x) {
-      const before = new Set(JSON.parse(getSetting('category_order', '[]') || '[]'));
-      const list = [...new Set(order.map(c => String(c).trim().slice(0, 40)).filter(Boolean))].slice(0, 100);
-      setSetting('top_n', String(n)); setSetting('top_days', String(days));
-      setSetting('category_order', JSON.stringify(list));
-      for (const c of list) if (cats.has(c) && !before.has(c)) z('Kategorien', 'neu');
-    }
-    const upd = db.prepare(`INSERT INTO supplier_map(supplier, art_no, article_id, pack_size, text) VALUES (?,?,?,?,?)
-      ON CONFLICT(supplier, art_no) DO UPDATE SET article_id = excluded.article_id, pack_size = excluded.pack_size, text = excluded.text`);
-    const had = db.prepare('SELECT 1 FROM supplier_map WHERE supplier = ? AND art_no = ?');
-    for (const m of konfigio.liste(d && d.suppliers, 5000)) {
-      const sup = String(m.supplier || '').trim().slice(0, 80), no = String(m.art_no || '').trim().slice(0, 20);
-      if (!sup || !no) { ungueltig++; continue; }
-      const art = m.article ? live.get(String(m.article).trim().toLowerCase()) : null;
-      if (m.article && !art) { ungueltig++; continue; }
-      const existed = Boolean(had.get(sup, no));
-      upd.run(sup, no, art ? art.id : null, Math.max(1, Math.min(10000, int(m.pack_size, 1))), m.text ? String(m.text).slice(0, 80) : null);
-      z('Lieferanten-Zuordnungen', existed ? 'aktualisiert' : 'neu');
-    }
-  })();
-  if (ungueltig) z.hinweis(`${ungueltig} ungültige Einträge übersprungen`);
-  return z.text();
-};
-
-/* ---------- Lieferungen ---------- */
-admin.get('/deliveries', need('lieferungen'), (req, res) => {
-  const list = db.prepare('SELECT * FROM deliveries ORDER BY date DESC, id DESC LIMIT 300').all();
-  const items = db.prepare(`SELECT di.*, a.name, a.crate_size FROM delivery_items di JOIN articles a ON a.id = di.article_id
-    WHERE di.delivery_id = ?`);
-  res.json(list.map(d => {
-    const its = items.all(d.id).map(i => ({ ...i, total: i.crates * i.crate_size + i.bottles }));
-    return { ...d, items: its, total: its.reduce((s, i) => s + i.total, 0) };
-  }));
-});
-
-/* Beleg hochladen (PDF, Foto) → wird gespeichert und, falls möglich, ausgelesen. */
-const BELEG_DIR = path.join(DATA_DIR, 'belege');
-const TRASH_DIR = path.join(BELEG_DIR, 'papierkorb');
-fs.mkdirSync(BELEG_DIR, { recursive: true });
-const ALLOWED = { 'application/pdf': '.pdf', 'image/jpeg': '.jpg', 'image/png': '.png', 'image/heic': '.heic', 'image/webp': '.webp' };
-const fileOk = f => typeof f === 'string' && /^[\w-]+\.(pdf|jpg|png|heic|webp)$/.test(f) && fs.existsSync(path.join(BELEG_DIR, f));
-/** Echte Dateisignatur statt nur Dateiendung prüfen. */
-function signatureOk(buf, ext) {
-  const h = buf.subarray(0, 16);
-  if (ext === '.pdf') return buf.subarray(0, 1024).includes('%PDF-');
-  if (ext === '.jpg') return h[0] === 0xff && h[1] === 0xd8 && h[2] === 0xff;
-  if (ext === '.png') return h.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-  if (ext === '.webp') return h.subarray(0, 4).toString() === 'RIFF' && h.subarray(8, 12).toString() === 'WEBP';
-  if (ext === '.heic') return h.subarray(4, 8).toString() === 'ftyp';
-  return false;
-}
-/* Abgebrochene Uploads (älter als 1 Tag, keiner Lieferung zugeordnet) aufräumen */
-/** Belegdateien (ohne Unterordner wie den Papierkorb) */
-const belegFiles = () => fs.readdirSync(BELEG_DIR, { withFileTypes: true }).filter(e => e.isFile()).map(e => e.name);
-function cleanupUploads() {
-  const used = new Set(db.prepare('SELECT file FROM deliveries WHERE file IS NOT NULL').all().map(r => r.file));
-  for (const f of belegFiles()) {
-    const st = fs.statSync(path.join(BELEG_DIR, f));
-    if (!used.has(f) && Date.now() - st.mtimeMs > 24 * 3600 * 1000) invoices.removeFile(path.join(BELEG_DIR, f));
-  }
-}
-
-admin.post('/upload', need('lieferungen'), express.raw({ type: () => true, limit: '25mb' }), asyncRoute(async (req, res) => {
-  const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-  let orig = String(req.headers['x-filename'] || 'beleg');
-  try { orig = decodeURIComponent(orig); } catch (e) { /* kaputt kodierter Name: so übernehmen */ }
-  const ext = ALLOWED[mime] || (/\.pdf$/i.test(orig) ? '.pdf' : null);
-  if (!ext) return bad(res, 'Bitte eine PDF-Datei oder ein Foto (JPG, PNG) hochladen.');
-  if (!req.body || !req.body.length) return bad(res, 'Die Datei ist leer.');
-  if (!signatureOk(req.body, ext)) return bad(res, 'Die Datei passt nicht zu ihrem Typ. Bitte das Original-PDF oder Foto hochladen.');
-  const name = `${Date.now()}-${crypto.randomBytes(3).toString('hex')}${ext}`;
-  const file = path.join(BELEG_DIR, name);
-  fs.writeFileSync(file, req.body);
-  let parsed;
-  try { parsed = await invoices.readUpload(db, file, ext === '.pdf' ? 'application/pdf' : mime); }
-  catch (e) { console.error('Beleg lesen:', e); parsed = { supplier: '', docNo: null, docKind: 'lieferung', lines: [], hasText: false }; }
-  res.json({ fileId: name, originalName: cleanName(orig, 120), ...parsed });
-}));
-
-admin.delete('/upload/:file', need('lieferungen'), (req, res) => {
-  const f = req.params.file;
-  const used = db.prepare('SELECT 1 FROM deliveries WHERE file = ?').get(f);
-  if (fileOk(f) && !used) invoices.removeFile(path.join(BELEG_DIR, f));
-  res.json({ ok: true });
-});
-
-admin.get('/beleg/:file', need('lieferungen'), (req, res) => {
-  if (!fileOk(req.params.file)) return bad(res, 'Beleg nicht gefunden.', 404);
-  res.sendFile(path.join(BELEG_DIR, req.params.file));
-});
-
-admin.get('/supplier-map', need('lieferungen','bestellung'), (req, res) => {
-  res.json(db.prepare(`SELECT sm.*, a.name AS article FROM supplier_map sm LEFT JOIN articles a ON a.id = sm.article_id
-    ORDER BY sm.supplier, sm.art_no`).all());
-});
-admin.delete('/supplier-map', need('lieferungen'), (req, res) => {
-  const { supplier, artNo } = req.body || {};
-  db.prepare('DELETE FROM supplier_map WHERE supplier = ? AND art_no = ?').run(String(supplier || ''), String(artNo || ''));
-  res.json({ ok: true });
-});
-
-/**
- * Lieferung speichern – von Hand oder aus einem ausgelesenen Beleg.
- * items: [{ articleId, crates, bottles, artNo?, text?, ignore?, packSize?, cost_cents? }]
- */
-admin.post('/deliveries', need('lieferungen'), (req, res) => {
-  const { date, supplier, note, items, fileId, docNo, docKind, total_cents: totalCents, remember } = req.body || {};
-  if (!isDate(date)) return bad(res, 'Datum fehlt.');
-  const sup = String(supplier || '').trim().slice(0, 80);
-  if (!sup) return bad(res, 'Lieferant fehlt.');
-  if (fileId && !fileOk(fileId)) return bad(res, 'Der hochgeladene Beleg wurde nicht gefunden. Bitte erneut hochladen.');
-  const doc = docNo ? String(docNo).trim().slice(0, 40) : null;
-  if (doc && db.prepare('SELECT 1 FROM deliveries WHERE supplier = ? AND doc_no = ?').get(sup, doc)) {
-    return bad(res, `Beleg ${doc} von ${sup} ist schon gespeichert. Doppelte Belege würden den Bestand verfälschen.`, 409);
-  }
-  const all = Array.isArray(items) ? items : [];
-  const clean = all
-    .filter(i => !i.ignore)
-    .map(i => ({ articleId: int(i.articleId), crates: int(i.crates), bottles: int(i.bottles),
-      artNo: i.artNo ? String(i.artNo).slice(0, 20) : null, text: i.text ? String(i.text).slice(0, 80) : null,
-      cost: i.cost_cents === undefined || i.cost_cents === null ? null : int(i.cost_cents) }));
-  if (clean.some(i => !i.articleId && (i.crates || i.bottles))) {
-    return bad(res, 'Bitte jeder Position einen Artikel zuordnen oder sie auf „ignorieren“ stellen.');
-  }
-  const rows = clean.filter(i => i.articleId && (i.crates || i.bottles));
-  if (!rows.length) return bad(res, 'Keine Positionen eingetragen.');
-  const kind = ['rechnung', 'gutschrift', 'lieferung', 'kassenbon'].includes(docKind) ? docKind : 'lieferung';
-
-  let id;
-  try { db.transaction(() => {
-    id = Number(db.prepare(`INSERT INTO deliveries(date, supplier, note, doc_no, doc_kind, file, total_cents)
-      VALUES (?,?,?,?,?,?,?)`).run(date, sup, note ? String(note).slice(0, 300) : null, doc, kind,
-      fileId || null, totalCents === undefined || totalCents === null || totalCents === '' ? null : int(totalCents)).lastInsertRowid);
-    const ins = db.prepare(`INSERT INTO delivery_items(delivery_id, article_id, crates, bottles, supplier_art_no, supplier_text, cost_cents)
-      VALUES (?,?,?,?,?,?,?)`);
-    const artOk = db.prepare('SELECT 1 FROM articles WHERE id = ?');
-    rows.forEach(i => {
-      if (!artOk.get(i.articleId)) throw new Error('Unbekannter Artikel.');
-      if (Math.abs(i.crates) > 1000 || Math.abs(i.bottles) > 10000) throw new Error('Menge unplausibel.');
-      ins.run(id, i.articleId, i.crates, i.bottles, i.artNo, i.text, i.cost);
-    });
-    if (remember !== false) {
-      const up = db.prepare(`INSERT INTO supplier_map(supplier, art_no, article_id, pack_size, text) VALUES (?,?,?,?,?)
-        ON CONFLICT(supplier, art_no) DO UPDATE SET article_id = excluded.article_id, pack_size = excluded.pack_size, text = excluded.text`);
-      for (const i of all) {
-        if (!i.artNo || i.single) continue;
-        up.run(sup, String(i.artNo).slice(0, 20), i.ignore ? null : int(i.articleId) || null, Math.max(1, int(i.packSize, 1)),
-          i.text ? String(i.text).slice(0, 80) : null);
-      }
-    }
-  })(); } catch (e) {
-    if (/UNIQUE/.test(e.message)) return bad(res, `Den Beleg ${doc} von ${sup} gibt es schon.`);
-    if (/Unbekannter Artikel|unplausibel/.test(e.message)) return bad(res, e.message === 'Unbekannter Artikel.' ? 'Eine Position ist keinem gültigen Artikel zugeordnet. Bitte prüfen.' : 'Eine Menge ist unplausibel (über 1000 Gebinde bzw. 10.000 Stück).');
-    throw e;
-  }
-  audit(req.user, 'Lieferung gespeichert', `${sup} ${date}${doc ? ' Beleg ' + doc : ''} (${rows.length} Positionen)`);
-  res.json({ id });
-});
-
-admin.delete('/deliveries/:id', need('lieferungen'), (req, res) => {
-  const d = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(int(req.params.id));
-  if (!d) return res.json({ ok: true });
-  db.prepare('DELETE FROM deliveries WHERE id = ?').run(d.id);
-  // Beleg nicht vernichten: bleibt für die Aufbewahrungsfrist im Papierkorb (TRASH_DAYS, steckt auch in der Komplettsicherung); die Zeile steht im Änderungsjournal
-  if (d.file && fileOk(d.file)) {
-    try { fs.mkdirSync(TRASH_DIR, { recursive: true }); fs.renameSync(path.join(BELEG_DIR, d.file), path.join(TRASH_DIR, d.file)); }
-    catch (e) { /* Datei schon weg */ }
-  }
-  audit(req.user, 'Lieferung gelöscht', `${d.supplier} ${d.date}${d.doc_no ? ' Beleg ' + d.doc_no : ''}`);
-  res.json({ ok: true });
-});
-
-/* ---------- Bestand ---------- */
-admin.get('/stock', (req, res) => res.json(stockList()));
-
-admin.get('/stock/moves', need('bestand'), (req, res) => {
-  res.json(db.prepare(`SELECT sm.*, a.name FROM stock_moves sm JOIN articles a ON a.id = sm.article_id
-    ORDER BY sm.date DESC, sm.id DESC LIMIT 200`).all());
-});
-
-admin.post('/stock/move', need('bestand'), (req, res) => {
-  const { articleId, qty, reason, date, note } = req.body || {};
-  if (!['bruch', 'korrektur'].includes(reason)) return bad(res, 'Grund ungültig.');
-  let q = int(qty);
-  if (!q || Math.abs(q) > 10000) return bad(res, 'Menge fehlt oder ist unplausibel.');
-  const art = db.prepare('SELECT name FROM articles WHERE id = ?').get(int(articleId));
-  if (!art) return bad(res, 'Bitte einen Artikel wählen.');
-  if (reason === 'bruch') q = -Math.abs(q);
-  audit(req.user, reason === 'bruch' ? 'Bruch gebucht' : 'Bestand korrigiert', `${art.name}: ${q}`);
-  db.prepare('INSERT INTO stock_moves(article_id, qty, reason, date, note) VALUES (?,?,?,?,?)')
-    .run(int(articleId), q, reason, isDate(date) ? date : today(), note ? String(note).slice(0, 200) : null);
-  res.json({ ok: true });
-});
-
-admin.post('/stock/inventory', need('bestand'), (req, res) => {
-  const { date, counts, force } = req.body || {};
-  const d = isDate(date) ? date : today();
-  if (d > today()) return bad(res, 'Das Inventurdatum darf nicht in der Zukunft liegen.');
-  const current = new Map(stockList().map(s => [s.id, s.stock]));
-  // Plausibilität: Tippfehler wie 2400 statt 24 abfangen
-  const names = new Map(stockList().map(s => [s.id, s.name]));
-  const odd = [];
-  for (const c of Array.isArray(counts) ? counts : []) {
-    if (c.counted === '' || c.counted === null || c.counted === undefined) continue;
-    const id = int(c.articleId), n = Number(c.counted);
-    if (!current.has(id)) continue;
-    if (!Number.isInteger(n) || n < 0 || n > 20000) return bad(res, `${names.get(id)}: gezählte Menge ungültig (0 bis 20.000 Stück).`);
-    const soll = Math.max(0, current.get(id));
-    if (Math.abs(n - soll) > Math.max(48, soll * 2)) odd.push(`${names.get(id)}: gezählt ${n}, Soll ${soll}`);
-  }
-  if (odd.length && !force) return res.status(409).json({ error: 'Ungewöhnlich große Abweichung', confirm: true, odd });
-  const ins = db.prepare(`INSERT INTO stock_moves(article_id, qty, reason, date, note) VALUES (?,?, 'inventur', ?, ?)`);
-  const result = [];
-  db.transaction(() => {
-    for (const c of Array.isArray(counts) ? counts : []) {
-      if (c.counted === '' || c.counted === null || c.counted === undefined) continue;
-      const id = int(c.articleId);
-      if (!current.has(id)) continue;
-      const diff = int(c.counted) - current.get(id);
-      if (diff !== 0) {
-        ins.run(id, diff, d, `Inventur: gezählt ${int(c.counted)}, Soll ${current.get(id)}`);
-        result.push({ articleId: id, diff });
-      }
-    }
-  })();
-  audit(req.user, 'Inventur', `${result.length} Abweichungen`);
-  res.json({ ok: true, changes: result });
-});
-
-/** Schwundauswertung: Zugänge, Abgänge, Differenzen je Artikel im Zeitraum. */
-function shrinkage(from, to) {
-  const arts = db.prepare('SELECT id, name, category, price_cents, crate_size, sort FROM articles WHERE custom = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)').all();
-  const deliv = db.prepare(`SELECT COALESCE(SUM(di.crates * a.crate_size + di.bottles),0) n FROM delivery_items di
-    JOIN deliveries d ON d.id = di.delivery_id JOIN articles a ON a.id = di.article_id
-    WHERE di.article_id = ? AND d.date BETWEEN ? AND ?`);
-  const book = db.prepare(`SELECT kind, COALESCE(SUM(qty),0) n FROM bookings WHERE article_id = ? AND cancelled_at IS NULL
-    AND date(created_at) BETWEEN ? AND ? GROUP BY kind`);
-  const moves = db.prepare(`SELECT reason, COALESCE(SUM(qty),0) n FROM stock_moves WHERE article_id = ? AND date BETWEEN ? AND ?
-    GROUP BY reason`);
-  return arts.map(a => {
-    const k = { konto: 0, verein: 0, gast: 0, event: 0 };
-    book.all(a.id, from, to).forEach(r => { k[r.kind] = r.n; });
-    const m = { bruch: 0, inventur: 0, korrektur: 0 };
-    moves.all(a.id, from, to).forEach(r => { m[r.reason] = r.n; });
-    const delivered = deliv.get(a.id, from, to).n;
-    const booked = k.konto + k.verein + k.gast + k.event;
-    return {
-      id: a.id, name: a.name, category: a.category, price_cents: a.price_cents,
-      delivered, booked, ...k, bruch: m.bruch, inventur: m.inventur, korrektur: m.korrektur,
-      open: delivered + m.bruch + m.korrektur - booked,
-      shrink_cents: -Math.min(0, m.inventur) * a.price_cents,
-    };
-  }).filter(r => r.delivered || r.booked || r.bruch || r.inventur || r.korrektur);
-}
-
-admin.get('/shrinkage', need('bestand', 'abrechnung', 'export'), (req, res) => {
-  const { from, to } = defaultRange(req.query);
-  res.json({ from, to, rows: shrinkage(from, to) });
-});
-
-/* ---------- Buchungen ---------- */
-admin.get('/bookings', need('buchungen'), (req, res) => {
-  const { from, to } = defaultRange(req.query);
-  const params = [from, to];
-  let where = '';
-  if (req.query.memberId) { where += ' AND b.member_id = ?'; params.push(int(req.query.memberId)); }
-  if (req.query.eventId) { where += ' AND b.event_id = ?'; params.push(int(req.query.eventId)); }
-  const rows = db.prepare(`SELECT b.*, ${ARTICLE_LABEL} AS article, COALESCE(m.name, g.name, 'Deckel: ' || t.name) AS member, m.kind AS member_kind, g.name AS guest,
-      g.member_id IS NULL AND g.id IS NOT NULL AS manual_guest, e.name AS event, p.method AS pay_method, t.status AS tab_status, t.method AS tab_method
-    FROM bookings b JOIN articles a ON a.id = b.article_id
-    LEFT JOIN members m ON m.id = b.member_id LEFT JOIN events e ON e.id = b.event_id
-    LEFT JOIN event_guests g ON g.id = b.event_guest_id LEFT JOIN event_payments p ON p.id = b.payment_id
-    LEFT JOIN guest_tabs t ON t.id = b.tab_id
-    WHERE b.created_at >= ? AND b.created_at < date(?, '+1 day') ${where}   -- wie date(created_at) BETWEEN, aber über den Index (planung/n-plus-1.md)
-    ORDER BY b.created_at DESC, b.id DESC LIMIT 1000`).all(...params);
-  res.json({ from, to, rows });
-});
-
-admin.post('/bookings', need('buchungen'), (req, res) => {
-  const { memberId, articleId, qty, date, amount_cents, note } = req.body || {};
-  const m = db.prepare('SELECT * FROM members WHERE id = ? AND deleted = 0').get(int(memberId));
-  if (m && !m.active) return bad(res, `„${m.name}“ ist ausgeblendet – zum Nachtragen das Konto zuerst wieder einblenden.`);
-  const custom = amount_cents !== undefined && amount_cents !== null && amount_cents !== '';
-  const a = custom ? db.prepare('SELECT * FROM articles WHERE id = ?').get(customArticleId()) : db.prepare('SELECT * FROM articles WHERE id = ? AND custom = 0').get(int(articleId));
-  const q = custom ? 1 : int(qty);
-  const unit = custom ? int(amount_cents) : (a ? a.price_cents : 0);
-  if (!custom && !Number.isInteger(Number(qty))) return bad(res, 'Konto, Artikel und Menge (1–999) angeben.');   // ganze Stückzahlen
-  if (custom && !Number.isInteger(Number(amount_cents))) return bad(res, 'Betrag bitte in ganzen Cent angeben.');
-  if (!m || !a || q < 1 || q > 999) return bad(res, 'Konto, Artikel und Menge (1–999) angeben.');
-  if (custom && (unit < 10 || unit > 100000)) return bad(res, 'Betrag bitte zwischen 0,10 € und 1.000 €.');
-  if (date && !isDate(date)) return bad(res, 'Datum ungültig.');
-  if (isDate(date) && date > today()) return bad(res, 'Das Datum darf nicht in der Zukunft liegen.');
-  const kind = { mitglied: 'konto', nichtmitglied: 'konto', mannschaft: 'konto', verein: 'verein', gast: 'gast' }[m.kind];
-  const total = kind === 'verein' ? 0 : unit * q;
-  const ts = isDate(date) ? `${date} 12:00:00` : nowTs();
-  const txt = custom ? (cleanName(note, 60) || null) : null;
-  const r = db.prepare(`INSERT INTO bookings(member_id, article_id, kind, qty, unit_cents, total_cents, created_at, note)
-    VALUES (?,?,?,?,?,?,?,?)`).run(m.id, a.id, kind, q, unit, total, ts, txt);
-  audit(req.user, 'Buchung nachgetragen', `${m.name}: ${custom ? 'Betrag ' + euro(unit) + (txt ? ' (' + txt + ')' : '') : q + ' × ' + a.name}${isDate(date) ? ' am ' + date : ''}`);
-  res.json({ id: Number(r.lastInsertRowid) });
-});
-
-/* Storno einer abgerechneten Buchung: vorher sagen, wo sie abgerechnet ist – und ob sich ein Verkaufs-Einzug der
-   Mitgliederverwaltung noch zurücknehmen lässt (dann normales Storno statt Gutschrift) */
-const settlementOf = id => {
-  const b = db.prepare('SELECT b.id, b.member_id, b.settled_id, s.batch, s.created_at, s.by_user FROM bookings b LEFT JOIN member_settlements s ON s.id = b.settled_id WHERE b.id = ?').get(int(id));
-  if (!b || !b.settled_id) return { b, mod: null };
-  let mod = null;
-  for (const p of plugins.withHook('drinksSettlementInfo')) { try { mod = p.hooks.drinksSettlementInfo({ batch: b.batch, memberId: b.member_id }) || mod; } catch (e) { /* Modul-Fehler: wie ohne Modul */ } }
-  return { b, mod };
-};
-admin.get('/bookings/:id/settlement', need('buchungen'), (req, res) => {
-  const { b, mod } = settlementOf(req.params.id);
-  if (!b) return bad(res, 'Nicht gefunden.', 404);
-  if (!b.settled_id) return res.json({ settled: false });
-  res.json({ settled: true, where: mod ? mod.text : `Verkauf › Abrechnung vom ${deD(b.created_at.slice(0, 10))}${b.by_user ? ` (${b.by_user})` : ''}`,
-    credit: !mod || mod.billed !== false, undo: mod && mod.undo && req.user.perms.includes('mitglieder_finanzen') ? mod.undo : null });
-});
-admin.post('/bookings/:id/undo-run', need('buchungen'), (req, res) => {
-  if (!req.user.perms.includes('mitglieder_finanzen')) return bad(res, 'Dafür fehlt dir das Recht „Finanzen“ der Mitgliederverwaltung.', 403);
-  const { b, mod } = settlementOf(req.params.id);
-  if (!b || !mod || !mod.undo) return bad(res, 'Diese Abrechnung lässt sich hier nicht zurücknehmen.');
-  for (const p of plugins.withHook('drinksSettlementUndo')) {
-    try { p.hooks.drinksSettlementUndo({ batch: b.batch, user: req.user }); } catch (e) { return bad(res, e.message); }
-  }
-  res.json({ ok: true });
-});
-
-admin.post('/bookings/:id/cancel', need('buchungen'), (req, res) => {
-  const b = db.prepare(`SELECT b.*, COALESCE(b.article_name, a.name) AS article, a.custom, m.name AS member, m.kind AS member_kind, m.deleted AS member_deleted FROM bookings b JOIN articles a ON a.id = b.article_id
-    LEFT JOIN members m ON m.id = b.member_id WHERE b.id = ?`).get(int(req.params.id));
-  if (!b) return bad(res, 'Nicht gefunden.', 404);
-  if (b.cancelled_at) return bad(res, 'Diese Buchung ist bereits storniert.', 409);
-  if (b.payment_id) return bad(res, 'Diese Buchung ist schon bezahlt. Bitte zuerst unter „Veranstaltungen“ die Zahlung zurücknehmen, sonst stimmt die Kasse nicht mehr.');
-  if (b.tab_id && b.kind !== 'konto') {
-    const t = db.prepare('SELECT status FROM guest_tabs WHERE id = ?').get(b.tab_id);
-    if (t && t.status !== 'offen') return bad(res, 'Dieser Gäste-Deckel ist schon geschlossen. Bitte zuerst unter „Gäste-Deckel“ wieder öffnen, sonst stimmt die Kasse nicht mehr.');
-  }
-  // Gutschrift auf ein gelöschtes Konto würde nie verrechnet – lieber bar erstatten
-  if (b.settled_id && b.member_deleted) return bad(res, `${lastFirst(b.member, b.member_kind)} wurde gelöscht – eine Gutschrift ist nicht mehr möglich. Den Betrag bitte bar erstatten; den Bestand bei Bedarf unter Lager korrigieren.`);
-  const what = `${b.member || 'Barverkauf'}: ${b.custom ? 'Betrag ' + euro(b.total_cents) : b.qty + ' × ' + b.article} vom ${b.created_at.slice(0, 10)}`;
-  if (b.settled_id) {
-    // Abgerechnet über ein Modul (z. B. Verkaufs-Einzug der Mitgliederverwaltung), dessen Posten dort schon storniert ist?
-    // Dann wurde nichts berechnet: Abrechnung wieder öffnen und normal stornieren statt eine Gutschrift zu buchen.
-    const st = db.prepare('SELECT batch, member_id FROM member_settlements WHERE id = ?').get(b.settled_id);
-    const notBilled = st && st.batch && plugins.withHook('drinksSettlementBilled').some(p => { try { return p.hooks.drinksSettlementBilled({ batch: st.batch, memberId: st.member_id }) === false; } catch (e) { return false; } });
-    const hasCredit = db.prepare('SELECT 1 FROM bookings WHERE credit_for = ? AND cancelled_at IS NULL').get(b.id);
-    if (notBilled && hasCredit) return bad(res, 'Der Verkaufs-Posten dazu ist in der Mitgliederverwaltung schon storniert. Bitte zuerst die Gutschrift stornieren – danach lässt sich die Buchung normal stornieren.');
-    if (notBilled) { const r = drinks.reopen(st.batch, st.member_id); if (!r.ok) return bad(res, r.error); b.settled_id = null; }
-  }
-  if (b.settled_id) {
-    if (db.prepare('SELECT 1 FROM bookings WHERE credit_for = ? AND cancelled_at IS NULL').get(b.id)) return bad(res, 'Dafür wurde schon eine Gutschrift gebucht.');
-    // Schon abgerechnet (in der Vereinsverwaltung abgebucht): nicht mehr ändern, sondern Gutschrift auf die nächste Abrechnung
-    if (b.total_cents <= 0) return bad(res, 'Diese Buchung ist schon abgerechnet und kann nicht mehr storniert werden.');
-    const note = ('Storno ' + (b.custom ? (b.note || 'Betrag') : b.qty + ' × ' + b.article) + ' vom ' + b.created_at.slice(0, 10)).slice(0, 80);
-    db.transaction(() => {
-      db.prepare(`INSERT INTO bookings(member_id, article_id, kind, qty, unit_cents, total_cents, note, credit_for) VALUES (?,?,'konto',1,?,?,?,?)`)
-        .run(b.member_id, customArticleId(), -b.total_cents, -b.total_cents, note, b.id);
-      if (!b.custom) db.prepare(`INSERT INTO stock_moves(article_id, qty, reason, date, note) VALUES (?,?,'korrektur',?,?)`)
-        .run(b.article_id, b.qty, today(), 'Storno aus abgerechnetem Zeitraum');
-    })();
-    audit(req.user, 'Gutschrift (Storno abgerechnet)', `${what}, ${euro(b.total_cents)} für die nächste Abrechnung gutgeschrieben`);
-    return res.json({ ok: true, credit: true, message: `Die Buchung ist schon abgerechnet. Deshalb wurde eine Gutschrift über ${euro(b.total_cents)} gebucht – sie wird bei der nächsten Abrechnung abgezogen.` });
-  }
-  const r = db.prepare(`UPDATE bookings SET cancelled_at = datetime('now','localtime'), cancelled_by = ?
-    WHERE id = ? AND cancelled_at IS NULL`).run(req.user.username, b.id);
-  if (!r.changes) return bad(res, 'Diese Buchung ist bereits storniert.', 409);   // zwischenzeitlich von jemand anderem
-  if (b.credit_for) reverseCreditStock(b.id);
-  audit(req.user, 'Buchung storniert', what);
-  res.json({ ok: true });
-});
-
-/* ---------- Abrechnung / Salden ---------- */
-/* Name wie beim Buchen (Spalte article_name); ältere Buchungen ohne Eintrag zeigen den aktuellen Namen */
-const ARTICLE_LABEL = `CASE WHEN a.custom = 1 THEN a.name || COALESCE(': ' || b.note, '') ELSE COALESCE(b.article_name, a.name) END`;
-/** Offene Beträge je Konto (Stand asOf): alle noch nicht abgerechneten Konto-Buchungen */
-function balances(asOf = nowTs(), upTo = maxBookingId()) {
-  const rows = db.prepare(`SELECT m.id, m.name, m.kind, a.category, SUM(b.qty) AS qty, SUM(b.total_cents) AS cents, MIN(b.created_at) AS first_at
-    FROM bookings b JOIN members m ON m.id = b.member_id JOIN articles a ON a.id = b.article_id
-    WHERE b.${OPEN_KONTO.replace(/ AND /g, ' AND b.')} AND ${CUT('b.')}
-    GROUP BY m.id, a.category ORDER BY m.kind, name_key(m.name, m.kind)`).all(upTo, asOf, asOf);
-  const lastAt = new Map(db.prepare('SELECT member_id, MAX(until_at) t FROM member_settlements WHERE member_id IN (SELECT value FROM json_each(?)) GROUP BY member_id').all(JSON.stringify([...new Set(rows.map(r => r.id))])).map(r => [r.member_id, r.t]));   // eine Abfrage statt einer je Konto
-  const evOpen = eventOpenAll();
-  const map = new Map();
-  for (const r of rows) {
-    if (!map.has(r.id)) map.set(r.id, { id: r.id, name: r.name, kind: r.kind, total_cents: 0, items: 0, byCategory: {}, since: r.first_at });
-    const e = map.get(r.id);
-    e.byCategory[r.category] = (e.byCategory[r.category] || 0) + r.qty;
-    e.total_cents += r.cents; e.items += r.qty;
-    if (r.first_at < e.since) e.since = r.first_at;
-  }
-  return [...map.values()].map(e => ({ ...e, lastSettled: lastAt.has(e.id) ? lastAt.get(e.id) : null, eventOpen_cents: evOpen(e.id) }));
-}
-
-/* Auswertung Verkauf (Dashboard): Umsatz, Artikel, Verlauf, Anteile, beliebte Zeiten – Vergleich mit dem Vorjahr */
-admin.get('/sales-stats', need('abrechnung', 'export'), (req, res) => {
-  const t0 = new Date(); const pad2 = n => String(n).padStart(2, '0');
-  const today0 = `${t0.getFullYear()}-${pad2(t0.getMonth() + 1)}-${pad2(t0.getDate())}`;
-  // Jahr = Geschäftsjahr des Vereins (src/geschaeftsjahr.js; Beginn Januar = Kalenderjahr), Monate in der Reihenfolge des Geschäftsjahres
-  const gj = require('./geschaeftsjahr'), fm = gj.month();
-  const y = Math.max(2000, Math.min(2100, parseInt(req.query.year, 10) || gj.yearOf(today0, fm)));
-  const cat = String(req.query.cat || '');
-  const load = yy => { const r = gj.range(yy, fm); return db.prepare(`SELECT b.*, a.name AS aname, a.category FROM bookings b JOIN articles a ON a.id = b.article_id WHERE b.created_at >= ? AND b.created_at < ? ${cat ? 'AND a.category = ?' : ''}`)
-    .all(r.from, gj.range(yy + 1, fm).from, ...(cat ? [cat] : [])); };
-  const mi = b => (+b.created_at.slice(5, 7) - fm + 12) % 12;   // 0 = erster Monat des Geschäftsjahres
-  const calc = yy => {
-    const all = load(yy), act = all.filter(b => !b.cancelled_at), can = all.filter(b => b.cancelled_at);
-    const rev = b => (b.kind === 'verein' ? 0 : b.total_cents);
-    const m = (list, f) => { const out = Array(12).fill(0); for (const b of list) out[mi(b)] += f(b); return out; };
-    return { act, can, revenue: act.reduce((x, b) => x + rev(b), 0), units: act.reduce((x, b) => x + b.qty, 0), count: act.length, cancelled: can.length,
-      month: m(act, rev), monthUnits: m(act, b => b.qty), monthCount: m(act, () => 1), monthCan: m(can, () => 1), rev };
-  };
-  const c = calc(y), p = calc(y - 1);
-  const group = (key, nameOf) => { const mp = new Map(); for (const b of c.act) { const k = key(b); const v = mp.get(k) || { name: nameOf(b), units: 0, cents: 0, count: 0 }; v.units += b.qty; v.cents += c.rev(b); v.count++; mp.set(k, v); } return [...mp.values()]; };
-  const prevUnits = new Map(); for (const b of p.act) prevUnits.set(b.article_id, (prevUnits.get(b.article_id) || 0) + b.qty);
-  const freeId = require('./db').customArticleId();   // „Freier Betrag“ zählt zum Umsatz, aber nicht als Bestseller
-  const arts = group(b => b.article_id, b => b.aname).filter(a => a.name);
-  const artIds = new Map(); for (const b of c.act) artIds.set(b.aname, b.article_id);
-  const top = arts.filter(a => artIds.get(a.name) !== freeId).sort((a, b) => b.units - a.units).slice(0, 10).map(a => ({ ...a, prev: prevUnits.get(artIds.get(a.name)) || 0 }));
-  const cats = group(b => b.category || 'Sonstiges', b => b.category || 'Sonstiges').sort((a, b) => b.cents - a.cents || b.units - a.units);
-  const KIND = { konto: 'Auf Konto', gast: 'Gast (bar/Karte)', event: 'Veranstaltung', verein: 'Verein (frei)' };
-  const kinds = group(b => b.kind, b => KIND[b.kind] || b.kind).sort((a, b) => b.units - a.units);
-  const days = {}; for (const b of c.act) { const d = b.created_at.slice(0, 10); days[d] = (days[d] || 0) + b.qty; }
-  const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
-  for (const b of c.act) { const dt = new Date(b.created_at.replace(' ', 'T')); grid[(dt.getDay() + 6) % 7][dt.getHours()] += b.qty; }
-  const usedH = grid.reduce((a, row) => { row.forEach((v, h) => { if (v) { a[0] = Math.min(a[0], h); a[1] = Math.max(a[1], h + 1); } }); return a; }, [24, 0]);
-  const pick = x => ({ revenue: x.revenue, units: x.units, count: x.count, cancelled: x.cancelled, month: x.month, monthUnits: x.monthUnits, monthCount: x.monthCount, monthCan: x.monthCan });
-  const rg = gj.range(y, fm), years = gj.yearsOf(db.prepare("SELECT DISTINCT substr(created_at,1,7) m FROM bookings").all().map(r => r.m), today0, fm);
-  res.json({ year: y, cat, until: today0 <= rg.to && today0 >= rg.from ? today0 : rg.to, from: rg.from, to: rg.to, fiscal: fm,
-    label: gj.label(y, fm), prevLabel: gj.label(y - 1, fm), current: gj.yearOf(today0, fm), years, labels: Object.fromEntries(years.map(v => [v, gj.label(v, fm)])),
-    categories: db.prepare('SELECT DISTINCT category FROM articles ORDER BY category').all().map(r => r.category),
-    cur: pick(c), prev: pick(p), top, cats, kinds, days, grid, hours: usedH[0] < usedH[1] ? usedH : [16, 23] });
-});
-
-admin.get('/balances', need('abrechnung', 'export'), (req, res) => {
-  const asOf = nowTs(), upTo = maxBookingId();
-  const list = balances(asOf, upTo);
-  const { from, to } = defaultRange(req.query);
-  const sums = db.prepare(`SELECT kind, COALESCE(SUM(total_cents),0) cents, COALESCE(SUM(qty),0) qty,
-      COALESCE(SUM(unit_cents * qty),0) list_cents
-    FROM bookings WHERE cancelled_at IS NULL AND created_at >= ? AND created_at < date(?, '+1 day') GROUP BY kind`).all(from, to);   // wie date(created_at) BETWEEN, aber über den Index
-  // Hinweis: Was Mitglieder auf Veranstaltungslisten noch offen haben, kommt erst nach der Übernahme auf die Getränkeliste
-  const evOpen = db.prepare(`SELECT e.name, SUM(b.total_cents) c FROM bookings b JOIN events e ON e.id = b.event_id
-    JOIN event_guests g ON g.id = b.event_guest_id WHERE g.member_id IS NOT NULL AND b.${OPEN_GUEST.replace(/ AND /g, ' AND b.')}
-    GROUP BY e.id ORDER BY e.date`).all();
-  const categories = db.prepare('SELECT category FROM articles WHERE deleted = 0 OR id IN (SELECT article_id FROM bookings) GROUP BY category ORDER BY cat_rank(category), de_key(category)').all().map(r => r.category);
-  // Offene Verkaufs-Posten der Mitgliederverwaltung (z. B. von Hand angelegt oder nach verworfenem Einzug) – damit nichts übersehen wird
-  const mvOpen = plugins.withHook('drinksOpenCharges').flatMap(p => { try { return p.hooks.drinksOpenCharges() || []; } catch (e) { return []; } });
-  res.json({ asOf, upTo, from, to, categories, rows: list, sums, total_cents: list.reduce((s, r) => s + r.total_cents, 0), eventOpen: evOpen, mvOpen });
-});
-
-/* ---------- Abtippliste für die Vereinsverwaltung (ohne Importfunktion) ----------
-   Gleicher Stand wie Liste/Export (asOf/upTo), sortiert nach Nachname, mit fertigem Buchungstext. */
-/** Vor-/Nachname: eingetragene Felder, wenn sie zum Anzeigenamen passen – sonst Zerlegung wie überall (db.splitPersonName) */
-function splitName(m) {
-  if (m.first_name && m.last_name && `${m.first_name} ${m.last_name}`.toLowerCase() === String(m.name).toLowerCase())
-    return { first: m.first_name, last: m.last_name };
-  return splitPersonName(m.name);
-}
-const BT_DEFAULT = 'Verkauf {von} – {bis}';
-function abtippliste(asOf, upTo) {
-  const list = balances(asOf, upTo);
-  const extra = new Map(db.prepare('SELECT id, first_name, last_name FROM members WHERE id IN (SELECT value FROM json_each(?))').all(JSON.stringify(list.map(r => r.id))).map(m => [m.id, { first_name: m.first_name, last_name: m.last_name }]));
-  const rows = list.map(r => {
-    const person = isPerson(r.kind);
-    const nm = person ? splitName({ ...r, ...extra.get(r.id) }) : { first: '', last: r.name };
-    return { id: r.id, name: r.name, kind: r.kind, first: nm.first, last: nm.last, cents: r.total_cents, items: r.items, since: r.since };
-  });
-  rows.sort((a, b) => (isPerson(a.kind) ? 0 : 1) - (isPerson(b.kind) ? 0 : 1) || (nameKey(a.name, a.kind) < nameKey(b.name, b.kind) ? -1 : nameKey(a.name, a.kind) > nameKey(b.name, b.kind) ? 1 : 0));
-  const last = lastSettlement();
-  const firstOpen = rows.reduce((m, r) => (!m || r.since < m ? r.since : m), '');
-  const von = last && last !== '2000-01-01' ? last : firstOpen;
-  const tpl = getSetting('buchungstext', BT_DEFAULT) || BT_DEFAULT;
-  const text = tpl.replace(/\{von\}/g, deD(von)).replace(/\{bis\}/g, deD(asOf)).replace(/\{verein\}/g, getSetting('club_name', 'Unser Verein'))
-    .replace(/\{jahr\}/g, asOf.slice(0, 4));
-  return { asOf, upTo, von: von ? von.slice(0, 10) : null, bis: asOf.slice(0, 10), template: tpl, text, rows,
-    total_cents: rows.reduce((s, r) => s + r.cents, 0), clubName: getSetting('club_name', 'Unser Verein') };
-}
-admin.get('/abtippliste', need('abrechnung', 'export'), (req, res) => {
-  const fixed = isTs(req.query.asOf) && req.query.asOf <= nowTs() && req.query.upTo !== undefined;
-  res.json(abtippliste(fixed ? req.query.asOf : nowTs(), fixed ? Math.min(int(req.query.upTo), maxBookingId()) : maxBookingId()));
-});
-admin.put('/abtippliste/text', need('abrechnung'), (req, res) => {
-  const t = String((req.body || {}).template || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 140);
-  setSetting('buchungstext', t || BT_DEFAULT);
-  res.json({ ok: true, template: t || BT_DEFAULT });
-});
-
-/* Kassierer: nach dem Abbuchen in der Vereinsverwaltung einzelne oder alle Konten als abgerechnet markieren.
-   Erfasst werden nur Buchungen bis zum Stand der angezeigten Liste bzw. des Exports (asOf) –
-   was danach am Tablet gebucht wurde, bleibt offen für die nächste Abrechnung. */
-admin.post('/settle', need('abrechnung'), (req, res) => {
-  const b = req.body || {};
-  const asOf = isTs(b.asOf) ? b.asOf : null;
-  if (!asOf) return bad(res, 'Stand der Liste fehlt – bitte die Seite neu laden.');
-  const upTo = int(b.upTo);
-  if (asOf > nowTs() || upTo < 0 || upTo > maxBookingId()) return bad(res, 'Ungültiger Stand.');
-  const all = !Array.isArray(b.memberIds);
-  const ids = all ? null : [...new Set(b.memberIds.map(int))].filter(Boolean);
-  if (!all && !ids.length) return bad(res, 'Kein Konto gewählt.');
-  const r = drinks.settle(ids, asOf, upTo, req.user.username, b.note ? cleanName(b.note, 100) : null, all ? 'alle-' : 'einzeln-');
-  if (!r.batch) return bad(res, 'Es gibt nichts Offenes abzurechnen.');
-  const mids = Object.keys(r.perMember).map(Number);
-  const names = all ? `${r.members} Konten` : db.prepare(`SELECT group_concat(name, ', ') n FROM members WHERE id IN (${mids.map(() => '?').join(',')})`).get(...mids).n;
-  audit(req.user, all ? 'Alle Konten abgerechnet' : 'Konto abgerechnet', `${names}: ${euro(r.cents)} (Stand ${asOf.slice(0, 16)})`);
-  res.json({ ok: true, members: r.members, bookings: r.bookings, cents: r.cents, batch: r.batch });
-});
-
-/** Abrechnung aus Verkauf › Abrechnung selbst (alle/einzeln) – nicht aus einem Modul oder der alten Stichtags-Abrechnung */
-const ownSettle = batch => /^(alle|einzeln)-/.test(batch);
-admin.get('/settle-history', need('abrechnung'), (req, res) => {
-  const rows = db.prepare(`SELECT s.batch, MIN(s.created_at) created_at, MAX(s.until_at) until_at, MAX(s.by_user) by_user,
-      COUNT(*) members, SUM(s.cents) cents, group_concat(m.name, char(31)) names, group_concat(m.kind, char(31)) kinds, MAX(m.deleted) gone
-    FROM member_settlements s JOIN members m ON m.id = s.member_id
-    GROUP BY s.batch ORDER BY MIN(s.id) DESC LIMIT 30`).all();
-  const newest = rows.length ? rows[0].batch : null;
-  res.json(rows.map(({ kinds, gone, ...r }) => ({ ...r, names: r.members <= 3 ? r.names.split('\x1f').map((n, i) => lastFirst(n, kinds.split('\x1f')[i])).join('; ') : null, undo: r.batch === newest && ownSettle(r.batch) && !gone })));
-});
-
-/* Getränke für andere Module (Mitgliederverwaltung: Einzug per Lastschrift) – gleiche Regeln wie die Abrechnung oben */
-/** Eine Gutschrift auf eine abgerechnete Buchung hat den Bestand zurückgebucht – wird die Gutschrift storniert, gilt die Ware wieder als verkauft */
-const CREDIT_STOCK_NOTE = id => `Gutschrift #${id} storniert`;
-function reverseCreditStock(creditId) {
-  const o = db.prepare('SELECT o.article_id, o.qty, a.custom FROM bookings c JOIN bookings o ON o.id = c.credit_for JOIN articles a ON a.id = o.article_id WHERE c.id = ?').get(creditId);
-  if (!o || o.custom || db.prepare("SELECT 1 FROM stock_moves WHERE note = ?").get(CREDIT_STOCK_NOTE(creditId))) return;
-  db.prepare("INSERT INTO stock_moves(article_id, qty, reason, date, note) VALUES (?,?,'korrektur',?,?)").run(o.article_id, -o.qty, today(), CREDIT_STOCK_NOTE(creditId));
-}
-// Nachholen für Gutschriften, die vor 3.39.4 storniert wurden (damals blieb die Bestandskorrektur stehen)
-for (const c of db.prepare('SELECT id FROM bookings WHERE credit_for IS NOT NULL AND cancelled_at IS NOT NULL').all()) reverseCreditStock(c.id);
-
-/** Abrechnung wieder öffnen geht nicht, wenn ein Konto darin inzwischen gelöscht ist – der Betrag stünde sonst offen auf einem Konto,
- *  das niemand mehr sieht (gelöscht wird ja nur ohne offenen Betrag). → Fehlertext oder null */
-function goneIn(settlementIds) {
-  const names = db.prepare(`SELECT m.name, m.kind FROM member_settlements s JOIN members m ON m.id = s.member_id WHERE m.deleted = 1 AND s.id IN (${settlementIds.map(() => '?').join(',')})`)
-    .all(...settlementIds).map(m => lastFirst(m.name, m.kind));
-  return names.length ? `${names.join('; ')} wurde inzwischen gelöscht – die Abrechnung lässt sich nicht mehr zurücknehmen, sonst stünde der Betrag offen auf einem gelöschten Konto.` : null;
-}
-const drinks = {
-  active: () => plugins.isActive('getraenke'),
-  /** Veranstaltung im Verkauf anlegen (z. B. aus einem Dienstplan) – Artikelliste mit allen aktiven Artikeln zum Normalpreis → id */
-  createEvent(name, date, user) {
-    const n = cleanName(name, 80); if (!n) throw new Error('Name fehlt.');
-    const id = Number(db.prepare('INSERT INTO events(name, date) VALUES (?,?)').run(n, isDate(date) ? date : today()).lastInsertRowid);
-    saveEventArticles(id, db.prepare(`SELECT id AS articleId, price_cents FROM articles WHERE active = 1 AND custom = 0 AND deleted = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)`).all());
-    audit(user, 'Veranstaltung angelegt', `${n} (aus Dienstplan)`);
-    return id;
-  },
-  event: id => db.prepare('SELECT id, name, date, active, closed_at FROM events WHERE id = ?').get(int(id)) || null,
-  /** Verkauf eines Mitglieds je Monat (Datenauskunft) – auch bei ausgeschaltetem Verkauf, die Daten sind ja gespeichert */
-  byMonth: id => db.prepare("SELECT substr(created_at,1,7) monat, SUM(qty) anzahl, SUM(total_cents) cents FROM bookings WHERE member_id = ? AND cancelled_at IS NULL GROUP BY monat ORDER BY monat").all(int(id)),
-  /** offene Beträge je Konto zum jetzigen Stand → { asOf, upTo, rows: [{ id, name, kind, total_cents, items, since }] } */
-  open() { const asOf = nowTs(), upTo = maxBookingId(); return { asOf, upTo, rows: balances(asOf, upTo) }; },
-  /** Konten als abgerechnet markieren (nur Buchungen bis asOf/upTo) → { batch, cents, perMember: { id: cents } } */
-  /** Konten abrechnen bis zum Stand asOf/upTo – memberIds = null: alle Konten mit offenem Betrag */
-  settle(memberIds, asOf, upTo, username, note, prefix = 'modul-') {
-    const ids = memberIds === null ? null : [...new Set((memberIds || []).map(int))].filter(Boolean);
-    if ((ids && !ids.length) || !isTs(asOf)) return { batch: null, cents: 0, perMember: {}, members: 0, bookings: 0 };
-    const batch = prefix + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'), up = Math.min(int(upTo), maxBookingId());
-    const open = db.prepare(`SELECT member_id, SUM(total_cents) c, SUM(qty) n FROM bookings
-      WHERE ${OPEN_KONTO} AND member_id IS NOT NULL AND ${CUT('')} GROUP BY member_id`).all(up, asOf, asOf).filter(r => !ids || ids.includes(r.member_id));
-    const perMember = {}; let cents = 0, bookings = 0;
-    db.transaction(() => {
-      for (const r of open) {
-        const id = Number(db.prepare(`INSERT INTO member_settlements(member_id, cents, items, until_at, batch, by_user, note) VALUES (?,?,?,?,?,?,?)`)
-          .run(r.member_id, r.c, r.n, asOf, batch, username || null, note ? String(note).slice(0, 100) : null).lastInsertRowid);
-        bookings += db.prepare(`UPDATE bookings SET settled_id = ? WHERE member_id = ? AND ${OPEN_KONTO} AND ${CUT('')}`).run(id, r.member_id, up, asOf, asOf).changes;
-        perMember[r.member_id] = r.c; cents += r.c;
-      }
-    })();
-    return { batch: open.length ? batch : null, cents, perMember, members: open.length, bookings };
-  },
-  /** Abrechnung eines Moduls zurücknehmen (z. B. wenn ein Einzug verworfen wird) – nur solange daraus nichts storniert wurde */
-  /** Betrag aufs Verkaufskonto buchen (z. B. Platzgebühr eines Trainers) – bezahlt wird mit dem Verkauf unter Abrechnung → Buchungs-ID */
-  charge(memberId, cents, note, user) {
-    const m = db.prepare("SELECT * FROM members WHERE id = ? AND deleted = 0 AND active = 1 AND kind IN ('mitglied','nichtmitglied','mannschaft')").get(int(memberId));
-    if (!m) throw new Error('Konto nicht gefunden (oder ausgeblendet).');
-    const c = int(cents); if (!(c >= 10 && c <= 100000)) throw new Error('Betrag bitte zwischen 0,10 € und 1.000 €.');
-    const t = cleanName(note, 60) || null;
-    const id = Number(db.prepare("INSERT INTO bookings(member_id, article_id, kind, qty, unit_cents, total_cents, note) VALUES (?,?,'konto',1,?,?,?)").run(m.id, customArticleId(), c, c, t).lastInsertRowid);
-    audit(user, 'Buchung nachgetragen', `${m.name}: Betrag ${euro(c)}${t ? ' (' + t + ')' : ''}`);
-    return id;
-  },
-  /** Stand solcher Buchungen → { id: 'offen' | 'abgerechnet' | 'storniert' } */
-  chargeStatus: ids => Object.fromEntries((ids || []).length ? db.prepare(`SELECT id, cancelled_at, settled_id FROM bookings WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids.map(int))
-    .map(b => [b.id, b.cancelled_at ? 'storniert' : b.settled_id ? 'abgerechnet' : 'offen']) : []),
-  /** noch nicht abgerechnete Buchung stornieren → true, sonst Fehler */
-  cancelCharge(id, user) {
-    const b = db.prepare('SELECT b.*, m.name FROM bookings b LEFT JOIN members m ON m.id = b.member_id WHERE b.id = ?').get(int(id));
-    if (!b || b.cancelled_at) return true;
-    if (b.settled_id) throw new Error('Schon abgerechnet – bitte unter Verkauf › Buchungen stornieren (das bucht eine Gutschrift).');
-    db.prepare("UPDATE bookings SET cancelled_at = datetime('now','localtime'), cancelled_by = ? WHERE id = ?").run(user || 'Modul', b.id);
-    audit(user, 'Buchung storniert', `${b.name || ''}: Betrag ${euro(b.total_cents)}${b.note ? ' (' + b.note + ')' : ''}`);
-    return true;
-  },
-  /** Abrechnung eines einzelnen Kontos aus einem Modul-Lauf zurücknehmen (z. B. Verkaufs-Posten in der Mitgliederverwaltung storniert)
-   *  → { ok, n } – die Buchungen sind danach wieder offen und lassen sich normal stornieren */
-  reopen(batch, memberId) {
-    const st = db.prepare('SELECT id FROM member_settlements WHERE batch = ? AND member_id = ?').get(String(batch || ''), int(memberId));
-    if (!st) return { ok: true, n: 0 };
-    const gone = goneIn([st.id]); if (gone) return { ok: false, error: gone };
-    if (db.prepare('SELECT 1 FROM bookings c JOIN bookings o ON o.id = c.credit_for WHERE c.cancelled_at IS NULL AND o.settled_id = ?').get(st.id))
-      return { ok: false, error: 'Für diese Verkaufsbuchungen gibt es schon eine Gutschrift unter Verkauf › Buchungen. Bitte die Gutschrift dort zuerst stornieren.' };
-    let n = 0;
-    db.transaction(() => { n = db.prepare('UPDATE bookings SET settled_id = NULL WHERE settled_id = ?').run(st.id).changes; db.prepare('DELETE FROM member_settlements WHERE id = ?').run(st.id); })();
-    return { ok: true, n };
-  },
-  unsettle(batch) {
-    const ids = db.prepare('SELECT id FROM member_settlements WHERE batch = ?').all(String(batch || '')).map(r => r.id);
-    if (!ids.length) return { ok: true, n: 0 };
-    const gone = goneIn(ids); if (gone) return { ok: false, error: gone, gone: true };
-    const q = ids.map(() => '?').join(',');
-    const credited = db.prepare(`SELECT COUNT(*) n FROM bookings c JOIN bookings o ON o.id = c.credit_for WHERE c.cancelled_at IS NULL AND o.settled_id IN (${q})`).get(...ids).n;
-    if (credited) return { ok: false, error: 'Aus diesem Einzug wurde schon etwas storniert (Gutschrift) – die Buchungen können nicht wieder geöffnet werden.' };
-    db.transaction(() => { db.prepare(`UPDATE bookings SET settled_id = NULL WHERE settled_id IN (${q})`).run(...ids); db.prepare(`DELETE FROM member_settlements WHERE id IN (${q})`).run(...ids); })();
-    return { ok: true, n: ids.length };
-  },
-};
-
-/* Fehlklick: nur die jüngste Abrechnung lässt sich zurücknehmen */
-admin.delete('/settle/:batch', need('abrechnung'), (req, res) => {
-  const batch = String(req.params.batch);
-  // Abrechnungen eines Moduls (z. B. Verkaufs-Einzug der Mitgliederverwaltung) nur dort zurücknehmen – sonst blieben dessen Posten
-  // bestehen und dieselben Verkäufe würden beim nächsten Lauf noch einmal abgebucht
-  if (!ownSettle(batch) && !batch.startsWith('stichtag-')) return bad(res, 'Diese Abrechnung gehört zu einem Verkaufs-Einzug der Mitgliederverwaltung. Bitte dort zurücknehmen (Lauf zurücknehmen) – hier würden die Verkäufe sonst doppelt abgebucht.');
-  const newest = db.prepare('SELECT batch FROM member_settlements ORDER BY id DESC LIMIT 1').get();
-  if (!newest || newest.batch !== batch || batch.startsWith('stichtag-')) return bad(res, 'Nur die letzte Abrechnung kann zurückgenommen werden.');
-  const sum = db.prepare('SELECT SUM(cents) c, COUNT(*) n FROM member_settlements WHERE batch = ?').get(batch);
-  const u = drinks.unsettle(batch);
-  if (!u.ok) return bad(res, u.gone ? u.error : 'Seit dieser Abrechnung wurde daraus schon etwas storniert (Gutschrift) – Zurücknehmen ist nicht mehr möglich.');
-  audit(req.user, 'Abrechnung zurückgenommen', `${sum.n} Konten, ${euro(sum.c || 0)}`);
-  res.json({ ok: true });
-});
-
-/* ---------- Gäste-Deckel (Verwaltung) ---------- */
-const TAB_VIEW = need('veranstaltungen', 'uebernahme', 'abrechnung', 'export');
-function tabRows(where, ...params) {
-  const items = db.prepare(`SELECT b.id, b.created_at, b.qty, b.total_cents, b.unit_cents, ${ARTICLE_LABEL} AS article
-    FROM bookings b JOIN articles a ON a.id = b.article_id WHERE b.tab_id = ? AND b.cancelled_at IS NULL ORDER BY b.created_at`);
-  return db.prepare(`SELECT t.*, m.name AS member, m.kind AS member_kind FROM guest_tabs t LEFT JOIN members m ON m.id = t.member_id WHERE ${where}`).all(...params)
-    .map(t => {
-      const it = items.all(t.id);
-      return { ...t, items: it, open_cents: t.status === 'offen' ? it.reduce((s, x) => s + x.total_cents, 0) : 0,
-        sum_cents: t.status === 'offen' || t.status === 'abgeschrieben' ? it.reduce((s, x) => s + x.unit_cents * x.qty, 0) : (t.cents || 0),
-        last_at: it.length ? it[it.length - 1].created_at : t.created_at };
-    });
-}
-admin.get('/tabs', TAB_VIEW, (req, res) => {
-  const days = Math.min(365, Math.max(1, int(req.query.days, 30)));
-  const open = tabRows("t.status = 'offen' ORDER BY t.created_at");
-  const closed = tabRows("t.status <> 'offen' AND date(t.closed_at) >= date('now','localtime', ?) ORDER BY t.closed_at DESC", `-${days} days`);
-  const today = db.prepare(`SELECT method, COALESCE(SUM(cents),0) c, COUNT(*) n FROM guest_tabs
-    WHERE status = 'bezahlt' AND date(closed_at) = date('now','localtime') GROUP BY method`).all();
-  res.json({ open, closed, days, today: Object.fromEntries(today.map(r => [r.method, r])) });
-});
-const getTab = id => db.prepare('SELECT * FROM guest_tabs WHERE id = ?').get(int(id));
-admin.post('/tabs/:id/pay', need('veranstaltungen', 'uebernahme'), (req, res) => {
-  const t = getTab(req.params.id);
-  if (!t || t.status !== 'offen') return bad(res, 'Der Deckel ist nicht mehr offen.');
-  const method = (req.body || {}).method;
-  if (!['bar', 'karte'].includes(method)) return bad(res, 'Bitte bar oder Karte wählen.');
-  res.json({ ok: true, cents: closeTab(t, { status: 'bezahlt', method, by: req.user.username }) });
-});
-admin.post('/tabs/:id/transfer', need('uebernahme'), (req, res) => {
-  const t = getTab(req.params.id);
-  if (!t || t.status !== 'offen') return bad(res, 'Der Deckel ist nicht mehr offen.');
-  const m = db.prepare("SELECT * FROM members WHERE id = ? AND active = 1 AND kind IN ('mitglied','nichtmitglied','mannschaft')").get(int((req.body || {}).memberId));
-  if (!m) return bad(res, 'Bitte ein Mitglied oder eine Mannschaft wählen.');
-  res.json({ ok: true, cents: closeTab(t, { status: 'uebernommen', memberId: m.id, by: req.user.username, note: 'auf ' + m.name }) });
-});
-admin.post('/tabs/:id/writeoff', need('uebernahme'), (req, res) => {
-  const t = getTab(req.params.id);
-  if (!t || t.status !== 'offen') return bad(res, 'Der Deckel ist nicht mehr offen.');
-  const note = cleanName((req.body || {}).note, 120);
-  if (note.length < 3) return bad(res, 'Bitte kurz begründen, warum abgeschrieben wird.');
-  res.json({ ok: true, cents: closeTab(t, { status: 'abgeschrieben', by: req.user.username, note }) });
-});
-/* Fehlklick am Tablet: „bezahlt“ zurücknehmen → Deckel wieder offen */
-admin.post('/tabs/:id/reopen', need('veranstaltungen', 'uebernahme'), (req, res) => {
-  const t = getTab(req.params.id);
-  if (!t || t.status !== 'bezahlt') return bad(res, 'Nur bezahlte Deckel lassen sich wieder öffnen.');
-  db.transaction(() => {
-    db.prepare("UPDATE guest_tabs SET status = 'offen', method = NULL, cents = NULL, closed_at = NULL, closed_by = NULL WHERE id = ?").run(t.id);
-    db.prepare('UPDATE bookings SET paid_cash = 0 WHERE tab_id = ? AND cancelled_at IS NULL').run(t.id);
-  })();
-  audit(req.user, 'Gäste-Deckel wieder geöffnet', `${t.name}: ${euro(t.cents || 0)} ${t.method || ''} zurückgenommen`);
-  res.json({ ok: true });
-});
-
-/* ---------- Veranstaltungen: eigene Getränkeliste + eigene Abrechnungsliste ---------- */
-function eventSummary(id) {
-  const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
-  if (!ev) return null;
-  ev.articles = db.prepare(`SELECT ea.article_id AS id, a.name, a.category, ea.price_cents
-    FROM event_articles ea JOIN articles a ON a.id = ea.article_id WHERE ea.event_id = ? AND a.custom = 0 ORDER BY cat_rank(a.category), de_key(a.category), de_key(a.name)`).all(id);
-  ev.items = db.prepare(`SELECT a.name, a.category, a.custom, SUM(b.qty) qty, SUM(b.total_cents) total_cents,
-      SUM(CASE WHEN b.kind = 'verein' THEN b.qty ELSE 0 END) free_qty
-    FROM bookings b JOIN articles a ON a.id = b.article_id
-    WHERE b.event_id = ? AND b.cancelled_at IS NULL GROUP BY a.id ORDER BY cat_rank(a.category), de_key(a.category), de_key(a.name)`).all(id);
-  ev.guests = db.prepare(`SELECT g.id, g.name, g.member_id, m.name AS member_name, m.kind AS member_kind, g.created_by, g.created_at,
-      COALESCE(SUM(b.qty),0) qty, COALESCE(SUM(b.total_cents),0) total_cents,
-      COALESCE(SUM(CASE WHEN b.kind = 'event' AND b.payment_id IS NULL AND b.transferred_at IS NULL THEN b.total_cents END),0) open_cents,
-      COALESCE(SUM(CASE WHEN p.method = 'bar' THEN b.total_cents END),0) bar_cents,
-      COALESCE(SUM(CASE WHEN p.method = 'karte' THEN b.total_cents END),0) karte_cents,
-      COALESCE(SUM(CASE WHEN b.transferred_at IS NOT NULL THEN b.total_cents END),0) transferred_cents,
-      COUNT(b.id) n
-    FROM event_guests g LEFT JOIN members m ON m.id = g.member_id
-    LEFT JOIN bookings b ON b.event_guest_id = g.id AND b.cancelled_at IS NULL
-    LEFT JOIN event_payments p ON p.id = b.payment_id
-    WHERE g.event_id = ? GROUP BY g.id ORDER BY name_key(g.name, 'mitglied')`).all(id);
-  ev.payments = db.prepare(`SELECT p.*, g.name, m.kind AS member_kind FROM event_payments p JOIN event_guests g ON g.id = p.guest_id LEFT JOIN members m ON m.id = g.member_id
-    WHERE p.event_id = ? ORDER BY p.at DESC, p.id DESC`).all(id);
-  const sale = db.prepare(`SELECT COALESCE(SUM(total_cents),0) c FROM bookings WHERE event_id = ? AND cancelled_at IS NULL
-    AND event_guest_id IS NULL AND (kind = 'gast' OR (kind = 'event' AND paid_cash = 1))`).get(id).c;
-  const sumG = k => ev.guests.reduce((t, g) => t + g[k], 0);
-  ev.sale_cents = sale;                                   // sofort bar (Barverkauf ohne Namen, Gastkonto)
-  ev.bar_cents = sale + sumG('bar_cents');                // gehört in die Kasse
-  ev.karte_cents = sumG('karte_cents');
-  ev.transferred_cents = sumG('transferred_cents');
-  ev.open_cents = sumG('open_cents');
-  ev.open_member_cents = ev.guests.filter(g => g.member_id).reduce((t, g) => t + g.open_cents, 0);
-  ev.open_manual = ev.guests.filter(g => !g.member_id && g.open_cents > 0).map(g => ({ id: g.id, name: g.name, open_cents: g.open_cents }));
-  ev.total_cents = ev.items.reduce((t, i) => t + i.total_cents, 0);
-  ev.expected_cents = ev.bar_cents;
-  return ev;
-}
-const getEvent = id => db.prepare('SELECT * FROM events WHERE id = ?').get(int(id));
-const getGuest = (evId, gid) => db.prepare('SELECT * FROM event_guests WHERE id = ? AND event_id = ?').get(int(gid), int(evId));
-
-admin.get('/events', need('veranstaltungen', 'uebernahme'), (req, res) => {
-  const ids = db.prepare('SELECT id FROM events WHERE deleted = 0 ORDER BY date DESC, id DESC LIMIT 100').all();
-  res.json(ids.map(r => eventSummary(r.id)));
-});
-
-/* Veranstaltung löschen: geht, wenn noch nichts gebucht wurde – oder wenn sie beendet ist und nichts mehr offen ist.
-   Mit Buchungen verschwindet sie aus der Liste; Umsatz und Bestand bleiben in den Auswertungen erhalten. */
-admin.delete('/events/:id', need('veranstaltungen'), (req, res) => {
-  const ev = db.prepare('SELECT * FROM events WHERE id = ? AND deleted = 0').get(int(req.params.id));
-  if (!ev) return res.json({ ok: true });
-  if (ev.active) return bad(res, 'Die Veranstaltung ist noch aktiv – bitte zuerst deaktivieren.');
-  const booked = db.prepare('SELECT COUNT(*) n FROM bookings WHERE event_id = ? AND cancelled_at IS NULL').get(ev.id).n;
-  if (booked) {
-    const open = db.prepare(`SELECT COALESCE(SUM(total_cents),0) c FROM bookings WHERE event_id = ? AND event_guest_id IS NOT NULL AND ${OPEN_GUEST}`).get(ev.id).c;
-    if (open) return bad(res, `Auf der Liste sind noch ${euro(open)} offen – erst bezahlen lassen oder auf die Konten übernehmen.`);
-  }
-  db.transaction(() => {
-    if (booked) db.prepare('UPDATE events SET deleted = 1 WHERE id = ?').run(ev.id);
-    else {
-      db.prepare('DELETE FROM bookings WHERE event_id = ?').run(ev.id);   // nur stornierte
-      db.prepare('DELETE FROM event_payments WHERE event_id = ?').run(ev.id);
-      db.prepare('DELETE FROM event_guests WHERE event_id = ?').run(ev.id);
-      db.prepare('DELETE FROM event_articles WHERE event_id = ?').run(ev.id);
-      db.prepare('DELETE FROM events WHERE id = ?').run(ev.id);
-    }
-  })();
-  audit(req.user, 'Veranstaltung gelöscht', `${ev.name} (${ev.date})${booked ? ' – Umsätze bleiben in den Auswertungen' : ''}`);
-  res.json({ ok: true, kept: Boolean(booked) });
-});
-
-/* Namensvorschläge für die Abrechnungsliste (auch ohne Recht „Mitglieder“) */
-admin.get('/event-members', need('veranstaltungen', 'uebernahme'), (req, res) => {
-  res.json(db.prepare("SELECT id, name, kind FROM members WHERE active = 1 AND kind IN ('mitglied','nichtmitglied','mannschaft') ORDER BY name_key(name, kind)").all());
-});
-
-function saveEventArticles(eventId, list) {
-  const clean = (Array.isArray(list) ? list : [])
-    .map(a => ({ id: int(a.articleId), price: int(a.price_cents, -1) }))
-    .filter(a => a.id && a.price >= 0 && a.price <= 100000 && db.prepare('SELECT 1 FROM articles WHERE id = ? AND custom = 0').get(a.id));
-  db.transaction(() => {
-    db.prepare('DELETE FROM event_articles WHERE event_id = ?').run(eventId);
-    const ins = db.prepare('INSERT INTO event_articles(event_id, article_id, price_cents) VALUES (?,?,?)');
-    clean.forEach(a => ins.run(eventId, a.id, a.price));
-  })();
-  return clean.length;
-}
-
-admin.post('/events', need('veranstaltungen'), (req, res) => {
-  const { name, date, copyFrom } = req.body || {};
-  const n = cleanName(name, 80);
-  if (!n) return bad(res, 'Name fehlt.');
-  const id = Number(db.prepare('INSERT INTO events(name, date) VALUES (?,?)').run(n, isDate(date) ? date : today()).lastInsertRowid);
-  // Getränkeliste vorbelegen: von einer früheren Veranstaltung oder alle aktiven Artikel (inkl. Snacks, Bälle) zum Normalpreis
-  const src = copyFrom ? db.prepare('SELECT article_id AS articleId, price_cents FROM event_articles WHERE event_id = ?').all(int(copyFrom)) : [];
-  saveEventArticles(id, src.length ? src : db.prepare(`SELECT id AS articleId, price_cents FROM articles
-    WHERE active = 1 AND custom = 0 AND deleted = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)`).all());
-  audit(req.user, 'Veranstaltung angelegt', n);
-  res.json({ id });
-});
-
-admin.put('/events/:id/articles', need('veranstaltungen'), (req, res) => {
-  const ev = getEvent(req.params.id);
-  if (!ev) return bad(res, 'Nicht gefunden.', 404);
-  if (ev.closed_at) return bad(res, 'Die Veranstaltung ist abgeschlossen.');
-  res.json({ ok: true, count: saveEventArticles(ev.id, (req.body || {}).articles) });
-});
-
-admin.post('/events/:id/activate', need('veranstaltungen'), (req, res) => {
-  const ev = getEvent(req.params.id);
-  if (!ev) return bad(res, 'Nicht gefunden.', 404);
-  if (ev.closed_at) return bad(res, 'Die Veranstaltung ist bereits abgeschlossen.');
-  if (!db.prepare('SELECT COUNT(*) n FROM event_articles WHERE event_id = ?').get(ev.id).n) {
-    return bad(res, 'Bitte zuerst festlegen, welche Artikel es gibt.');
-  }
-  db.transaction(() => {
-    db.prepare('UPDATE events SET active = 0').run();
-    db.prepare('UPDATE events SET active = 1 WHERE id = ?').run(ev.id);
-  })();
-  audit(req.user, 'Veranstaltung aktiviert', ev.name);
-  res.json({ ok: true });
-});
-
-admin.post('/events/:id/deactivate', need('veranstaltungen'), (req, res) => {
-  const ev = getEvent(req.params.id);
-  if (!ev) return bad(res, 'Nicht gefunden.', 404);
-  db.prepare('UPDATE events SET active = 0 WHERE id = ?').run(ev.id);
-  audit(req.user, 'Veranstaltung deaktiviert', ev.name);
-  res.json({ ok: true });
-});
-
-/* Abrechnungsliste: Namen hinzufügen (Mitglied oder frei), umbenennen / Mitglied zuordnen, entfernen */
-admin.post('/events/:id/guests', need('veranstaltungen'), (req, res) => {
-  const ev = getEvent(req.params.id);
-  if (!ev) return bad(res, 'Nicht gefunden.', 404);
-  if (ev.closed_at) return bad(res, 'Die Veranstaltung ist abgeschlossen.');
-  try {
-    const g = addGuest(ev, req.body || {}, req.user.username);
-    res.json({ id: g.id });
-  } catch (e) { bad(res, e.message); }
-});
-
-admin.put('/events/:id/guests/:gid', need('veranstaltungen', 'uebernahme'), (req, res) => {
-  const g = getGuest(req.params.id, req.params.gid);
-  if (!g) return bad(res, 'Nicht gefunden.', 404);
-  const b = req.body || {};
-  let memberId = g.member_id, name = g.name;
-  if (b.memberId !== undefined) {
-    if (b.memberId === null || b.memberId === '') memberId = null;
-    else {
-      const m = db.prepare("SELECT * FROM members WHERE id = ? AND active = 1 AND kind IN ('mitglied','nichtmitglied','mannschaft')").get(int(b.memberId));
-      if (!m) return bad(res, 'Mitglied nicht gefunden.');
-      const dup = db.prepare('SELECT * FROM event_guests WHERE event_id = ? AND member_id = ? AND id <> ?').get(g.event_id, m.id, g.id);
-      if (dup) {
-        // steht schon auf der Liste (z. B. doppelt eingetragen): Einträge zusammenführen
-        db.transaction(() => {
-          db.prepare('UPDATE bookings SET event_guest_id = ?, member_id = CASE WHEN transferred_at IS NULL THEN ? ELSE member_id END WHERE event_guest_id = ?').run(dup.id, m.id, g.id);
-          db.prepare('UPDATE event_payments SET guest_id = ? WHERE guest_id = ?').run(dup.id, g.id);
-          db.prepare('DELETE FROM event_guests WHERE id = ?').run(g.id);
-        })();
-        audit(req.user, 'Veranstaltungsliste zusammengeführt', `${g.name} → ${dup.name}`);
-        return res.json({ ok: true, merged: dup.name });
-      }
-      memberId = m.id;
-      if (b.name === undefined) name = m.name;
-    }
-  }
-  if (b.name !== undefined) { name = cleanName(b.name, 60); if (name.length < 2) return bad(res, 'Bitte einen Namen eingeben.'); }
-  db.transaction(() => {
-    db.prepare('UPDATE event_guests SET name = ?, member_id = ? WHERE id = ?').run(name, memberId, g.id);
-    // offene Buchungen gehören dann zum zugeordneten Mitglied
-    db.prepare(`UPDATE bookings SET member_id = ? WHERE event_guest_id = ? AND transferred_at IS NULL`).run(memberId, g.id);
-  })();
-  audit(req.user, 'Veranstaltungsliste geändert', `${g.name} → ${name}${memberId ? ' (Mitglied)' : ''}`);
-  res.json({ ok: true });
-});
-
-admin.delete('/events/:id/guests/:gid', need('veranstaltungen'), (req, res) => {
-  const g = getGuest(req.params.id, req.params.gid);
-  if (!g) return bad(res, 'Nicht gefunden.', 404);
-  if (db.prepare('SELECT COUNT(*) n FROM bookings WHERE event_guest_id = ? AND cancelled_at IS NULL').get(g.id).n) {
-    return bad(res, 'Auf diesem Namen gibt es Buchungen – erst stornieren (unter „Buchungen“), dann entfernen.');
-  }
-  db.transaction(() => {
-    db.prepare('UPDATE bookings SET event_guest_id = NULL WHERE event_guest_id = ?').run(g.id);
-    db.prepare('DELETE FROM event_guests WHERE id = ?').run(g.id);
-  })();
-  res.json({ ok: true });
-});
-
-/* „Hat bezahlt“ (bar oder Karte): deckt alle offenen Buchungen dieses Namens */
-admin.post('/events/:id/guests/:gid/pay', need('veranstaltungen'), (req, res) => {
-  const g = getGuest(req.params.id, req.params.gid);
-  if (!g) return bad(res, 'Nicht gefunden.', 404);
-  const method = (req.body || {}).method;
-  if (!['bar', 'karte'].includes(method)) return bad(res, 'Bitte bar oder Karte wählen.');
-  let cents = 0;
-  db.transaction(() => {
-    cents = guestOpen(g.id);
-    if (!cents) return;
-    const pid = Number(db.prepare('INSERT INTO event_payments(event_id, guest_id, method, cents, by_user) VALUES (?,?,?,?,?)')
-      .run(g.event_id, g.id, method, cents, req.user.username).lastInsertRowid);
-    db.prepare(`UPDATE bookings SET payment_id = ? WHERE event_guest_id = ? AND ${OPEN_GUEST}`).run(pid, g.id);
-  })();
-  if (!cents) return bad(res, 'Bei diesem Namen ist nichts offen.');
-  audit(req.user, 'Veranstaltung: hat bezahlt', `${g.name}: ${euro(cents)} ${method === 'bar' ? 'bar' : 'mit Karte'}`);
-  res.json({ ok: true, cents });
-});
-
-admin.delete('/events/:id/payments/:pid', need('veranstaltungen'), (req, res) => {
-  const p = db.prepare('SELECT p.*, g.name FROM event_payments p JOIN event_guests g ON g.id = p.guest_id WHERE p.id = ? AND p.event_id = ?')
-    .get(int(req.params.pid), int(req.params.id));
-  if (!p) return bad(res, 'Nicht gefunden.', 404);
-  db.transaction(() => {
-    db.prepare('UPDATE bookings SET payment_id = NULL WHERE payment_id = ?').run(p.id);
-    db.prepare('DELETE FROM event_payments WHERE id = ?').run(p.id);
-  })();
-  audit(req.user, 'Veranstaltung: Zahlung zurückgenommen', `${p.name}: ${euro(p.cents)} ${p.method}`);
-  res.json({ ok: true });
-});
-
-/* Kassierer: was nicht bezahlt wurde, auf die normale Getränkeliste (Mitgliederkonten) übernehmen */
-admin.post('/events/:id/transfer', need('uebernahme'), (req, res) => {
-  const ev = getEvent(req.params.id);
-  if (!ev) return bad(res, 'Nicht gefunden.', 404);
-  const only = Array.isArray((req.body || {}).guestIds) ? req.body.guestIds.map(int) : null;
-  let n = 0, cents = 0, people = 0;
-  const skipped = [];
-  db.transaction(() => {
-    const guests = db.prepare('SELECT * FROM event_guests WHERE event_id = ?').all(ev.id).filter(g => !only || only.includes(g.id));
-    for (const g of guests) {
-      const open = guestOpen(g.id);
-      if (!open) continue;
-      if (!g.member_id) { skipped.push(g.name); continue; }
-      // created_at bleibt der echte Buchungszeitpunkt. Abgerechnet wird die Übernahme trotzdem im nächsten Lauf: die
-      // Abrechnung nimmt alle offenen Konto-Buchungen (settled_id IS NULL) und grenzt über transferred_at ab, nicht über created_at.
-      const r = db.prepare(`UPDATE bookings SET kind = 'konto', member_id = ?, transferred_at = datetime('now','localtime'), transferred_by = ?
-        WHERE event_guest_id = ? AND ${OPEN_GUEST}`).run(g.member_id, req.user.username, g.id);
-      n += r.changes; cents += open; people++;
-    }
-  })();
-  audit(req.user, 'Veranstaltung übernommen', `${ev.name}: ${people} Personen, ${euro(cents)} auf die Konten`);
-  res.json({ ok: true, transferred: n, people, cents, skipped });
-});
-
-admin.post('/events/:id/close', need('veranstaltungen'), (req, res) => {
-  const cash = (req.body || {}).cash_cents;
-  const ev = getEvent(req.params.id);
-  if (!ev) return bad(res, 'Nicht gefunden.', 404);
-  const c = cash === '' || cash === undefined || cash === null ? null : int(cash);
-  db.prepare(`UPDATE events SET active = 0, closed_at = datetime('now','localtime'), cash_cents = ?, note = ? WHERE id = ?`)
-    .run(c, (req.body || {}).note ? String(req.body.note).slice(0, 300) : null, ev.id);
-  audit(req.user, 'Veranstaltung abgeschlossen', `${ev.name}${c === null ? '' : ', Kasse ' + euro(c)}`);
-  res.json({ ok: true });
-});
-
-/* ---------- Bestellung beim Getränkehändler ---------- */
-admin.get('/order', need('bestellung'), (req, res) => {
-  const settings = orderSettings();
-  const artNo = db.prepare(`SELECT art_no, text, pack_size FROM supplier_map WHERE supplier = ? AND article_id = ?
-    ORDER BY rowid DESC LIMIT 1`);
-  const rows = stockList().filter(s => s.active && s.track_stock).map(s => {
-    const target = s.target_stock || s.min_stock * 2;
-    const low = s.min_stock > 0 && s.delivered > 0 && s.stock <= s.min_stock;   // nur Artikel, die schon geliefert wurden
-    const crates = low ? Math.max(1, Math.ceil((target - s.stock) / s.crate_size)) : 0;
-    const map = artNo.get(settings.order_supplier, s.id);
-    return { id: s.id, name: s.name, category: s.category, stock: s.stock, min_stock: s.min_stock, target_stock: target,
-      crate_size: s.crate_size, low, suggest: crates, art_no: map ? map.art_no : '',
-      supplier_text: map && map.text ? map.text.replace(/-?€/g, '').replace(/\s+/g, ' ').trim() : '' };
-  });
-  res.json({ settings, clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), rows, mailReady: mail.ready(), mayMailSetup: req.user.perms.includes('einstellungen'), lastSent: getSetting('order_last_sent', '') });
-});
-
-/* ---------- Export & Sicherung ---------- */
-async function buildExport(from, to, asOf = nowTs(), upTo = maxBookingId()) {
-  const bookings = db.prepare(`SELECT b.*, ${ARTICLE_LABEL} AS article, COALESCE(b.article_category, a.category) AS category, COALESCE(m.name, g.name, 'Deckel: ' || t.name) AS member, e.name AS event,
-      p.method AS pay_method, t.status AS tab_status, t.method AS tab_method
-    FROM bookings b JOIN articles a ON a.id = b.article_id
-    LEFT JOIN members m ON m.id = b.member_id LEFT JOIN events e ON e.id = b.event_id
-    LEFT JOIN event_guests g ON g.id = b.event_guest_id LEFT JOIN event_payments p ON p.id = b.payment_id
-    LEFT JOIN guest_tabs t ON t.id = b.tab_id
-    WHERE b.cancelled_at IS NULL AND b.created_at >= ? AND b.created_at < date(?, '+1 day') ORDER BY b.created_at`).all(from, to);   // wie date(created_at) BETWEEN, aber über den Index
-  const events = db.prepare('SELECT id FROM events WHERE date BETWEEN ? AND ? ORDER BY date').all(from, to).map(r => eventSummary(r.id));
-  const tabs = tabRows("date(t.created_at) BETWEEN ? AND ? ORDER BY t.created_at", from, to);
-  const categories = db.prepare('SELECT category FROM articles WHERE deleted = 0 OR id IN (SELECT article_id FROM bookings) GROUP BY category ORDER BY cat_rank(category), de_key(category)').all().map(r => r.category);
-  const wb = await buildWorkbook({
-    clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), from, to, color: clubColor(),
-    balances: balances(asOf, upTo), asOf, openBookings: openBookings(asOf, upTo), categories, bookings, shrink: shrinkage(from, to), stock: stockList(), events, tabs,
-  });
-  return wb;
-}
-
-function openBookings(asOf, upTo) {
-  return db.prepare(`SELECT b.created_at, b.qty, b.unit_cents, b.total_cents, b.transferred_at, ${ARTICLE_LABEL} AS article, m.name AS member
-    FROM bookings b JOIN articles a ON a.id = b.article_id JOIN members m ON m.id = b.member_id
-    WHERE b.${OPEN_KONTO.replace(/ AND /g, ' AND b.')} AND ${CUT('b.')} ORDER BY name_key(m.name, m.kind), b.created_at`).all(upTo, asOf, asOf);
-}
-
-admin.get('/export.xlsx', need('abrechnung', 'export'), asyncRoute(async (req, res) => {
-  const { from, to } = defaultRange(req.query);
-  const fixed = isTs(req.query.asOf) && req.query.asOf <= nowTs() && req.query.upTo !== undefined;
-  const wb = await buildExport(from, to, fixed ? req.query.asOf : nowTs(), fixed ? Math.min(int(req.query.upTo), maxBookingId()) : maxBookingId());
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename="Getraenke_${from}_bis_${to}.xlsx"`);
-  audit(req.user, 'Excel exportiert', `${from} bis ${to}`);
-  await wb.xlsx.write(res);
-  res.end();
-}));
-
-/* ---------- Dropbox: täglicher Export (alle Rechte) ---------- */
-/* App secret und Verbindung (Refresh-Token) liegen im Tresor (src/geheim.js) – „eingerichtet“ gilt auch, solange er gesperrt ist */
-const dbxCfg = () => ({ appKey: getSetting('dropbox_app_key', ''), appSecret: geheim.get('dropbox_app_secret', ''),
-  refresh: geheim.get('dropbox_refresh', ''), folder: getSetting('dropbox_folder', '/Clubwerk'),
-  enabled: getSetting('dropbox_enabled', '1') === '1', hasSecret: geheim.has('dropbox_app_secret'), hasRefresh: geheim.has('dropbox_refresh') });
-const dbxReady = c => Boolean(c.appKey && c.hasSecret && c.hasRefresh);
-/* ---------- Datensicherung (Kern, unabhängig von den Modulen) ----------
-   Jede Nacht: verschlüsselte Komplettsicherung (Datenbank aller Module, Belege, Bilder, Erweiterungen) – lokal die
-   letzten 3, in Dropbox nach Generationen (täglich/wöchentlich/monatlich). Optional lesbare Auszüge der Module (Excel).
-   Monatlich eine Probe-Wiederherstellung, die prüft, ob sich die letzte Sicherung vollständig entschlüsseln lässt. */
-const KOMPLETT_DIR = path.join(backup.BACKUP_DIR, 'komplett');
-const INCOMING_DIR = path.join(DATA_DIR, '.sicherung-eingang');
-/* Schlüssel der Komplettsicherung im Tresor: nach einem Neustart wartet die Sicherung, bis er entsperrt ist (bkWartet) */
-const bkKey = () => ({ key: geheim.get('backup_enc_key', ''), kdf: (() => { try { return JSON.parse(getSetting('backup_kdf', '')); } catch (e) { return null; } })() });
-const bkHasKey = () => Boolean(geheim.has('backup_enc_key') && bkKey().kdf);
-const bkWartet = () => bkHasKey() && geheim.locked('backup_enc_key');
-const ZUGANG_ZU = 'Der Tresor ist seit dem Neustart gesperrt – die gespeicherten Zugangsdaten sind verschlossen, bis sich ein Admin mit Schlüssel anmeldet (oder der Wiederherstellungscode eingegeben wird).';
-const WARTET_MSG = 'Der Tresor ist seit dem Neustart gesperrt – die Datensicherung wartet, bis sich ein Admin anmeldet (oder der Wiederherstellungscode eingegeben wird).';
-const bkCfg = () => ({ hour: Math.max(0, Math.min(23, int(getSetting('backup_hour', '3'), 3))), daily: Math.max(1, Math.min(60, int(getSetting('backup_daily', '7'), 7))),
-  weekly: Math.max(0, Math.min(52, int(getSetting('backup_weekly', '4'), 4))), monthly: Math.max(0, Math.min(120, int(getSetting('backup_monthly', '12'), 12))),
-  readable: getSetting('backup_readable', '0') === '1' });   // Standard aus: die Auszüge (Namen, Beträge, Türprotokoll) liegen unverschlüsselt im Ziel
-let bkRunning = false;
-
-/** Lesbare Auszüge der aktiven Module: [{ name, buffer }] – jedes Modul liefert seinen eigenen Teil */
-async function readableExports() {
-  const out = [];
-  if (plugins.isActive('getraenke')) {
-    const { from, to } = defaultRange({});
-    const wb = await buildExport(from, to);
-    out.push({ name: 'Getraenke-Stand.xlsx', buffer: Buffer.from(await wb.xlsx.writeBuffer()) });
-  }
-  for (const p of plugins.withHook('backupExports')) {
-    try { for (const f of (await p.hooks.backupExports()) || []) if (f && f.name && f.buffer) out.push({ name: String(f.name).replace(/[^\w.-]/g, '_').slice(0, 80), buffer: Buffer.from(f.buffer) }); }
-    catch (e) { console.error(`Sicherung – Auszug ${p.meta.id}:`, e.message); }
-  }
-  return out;
-}
-
-/* ---------- Sicherungsziele: Dropbox + beliebig viele WebDAV/SFTP/FTPS-Ziele ---------- */
-const MAX_TARGETS = 6;
-const tgList = () => { try { const l = JSON.parse(getSetting('backup_targets', '[]')); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
-const tgSave = l => setSetting('backup_targets', JSON.stringify(l));
-const tgSecretKey = id => `backup_target_${id}_secret`;
-const tgStatus = id => { try { return JSON.parse(getSetting(`backup_target_${id}_status`, '{}')) || {}; } catch (e) { return {}; } };
-const tgSetStatus = (id, o) => setSetting(`backup_target_${id}_status`, JSON.stringify({ ...tgStatus(id), ...o, last_try: new Date().toISOString() }));
-/** Alle eingeschalteten Ziele (Dropbox zuerst) mit Adapter */
-function activeTargets() {
-  const out = [];
-  const c = dbxCfg();
-  if (dbxReady(c) && c.enabled) out.push({ id: 'dropbox', name: 'Dropbox', type: 'dropbox', retention: null, adapter: () => targets.dropboxTarget(c) });
-  for (const t of tgList()) if (t.enabled) out.push({ ...t, adapter: () => targets.open(t, geheim.get(tgSecretKey(t.id), '')) });
-  return out;
-}
-function targetById(id) {
-  if (id === 'dropbox') { const c = dbxCfg(); return dbxReady(c) ? { id, name: 'Dropbox', type: 'dropbox', adapter: () => targets.dropboxTarget(c) } : null; }
-  const t = tgList().find(x => x.id === id);
-  return t ? { ...t, adapter: () => targets.open(t, geheim.get(tgSecretKey(t.id), '')) } : null;
-}
-/** Übersicht für die Verwaltung – nie mit Zugangsdaten */
-function targetsView() {
-  const c = dbxCfg();
-  const rows = [];
-  if (dbxReady(c)) rows.push({ id: 'dropbox', name: 'Dropbox', type: 'dropbox', typeLabel: 'Dropbox', enabled: c.enabled, where: `Apps/…${c.folder}`, account: getSetting('dropbox_account', ''), ...tgStatus('dropbox') });
-  for (const t of tgList()) rows.push({ ...targets.publicView(t, geheim.has(tgSecretKey(t.id))), where: targets.where(t), ...tgStatus(t.id) });
-  return rows;
-}
-
-async function runBackup(by = 'automatisch') {
-  if (!bkHasKey()) throw new Error('Noch kein Sicherungspasswort festgelegt (Datensicherung → Sicherungspasswort).');
-  if (bkWartet()) throw Object.assign(new Error(WARTET_MSG), { vaultLocked: true, status: 423 });
-  if (bkRunning) throw new Error('Die Sicherung läuft gerade schon.');
-  bkRunning = true;
-  const day = backup.stamp().slice(0, 10);
-  try {
-    const k = bkKey();
-    const r = await fullbackup.create({ db, dataDir: DATA_DIR, outDir: KOMPLETT_DIR, key: k.key, kdf: k.kdf, appVersion: APP_VERSION, club: getSetting('club_name', ''), standalone: backup.standalone });
-    // lokal nur die letzten 3 (alles Weitere steckt im Home-Assistant-Backup bzw. in Dropbox)
-    for (const old of fullbackup.list(KOMPLETT_DIR).slice(3)) { try { fs.unlinkSync(path.join(KOMPLETT_DIR, old.file)); } catch (e) { /* egal */ } }
-    const parts = [`Komplettsicherung ${r.size >= 1048576 ? (r.size / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(r.size / 1024)) + ' KB'}`];
-    const g = bkCfg();
-    const list = activeTargets();
-    let lesbarFiles = null; const failed = [];
-    for (const tg of list) {
-      const a = tg.adapter();
-      try {
-        await a.put('Komplett', `${day}_Clubwerk${fullbackup.EXT}`, { path: r.path });
-        // nachprüfen: liegt die Datei vollständig am Ziel? (ein voller Speicher oder ein abgebrochener Upload fiele sonst erst beim Zurückspielen auf)
-        const da = (await a.list('Komplett')).find(e => String(e.name).toLowerCase() === `${day}_Clubwerk${fullbackup.EXT}`.toLowerCase());   // Dropbox unterscheidet keine Groß-/Kleinschreibung
-        if (!da) throw new Error('Die Datei ist nach dem Hochladen am Ziel nicht zu finden.');
-        if (da.size != null && da.size !== r.size) throw new Error(`Die Datei kam am Ziel unvollständig an (${da.size} statt ${r.size} Bytes).`);
-        let lesbar = 0;
-        if (g.readable) { if (!lesbarFiles) lesbarFiles = await readableExports(); for (const f of lesbarFiles) { await a.put('Lesbar', `${day}_${f.name}`, { buffer: f.buffer }); lesbar++; } }
-        let removed = 0;
-        const ret = tg.retention || g;
-        for (const sub of ['Komplett', 'Lesbar']) {
-          const files = await a.list(sub);
-          const del = new Set(fullbackup.generations(files.map(e => e.name), ret));
-          for (const e of files) if (del.has(e.name)) { await a.remove(sub, e.name); removed++; }
-        }
-        tgSetStatus(tg.id, { last_ok: new Date().toISOString(), last_error: '', reconnect: false, msg: `${lesbar ? lesbar + ' lesbare Auszüge, ' : ''}${removed} ältere aufgeräumt` });
-        parts.push(`${tg.name} ✓` + (lesbar ? ` (+${lesbar} lesbar)` : ''));
-      } catch (e) {
-        tgSetStatus(tg.id, { last_error: `${new Date().toISOString()} ${e.message}`, reconnect: Boolean(e.reconnect) });
-        failed.push(`${tg.name}: ${e.message}`);
-        parts.push(`${tg.name} ✗`);
-        securityAlert('sicherung.fehler', `Die Datensicherung konnte nicht nach „${tg.name}“ übertragen werden: ${e.message}`, { key: 'ziel-' + tg.id });
-      } finally { await a.close(); }
-    }
-    if (!list.length) parts.push('nur lokal (kein Sicherungsziel eingerichtet)');
-    const msg = `${day}: ${parts.join(', ')}`;
-    setSetting('backup_last_ok', new Date().toISOString()); setSetting('backup_last_msg', msg); setSetting('backup_last_error', failed.length ? `${new Date().toISOString()} ${failed.join(' · ')}` : ''); setSetting('backup_last_day', day);
-    audit(by, 'Datensicherung', msg);
-    return msg;
-  } catch (e) {
-    setSetting('backup_last_error', `${new Date().toISOString()} ${e.message}`);
-    securityAlert('sicherung.fehler', `Die Datensicherung ist fehlgeschlagen: ${e.message}`);
-    throw e;
-  } finally { bkRunning = false; }
-}
-
-/** Probe-Wiederherstellung (wöchentlich, sonntags nach der Sicherung; „Jetzt prüfen“): die neueste Sicherung reihum von einem Ziel
- *  außer Haus zurückladen (ohne Ziel: die lokale Datei), in der abgeschotteten Lesekopie mit Clubwerk starten (src/teilsicherung.js)
- *  und die Zählerstände mit dieser Installation vergleichen. Nichts wird überschrieben. */
-async function probeBackup(by = 'automatisch') {
-  if (!bkHasKey()) throw new Error('Noch kein Sicherungspasswort festgelegt.');
-  if (bkWartet()) throw Object.assign(new Error(WARTET_MSG), { vaultLocked: true, status: 423 });
-  const tsich = require('./teilsicherung');
-  const list = activeTargets();
-  let tg = null;
-  if (list.length) { const i = (parseInt(getSetting('backup_probe_idx', '0'), 10) || 0) % list.length; tg = list[i]; setSetting('backup_probe_idx', String(i + 1)); }
-  const quelleName = tg ? tg.name : 'hier auf dem Gerät';
-  const prev = { at: getSetting('backup_probe_at', ''), ok: getSetting('backup_probe_ok', '') === '1', quelle: (() => { try { return JSON.parse(getSetting('backup_probe_info', '{}')).quelle || ''; } catch (e) { return ''; } })() };
-  const laden = async ziel => {
-    if (!tg) {
-      const last = fullbackup.list(KOMPLETT_DIR)[0];
-      if (!last) throw new Error('Noch keine Komplettsicherung vorhanden.');
-      fs.copyFileSync(path.join(KOMPLETT_DIR, last.file), ziel);
-      return { datei: last.file };
-    }
-    const a = tg.adapter();
-    try {
-      const files = (await a.list('Komplett')).filter(e => fullbackup.validName(String(e.name).replace(/_clubwerk\./i, '_Clubwerk.'))).sort((x, y) => (x.name < y.name ? 1 : -1));
-      if (!files.length) throw new Error(`Am Ziel „${tg.name}“ liegt keine Komplettsicherung.`);
-      await a.get('Komplett', files[0].name, ziel);
-      const size = fs.statSync(ziel).size;
-      if (files[0].size != null && files[0].size !== size) throw new Error(`Die Sicherung vom Ziel „${tg.name}“ kam unvollständig an (${size} statt ${files[0].size} Bytes).`);
-      // dieselbe Datei liegt meist noch hier: Prüfsumme vergleichen (die Uploads heißen <Tag>_Clubwerk, lokal mit Uhrzeit)
-      const day = files[0].name.slice(0, 10);
-      const lokal = fullbackup.list(KOMPLETT_DIR).filter(l => l.file.startsWith(day + '_') && l.size === size);
-      let pruefsumme = false;
-      if (lokal.length) {
-        const h = await fullbackup.sha256File(ziel);
-        for (const l of lokal) if (await fullbackup.sha256File(path.join(KOMPLETT_DIR, l.file)) === h) pruefsumme = true;
-        if (!pruefsumme) throw new Error(`Die Sicherung am Ziel „${tg.name}“ weicht von der Datei hier ab (Prüfsumme).`);
-      }
-      return { datei: files[0].name, alt: Math.floor((Date.now() - Date.parse(day + 'T12:00:00')) / 86400000), pruefsumme };
-    } finally { await a.close(); }
-  };
-  const at = new Date().toISOString();
-  try {
-    const r = await tsich.probe({ laden, key: bkKey().key, fullbackup, backup });
-    // Ergebnis der Lesekopie nicht blind übernehmen: nur Zahlen und kurze Texte
-    r.zahlen = (Array.isArray(r.zahlen) ? r.zahlen : []).slice(0, 200).map(z => ({ modul: String(z.modul || '').slice(0, 40), label: String(z.label || '').slice(0, 60), n: Number.isFinite(Number(z.n)) ? Number(z.n) : 0, fehler: z.fehler ? String(z.fehler).slice(0, 120) : '' }));
-    r.module = (Array.isArray(r.module) ? r.module : []).slice(0, 100);
-    // Plausibilität: fällt eine Zahl auf weniger als die Hälfte, wirkt die Sicherung unvollständig (Hinweis, kein Fehler – Löschen ist erlaubt)
-    const jetzt = new Map((await tsich.zaehlen({ plugins, db })).map(z => [z.modul + '|' + z.label, z.n]));
-    const hinweise = [];
-    for (const z of r.zahlen) { const n = jetzt.get(z.modul + '|' + z.label); z.jetzt = n; if (n >= 10 && z.n < n / 2) hinweise.push(`${z.label}: ${z.n} statt ${n}`); }
-    if (r.zahlen.some(z => z.fehler)) hinweise.push(...r.zahlen.filter(z => z.fehler).map(z => `${z.label}: Zählen fehlgeschlagen`));
-    if (r.alt > 3) hinweise.push(`Die neueste Sicherung am Ziel ist ${r.alt} Tage alt`);
-    const msg = `${quelleName}: ${r.datei} – Clubwerk startet mit der Sicherung (${r.module.length} Module)${r.pruefsumme ? ', Prüfsumme stimmt' : ''}`;
-    setSetting('backup_probe_at', at); setSetting('backup_probe_ok', '1'); setSetting('backup_probe_msg', msg);
-    setSetting('backup_probe_info', JSON.stringify({ quelle: quelleName, datei: r.datei, zahlen: r.zahlen.filter(z => !z.fehler).map(({ label, n, jetzt: j }) => ({ label, n, jetzt: j })), hinweis: hinweise.join(' · '), prev }));
-    audit(by, 'Probe-Wiederherstellung', msg + (hinweise.length ? ` – Hinweis: ${hinweise.join(' · ')}` : ''));
-    if (hinweise.length) securityAlert('sicherung.probe', `Die Probe-Wiederherstellung hat etwas gefunden (${quelleName}): ${hinweise.join(' · ')}. Bitte unter Datensicherung ansehen.`);
-    return msg + (hinweise.length ? ` – Hinweis: ${hinweise.join(' · ')}` : '');
-  } catch (e) {
-    setSetting('backup_probe_at', at); setSetting('backup_probe_ok', '0'); setSetting('backup_probe_msg', `${quelleName}: ${e.message}`);
-    setSetting('backup_probe_info', JSON.stringify({ quelle: quelleName, zahlen: [], hinweis: '', prev }));
-    audit(by, 'Probe-Wiederherstellung fehlgeschlagen', `${quelleName}: ${e.message}`);
-    securityAlert('sicherung.probe', `Die Probe-Wiederherstellung der Datensicherung ist fehlgeschlagen (${quelleName}): ${e.message}`);
-    throw e;
-  }
-}
-
-const probeInfo = () => { try { const o = JSON.parse(getSetting('backup_probe_info', '{}')); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } };
-/** Zustand für Übersicht und Seite „Datensicherung“ */
-function backupStatus() {
-  const lastOk = getSetting('backup_last_ok', '');
-  const age = lastOk ? (Date.now() - Date.parse(lastOk)) / 3600000 : Infinity;
-  const tv = targetsView();
-  const on = tv.filter(t => t.enabled);
-  // Ziel gilt als gestört, wenn der letzte Versuch fehlschlug und es seit zwei Tagen (oder noch nie) geklappt hat
-  // abgelaufene oder widerrufene Anmeldung (Google Drive): sofort rot – von selbst wird das nicht wieder gut
-  const broken = on.filter(t => t.reconnect || (t.last_error && (!t.last_ok || Date.now() - Date.parse(t.last_ok) > 48 * 3600000)));
-  const relog = on.filter(t => t.reconnect);
-  const warn = !bkHasKey() ? 'Noch kein Sicherungspasswort festgelegt – es wird nichts gesichert.'
-    : bkWartet() ? WARTET_MSG
-    : relog.length ? `Die Anmeldung bei ${relog.map(t => `„${t.name}“`).join(', ')} gilt nicht mehr – dorthin wird nicht gesichert. Bitte unter Datensicherung › Sicherungsziele „Neu verbinden …“.`
-    : age > 48 ? (lastOk ? 'Seit mehr als zwei Tagen keine erfolgreiche Sicherung.' : 'Noch keine Komplettsicherung erstellt.')
-    : broken.length ? `Sicherungsziel ${broken.map(t => `„${t.name}“`).join(', ')} ${broken.length > 1 ? 'sind' : 'ist'} nicht erreichbar – die Sicherung kommt dort nicht an.`
-    : getSetting('backup_probe_ok', '') === '0' ? 'Die letzte Probe-Wiederherstellung ist fehlgeschlagen.'
-    : probeInfo().hinweis ? `Die letzte Probe-Wiederherstellung hat etwas gefunden: ${probeInfo().hinweis}.`
-    : !on.length ? 'Kein Sicherungsziel eingerichtet – die Sicherung liegt nur hier auf dem Gerät. Bitte Dropbox, ein NAS oder eine Cloud als Ziel einrichten.' : '';
-  return { hasKey: bkHasKey(), wartet: bkWartet(), pwAt: getSetting('backup_pw_at', ''), ...bkCfg(), dropbox: on.some(t => t.id === 'dropbox'),
-    targets: tv, targetsOk: on.length - broken.length, targetsOn: on.length,
-    last_ok: lastOk, last_msg: getSetting('backup_last_msg', ''), last_error: getSetting('backup_last_error', ''),
-    probe_at: getSetting('backup_probe_at', ''), probe_ok: getSetting('backup_probe_ok', '') === '1', probe_msg: getSetting('backup_probe_msg', ''), probe: probeInfo(),
-    pwCheckDue: bkHasKey() && Date.now() - Math.max(Date.parse(getSetting('backup_pw_at', '')) || 0, Date.parse(getSetting('backup_pw_checked_at', '')) || 0) > 182 * 86400000,
-    local: fullbackup.list(KOMPLETT_DIR), warn, warnLevel: !warn ? '' : (!bkHasKey() || (age <= 48 && !broken.length && getSetting('backup_probe_ok', '') !== '0')) ? 'a' : 'r' };
-}
-
-/** Nur das Adminkonto/„alle Rechte“ und mit eigenem Passwort bestätigt */
-function ownerConfirm(req, res) {
-  if (req.user.role !== 'oberadmin') { bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403); return false; }
-  // bei Datei-Uploads (Rohdaten) kommt das Passwort in der Kopfzeile X-Mein-Passwort (URL-kodiert)
-  let pw = (req.body && !Buffer.isBuffer(req.body) && req.body.myPassword) || '';
-  if (!pw && req.get('X-Mein-Passwort')) { try { pw = decodeURIComponent(req.get('X-Mein-Passwort')); } catch (e) { pw = ''; } }
-  if (!ownPwOk(req, pw)) { pwBad(res, 'Dein Passwort stimmt nicht.'); return false; }
-  return true;
-}
-
-admin.get('/backups/status', need('einstellungen'), (req, res) => res.json(backupStatus()));
-admin.put('/backups/settings', need('einstellungen'), (req, res) => {
-  const b = req.body || {};
-  const num = (v, lo, hi) => { const n = parseInt(v, 10); if (!(n >= lo && n <= hi)) throw new Error('Ungültiger Wert.'); return String(n); };
-  try {
-    if (b.hour !== undefined) setSetting('backup_hour', num(b.hour, 0, 23));
-    if (b.daily !== undefined) setSetting('backup_daily', num(b.daily, 1, 60));
-    if (b.weekly !== undefined) setSetting('backup_weekly', num(b.weekly, 0, 52));
-    if (b.monthly !== undefined) setSetting('backup_monthly', num(b.monthly, 0, 120));
-  } catch (e) { return bad(res, 'Bitte gültige Zahlen eintragen (Uhrzeit 0–23, Tage 1–60, Wochen 0–52, Monate 0–120).'); }
-  if (b.readable !== undefined) {
-    // lesbare (unverschlüsselte) Auszüge einschalten: Namen, Beträge und Protokolle gingen dann im Klartext zu den Sicherungszielen – nur mit Passwort
-    if (b.readable && getSetting('backup_readable', '0') !== '1') { if (!ownerConfirm(req, res)) return; securityAlert('sicherung.ziel', `Lesbare (unverschlüsselte) Auszüge der Datensicherung wurden von ${req.user.name || req.user.username} eingeschaltet.`, { key: 'lesbar' }); }
-    setSetting('backup_readable', b.readable ? '1' : '0');
-  }
-  audit(req.user, 'Datensicherung eingestellt', JSON.stringify(bkCfg()));
-  res.json({ ok: true, ...backupStatus() });
-});
-admin.post('/backups/password', need('einstellungen'), rateLimit('bkpw', 10, 10 * 60000), (req, res) => {
-  if (!ownerConfirm(req, res)) return;
-  let k; try { k = fullbackup.newKey((req.body || {}).password); } catch (e) { return bad(res, e.message); }
-  const had = bkHasKey();
-  setSetting('backup_kdf', JSON.stringify(k.kdf)); geheim.set('backup_enc_key', k.key); setSetting('backup_pw_at', nowTs());
-  audit(req.user, had ? 'Sicherungspasswort geändert' : 'Sicherungspasswort festgelegt', k.kid.slice(0, 8));
-  if (had) securityAlert('sicherung.passwort', `Das Sicherungspasswort wurde von ${req.user.name || req.user.username} geändert.`);
-  res.json({ ok: true, changed: had });
-});
-/* Sicherungspasswort prüfen (für das Notfallblatt) – nur „alle Rechte“, gebremst */
-admin.post('/backups/password/check', need('einstellungen'), owner, rateLimit('bkcheck', 10, 10 * 60000), (req, res) => {
-  const k = bkKey(); if (!bkHasKey()) return bad(res, 'Noch kein Sicherungspasswort festgelegt.');
-  if (bkWartet()) return bad(res, WARTET_MSG, 423);
-  let ok = false; try { ok = crypto.timingSafeEqual(Buffer.from(fullbackup.keyId(fullbackup.deriveKey(String((req.body || {}).password || ''), k.kdf))), Buffer.from(fullbackup.keyId(Buffer.from(k.key, 'hex')))); } catch (e) { ok = false; }
-  if (!ok) return pwBad(res, 'Das Sicherungspasswort stimmt nicht.');
-  setSetting('backup_pw_checked_at', nowTs());   // Passwort-Probe (alle 6 Monate) erledigt
-  res.json({ ok: true });
-});
-admin.post('/backups/run', need('einstellungen'), asyncRoute(async (req, res) => {
-  try { res.json({ ok: true, msg: await runBackup(req.user.username) }); } catch (e) { bad(res, e.message); }
-}));
-admin.post('/backups/probe', need('einstellungen'), rateLimit('bkprobe', 12, 10 * 60000), asyncRoute(async (req, res) => {
-  try { res.json({ ok: true, msg: await probeBackup(req.user.username) }); } catch (e) { bad(res, e.message); }
-}));
-admin.get('/backups/komplett/file/:file', need('einstellungen'), (req, res) => {
-  if (!fullbackup.validName(req.params.file) || !fs.existsSync(path.join(KOMPLETT_DIR, req.params.file))) return bad(res, 'Sicherung nicht gefunden.', 404);
-  audit(req.user, 'Komplettsicherung heruntergeladen', req.params.file);
-  res.download(path.join(KOMPLETT_DIR, req.params.file), req.params.file);
-});
-/* Sicherungen in Dropbox (für „Wiederherstellen aus Dropbox“) und alte, unverschlüsselte Dateien aus früheren Versionen */
-admin.get('/backups/remote', need('einstellungen'), asyncRoute(async (req, res) => {
-  const c = dbxCfg();
-  if (!dbxReady(c)) return res.json({ connected: false, files: [], legacy: 0 });
-  try {
-    const files = (await dropbox.listFolder(c, `${c.folder}/Komplett`)).filter(e => e['.tag'] === 'file' && fullbackup.validName(e.name))
-      .map(e => ({ file: e.name, size: e.size, mtime: e.server_modified })).sort((a, b) => (a.file < b.file ? 1 : -1));
-    let legacy = 0;
-    for (const sub of ['Datenbank', 'Excel']) legacy += (await dropbox.listFolder(c, `${c.folder}/${sub}`)).filter(e => e['.tag'] === 'file').length;
-    res.json({ connected: true, files, legacy });
-  } catch (e) { bad(res, e.message, 502); }
-}));
-admin.post('/backups/remote/cleanup-legacy', need('einstellungen'), asyncRoute(async (req, res) => {
-  if (!ownerConfirm(req, res)) return;
-  const c = dbxCfg(); if (!dbxReady(c)) return bad(res, 'Dropbox ist nicht verbunden.');
-  let n = 0;
-  for (const sub of ['Datenbank', 'Excel']) for (const e of await dropbox.listFolder(c, `${c.folder}/${sub}`)) if (e['.tag'] === 'file') { await dropbox.remove(c, e.path_lower); n++; }
-  audit(req.user, 'Alte unverschlüsselte Dropbox-Sicherungen gelöscht', `${n} Dateien`);
-  res.json({ ok: true, removed: n });
-}));
-/* ---------- Sicherungsziele verwalten ----------
-   Ansehen und Testen: „Einstellungen“. Anlegen, ändern, ein-/ausschalten, löschen: nur „alle Rechte“ mit eigenem Passwort –
-   ein Ziel bekommt jede Nacht die (verschlüsselte) Sicherung, und Abschalten nähme dem Verein die Sicherung außer Haus. */
-admin.get('/backups/targets', need('einstellungen'), (req, res) => res.json({ targets: targetsView(), types: targets.TYPES, max: MAX_TARGETS }));
-/** Verbindung prüfen – mit gespeicherten oder (beim Anlegen/Bearbeiten) eingegebenen Daten */
-admin.post('/backups/targets/test', need('einstellungen'), owner, rateLimit('tgtest', 20, 10 * 60000), asyncRoute(async (req, res) => {
-  const b = req.body || {};
-  const old = b.id ? tgList().find(x => x.id === b.id) : null;
-  let t; try { t = targets.clean({ ...(b.target || {}), allowInsecure: true }, old); } catch (e) { return bad(res, e.message); }
-  // Das gespeicherte Passwort nur für denselben Server verwenden – sonst ließe es sich mit einer geänderten Adresse an einen fremden Server schicken
-  const same = old && ['type', 'url', 'host', 'port', 'user', 'mode', 'insecure', 'hostKey', 'certFp'].every(k => (t[k] ?? '') === (old[k] ?? ''));
-  if (old && !same && !b.secret && t.auth !== 'key') return bad(res, 'Die Adresse oder der Server hat sich geändert – bitte das Passwort für den Test noch einmal eingeben.');
-  if (same && !b.secret && geheim.locked(tgSecretKey(old.id))) return bad(res, ZUGANG_ZU, 423);
-  const secret = b.secret ? String(b.secret) : same ? geheim.get(tgSecretKey(old.id), '') : '';
-  const a = targets.open(t, secret);
-  try { const r = await a.test(); res.json({ ok: true, fingerprint: r.fingerprint || null }); }
-  catch (e) { if (e.needConfirm || e.changed) return res.json({ ok: false, needConfirm: true, changed: Boolean(e.changed), fingerprint: e.fingerprint, error: e.message }); bad(res, e.message); }
-  finally { await a.close(); }
-}));
-admin.post('/backups/targets/:id/test', need('einstellungen'), rateLimit('tgtest', 20, 10 * 60000), asyncRoute(async (req, res) => {
-  const tg = targetById(String(req.params.id)); if (!tg) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
-  if (geheim.locked(tg.id === 'dropbox' ? 'dropbox_refresh' : tgSecretKey(tg.id))) return bad(res, ZUGANG_ZU, 423);
-  const a = tg.adapter();
-  try { await a.test(); tgSetStatus(tg.id, { tested: new Date().toISOString(), test_error: '', reconnect: false }); res.json({ ok: true }); }
-  catch (e) { tgSetStatus(tg.id, { test_error: e.message, ...(e.reconnect ? { reconnect: true } : {}) }); bad(res, e.message); }
-  finally { await a.close(); }
-}));
-/** Anlegen/Bearbeiten: wird nur gespeichert, wenn die Verbindung klappt (inkl. bestätigtem Fingerabdruck) */
-async function saveTarget(req, res, old) {
-  if (!ownerConfirm(req, res)) return;
-  const b = req.body || {};
-  if (!old && tgList().length >= MAX_TARGETS) return bad(res, `Höchstens ${MAX_TARGETS} Sicherungsziele.`);
-  if (!old && (b.target || {}).type === 'gdrive') return bad(res, 'Google Drive wird über „Bei Google anmelden“ verbunden.');
-  let t; try { t = targets.clean(b.target || {}, old); } catch (e) { return res.status(400).json({ error: e.message, needInsecure: Boolean(e.needInsecure) }); }
-  if (old && !b.secret && geheim.locked(tgSecretKey(old.id))) return bad(res, ZUGANG_ZU, 423);
-  const secret = b.secret ? String(b.secret).slice(0, 20000) : old ? geheim.get(tgSecretKey(old.id), '') : '';
-  if (!secret) return bad(res, t.type === 'sftp' && t.auth === 'key' ? 'Bitte den privaten Schlüssel einfügen.' : t.type === 'gdrive' ? 'Bitte zuerst bei Google anmelden.' : 'Bitte das Passwort eintragen.');
-  if (t.type === 'gdrive' && b.secret) return bad(res, 'Die Zugangsdaten für Google Drive kommen nur über „Bei Google anmelden“.');
-  if (t.enabled) {
-    const a = targets.open(t, secret);
-    try { await a.test(); }
-    catch (e) { return res.status(400).json({ error: e.message, needConfirm: Boolean(e.needConfirm || e.changed), fingerprint: e.fingerprint || null }); }
-    finally { await a.close(); }
-  }
-  const list = tgList().filter(x => x.id !== t.id); list.push(t); tgSave(list);
-  geheim.set(tgSecretKey(t.id), secret);
-  audit(req.user, old ? 'Sicherungsziel geändert' : 'Sicherungsziel angelegt', `${t.name} (${targets.TYPES[t.type]}${t.enabled ? '' : ', aus'})`);
-  if (old && old.enabled && !t.enabled) securityAlert('sicherung.ziel', `Das Sicherungsziel „${t.name}“ wurde von ${req.user.name || req.user.username} ausgeschaltet.`, { key: 'aus-' + t.id });
-  res.json({ ok: true, targets: targetsView() });
-}
-admin.post('/backups/targets', need('einstellungen'), rateLimit('tgsave', 20, 10 * 60000), asyncRoute(async (req, res) => saveTarget(req, res, null)));
-admin.put('/backups/targets/:id', need('einstellungen'), rateLimit('tgsave', 20, 10 * 60000), asyncRoute(async (req, res) => {
-  const old = tgList().find(x => x.id === String(req.params.id)); if (!old) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
-  return saveTarget(req, res, old);
-}));
-admin.delete('/backups/targets/:id', need('einstellungen'), (req, res) => {
-  if (!ownerConfirm(req, res)) return;
-  const old = tgList().find(x => x.id === String(req.params.id)); if (!old) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
-  tgSave(tgList().filter(x => x.id !== old.id));
-  // Google: Anmeldung zurückgeben (Dateien in Drive bleiben). Der Widerruf gilt fürs ganze Google-Projekt – nur, wenn kein anderes Google-Ziel es noch braucht
-  if (old.type === 'gdrive' && !tgList().some(x => x.type === 'gdrive')) { const g = require('./gdrive').parseSecret(geheim.get(tgSecretKey(old.id), '')); if (g.refresh) require('./gdrive').revoke(g); }
-  geheim.drop(tgSecretKey(old.id)); db.prepare('DELETE FROM settings WHERE key = ?').run(`backup_target_${old.id}_status`);
-  audit(req.user, 'Sicherungsziel entfernt', old.name);
-  securityAlert('sicherung.ziel', `Das Sicherungsziel „${old.name}“ wurde von ${req.user.name || req.user.username} entfernt. Die Dateien dort bleiben erhalten.`, { key: 'weg-' + old.id });
-  res.json({ ok: true, targets: targetsView() });
-});
-/* ---------- Google Drive verbinden (Geräte-Ablauf, src/gdrive.js) ----------
-   Nur „alle Rechte“ mit eigenem Passwort (wie jedes Ziel). Clubwerk holt einen Code bei Google, die Verwaltung zeigt ihn an,
-   der Vorstand bestätigt unter google.com/device, und Clubwerk fragt im Hintergrund nach. Erst wenn eine Testdatei geschrieben,
-   gelesen und gelöscht ist, wird das Ziel gespeichert. Gerätecode, Secret und Token bleiben im Server; die Verwaltung sieht nur
-   den kurzen Code für google.com/device und den Stand. */
-const gdrive = require('./gdrive');
-const gdFlows = new Map();   // Kennung → Ablauf (nur im Speicher, höchstens 15 Minuten nach dem Ende)
-const gdView = f => ({ id: f.id, state: f.state, userCode: f.state === 'wartet' ? f.userCode : '', url: f.url, expiresAt: f.expiresAt, error: f.error || '', account: f.account || '', targetId: f.targetId || '' });
-function gdStep(f) {
-  if (f.state !== 'wartet') return;
-  if (Date.now() > f.expiresAt) { f.state = 'abgelaufen'; f.error = 'Der Code ist abgelaufen, ohne dass die Anmeldung bestätigt wurde. Bitte noch einmal „Bei Google anmelden“.'; return; }
-  f.timer = setTimeout(async () => {
-    if (f.state !== 'wartet') return;
-    try {
-      const r = await gdrive.devicePoll(f.clientId, f.clientSecret, f.deviceCode);
-      if (r.slow) f.interval = Math.min(60, f.interval + gdrive.MIN_INTERVAL);   // Google: bei slow_down 5 s länger warten
-      if (!r.refresh) return gdStep(f);
-      f.state = 'prueft';
-      const cfg = { clientId: f.clientId, clientSecret: f.clientSecret, refresh: r.refresh, connectedAt: new Date().toISOString() };
-      const old = f.oldId ? tgList().find(x => x.id === f.oldId) : null;
-      if (f.oldId && !old) throw new Error('Das Sicherungsziel gibt es nicht mehr.');
-      if (!old && tgList().length >= MAX_TARGETS) throw new Error(`Höchstens ${MAX_TARGETS} Sicherungsziele.`);
-      const t = targets.clean({ ...f.target, type: 'gdrive' }, old);
-      try { await gdrive.probe(cfg, t.folder); }
-      catch (e) { await gdrive.revoke(cfg).catch(() => {}); throw new Error(`Google hat den Zugriff erlaubt, aber das Speichern einer Testdatei ist fehlgeschlagen – die Verbindung wurde deshalb nicht übernommen. ${e.message}`); }
-      t.account = await gdrive.account(cfg);
-      const list = tgList().filter(x => x.id !== t.id); list.push(t); tgSave(list);
-      geheim.set(tgSecretKey(t.id), gdrive.makeSecret(cfg));
-      tgSetStatus(t.id, { tested: new Date().toISOString(), test_error: '', last_error: '', reconnect: false });
-      f.state = 'fertig'; f.account = t.account; f.targetId = t.id;
-      audit(f.by, old ? 'Google Drive neu verbunden' : 'Sicherungsziel angelegt', `${t.name} (Google Drive${t.account ? ', ' + t.account : ''})`);
-      securityAlert('sicherung.ziel', `Die Datensicherung wurde von ${f.byName} mit Google Drive verbunden${t.account ? ` (${t.account})` : ''} – Ziel „${t.name}“.`, { key: 'gdrive-' + t.id });
-    } catch (e) { f.state = 'fehler'; f.error = gdrive.scrub(e.message); }
-    finally { if (f.state !== 'wartet') gdEnd(f); }
-  }, f.interval * 1000);
-}
-function gdEnd(f) {
-  clearTimeout(f.timer); f.clientSecret = ''; f.deviceCode = '';   // Geheimnisse sofort vergessen, nur der Stand bleibt kurz sichtbar
-  setTimeout(() => gdFlows.delete(f.id), 15 * 60000).unref();
-}
-admin.post('/backups/gdrive/start', need('einstellungen'), rateLimit('gdstart', 10, 10 * 60000), asyncRoute(async (req, res) => {
-  if (!ownerConfirm(req, res)) return;   // neues Google-Konto = Sicherungen gehen woandershin
-  const b = req.body || {};
-  const old = b.id ? tgList().find(x => x.id === String(b.id) && x.type === 'gdrive') : null;
-  if (b.id && !old) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
-  if (!old && tgList().length >= MAX_TARGETS) return bad(res, `Höchstens ${MAX_TARGETS} Sicherungsziele.`);
-  if (old && geheim.locked(tgSecretKey(old.id)) && !String(b.clientSecret || '').trim()) return bad(res, ZUGANG_ZU, 423);
-  const prev = old ? gdrive.parseSecret(geheim.get(tgSecretKey(old.id), '')) : {};
-  const clientId = String(b.clientId || '').trim() || prev.clientId || '';
-  // gespeichertes Secret nur zusammen mit derselben Client-ID (sonst ginge es an einen fremden Client)
-  const clientSecret = String(b.clientSecret || '').trim() || (clientId === prev.clientId ? prev.clientSecret : '') || '';
-  let target; try { target = targets.clean({ ...(b.target || {}), type: 'gdrive' }, old); } catch (e) { return bad(res, e.message); }
-  let d; try { gdrive.checkClient(clientId, clientSecret); d = await gdrive.deviceStart(clientId, clientSecret); } catch (e) { return bad(res, gdrive.scrub(e.message)); }
-  for (const f of gdFlows.values()) if (f.userId === req.user.id && f.state === 'wartet') { f.state = 'abgebrochen'; gdEnd(f); }   // je Benutzer ein Ablauf
-  const f = { id: crypto.randomBytes(12).toString('hex'), userId: req.user.id, by: req.user, byName: req.user.name || req.user.username, oldId: old ? old.id : '',
-    clientId, clientSecret, deviceCode: d.deviceCode, userCode: d.userCode, url: d.url, interval: d.interval, expiresAt: Date.now() + d.expiresIn * 1000, state: 'wartet',
-    target: { name: target.name, folder: target.folder, enabled: target.enabled, retention: target.retention } };
-  gdFlows.set(f.id, f); gdStep(f);
-  res.json({ ok: true, ...gdView(f) });
-}));
-const gdFlowOf = (req, res) => { const f = gdFlows.get(String(req.params.id)); if (!f || f.userId !== req.user.id) { bad(res, 'Diese Anmeldung gibt es nicht (mehr).', 404); return null; } return f; };
-admin.get('/backups/gdrive/flow/:id', need('einstellungen'), owner, (req, res) => { const f = gdFlowOf(req, res); if (f) res.json(gdView(f)); });
-admin.post('/backups/gdrive/flow/:id/cancel', need('einstellungen'), owner, (req, res) => { const f = gdFlowOf(req, res); if (!f) return; if (f.state === 'wartet') { f.state = 'abgebrochen'; gdEnd(f); } res.json(gdView(f)); });
-admin.get('/backups/gdrive/:id', need('einstellungen'), owner, (req, res) => {
-  const t = tgList().find(x => x.id === String(req.params.id) && x.type === 'gdrive'); if (!t) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
-  if (geheim.locked(tgSecretKey(t.id))) return bad(res, ZUGANG_ZU, 423);
-  const g = gdrive.parseSecret(geheim.get(tgSecretKey(t.id), ''));
-  // Client-ID nur gekürzt (zum Wiedererkennen), Secret und Token nie
-  res.json({ clientIdHint: g.clientId ? g.clientId.slice(0, 8) + '…' : '', hasSecret: Boolean(g.clientSecret), connectedAt: g.connectedAt || '' });
-});
-
-/** Komplettsicherungen auf einem Ziel (für „Wiederherstellen“) */
-admin.get('/backups/targets/:id/files', need('einstellungen'), asyncRoute(async (req, res) => {
-  const tg = targetById(String(req.params.id)); if (!tg) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
-  if (geheim.locked(tg.id === 'dropbox' ? 'dropbox_refresh' : tgSecretKey(tg.id))) return bad(res, ZUGANG_ZU, 423);
-  const a = tg.adapter();
-  try { res.json({ files: (await a.list('Komplett')).filter(f => fullbackup.validName(f.name)).map(f => ({ file: f.name, size: f.size, mtime: f.mtime })).sort((x, y) => (x.file < y.file ? 1 : -1)) }); }
-  catch (e) { bad(res, e.message, 502); }
-  finally { await a.close(); }
-}));
-
-/* ---------- Große Uploads (Datenbank, Update-Paket, Modul-Sicherung): gestreamt auf die Platte ----------
-   express.raw() würde die ganze Datei (bis 200 MB) im Speicher puffern – auf einem Raspberry Pi mit knapp 1 GB zu viel.
-   Hier fließt der Anfragekörper mit Größenwächter direkt in eine Datei (INCOMING_DIR); die Route verarbeitet dann die Datei. */
-/** Anfragekörper nach dest streamen → Bytes. Bei Überschreitung von max oder Abbruch wird die Datei entfernt und ein Fehler geworfen. */
-async function receiveToFile(req, dest, max) {
-  fs.mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
-  let n = 0;
-  const guard = new (require('stream').Transform)({ transform(c, e, cb) { n += c.length; if (n > max) cb(Object.assign(new Error('Die Datei ist zu groß.'), { tooLarge: true })); else cb(null, c); } });
-  try { await require('stream/promises').pipeline(req, guard, fs.createWriteStream(dest, { mode: 0o600 })); }
-  catch (e) { try { fs.unlinkSync(dest); } catch (x) { /* egal */ } throw e; }
-  return n;
-}
-/** Middleware: Datei-Upload (alles außer JSON) nach INCOMING_DIR streamen → req.uploadFile, req.uploadSize; JSON-Anfragen laufen wie gewohnt weiter */
-const streamUpload = (max, ext = '.bin') => (req, res, next) => {
-  if (/^application\/json\b/i.test(String(req.headers['content-type'] || ''))) return express.json({ limit: '1mb' })(req, res, next);
-  const dest = path.join(INCOMING_DIR, `up_${crypto.randomBytes(12).toString('hex')}${ext}`);
-  receiveToFile(req, dest, max).then(n => { req.uploadFile = dest; req.uploadSize = n; next(); })
-    .catch(e => bad(res, e.tooLarge ? 'Die Datei ist zu groß.' : 'Hochladen fehlgeschlagen: ' + e.message, e.tooLarge ? 413 : 400));
-};
-const dropUpload = req => { if (req.uploadFile) { try { fs.unlinkSync(req.uploadFile); } catch (e) { /* schon weg */ } } };
-const MB = 1024 * 1024;
-
-/* ---------- Update per ZIP-Upload (nur Seitenleiste von Home Assistant, nur „alle Rechte“, mit Passwort) ---------- */
-const UPDATE_DIR = path.join(DATA_DIR, '.update');
-const RESERVE_DIR = path.join(DATA_DIR, 'update-reserve');
-let staged = null;   // geprüftes, noch nicht übernommenes Paket
-let updating = false;
-const updGuard = (req, res) => {
-  if (req.user.role !== 'oberadmin') { bad(res, 'Updates einspielen darf nur ein Benutzer mit allen Rechten.', 403); return false; }
-  if (!viaIngress(req) && process.env.CW_TEST_UPDATE_ANYWHERE !== '1') { bad(res, 'Updates gehen aus Sicherheitsgründen nur über die Home-Assistant-Seitenleiste.', 403); return false; }
-  return true;
-};
-admin.get('/update/status', need('einstellungen'), asyncRoute(async (req, res) => {
-  const o = await selfupdate.origin();
-  res.json({ current: APP_VERSION, node: process.version, nodeOld: require('./security').nodeOutdated(), addonDir: Boolean(o.dir), origin: o.kind, mounted: o.mounted, supervisorError: o.supervisorError || '', supervisor: Boolean(process.env.SUPERVISOR_TOKEN),
-    viaIngress: viaIngress(req) || process.env.CW_TEST_UPDATE_ANYWHERE === '1', owner: req.user.role === 'oberadmin', updating,
-    staged: staged ? { version: staged.version, files: staged.files, size: staged.size, depsChanged: staged.depsChanged, changelog: staged.changelog } : null,
-    reserves: selfupdate.reserves(RESERVE_DIR), lastError: getSetting('update_last_error', ''), lastOk: getSetting('update_last_ok', '') });
-}));
-admin.post('/update/upload', need('einstellungen'), rateLimit('updup', 10, 10 * 60000), streamUpload(200 * MB, '.zip'), asyncRoute(async (req, res) => {
-  try {
-    if (!updGuard(req, res)) return;
-    if (!selfupdate.findAddonDir()) return bad(res, 'Diese Installation kommt nicht aus dem Ordner „addons“ (z. B. über GitHub) – Updates bitte über Home Assistant → Einstellungen → Add-ons.');
-    if (!req.uploadFile || req.uploadSize < 100) return bad(res, 'Die Datei ist leer.');
-    try {
-      const info = await selfupdate.inspect(req.uploadFile, path.join(UPDATE_DIR, 'neu'), { currentVersion: APP_VERSION, currentDir: selfupdate.findAddonDir() });
-      if (!info.newer) { staged = null; return bad(res, info.same ? `Version ${info.version} ist bereits installiert.` : `Das Paket (${info.version}) ist älter als die installierte Version ${APP_VERSION}. Zurück zu einer früheren Version geht über „Vorherige Version“.`); }
-      staged = info;
-      audit(req.user, 'Update hochgeladen und geprüft', `${APP_VERSION} → ${info.version} · Prüfsumme ${info.shaShort}`);
-      res.json({ ok: true, current: APP_VERSION, ...info });
-    } catch (e) { staged = null; bad(res, e.message); }
-  } finally { dropUpload(req); }
-}));
-/** Übernehmen: Sicherung, Ordner tauschen, Home Assistant aktualisieren lassen (im Hintergrund) */
-async function applyFolder(req, res, newDir, label) {
-  const dir = selfupdate.findAddonDir();
-  if (!dir) return bad(res, 'Der Add-on-Ordner wurde nicht gefunden.');
-  updating = true;
-  try {
-    // vorher sichern: Komplettsicherung (falls Sicherungspasswort festgelegt), sonst Datenbank-Schnappschuss
-    try { if (bkHasKey()) await runBackup(req.user.username); else await backup.snapshot(db, 'manuell'); }
-    catch (e) { updating = false; return bad(res, 'Die Sicherung vor dem Update ist fehlgeschlagen – Update abgebrochen: ' + e.message); }
-    const reserve = selfupdate.swap(dir, newDir, RESERVE_DIR, APP_VERSION);
-    setSetting('update_last_error', '');
-    audit(req.user, label, `${APP_VERSION} → ${selfupdate.yamlField(fs.readFileSync(path.join(dir, 'config.yaml'), 'utf8'), 'version')} (Reserve ${reserve})`);
-    securityAlert('update', `Clubwerk wird von ${req.user.name || req.user.username} aktualisiert (${label}).`, { key: label });
-    res.json({ ok: true, reserve, supervisor: Boolean(process.env.SUPERVISOR_TOKEN) });
-  } catch (e) { updating = false; return bad(res, 'Update fehlgeschlagen: ' + e.message); }
-  // Antwort ist raus – jetzt Home Assistant bitten, neu zu bauen (dabei wird diese Version beendet)
-  setTimeout(async () => {
-    try { const r = await selfupdate.triggerUpdate(); console.log('Update ausgelöst:', r); setSetting('update_last_ok', new Date().toISOString()); }
-    catch (e) { console.error('Update auslösen:', e.message); setSetting('update_last_error', e.message); updating = false; }
-  }, 500);
-}
-admin.post('/update/apply', need('einstellungen'), rateLimit('updapply', 5, 10 * 60000), asyncRoute(async (req, res) => {
-  if (!updGuard(req, res) || !ownerConfirm(req, res)) return;
-  if (!staged) return bad(res, 'Bitte zuerst das Update-Paket hochladen.');
-  if (updating) return bad(res, 'Das Update läuft bereits.');
-  staged = null;
-  return applyFolder(req, res, path.join(UPDATE_DIR, 'neu'), 'Update eingespielt');
-}));
-admin.post('/update/rollback', need('einstellungen'), rateLimit('updapply', 5, 10 * 60000), asyncRoute(async (req, res) => {
-  if (!updGuard(req, res) || !ownerConfirm(req, res)) return;
-  const name = String((req.body || {}).name || '');
-  const r = selfupdate.reserves(RESERVE_DIR).find(x => x.name === name);
-  if (!r) return bad(res, 'Diese frühere Version gibt es nicht (mehr).');
-  // Reserve erst kopieren – beim Tausch wird die aktuelle Version selbst zur Reserve
-  const tmp = path.join(UPDATE_DIR, 'zurueck'); fs.rmSync(tmp, { recursive: true, force: true }); fs.cpSync(path.join(RESERVE_DIR, name), tmp, { recursive: true });
-  return applyFolder(req, res, tmp, `Zurück auf Version ${r.version}`);
-}));
-/* Fehler beim Auslösen nach Neustart zurücksetzen, sobald die neue Version läuft */
-if (getSetting('update_running_version', '') !== APP_VERSION) { setSetting('update_running_version', APP_VERSION); setSetting('update_last_error', ''); }
-/* Komplettsicherung von einem anderen Gerät hochladen (gestreamt, ohne alles in den Speicher zu laden) */
-admin.post('/backups/komplett/upload', need('einstellungen'), owner, asyncRoute(async (req, res) => {
-  fs.mkdirSync(INCOMING_DIR, { recursive: true, mode: 0o700 });
-  for (const f of fs.readdirSync(INCOMING_DIR)) { try { if (Date.now() - fs.statSync(path.join(INCOMING_DIR, f)).mtimeMs > 6 * 3600000) fs.unlinkSync(path.join(INCOMING_DIR, f)); } catch (e) { /* egal */ } }
-  const id = crypto.randomBytes(12).toString('hex');
-  const dest = path.join(INCOMING_DIR, `up_${id}${fullbackup.EXT}`);
-  let n;
-  try { n = await receiveToFile(req, dest, 4 * 1024 * MB); }
-  catch (e) { return bad(res, 'Hochladen fehlgeschlagen: ' + e.message, e.tooLarge ? 413 : 400); }
-  let h; try { h = fullbackup.readHeader(dest).head; } catch (e) { fs.unlinkSync(dest); return bad(res, e.message); }
-  res.json({ ok: true, id, created: h.created, app: h.app, size: n, sameKey: h.kid === (bkHasKey() ? fullbackup.keyId(Buffer.from(bkKey().key, 'hex')) : '') });
-}));
-/** Quelle einer Komplettsicherung (lokal, hochgeladen oder von einem Sicherungsziel geholt) → { src, temp } bzw. null. temp: Datei danach löschen */
-async function komplettQuelle(b) {
-  if (b.source === 'local') return fullbackup.validName(b.file) && fs.existsSync(path.join(KOMPLETT_DIR, b.file)) ? { src: path.join(KOMPLETT_DIR, b.file), temp: false } : null;
-  if (b.source === 'upload') { const src = /^[a-f0-9]{24}$/.test(String(b.file || '')) && path.join(INCOMING_DIR, `up_${b.file}${fullbackup.EXT}`); return src && fs.existsSync(src) ? { src, temp: true } : null; }
-  if (b.source === 'dropbox' || b.source === 'target') {
-    const tg = targetById(b.source === 'dropbox' ? 'dropbox' : String(b.target || ''));
-    if (!tg) throw Object.assign(new Error('Sicherungsziel nicht gefunden.'), { status: 404 });
-    if (!fullbackup.validName(b.file)) return null;
-    fs.mkdirSync(INCOMING_DIR, { recursive: true, mode: 0o700 });
-    const src = path.join(INCOMING_DIR, `dl_${crypto.randomBytes(8).toString('hex')}${fullbackup.EXT}`);
-    const a = tg.adapter();
-    try { await a.get('Komplett', b.file, src); } catch (e) { try { fs.unlinkSync(src); } catch (x) { /* */ } throw e; } finally { await a.close(); }
-    return { src, temp: true };
-  }
-  return null;
-}
-/* Wiederherstellen aus einer Komplettsicherung (lokal, aus Dropbox oder hochgeladen) – wirksam beim nächsten Neustart */
-admin.post('/backups/komplett/restore', need('einstellungen'), rateLimit('bkrestore', 6, 10 * 60000), asyncRoute(async (req, res) => {
-  if (!ownerConfirm(req, res)) return;
-  const b = req.body || {};
-  let src = null, temp = false;
-  try {
-    const q = await komplettQuelle(b);
-    if (q) ({ src, temp } = q);
-    if (!src) return bad(res, 'Sicherung nicht gefunden.', 404);
-    // Sicherung aus einer neueren Version: deren Datenbank kennt dieser Code nicht (wie bei der Teil-Wiederherstellung) – erst aktualisieren
-    let head = {}; try { head = fullbackup.readHeader(src).head || {}; } catch (e) { /* kein lesbarer Kopf: extract() meldet den Fehler */ }
-    if (head.app && require('./teilsicherung').neuer(head.app, APP_VERSION)) return bad(res, `Diese Sicherung stammt aus Clubwerk ${head.app} – hier läuft ${APP_VERSION}. Bitte zuerst Clubwerk aktualisieren.`);
-    const tmp = fs.mkdtempSync(path.join(DATA_DIR, '.wiederherstellung-'));
-    try {
-      const pw = String(b.password || '');
-      const man = await fullbackup.extract(src, pw ? { password: pw, outDir: tmp } : { key: bkHasKey() ? bkKey().key : null, outDir: tmp });
-      const err = backup.validate(path.join(tmp, fullbackup.DB_NAME));
-      if (err) throw new Error(err);
-      const name = backup.fileName('komplett');
-      fs.renameSync(path.join(tmp, fullbackup.DB_NAME), path.join(backup.BACKUP_DIR, name));
-      backup.markRestore(name);
-      backup.stageDirs(tmp, name, fullbackup.DIRS);
-      audit(req.user, 'Wiederherstellung aus Komplettsicherung vorgemerkt', `${b.source}: ${b.file} (Stand ${man.created})`);
-      res.json({ ok: true, restart: true, created: man.created, club: man.club, dirs: man.dirs });
-    } catch (e) {
-      if (e.needPassword) { if (b.source === 'upload') temp = false; return res.status(400).json({ error: e.message, needPassword: true }); }
-      throw e;
-    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
-  } catch (e) { bad(res, e.message, e.status || 400); }
-  finally { if (temp && src) { try { fs.unlinkSync(src); } catch (e) { /* egal */ } } }
-}));
-/* Teil-Wiederherstellung: einzelne Module und Teile aus einer Komplettsicherung übernehmen (src/teilsicherung.js) */
-require('./teilsicherung').routes(admin, { db, plugins, need, owner, bad, asyncRoute, rateLimit, ownerConfirm, audit, quelle: komplettQuelle, fullbackup, backup,
-  bkKey: () => (bkHasKey() ? bkKey() : null), appVersion: APP_VERSION, getSetting, setSetting });
-
-admin.get('/dropbox', need('einstellungen'), (req, res) => {
-  const c = dbxCfg();
-  res.json({ appKey: c.appKey, hasSecret: c.hasSecret, connected: dbxReady(c), locked: c.hasSecret && !c.appSecret, folder: c.folder, enabled: c.enabled,
-    account: getSetting('dropbox_account', ''), authUrl: c.appKey ? dropbox.authUrl(c.appKey) : null });
-});
-admin.put('/dropbox', need('einstellungen'), (req, res) => {
-  const b = req.body || {};
-  // andere Dropbox-App = Sicherungen gehen woandershin: wie bei allen Sicherungszielen nur mit dem eigenen Passwort
-  const keyChange = (b.appKey !== undefined && String(b.appKey).trim() !== getSetting('dropbox_app_key', '')) || Boolean(b.appSecret);
-  if (keyChange && !ownerConfirm(req, res)) return;
-  if (b.appKey !== undefined) {
-    const k = String(b.appKey).trim();
-    if (k && !/^[a-z0-9]{8,40}$/i.test(k)) return bad(res, 'Der App key sieht nicht richtig aus.');
-    if (k !== getSetting('dropbox_app_key', '')) geheim.drop('dropbox_refresh');   // andere App → neu verbinden
-    setSetting('dropbox_app_key', k);
-  }
-  if (b.appSecret) {
-    const sec = String(b.appSecret).trim();
-    if (!/^[a-z0-9]{8,40}$/i.test(sec)) return bad(res, 'Das App secret sieht nicht richtig aus.');
-    geheim.set('dropbox_app_secret', sec);
-  }
-  if (b.folder !== undefined) setSetting('dropbox_folder', dropbox.cleanFolder(b.folder));
-  if (b.enabled !== undefined) {
-    if (!b.enabled && getSetting('dropbox_enabled', '1') === '1') securityAlert('sicherung.dropbox', `Die nächtliche Sicherung nach Dropbox wurde von ${req.user.name || req.user.username} pausiert.`, { key: 'aus' });
-    setSetting('dropbox_enabled', b.enabled ? '1' : '0');
-  }
-  audit(req.user, 'Dropbox-Einstellungen geändert');
-  if (keyChange) securityAlert('sicherung.ziel', `Die Dropbox-App für die Datensicherung wurde von ${req.user.name || req.user.username} geändert.`, { key: 'dropbox-app' });
-  res.json({ ok: true });
-});
-admin.post('/dropbox/connect', need('einstellungen'), rateLimit('bkpw', 10, 10 * 60000), asyncRoute(async (req, res) => {
-  if (!ownerConfirm(req, res)) return;   // neues Dropbox-Konto = Sicherungen gehen woandershin
-  const c = dbxCfg();
-  if (geheim.locked('dropbox_app_secret')) return bad(res, ZUGANG_ZU, 423);
-  if (!c.appKey || !c.appSecret) return bad(res, 'Bitte zuerst App key und App secret speichern.');
-  const code = String((req.body || {}).code || '').trim();
-  if (!/^[\w-]{10,200}$/.test(code)) return bad(res, 'Bitte den Code aus dem Dropbox-Fenster einfügen.');
-  try {
-    const refresh = await dropbox.exchangeCode(c.appKey, c.appSecret, code);
-    // erst verbunden, wenn Schreiben wirklich klappt (Testdatei hochladen, wiederfinden, löschen) – sonst fiele es erst nachts auf
-    try { await dropbox.probe({ ...c, refresh }, c.folder); }
-    catch (e) {
-      await dropbox.revoke({ ...c, refresh });
-      tgSetStatus('dropbox', { test_error: e.message });
-      return bad(res, `Dropbox hat den Zugriff erlaubt, aber das Speichern einer Testdatei ist fehlgeschlagen – die Verbindung wurde deshalb nicht übernommen. ${e.message}`);
-    }
-    geheim.set('dropbox_refresh', refresh);
-    tgSetStatus('dropbox', { tested: new Date().toISOString(), test_error: '' });
-    let who = '';
-    try { who = await dropbox.account({ ...c, refresh }); } catch (e) { /* App ohne Kontoberechtigung – egal */ }
-    setSetting('dropbox_account', who);
-    audit(req.user, 'Dropbox verbunden', who);
-    securityAlert('sicherung.dropbox', `Die Datensicherung wurde von ${req.user.name || req.user.username} mit Dropbox verbunden${who ? ` (${who})` : ''}.`, { key: 'verbunden' });
-    res.json({ ok: true, account: who });
-  } catch (e) { bad(res, e.message); }
-}));
-admin.post('/dropbox/disconnect', need('einstellungen'), asyncRoute(async (req, res) => {
-  const c = dbxCfg();
-  if (dbxReady(c)) await dropbox.revoke(c);
-  geheim.drop('dropbox_refresh'); setSetting('dropbox_account', '');
-  audit(req.user, 'Dropbox getrennt');
-  res.json({ ok: true });
-}));
-
-/* ---------- Datensicherung (alle Rechte) ---------- */
-admin.get('/backups', need('einstellungen'), (req, res) => {
-  res.json({ list: backup.list(), pending: backup.pendingRestore(), restored: restoredMsg,
-    beleg_count: belegFiles().length });
-});
-
-admin.post('/backups', need('einstellungen'), asyncRoute(async (req, res) => {
-  const file = await backup.snapshot(db, 'manuell');
-  audit(req.user, 'Sicherung erstellt', file);
-  res.json({ file });
-}));
-
-/* Schnappschuss herunterladen: Er enthält auch Schlüssel (z. B. den der Komplettsicherungen) – nur mit dem eigenen Passwort (POST) */
-admin.post('/backups/file/:file', need('einstellungen'), rateLimit('bkpw', 10, 10 * 60000), (req, res) => {
-  if (!ownerConfirm(req, res)) return;
-  const f = req.params.file;
-  if (!backup.safeName(f) || !fs.existsSync(path.join(backup.BACKUP_DIR, f))) return bad(res, 'Nicht gefunden.', 404);
-  audit(req.user, 'Sicherung heruntergeladen', f);
-  res.download(path.join(backup.BACKUP_DIR, f), f);
-});
-
-/* Komplettsicherung: frischer Datenbank-Schnappschuss + alle Belege und Artikelbilder als .tar.gz */
-/* (die frühere unverschlüsselte Komplettsicherung als .tar.gz entfällt – ersetzt durch die verschlüsselte Komplettsicherung) */
-
-admin.post('/backups/upload', need('einstellungen'), streamUpload(200 * MB, '.db'), asyncRoute(async (req, res) => {
-  try {
-    if (!req.uploadFile || req.uploadSize < 100) return bad(res, 'Die Datei ist leer.');
-    const err = backup.validate(req.uploadFile);
-    if (err) return bad(res, err);
-    const name = backup.fileName('hochgeladen');
-    fs.mkdirSync(backup.BACKUP_DIR, { recursive: true });
-    fs.renameSync(req.uploadFile, path.join(backup.BACKUP_DIR, name));   // gleiche Platte (DATA_DIR) → nur umbenennen
-    req.uploadFile = null;
-    audit(req.user, 'Sicherung hochgeladen', name);
-    res.json({ file: name });
-  } finally { dropUpload(req); }
-}));
-
-admin.post('/backups/restore', need('einstellungen'), asyncRoute(async (req, res) => {
-  if (!ownerConfirm(req, res)) return;   // ersetzt die ganze Datenbank (auch Benutzer und Rechte) – nur mit Passwort
-  const f = String((req.body || {}).file || '');
-  try { backup.markRestore(f); } catch (e) { return bad(res, e.message); }
-  audit(req.user, 'Wiederherstellung vorgemerkt', f);
-  res.json({ ok: true });
-}));
-
-admin.delete('/backups/restore', need('einstellungen'), (req, res) => {
-  backup.cancelRestore();
-  audit(req.user, 'Wiederherstellung abgebrochen');
-  res.json({ ok: true });
+const { bkCfg, bkHasKey, bkRunning, bkWartet, dropUpload, MB, ownerConfirm, probeBackup, runBackup, streamUpload } = require('./sicherung-routen')({
+  admin, asyncRoute, bad, belegFiles, buildExport, defaultRange, DEMO_KOPIE, int, need, owner, ownPwOk, pwBad, rateLimit, restoredMsg, updMsg,
+  viaIngress
 });
 
 /* Neustart: beendet den Prozess, der Watchdog von Home Assistant startet das Add-on neu */
 /* Demo beenden und einrichten: alle Beispieldaten restlos löschen (beim Neustart, src/demo.js) – mit eigenem Passwort bestätigt */
-admin.post('/demo/ende', need('einstellungen'), owner, rateLimit('demoende', 10, 10 * 60000), (req, res) => {
+admin.post('/demo/ende', need('einstellungen'), owner, rateLimit('demoende', 10, 10 * 60000), async (req, res) => {
   if (!isDemo()) return bad(res, 'Das ist keine Demo – hier wird nichts gelöscht.');
-  if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
+  if (!await ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   const ticket = demo.markEnd(DATA_DIR);
   audit(req.user, 'Demo beendet', 'Alle Beispieldaten werden beim Neustart gelöscht');
   res.setHeader('Set-Cookie', `csetup=${ticket}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600${req.secure ? '; Secure' : ''}`);
@@ -3815,7 +1322,7 @@ require('./datenqualitaet').routes(admin, { need, rateLimit, asyncRoute });
 /* Sicherheitswarnungen (src/security.js): Liste, „Erledigt“, Testwarnung, zusätzliche Adressen – Einstellungen › Sicherheit */
 admin.get('/security/alerts', need('sicherheit'), (req, res) => {
   const sec = require('./security'), c = sec.openCounts();
-  res.json({ counts: { r: c.r || 0, a: c.a || 0 }, list: req.query.counts ? undefined : sec.listAlerts({ open: req.query.all !== '1' }),
+  res.json({ counts: { r: c.r || 0, a: c.a || 0 }, uhr: require('./uhr').status(), list: req.query.counts ? undefined : sec.listAlerts({ open: req.query.all !== '1' }),
     recipients: req.query.counts ? undefined : sec.recipients().map(r => ({ name: r.name, push: r.push, mail: Boolean(r.mail), linked: Boolean(r.member_id) })),
     extra: req.user.perms.includes('einstellungen') ? sec.extraAddresses().join(', ') : undefined, mayEdit: req.user.perms.includes('einstellungen'),
     mailReady: require('./mail').ready(), pushOn: require('./push').enabled('app.sicherheit') });
@@ -3843,7 +1350,7 @@ admin.put('/security/settings', need('einstellungen'), (req, res) => {
 });
 /* Einrichtungs-Assistent: Schritte und ihr Zustand (src/einrichtung.js) */
 require('./einrichtung').routes(admin, { need, bad, checks: {
-  tabletOn, tabletPw: gateOn, vaultOn: () => require('./vault').on(), backupKey: bkHasKey, mailReady: () => mail.ready(),
+  tabletOn, tabletPw: gateOn, https: () => tls.enabled(), vaultOn: () => require('./vault').on(), backupKey: bkHasKey, mailReady: () => mail.ready(),
   appModules: () => memberapp.activeModules().filter(([id]) => id !== 'nachrichten').length > 0, clubNets: () => memberapp.hasClubNets(), backupDone: () => Boolean(getSetting('backup_last_ok', '')) } });
 /* Tresor: Kopie der persönlichen Daten im Arbeitsspeicher anlegen (gesperrt bis zur ersten Admin-Anmeldung) – erst jetzt,
    da alle Module ihre Tabellen angelegt haben */
@@ -3857,7 +1364,7 @@ vault.onUnlock(() => require('./mail').flushQueue().then(n => { if (n) audit(nul
 memberapp.startPort({ rateLimit, rateLimitKey, memberBalance });
 
 function navLinks() {
-  try { const l = JSON.parse(getSetting('nav_links', '[]')); return Array.isArray(l) ? l.map(x => ({ label: x.label, url: x.url })) : []; } catch (e) { return []; }
+  return getJsonSetting('nav_links', [], Array.isArray).filter(isObj).map(x => ({ label: x.label, url: x.url }));
 }
 /* Eingebettete Links: nur genau diese Adressen dürfen im Rahmen (iframe) unter der Kopfzeile laufen */
 function embedOrigins() {
@@ -3866,8 +1373,8 @@ function embedOrigins() {
 /** Leiste am Tablet: Module + Links, in der festgelegten Reihenfolge (Einstellungen → Reihenfolge am Tablet) */
 function tabletItems() {
   const items = [...plugins.tabletNav().map(x => ({ ...x, key: x.id })), ...navLinks().map((l, i) => ({ id: 'link' + i, key: 'link:' + l.url, label: l.label, href: 'link.html?i=' + i, url: l.url }))];
-  let order = []; try { order = JSON.parse(getSetting('tablet_order', '[]')); } catch (e) { order = []; }
-  if (!Array.isArray(order) || !order.length) return items;
+  const order = getJsonSetting('tablet_order', [], Array.isArray);
+  if (!order.length) return items;
   const pos = k => { const i = order.indexOf(k); return i < 0 ? 1000 : i; };
   return items.map((x, i) => ({ x, i })).sort((a, b) => pos(a.x.key) - pos(b.x.key) || a.i - b.i).map(o => o.x);
 }
@@ -3963,7 +1470,7 @@ admin.get('/overview/modules', asyncRoute(async (req, res) => {
 }));
 /* Erweiterung als ZIP einspielen / entfernen (wirkt nach Neustart) */
 admin.post('/extensions/upload', need('einstellungen'), express.raw({ type: () => true, limit: '25mb' }), asyncRoute(async (req, res) => {
-  if (!ownerConfirm(req, res)) return;   // Erweiterungen laufen als Programmcode im Add-on – wie die Freigabe nur mit Passwort
+  if (!await ownerConfirm(req, res)) return;   // Erweiterungen laufen als Programmcode im Add-on – wie die Freigabe nur mit Passwort
   try {
     const r = await plugins.installZip(req.body);
     audit(req.user, r.update ? 'Erweiterung aktualisiert' : 'Erweiterung hochgeladen', `${r.name} ${r.version}`);
@@ -3972,8 +1479,8 @@ admin.post('/extensions/upload', need('einstellungen'), express.raw({ type: () =
   } catch (e) { bad(res, e.message); }
 }));
 /* Erweiterung aus dem Netzwerkordner freigeben: nur das Adminkonto/„alle Rechte“, mit Passwort bestätigt */
-admin.post('/extensions/:id/approve', need('einstellungen'), owner, rateLimit('approve', 10, 10 * 60000), (req, res) => {
-  if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Passwort falsch.');
+admin.post('/extensions/:id/approve', need('einstellungen'), owner, rateLimit('approve', 10, 10 * 60000), async (req, res) => {
+  if (!await ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Passwort falsch.');
   try { const r = plugins.approve(String(req.params.id), String((req.body || {}).hash || '')); audit(req.user, 'Erweiterung freigegeben', `${r.name} (${r.hash.slice(0, 12)})`); securityAlert('erweiterung', `Erweiterung „${r.name}“ freigegeben von ${req.user.name || req.user.username}. Sie läuft nach dem Neustart als Programmcode im Add-on.`, { key: r.name }); res.json({ ok: true, restart: true }); }
   catch (e) { bad(res, e.message); }
 });
@@ -4066,8 +1573,8 @@ admin.post('/extensions/:id/import', express.json({ limit: '24mb' }), async (req
   if (!mayConfig(req, p)) return bad(res, 'Dafür fehlt dir die Berechtigung.', 403);
   const b = req.body || {};
   // eigenes Passwort (Zugang, Beregnung: Geräte neu zuordnen) – falsche Versuche je Benutzer gebremst (src/geraete.js)
-  const pw = require('./geraete').bestaetigt(req, res, ownPwOk); if (!pw) return;
-  if (!['clubwerk-funktion', 'vereinsheim-funktion'].includes(b.format) || !b.data) return bad(res, 'Das ist keine Funktionsdatei von Clubwerk.');
+  const pw = await require('./geraete').bestaetigt(req, res, ownPwOk); if (!pw) return;
+  if (b.format !== 'clubwerk-funktion' || !b.data) return bad(res, 'Das ist keine Funktionsdatei von Clubwerk.');
   if (b.module !== p.meta.id) return bad(res, `Diese Datei gehört zum Modul „${b.name || b.module}“, nicht zu „${p.meta.name}“.`);
   /* dry: Vorschau „x neu, y aktualisiert“ – der Import läuft in einem Sicherungspunkt, der danach verworfen wird (auch für die Teil-Wiederherstellung nutzbar) */
   const dry = b.dry === true;
@@ -4108,17 +1615,26 @@ app.use('/api', (req, res) => bad(res, 'Unbekannte Adresse.', 404));
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   if (err && err.type === 'entity.too.large') return bad(res, 'Die Datei ist zu groß.', 413);
   if (err && err.type === 'entity.parse.failed') return bad(res, 'Ungültige Anfrage.', 400);
+  if (err && err.cwMeldung) return bad(res, err.message, err.status || 400);   // gewollte Meldung (z. B. PINs nach Wiederherstellung, src/pfeffer.js)
   console.error(err);
   bad(res, 'Interner Fehler – bitte im Add-on-Protokoll nachsehen.', 500);
 });
 
 /* ---------- Start, nächtliche Sicherung, sauberes Beenden ---------- */
 try { cleanupUploads(); } catch (e) { console.error('Aufräumen:', e.message); }
+require('./uhr').pruefen(securityAlert);   // Uhr gegen den neuesten Eintrag der Datenbank (Pi ohne Batterie-Uhr): sonst Geldläufe und Geräte-Automatik sperren
 require('./datenschutz').start();   // Löschfristen: gleich nach dem Start (auch nach dem Zurückspielen einer Sicherung), dann täglich
 if (restoredMsg) { console.log(restoredMsg); audit('system', 'Wiederherstellung', restoredMsg); }
 if (demoMsg) { console.log(demoMsg); audit('system', 'Demo', demoMsg); }
 
-let lastAuto = null, dbxLastTry = 0;
+let lastAuto = null, autoTry = 0, dbxLastTry = 0;
+const START_AT = Date.now();
+/** Tresor seit dem Neustart gesperrt: was wartet? (für die Warnung an den Vorstand – sie kommt per Push, Mails warten ja selbst) */
+function tresorWartetText() {
+  const st = require('./vault').status(), h = Math.max(1, Math.floor((Date.now() - START_AT) / 3600000));
+  const was = [st.waitingMails ? `${st.waitingMails} E-Mail${st.waitingMails === 1 ? '' : 's'}` : '', bkHasKey() ? 'die Datensicherung außer Haus' : '', ...(st.wartet || []).filter(w => !/Datensicherung|Postfach/.test(w))].filter(Boolean);
+  return `Der Tresor ist seit ${h} Stunde${h === 1 ? '' : 'n'} gesperrt (Neustart am ${new Date(START_AT).toLocaleString('de-DE')}).${was.length ? ` Bis sich ein Admin anmeldet (oder der Wiederherstellungscode eingegeben wird), warten: ${was.join(', ')}.` : ' Bitte als Admin anmelden.'}`;
+}
 const TRASH_DAYS = 11 * 366;   // gelöschte Lieferbelege bleiben so lange im Papierkorb: 10 Jahre Aufbewahrung ab Ende des Jahres (GoBD, § 147 AO)
 /* Jeder Teil fängt seine Fehler selbst; ein unerwarteter Fehler darf nie als unbehandelte Promise-Ablehnung den Prozess beenden */
 /* Komplettsicherung des Tages fällig? (ab der eingestellten Uhrzeit, noch nicht gelaufen) */
@@ -4134,7 +1650,7 @@ async function bkTag(now) {
 vault.onUnlock(() => {
   if (DEMO_KOPIE) return;
   const now = new Date(), day = backup.stamp().slice(0, 10);
-  if (!bkFaellig(now, day) || bkRunning) return;
+  if (!bkFaellig(now, day) || bkRunning()) return;
   setTimeout(() => bkTag(now).catch(e => console.error('Datensicherung (nachgeholt):', e.message)), 2000).unref();
 });
 /* Statistiken für den Abfrageplaner (SQLite-Doku zu PRAGMA optimize, planung/leitfaeden.md): nach dem Start einmal mit Grenze (0x10002 –
@@ -4151,11 +1667,14 @@ async function nightly() {
   try {
     const now = new Date();
     const day = backup.stamp().slice(0, 10);   // lokales Datum
-    if (now.getHours() >= 3 && lastAuto !== day) {
-      lastAuto = day;
+    // Nächtlicher Schnappschuss: als erledigt gilt der Tag erst nach Erfolg (sonst stündlich neuer Versuch); vorher aufräumen, auch wenn es zuletzt nicht klappte
+    if (now.getHours() >= 3 && lastAuto !== day && Date.now() - autoTry > 55 * 60 * 1000) {
+      autoTry = Date.now();
       try {
+        backup.aufraeumen();
         const have = backup.list().some(b => backup.stampOf(b.file).startsWith(`${day}_`) && b.file.endsWith('_auto.db'));   // auch alte getraenke_…
         if (!have) console.log('Nächtliche Sicherung:', await backup.snapshot(db, 'auto'));
+        lastAuto = day;
       } catch (e) { console.error('Nächtliche Sicherung fehlgeschlagen:', e.message); }
     }
     // Belege im Papierkorb endgültig löschen
@@ -4167,11 +1686,27 @@ async function nightly() {
     } catch (e) { console.error('Papierkorb:', e.message); }
     // Komplettsicherung: einmal am Tag ab der eingestellten Uhrzeit, bei Fehler stündlich neuer Versuch; monatlich Probe-Wiederherstellung
     try {
+      // Tresor seit über 2 Stunden gesperrt (Neustart, niemand hat sich angemeldet): einmal am Tag Bescheid geben, auch ohne fällige Sicherung
+      if (require('./vault').locked() && Date.now() - START_AT >= 2 * 3600000 && getSetting('backup_wartet_day', '') !== day) {
+        setSetting('backup_wartet_day', day); securityAlert('tresor.wartet', tresorWartetText());
+      }
       if (bkFaellig(now, day) && bkWartet()) {   // Tresor gesperrt: einmal am Tag Bescheid geben, nach dem Entsperren nachholen (vault.onUnlock oben)
-        if (getSetting('backup_wartet_day', '') !== day) { setSetting('backup_wartet_day', day); securityAlert('tresor.wartet', WARTET_MSG); }
+        if (getSetting('backup_wartet_day', '') !== day) { setSetting('backup_wartet_day', day); securityAlert('tresor.wartet', tresorWartetText()); }
       } else if (bkFaellig(now, day) && Date.now() - dbxLastTry > 55 * 60 * 1000) await bkTag(now);
     } catch (e) { console.error('Datensicherung fehlgeschlagen:', e.message); }
-    try { require('./gobd').anchor(); } catch (e) { console.error('GoBD-Anker:', e.message); }   // Kopf des Änderungsjournals außerhalb der Datenbank festhalten
+    // Integritätsprüfung der Datenbank: einmal pro Woche nachts (3–6 Uhr), in einem eigenen Thread (src/prozess.js)
+    try {
+      const at = getSetting('db_check_at', '');
+      if ((now.getHours() >= 3 && now.getHours() < 6 || process.env.CW_TEST_DBCHECK === '1') && (!at || Date.now() - Date.parse(at) > 6.5 * 86400000 || Date.parse(at) > Date.now())) {
+        setSetting('db_check_at', new Date().toISOString());
+        const r = await prozess.integritaet(DB_FILE);
+        setSetting('db_check_result', r.slice(0, 500));
+        if (r === 'ok') console.log('Datenbank geprüft: in Ordnung.');
+        else if (/^Prüfung (nicht möglich|abgebrochen)/.test(r)) console.error('Datenbank-Prüfung:', r);
+        else { console.error('Datenbank-Prüfung:', r); securityAlert('datenbank', `Die wöchentliche Prüfung hat Fehler in der Datenbank gefunden: ${r.slice(0, 300)}. Bitte eine aktuelle Sicherung aufheben und den letzten intakten Schnappschuss unter Datensicherung zurückspielen.`); }
+      }
+    } catch (e) { console.error('Datenbank-Prüfung:', e.message); }
+    try { require('./gobd').anchorDaily(); } catch (e) { console.error('GoBD-Anker:', e.message); }   // Kopf des Änderungsjournals täglich außerhalb der Datenbank festhalten
     // Datenqualität: einmal am Tag ab der Uhrzeit der Sicherung (Ergebnis unter Einstellungen › Datenqualität und in der Übersicht)
     try {
       if (now.getHours() >= bkCfg().hour && getSetting('dq_day', '') !== day) {
@@ -4200,6 +1735,7 @@ let secStartChecked = false;
 /** Freier Speicher im Datenordner: unter 15 % gelb, unter 5 % rot */
 function speicherPruefen() {
   let st; try { st = fs.statfsSync(DATA_DIR); } catch (e) { return; }
+  if (st.blocks && st.bavail / st.blocks < 0.15) { try { backup.aufraeumen(); st = fs.statfsSync(DATA_DIR); } catch (e) { /* weiter mit dem gemessenen Stand */ } }   // erst aufräumen, dann warnen
   const frei = st.bavail / st.blocks, gb = st.bavail * st.bsize / 1e9;
   if (!st.blocks || frei >= 0.15) return;
   securityAlert(frei < 0.05 ? 'speicher' : 'speicher.knapp', `Der Speicher von Clubwerk ist ${frei < 0.05 ? 'fast voll' : 'knapp'}: noch ${Math.round(frei * 100)} % frei (${gb.toLocaleString('de-DE', { maximumFractionDigits: 1 })} GB). Alte Sicherungen und Schnappschüsse belegen oft viel Platz.`);
@@ -4235,12 +1771,13 @@ async function shutdown(why, code = 0) {
   } catch (e) { console.error('Beenden:', e.message); }
   // Datenbank sauber schließen und SOFORT beenden – danach darf kein Zeitgeber mehr auf die Datenbank zugreifen
   try { db.pragma('optimize'); db.pragma('wal_checkpoint(TRUNCATE)'); db.close(); } catch (e) { console.error(e.message); }
+  prozess.ende();   // geordnet beendet: beim nächsten Start kein Absturz
   process.exit(code);
 }
-/* Ein Fehler in einer Hintergrundaufgabe (Mail, Push, Hook ohne await) darf nie das ganze Add-on beenden – sonst reißen alle
-   laufenden Anfragen ab („Load failed“ in der App). Protokollieren und weiterlaufen. */
-process.on('unhandledRejection', e => { console.error('Fehler im Hintergrund (abgefangen):', e && e.stack ? e.stack : e); });
-process.on('uncaughtException', e => { console.error('Unerwarteter Fehler (abgefangen):', e && e.stack ? e.stack : e); });
+/* Abgelehnte Promises im Hintergrund werden nur protokolliert, ein unerwarteter Fehler beendet geordnet (src/prozess.js);
+   ab hier wacht ein eigener Thread über Hänger der Ereignisschleife. Häufige Abstürze → Sicherheitswarnung. */
+prozess.gestartetMit(shutdown);
+prozess.abstuerzeMelden(securityAlert);
 process.on('exit', () => demokopie.stop('mit Clubwerk beendet'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));

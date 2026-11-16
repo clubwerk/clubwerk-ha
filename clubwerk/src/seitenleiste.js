@@ -77,4 +77,4 @@ function aenderung(auditDiff, vor, nach, labels = {}, ausgang = {}) {
   return auditDiff(L, B, A) || 'Seitenleiste geändert';
 }
 
-module.exports = { BEREICHE, STANDARD, NAME_MAX, pruefen, lesen, leer, aenderung };
+module.exports = { BEREICHE, pruefen, lesen, leer, aenderung };

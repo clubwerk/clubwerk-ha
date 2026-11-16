@@ -14,12 +14,11 @@
       .ds-faces { display: flex; gap: 4px; margin: 5px 0 0 2px; } .ds-faces img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card); }`;
     document.head.appendChild(s);
   }
-  const HF = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }), EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // einmal anlegen statt je Zeile
+  const HF = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });
   const hh = m => `${HF.format((m || 0) / 60)} h`;
-  const euro = c => EUR.format((c || 0) / 100);
+  const { euro } = VA;
   const deD = d => (d ? new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '');   // „de-DE“ wird je Sprache getauscht (i18n-dom.js)
   const ST = { offen: ['a', 'wird geprüft'], bestaetigt: ['g', 'bestätigt'], abgelehnt: ['', 'abgelehnt'], laeuft: ['', 'läuft'] };
-  const KIND = { arbeit: 'Arbeitseinsatz', theke: 'Thekendienst', dienst: 'Dienst', sonstiges: 'Einsatz' };
   const WDS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
   const wd = (d, long) => T((long ? WDL : WDS)[new Date(d + 'T12:00:00').getDay()]);   // Wochentage über die Übersetzung (Mo → Mon)
   const when = e => (e.start ? (e.end ? `${e.start}–${e.end}` : `ab ${e.start}`) : 'ganztags');
@@ -29,13 +28,12 @@
     id: 'arbeitseinsatz',
     render(el, ctx) {
       const { esc } = ctx;
-      const close = () => { const s = document.getElementById('dsSheet'); if (s) s.classList.remove('show'); };
+      const { open: sheet, close } = VA.sheet('dsSheet');
       ctx.onLeave(close);
       let d_contact = '';
       const sel = {};   // gewählter Tag je Dienstplan
       let tab = /^(termin|kalender)/.test(ctx.focus || '') ? 'termine' : ctx.focus === 'aufgaben' ? 'aufgaben' : 'dienste';   // Reiter „Dienste“ | „Termine“ | „Aufgaben“ (aus „Für mich“: gleich dorthin)
       let focus = ctx.focus || '';   // aus „Für mich“ („frei“): zum ersten freien Dienst scrollen (nur beim ersten Laden)
-      const sheet = () => { let sh = document.getElementById('dsSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'dsSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); } return sh; };
       async function load() {
         let d; try { d = await ctx.api('me'); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
         window.__dsToday = d.today; d_contact = d.contact;
@@ -162,7 +160,7 @@
         const st = e.slots ? (e.taken >= e.slots ? ['g', 'voll'] : ['a', `${e.slots - e.taken} frei`]) : ['', `${e.taken} dabei`];
         return `<div class="ds-sh${e.mine ? ' me' : ''}">${withDate ? `<span class="vh-date"><b>${e.date.slice(8, 10)}.${e.date.slice(5, 7)}.</b><span>${wd(e.date)}</span></span>` : `<div class="ds-t">${esc(when(e)).replace('–', '–<br>')}</div>`}
           <div style="min-width:0"><strong><span translate="no">${esc(e.title)}</span><span class="vh-chip ${st[0]}">${esc(st[1])}</span>${e.mine ? '<span class="vh-chip g">du bist dabei</span>' : ''}</strong>${withDate ? `<small>${esc([when(e), e.place].filter(Boolean).join(' · '))}</small>` : ''}
-            ${e.faces && e.faces.length ? `<span class="ds-faces">${e.faces.slice(0, 8).map(f => `<img data-auth-src="api/photo/of/${f.id}?u=helfer&v=${esc(f.v)}" alt="">`).join('')}</span>` : ''}${e.helpers.length ? `<small translate="no">${esc(e.helpers.map(short).join(', '))}</small>` : ''}${e.note ? `<small translate="no">${esc(e.note)}</small>` : ''}${e.ics && !over ? `<a class="ds-ical" href="${esc(e.ics)}">In den Kalender</a>` : ''}</div>
+            ${e.faces && e.faces.length ? `<span class="ds-faces">${e.faces.slice(0, 8).map(f => `<img data-auth-src="api/photo/of/${f.id}?u=helfer&v=${esc(f.v)}" alt="">`).join('')}</span>` : ''}${e.helpers.length || e.more ? `<small><span translate="no">${esc(e.helpers.map(short).join(', '))}</span>${e.more ? `${e.helpers.length ? ' ' : ''}<span style="white-space:nowrap">${esc(T(e.helpers.length ? '+ {0} weitere' : '{0} Helfer', [e.more]))}</span>` : ''}</small>` : ''}${e.note ? `<small translate="no">${esc(e.note)}</small>` : ''}${e.ics && !over ? `<a class="ds-ical" href="${esc(e.ics)}">In den Kalender</a>` : ''}</div>
           ${over ? '<button class="vh-btn sm sec" disabled>vorbei</button>' : `<button data-ev="${e.id}" data-on="${e.mine ? 1 : 0}" class="vh-btn sm${e.mine ? ' sec' : ''}" ${full ? 'disabled' : ''}>${e.mine ? 'Austragen' : full ? 'voll' : 'Ich helfe'}</button>`}</div>`;
       }
       function planHtml(p) {

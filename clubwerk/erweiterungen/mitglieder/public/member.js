@@ -10,9 +10,7 @@
       .vh-rows .md-r { text-align: right; white-space: normal; }`;
     document.head.appendChild(s);
   }
-  const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // einmal anlegen statt je Betrag
-  const euro = c => EUR.format((c || 0) / 100);
-  const deD = d => (d ? d.slice(0, 10).split('-').reverse().join('.') : '');
+  const { euro, deD } = VA;
   const ST = { offen: ['a', 'offen'], eingezogen: ['', 'wird abgebucht'], bezahlt: ['g', 'bezahlt'] };
 
   window.VA.registerSection({
@@ -21,13 +19,12 @@
       const { esc } = ctx;
       let d = null;
       let focus = ctx.focus || '';   // aus „Für mich“: „kontakt“ bzw. „bank“ öffnet gleich das passende Blatt (nur beim ersten Laden)
+      const { open: sheetEl, close: closeSheet } = VA.sheet('mdSheet');
       const sheet = (html) => {
-        let sh = document.getElementById('mdSheet');
-        if (!sh) { sh = document.createElement('div'); sh.id = 'mdSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); }
+        const sh = sheetEl();
         sh.innerHTML = `<div class="vh-box">${html}</div>`; sh.classList.add('show');
         return sh;
       };
-      const closeSheet = () => { const sh = document.getElementById('mdSheet'); if (sh) sh.classList.remove('show'); };
       ctx.onLeave(closeSheet);
 
       async function load() {

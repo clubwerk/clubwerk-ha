@@ -10,7 +10,7 @@ Das Modul läuft allein. Ihr braucht nur eine Steuerung, die Clubwerk schalten k
 ## Einrichten {#einrichten}
 
 1. **Einstellungen › Module:** Schalter bei „Beregnung“ einschalten. Mit „Demo“ könnt ihr das Modul vorher mit erfundenen Daten ausprobieren; die Demo schaltet nie echte Ventile.
-2. **Steuerung anbinden:** In Home Assistant die Integration eures Herstellers hinzufügen (jede Zone erscheint dort als Ventil oder Schalter). In Clubwerk dann unter Beregnung › Einstellungen › „Anbindung“ den Hersteller wählen.
+2. **Steuerung anbinden:** In Home Assistant die Integration eures Herstellers hinzufügen (jede Zone erscheint dort als Ventil oder Schalter). In Clubwerk dann unter Beregnung › Einstellungen › „Anbindung“ den Hersteller wählen. **Wichtig:** Im Gerät oder in Home Assistant eine Höchstlaufzeit einstellen (siehe „Anbindung“).
 3. **Plätze und Zonen anlegen:** Reiter „Plätze & Zonen“, „+ Platz“, Zonen zuordnen und Laufzeiten eintragen.
 4. **Wer darf bedienen?** Vereins-PIN festlegen oder die Bedienung auf freigeschaltete Mitglieder oder Benutzer beschränken (Reiter „Einstellungen“).
 5. **Testen:** Reiter „Bedienen“, einen Platz starten und gleich wieder stoppen. Läuft das Ventil, ist alles bereit.
@@ -103,6 +103,7 @@ Der Reiter besteht aus fünf Karten, jede mit eigenem „Speichern“.
 Hier wählt ihr den **Hersteller der Steuerung**: Hunter Hydrawise (über Home Assistant oder direkt mit API-Key), Rain Bird, Rachio, OpenSprinkler, Orbit B-hyve, Gardena, Shelly-Relais an Magnetventilen, ESPHome oder „Anderer Hersteller“. Das Band oben zeigt, ob die Verbindung steht.
 
 - **Über Home Assistant:** Unter dem Feld steht, welche Integration ihr in Home Assistant hinzufügen müsst. Danach erscheinen die Zonen als Auswahl in „Plätze & Zonen“. Ist die Liste leer, hat das Add-on keinen Zugriff auf Home Assistant; dann das Add-on neu bauen und starten.
+- **Höchstlaufzeit im Gerät (über Home Assistant):** Clubwerk schaltet jede Zone nach ihrer Laufzeit aus. Klappt das nicht, versucht Clubwerk es alle 10 Sekunden wieder, auch nach einem Neustart; die Bedienseite zeigt dann „Stopp wird nachgeholt“, und solange startet keine weitere Zone. Nach 5 Minuten ohne Erfolg kommt eine Sicherheitswarnung. Fallen Home Assistant oder das Netz ganz aus, schließt aber niemand das Ventil. Stellt darum im Gerät oder in Home Assistant eine Höchstlaufzeit ein, etwa „Automatisch ausschalten“ beim Relais oder eine Automation, die die Zone nach spätestens 60 Minuten schließt. Hydrawise kennt die Laufzeit selbst und braucht das nicht.
 - **Direkt mit Hydrawise:** Den **API-Key** tragt ihr ein (aus hydrawise.com › Konto › Einstellungen). Er bleibt auf dem Server und ist im Browser nie sichtbar. „Key löschen“ entfernt ihn nach einer Rückfrage; danach schaltet Clubwerk nichts mehr.
 - **Hersteller wechseln:** Ändert sich dabei die Art der Anbindung (Home Assistant oder direkt), fragt Clubwerk nach, denn die Plätze müssen danach neu angelegt werden.
 - **„Anderer Hersteller“** (freie Wahl aller Ventile und Schalter) wählen nur Benutzer mit allen Rechten.

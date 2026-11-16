@@ -272,7 +272,7 @@ Members can remove themselves in the app up to 24 hours before the start. After 
 
 ![The “Homepage calendar” card.](bild: seite=aw-einstellungen; ziel=[data-set="kalender"])
 
-If your club website has a calendar to subscribe to (for example a calendar plugin or a Google calendar), enter its **subscription link** here (starting with `webcal://`, `https://` or `http://`). Clubwerk fetches the dates when you save and then every hour, and shows them in the member app in the **Dates** tab as “Club calendar” and on the “For me” start page. The dates are still maintained on the website; they cannot be changed in Clubwerk.
+If your club website has a calendar to subscribe to (for example a calendar plugin or a Google calendar), enter its **subscription link** here (starting with `webcal://` or `https://`). For security reasons Clubwerk only fetches addresses on the internet, none from your own network and none unencrypted (`http://`). Clubwerk fetches the dates when you save and then every hour, and shows them in the member app in the **Dates** tab as “Club calendar” and on the “For me” start page. The dates are still maintained on the website; they cannot be changed in Clubwerk.
 
 - **Fetch now** fetches the calendar straight away.
 - Below it you see when it was last fetched, how many dates there are and the next three. If fetching fails (website not reachable, no calendar file, file larger than 2 MB), the reason is shown in red. The app then keeps showing the last state.

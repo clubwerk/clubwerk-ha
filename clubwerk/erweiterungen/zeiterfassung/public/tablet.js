@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   const $ = id => document.getElementById(id);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const pad = n => String(n).padStart(2, '0');
   const hm = min => `${Math.floor(min / 60)}:${pad(min % 60)}`;
   const clock = ts => ts.slice(11, 16);
@@ -16,18 +16,8 @@
   let state = { staff: [] };
   let closeTimer = null;
 
-  function toast(msg, error = false) {
-    const t = $('toast'); t.textContent = msg; t.className = 'toast' + (error ? ' error' : '');
-    clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 3500);
-  }
-  async function api(url, body) {
-    const opts = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
-    const r = await fetch(url, opts);
-    const data = await r.json().catch(() => ({}));
-    if (r.status === 401 && data.gate) { showGate(); throw Object.assign(new Error(data.error), { gate: true }); }
-    if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status });
-    return data;
-  }
+  const toast = GKTab.toast(3500);
+  const api = (url, body) => GKTab.api(url, body, 'Fehler');
 
 
   async function load() {
@@ -55,23 +45,11 @@
   function closeDialog() { clearTimeout(closeTimer); $('overlay').classList.add('hidden'); $('dialog').innerHTML = ''; }
 
   function askPin(s) {
-    let pin = '';
     const goingOut = Boolean(s.in_since) && !s.forgotten;
-    $('dialog').className = 'dialog';
-    $('dialog').innerHTML = GKPin.pad(esc(s.name), `Bitte deine PIN eingeben – ${goingOut ? 'Gehen' : 'Kommen'}`);
-    $('overlay').classList.remove('hidden');
-    const dots = () => { $('dots').innerHTML = GKPin.dots(pin.length); };
-    dots();
-    const submit = async () => {
-      if (pin.length < 4) { $('perr').textContent = 'Die PIN hat mindestens 4 Ziffern.'; return; }
+    GKPin.ask({ show: html => { $('dialog').className = 'dialog'; GKTab.dlg(html); }, close: closeDialog, title: esc(s.name), sub: `Bitte deine PIN eingeben – ${goingOut ? 'Gehen' : 'Kommen'}`,
+      min: 4, minText: 'Die PIN hat mindestens 4 Ziffern.' }, async pin => {
       try { done(await api('../../api/tablet/x/zeiterfassung/stamp', { staffId: s.id, pin })); }
-      catch (e) { if (e.gate) return closeDialog(); pin = ''; dots(); $('perr').textContent = e.message; }
-    };
-    $('dialog').querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
-      const k = b.dataset.k;
-      if (k === 'x') return closeDialog();
-      if (k === 'ok') return submit();
-      if (pin.length < 6) { pin += k; dots(); $('perr').textContent = ''; }
+      catch (e) { if (e.gate) return closeDialog(); return e.message; }
     });
     clearTimeout(closeTimer); closeTimer = setTimeout(closeDialog, 60000);
   }
@@ -96,22 +74,7 @@
   }
 
   /* Passwortschutz (wie Buchungsseite) */
-  let gateShown = false;
-  function showGate() {
-    if (gateShown) return; gateShown = true; closeDialog();
-    $('gate').classList.remove('hidden'); $('gatePw').value = ''; $('gateErr').textContent = '';
-    setTimeout(() => $('gatePw').focus(), 50);
-  }
-  async function gateLogin() {
-    try {
-      const r = await fetch('../../api/gate/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('gatePw').value }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { $('gateErr').textContent = d.error || 'Das hat nicht geklappt.'; return; }
-      gateShown = false; $('gate').classList.add('hidden'); load();
-    } catch (e) { $('gateErr').textContent = 'Keine Verbindung zum Server.'; }
-  }
-  $('gateGo').onclick = gateLogin;
-  $('gatePw').addEventListener('keydown', e => { if (e.key === 'Enter') gateLogin(); });
+  GKTab.gate(load, closeDialog);
 
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   setInterval(() => { if ($('overlay').classList.contains('hidden')) load(); }, 30000);

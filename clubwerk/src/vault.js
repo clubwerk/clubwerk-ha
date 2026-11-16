@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 /**
  * Tresor – Verschlüsselung der persönlichen Daten auf der Festplatte (3.21)
@@ -162,7 +163,7 @@ function readFile(file, { cacheIt = false } = {}) {
   const out = decFile(raw);
   if (cacheIt && isEncFile(raw) && out.length < 2 * 1024 * 1024) {
     cache.set(file, out); cacheBytes += out.length;
-    while (cacheBytes > CACHE_MAX && cache.size) { const [k, v] = cache.entries().next().value; cache.delete(k); cacheBytes -= v.length; }
+    while (cacheBytes > CACHE_MAX && cache.size) { const [k, v] = /** @type {[string, Buffer]} */ (cache.entries().next().value); cache.delete(k); cacheBytes -= v.length; }
   }
   return out;
 }
@@ -183,7 +184,7 @@ const normCode = c => String(c || '').toUpperCase().replace(/[^A-Z2-9]/g, '');
 function newCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const s = Array.from(crypto.randomBytes(20), b => A[b % 32]).join('');
-  return s.match(/.{4}/g).join('-');
+  return /** @type {string[]} */ (s.match(/.{4}/g)).join('-');
 }
 function useKey(dk) {
   const priv = gcmDec(dk, Buffer.from(getSetting('vault_priv', ''), 'base64'));   // prüft zugleich, ob der Schlüssel stimmt
@@ -342,10 +343,10 @@ function fileList() {
   return out;
 }
 /** Reste eines abgebrochenen Laufs (halb geschriebene .cwtmp-Dateien) entfernen */
-function dropTemps() { let n = 0; for (const p of fileList()) if (p.endsWith('.cwtmp')) { try { fs.unlinkSync(p); n++; } catch (e) { /* weiter */ } } return n; }
+function dropTemps() { let n = 0; for (const p of fileList()) if (p.endsWith('.cwtmp')) { try { fs.unlinkSync(p); n++; } catch (e) { /* schon gelöscht: zählt nicht */ } } return n; }
 /** genug Platz für den Umbau? (größte Datei als Zwischenkopie + Puffer) */
 function checkSpace(files) {
-  let biggest = 0; for (const p of files) { try { biggest = Math.max(biggest, fs.statSync(p).size); } catch (e) { /* weiter */ } }
+  let biggest = 0; for (const p of files) { try { biggest = Math.max(biggest, fs.statSync(p).size); } catch (e) { /* Datei weg: zählt nicht */ } }
   let free = Infinity; try { const st = fs.statfsSync(DATA_DIR); free = st.bavail * st.bsize; } catch (e) { /* ältere Node-Version: nicht prüfbar */ }
   const need = biggest * 2 + 20 * 1024 * 1024;
   if (free < need) throw new Error(`Zu wenig freier Speicher (frei ${Math.round(free / 1048576)} MB, nötig etwa ${Math.round(need / 1048576)} MB). Bitte erst Platz schaffen – es wurde nichts verändert.`);
@@ -361,7 +362,7 @@ function encryptFiles(fn, check) {
     if (check && !check(out, raw)) throw new Error(`Prüfung fehlgeschlagen: ${path.basename(p)}`);
     const tmp = p + '.cwtmp';
     fs.writeFileSync(tmp, out, { mode: 0o600 });
-    if (fs.statSync(tmp).size !== out.length) { try { fs.unlinkSync(tmp); } catch (e) { /* */ } throw new Error(`Schreiben fehlgeschlagen: ${path.basename(p)}`); }
+    if (fs.statSync(tmp).size !== out.length) { try { fs.unlinkSync(tmp); } catch (e) { /* schon gelöscht */ } throw new Error(`Schreiben fehlgeschlagen: ${path.basename(p)}`); }
     fs.renameSync(tmp, p); n++;
   }
   cache.clear(); cacheBytes = 0;
@@ -380,7 +381,7 @@ function resumeJob() {
   setJob(null);
   const msg = job === 'dec' ? 'Das Ausschalten des Tresors wurde unterbrochen – der Tresor bleibt eingeschaltet, alle Dateien sind wieder verschlüsselt.' : 'Das Einschalten des Tresors wurde unterbrochen und jetzt zu Ende geführt.';
   console.log(`Tresor: ${msg} (${n} Dateien)`);
-  try { audit(null, 'Tresor: unterbrochenen Lauf abgeschlossen', `${msg} (${n} Dateien)`); } catch (e) { /* */ }
+  try { audit(null, 'Tresor: unterbrochenen Lauf abgeschlossen', `${msg} (${n} Dateien)`); } catch (e) { console.error('Tresor: Protokolleintrag fehlt:', e.message); }
   return { job, files: n };
 }
 /** Einschalten: Schlüssel speichern, vorhandene Daten verschlüsseln, alte Reste aus der Datei entfernen */

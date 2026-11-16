@@ -105,7 +105,7 @@ If the connection to Home Assistant is missing, a red notice appears at the top.
 - **Type:** **Lock** (unlock and lock), **Door opener (pulse)** (a relay that switches briefly) or **Gate / drive** (open and close).
 - **Device in Home Assistant:** the list only shows suitable devices. The manufacturer from the “Settings” tab filters the list. A device that another module already uses (for example irrigation) cannot be used a second time.
 - **Door contact (optional):** a sensor that reports whether the door is open. This also makes the “door open too long” notice work.
-- **Pulse (seconds):** door openers only. How long the relay stays on (1 to 30 seconds, default 3).
+- **Pulse (seconds):** door openers only. How long the relay stays on (1 to 30 seconds, default 3). If it cannot be switched off afterwards, Clubwerk tries several times and then sends a security warning. If a door opener stays on longer than its pulse (for example after a restart, or switched on by hand in Home Assistant), Clubwerk switches it off and reports it.
 
 ![A door of type “Door opener (pulse)” also has the “Pulse (seconds)” field.](bild: seite=zugang-tueren; klick=[data-de="2"]; ziel=dialog)
 
@@ -128,7 +128,7 @@ A time profile says **which doors** a member may open and **when**. Each profile
 - **Name:** up to 30 characters, for example “Juniors” or “Coaches”.
 - **Default for new authorisations:** every newly authorised member gets this profile. There is always exactly one default profile.
 - **Doors:** “All (including future ones)” or individual doors. With “All” the profile also covers doors you add later. Doors that are not in the profile are not shown to the members in the app at all.
-- **Times for each weekday:** one line per day, for example `07:00–23:00`. Separate several time windows with a comma (`07:00–12:00, 14:00–22:00`). Empty or “geschlossen” (closed) means nothing works on that day. “ganztägig” (all day) means round the clock. Windows across midnight are allowed (for example `18:00–02:00`).
+- **Times for each weekday:** one line per day, for example `07:00–23:00`. Separate several time windows with a comma (`07:00–12:00, 14:00–22:00`). Empty or “geschlossen” (closed) means nothing works on that day. “ganztägig” (all day) means round the clock. Windows across midnight are allowed (for example `18:00–02:00`). If the Clubwerk clock is wrong after a restart (red warning in the overview), time profiles with time windows open no door until the clock is right; “round the clock” keeps working.
 - **Copy Monday to all days** and **Copy Monday to Mon–Fri:** saves typing when the same times apply every day.
 - **Delete profile …:** Clubwerk asks first. Members with this profile get the default profile. The last profile cannot be deleted.
 

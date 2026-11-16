@@ -1,4 +1,4 @@
-/* ---------- Grundlagen: Design „Anzeigetafel“ (3.63) ----------
+/* ---------- Grundlagen: Design „Anzeigetafel“ ----------
    Ruhiges Werkzeug mit eigenem Gesicht: Zahlen wie auf einer Anzeigetafel (Barlow Condensed), die Platzlinie als einziges Schmuckelement,
    weiche Schatten statt Rahmen, ein leichter Schimmer in der Vereinsfarbe, Glas nur an drei Stellen (Tablet-Kopfleiste, Seitenmenü der
    Verwaltung, untere Leiste der App). Alle Farben über Tokens: theme.css (src/theme.js) berechnet die Vereinsfarbe samt Kontrast für hell,
@@ -109,12 +109,10 @@ body { background: var(--shimmer), var(--bg); background-repeat: no-repeat; }   
 .num { font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
 /* Platzlinie: doppelte Linie (2 px Vereinsfarbe, darunter 1 px) unter Seitenkopf bzw. Überschrift – das einzige Schmuckelement */
 .court { height: 6px; border-top: 2px solid var(--brand); border-bottom: 1px solid var(--line2); box-sizing: border-box; }
-/* Glas nur an drei Stellen: Tablet-Kopfleiste, Seitenmenü der Verwaltung, untere Leiste der App. Ohne Unschärfe, wenn das Gerät es nicht kann,
+/* Glas nur an drei Stellen: Tablet-Kopfleiste, Seitenmenü der Verwaltung, untere Leiste der App. Ohne Unschärfe, wenn
    „Transparenz reduzieren“ oder „Bewegung reduzieren“ eingestellt ist oder Hoher Kontrast gilt */
 .glass { background: var(--glass-solid); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  :root:not([data-contrast="hoch"]) .glass { background: var(--glass); -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5); }
-}
+:root:not([data-contrast="hoch"]) .glass { background: var(--glass); -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5); }
 @media (prefers-reduced-transparency: reduce), (prefers-reduced-motion: reduce) {
   :root .glass { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
@@ -131,7 +129,7 @@ select { contain: layout; }   /* Safari 26: der Text einer langen Option zählte
 .hidden { display: none !important; }
 .muted { color: var(--muted); }
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-align: center;   /* umbrochener Text auch bei a.btn/label.btn mittig wie bei <button> (02.11.2026) */
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-align: center;   /* umbrochener Text auch bei a.btn/label.btn mittig wie bei <button> */
   min-height: 44px; padding: 0 18px; border-radius: var(--r-ctl);
   background: var(--card); border: 1px solid var(--line2); font-weight: 600; color: var(--ink);
   transition: background .15s, border-color .15s, transform .05s;
@@ -183,15 +181,11 @@ a.btn.primary { color: var(--on-brand); }
 @media (prefers-reduced-motion: no-preference) {
   @view-transition { navigation: auto; }
   ::view-transition-group(root) { animation-duration: .12s; }
-  /* Fenster am Tablet weich ein- und ausblenden statt die ganze Seite schlagartig ab- und aufzudunkeln (Fehler 04.11.2026,
-     „es blinkt die Artikelseite“ beim Fenster „Kein PIN vergeben“). Ausblenden: nav.js lässt die Abdunklung kurz nachklingen –
+  /* Fenster am Tablet weich ein- und ausblenden statt die ganze Seite schlagartig ab- und aufzudunkeln. Ausblenden: theme-init.js lässt die Abdunklung kurz nachklingen –
      das Fenster selbst ist sofort zu, ein Tipp trifft nie eine verblassende Ebene. */
   body.tk .overlay:not(.hidden) { animation: tk-fenster-ein .16s ease-out; }
-  body.tk .tk-abblenden.an { display: block; animation: tk-fenster-aus .16s ease-in forwards; }
 }
 @keyframes tk-fenster-ein { from { opacity: 0; } }
-@keyframes tk-fenster-aus { from { opacity: 1; } to { opacity: 0; } }
-body.tk .tk-abblenden { display: none; position: fixed; inset: 0; z-index: 19; pointer-events: none; }
 #gkHeader { view-transition-name: gk-kopf; }
 #gkHeader { display: grid; grid-template-columns: 240px minmax(0, 1fr) 240px; align-items: center; gap: 16px; min-height: 72px; padding: 0 20px;
   margin: 12px 16px 0; border-radius: 20px; color: var(--ink); box-sizing: border-box; flex: none; }   /* schwebende Glas-Leiste (nav.js setzt .glass) */
@@ -201,7 +195,7 @@ body.tk .tk-abblenden { display: none; position: fixed; inset: 0; z-index: 19; p
 #gkHeader .logo-badge { display: flex; width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: #fff; border: 1px solid var(--line); padding: 3px; align-items: center; justify-content: center; box-sizing: border-box; }
 #gkHeader .logo-badge img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
 #gkHeader .bt { display: flex; flex-direction: column; min-width: 0; }
-#gkHeader h1 { margin: 0; font-size: 16px; line-height: 20px; font-weight: 700; overflow-wrap: break-word; }   /* lange Vereinsnamen brechen um, nie gekürzt (3.101) */
+#gkHeader h1 { margin: 0; font-size: 16px; line-height: 20px; font-weight: 700; overflow-wrap: break-word; }   /* lange Vereinsnamen brechen um, nie gekürzt */
 #gkHeader #club2 { font-size: 13px; line-height: 16px; color: var(--muted); overflow-wrap: break-word; }
 #gkHeader #club2:empty { display: none; }
 #gkHeader .topnav { grid-column: 2; justify-self: center; display: grid; grid-auto-flow: column; grid-auto-columns: auto; gap: 4px; padding: 4px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 6%, transparent); max-width: 100%; }
@@ -243,7 +237,7 @@ body.tk .tk-abblenden { display: none; position: fixed; inset: 0; z-index: 19; p
   #gkHeader .topnav a { padding: 0 4px; font-size: 13.5px; }
   #gkHeader .topnav a svg { display: none; }
   #gkHeader .topnav a, #gkHeader .topnav a span { white-space: normal; text-align: center; line-height: 1.15; text-overflow: clip; hyphens: manual; }   /* Trennstellen setzt nav.js (weiche Trennstriche) */  /* fünf und mehr Reiter am Handy: nichts abschneiden – volle Beschriftung, seitlich wischbar */
-  #gkHeader .topnav.many { grid-auto-columns: max-content; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; justify-content: start; }
+  #gkHeader .topnav.many { grid-auto-columns: max-content; overflow-x: auto; scrollbar-width: none; justify-content: start; }
   #gkHeader .topnav.many::-webkit-scrollbar { display: none; }
   #gkHeader .topnav.many a { padding: 0 12px; }
   #gkHeader .topnav.many a, #gkHeader .topnav.many a span { white-space: nowrap; }
@@ -272,7 +266,6 @@ body.tk .tk-abblenden { display: none; position: fixed; inset: 0; z-index: 19; p
      .tk-chip(.g/.a/.r)             Statusmarke rechts in der Kachel
      .tk-empty                      Leerzustand: gestrichelter Kasten mit kurzem Satz
      .tk-big                        großer Hauptknopf (64 px) – höchstens einer je Bereich
-     .tk-cols                       zwei Spalten nebeneinander (schmal untereinander)
      .overlay/.dialog/.pad/.pin-dots/.err   Fenster und PIN-Eingabe
      .gate/.gatecard                Sperrseite (Tablet-Passwort)
    Farben nur über die Variablen (--brand, --muted …) – so stimmen hell, dunkel und die Vereinsfarbe von selbst.
@@ -283,7 +276,7 @@ body.tk h2.sec { margin: 22px 0 12px; font-size: 13px; line-height: 16px; font-w
 body.tk h2.sec::after { content: ''; flex: 1 1 24px; height: 1px; background: var(--line2); }   /* Linie bis zum Rand, Zusatz (<small>) rechts daneben */
 body.tk h2.sec > small { order: 2; }
 body.tk h2.sec small { font-weight: 700; font-size: 13px; color: var(--muted); letter-spacing: .09em; text-transform: uppercase; }
-body.tk .tab-head + h2.sec, body.tk .tk-cols h2.sec { margin-top: 0; }
+body.tk .tab-head + h2.sec { margin-top: 0; }
 :root { --tk-cols: 4; }
 @media (min-width: 1600px) { :root { --tk-cols: 5; } }
 @media (max-width: 900px) { :root { --tk-cols: 2; } }
@@ -294,7 +287,7 @@ body.tk .tab-head + h2.sec, body.tk .tk-cols h2.sec { margin-top: 0; }
 .tk-tile { display: flex; align-items: center; gap: 12px; min-height: 80px; padding: 12px 16px; border-radius: var(--r-tile); text-align: left; background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow-tile); color: var(--ink); font: inherit; box-sizing: border-box; min-width: 0; transition: transform .05s, border-color .12s; }
 button.tk-tile:active { transform: scale(.98); }
 .tk-tile > .tk-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.tk-tile > .tk-txt > b { font-size: 17px; line-height: 22px; font-weight: 700; overflow-wrap: break-word; }   /* Namen brechen um statt „…“ (3.101) */
+.tk-tile > .tk-txt > b { font-size: 17px; line-height: 22px; font-weight: 700; overflow-wrap: break-word; }   /* Namen brechen um statt „…“ */
 .tk-tile > .tk-txt > span { color: var(--muted); font-size: 14px; line-height: 20px; }   /* Zeile darf umbrechen – die Kachel wächst, das Raster hält die Zeile gleich hoch */
 .tk-tile.on { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
 .tk-tile.warn { border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
@@ -312,8 +305,6 @@ button.tk-tile:active { transform: scale(.98); }
 .tk-empty { padding: 18px 20px; border-radius: var(--r-tile); border: 1px dashed var(--line2); color: var(--muted); font-size: 15px; line-height: 22px; background: transparent; }
 .tk-big { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 64px; border-radius: 16px; border: 0; background: var(--brand); color: var(--on-brand); font: inherit; font-size: 18px; font-weight: 700; }
 .tk-big:active { transform: scale(.99); }
-.tk-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
-@media (max-width: 900px) { .tk-cols { grid-template-columns: minmax(0, 1fr); } }
 /* Fenster und PIN-Eingabe */
 body.tk .overlay { position: fixed; inset: 0; background: rgba(13,19,16,.5); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
 body.tk .overlay.hidden { display: none; }

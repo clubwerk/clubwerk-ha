@@ -32,6 +32,7 @@ const DEF = {
 };
 const ha = require('../../src/ha');   // Home Assistant (gemeinsam mit Beregnung bzw. Zugang)
 const G = require('../../src/geraete');   // Geräte neu zuordnen: Rechte und eigenes Passwort
+const Monat = require('../../src/monatsprotokoll');   // Protokoll je Monat: Liste, Excel, Auszug für die Sicherung
 const HW_BASE = () => (process.env.HYDRAWISE_BASE || 'https://api.hydrawise.com/api/v1').replace(/\/$/, '');
 const { pad, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const hhmm = ms => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -157,9 +158,9 @@ async function readNow(c, hw) {
       const map = Object.fromEntries(relays.filter(z => z.relay_id).map(z => [String(z.relay), z.relay_id]));
       if (Object.keys(map).length && JSON.stringify(map) !== JSON.stringify(relayMap())) setSetting('ext_beregnung_hw_relays', JSON.stringify(map));
     } else {
-      const states = await ha.call('GET', '/states');
+      const states = await ha.states();
       const zones = {}, list = [], sensors = [];
-      for (const s of Array.isArray(states) ? states : []) {
+      for (const s of states.values()) {
         const dom = s.entity_id.split('.')[0];
         const name = (s.attributes && s.attributes.friendly_name) || s.entity_id;
         if (dom === 'valve' || dom === 'switch') {
@@ -283,6 +284,60 @@ async function sendStops() {
 }
 const notify = text => ha.notify(cfg().notify, 'Beregnung', text);
 
+/* Home Assistant: Ausschaltbefehle, die (noch) nicht bestätigt sind – gespeichert, damit sie auch einen Neustart überstehen. Ein Ventil
+   ohne eigene Abschaltzeit liefe sonst weiter, bis jemand vor Ort ist. Je Zone { ref, name, since, next, sent, err, alerted }. Erledigt
+   ist ein Eintrag erst, wenn Home Assistant die Zone als aus meldet (Hydrawise über Home Assistant: sobald der Befehl angenommen ist –
+   die Steuerung kennt die Laufzeit selbst und meldet ihren Stand nur verzögert). Bis dahin wird alle 10 s (Hydrawise: 30 s) neu geschaltet. */
+const FAST = Boolean(process.env.CW_TEST_FAST);   // Testreihe hafehler: Minuten werden Sekunden
+const OFF_ALERT_MS = FAST ? 8000 : 5 * 60000;
+const offRetryMs = () => FAST ? 2000 : cfg().vendor === 'hydrawise' ? 30000 : 10000;   // Hydrawise über Home Assistant: jeder Befehl zählt beim Kontingent
+const haOffs = () => { try { const a = JSON.parse(getSetting('ext_beregnung_ha_off', '[]')); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+function markOff(ref, patch) {
+  const a = haOffs(), i = a.findIndex(x => x.ref === ref);
+  if (patch === null) { if (i < 0) return; a.splice(i, 1); } else if (i >= 0) Object.assign(a[i], patch); else a.push({ ref, since: Date.now(), ...patch });
+  setSetting('ext_beregnung_ha_off', a.length ? JSON.stringify(a) : '');
+}
+const offOk = z => !z || ['off', 'closed', 'closing'].includes(z.state);   // aus – oder das Gerät gibt es in Home Assistant nicht mehr
+/** Zonen über Home Assistant ausschalten und nachsehen, ob sie aus sind. Rückgabe: Fehler der Schaltbefehle (leer = angenommen).
+    Alles, was nicht bestätigt aus ist, bleibt vorgemerkt und wird wiederholt (tick). */
+function zoneName(c, ref) {
+  for (const p of c.plaetze) { const z = (p.zones || []).find(x => String(x.ref) === ref); if (z) return `${p.name}${z.label ? ' ' + z.label : ''}`; }
+  return ref;
+}
+async function haOff(refs) {
+  const c = cfg(), sent = [], errs = [];
+  for (const r of refs) markOff(r, { name: zoneName(c, r), next: Date.now() + offRetryMs() });   // zuerst speichern: übersteht einen Neustart
+  for (const r of refs) {
+    try { await zoneOff(r); sent.push(r); markOff(r, { sent: Date.now(), err: null }); }
+    catch (e) { errs.push(`${r}: ${e.message}`); markOff(r, { err: e.message }); }
+  }
+  if (!sent.length) return errs;
+  if (c.vendor === 'hydrawise') { for (const r of sent) markOff(r, null); return errs; }
+  let st = null; try { st = await ha.states(0); } catch (e) { /* Stand unbekannt: wird nachgesehen und notfalls wiederholt */ }
+  for (const r of sent) if (st && offOk(st.get(r))) markOff(r, null);
+  return errs;
+}
+/** Vorgemerkte Ausschaltbefehle prüfen und wiederholen; nach 5 Minuten ohne Erfolg eine Sicherheitswarnung (einmal je Zone) */
+async function flushHaOffs() {
+  const now = Date.now(), due = haOffs().filter(x => x.next <= now);
+  if (!due.length) return;
+  let st = null; try { st = await ha.states(0); } catch (e) { /* Home Assistant nicht erreichbar */ }
+  const todo = [];
+  for (const x of due) {
+    if (st && offOk(st.get(x.ref))) { markOff(x.ref, null); if (x.alerted) log('stop', 'System', x.name, null, `${x.ref} ist jetzt aus`); }
+    else todo.push(x);
+  }
+  for (const x of todo) await haOff([x.ref]);
+  for (const x of haOffs()) {
+    if (x.alerted || now - x.since < OFF_ALERT_MS) continue;
+    const why = x.err || (st ? 'Home Assistant meldet sie weiter als an' : 'Home Assistant ist nicht erreichbar');
+    markOff(x.ref, { alerted: true });
+    log('fehler', null, x.name, null, `${x.ref} ließ sich seit 5 Minuten nicht ausschalten (${why}) – wird weiter versucht`);
+    notify(`Achtung: ${x.name || x.ref} ließ sich seit 5 Minuten nicht ausschalten (${why}). Clubwerk versucht es weiter.`);
+    H.securityAlert('stopp', `Beregnung: ${x.name || x.ref} ließ sich seit 5 Minuten nicht ausschalten (${why}). Clubwerk versucht es weiter – bitte vor Ort prüfen.`, { key: x.ref });
+  }
+}
+
 /* =================== Ablauf (übersteht Neustarts) =================== */
 let busy = false;
 async function tick() {
@@ -297,15 +352,18 @@ async function tick() {
       try { if (await flushStops() !== null) return; }
       catch (e) { console.error('Beregnung: Stopp nicht gesendet:', e.message); return; }
     }
-    // abgelaufene Zonen ausschalten (Hydrawise schaltet selbst ab – trotzdem als erledigt markieren)
+    // Home Assistant: vorgemerkte Ausschaltbefehle wiederholen, bis die Zone aus ist
+    if (c.backend !== 'hydrawise' && haOffs().length) await flushHaOffs();
+    // abgelaufene Zonen ausschalten (Hydrawise schaltet selbst ab – trotzdem als erledigt markieren). Home Assistant: was nicht
+    // ausgeht, bleibt vorgemerkt und wird wiederholt (nie aufgeben – ein Ventil ohne eigene Abschaltzeit liefe sonst weiter)
     for (const s of db.prepare("SELECT * FROM irr_steps WHERE state = 'run' AND end_at <= ?").all(now)) {
-      try { if (c.backend !== 'hydrawise') await zoneOff(s.ref); else markZone(s.ref, false); db.prepare("UPDATE irr_steps SET state = 'done' WHERE id = ? AND state = 'run'").run(s.id); }
-      catch (e) {
-        if (now - s.end_at > 5 * 60000) { db.prepare("UPDATE irr_steps SET state = 'fail', err = ? WHERE id = ?").run('Ausschalten fehlgeschlagen: ' + e.message, s.id); log('fehler', null, platzName(s.platz), null, `${s.label || s.ref} ließ sich nicht ausschalten: ${e.message}`); notify(`Achtung: ${platzName(s.platz)} ${s.label || ''} ließ sich nicht ausschalten (${e.message}).`); H.securityAlert('stopp', `Beregnung: ${platzName(s.platz)} ${s.label || ''} ließ sich nicht ausschalten (${e.message}). Bitte vor Ort prüfen.`, { key: s.ref }); }
-      }
+      if (c.backend === 'hydrawise') markZone(s.ref, false);
+      db.prepare("UPDATE irr_steps SET state = 'done' WHERE id = ? AND state = 'run'").run(s.id);
+      if (c.backend !== 'hydrawise') await haOff([s.ref]);
     }
-    // nächste fällige Zone starten – nie mehr als eine gleichzeitig
+    // nächste fällige Zone starten – nie mehr als eine gleichzeitig (auch keine, solange eine andere noch nicht bestätigt aus ist)
     if (db.prepare("SELECT 1 FROM irr_steps WHERE state = 'run' LIMIT 1").get()) return;
+    if (c.backend !== 'hydrawise' && haOffs().length) return;
     const s = db.prepare("SELECT * FROM irr_steps WHERE state = 'wait' AND start_at <= ? ORDER BY start_at, id LIMIT 1").get(now);
     if (!s) return;
     const rest = Math.round((s.end_at - now) / 1000);
@@ -315,10 +373,20 @@ async function tick() {
       // wurde während des Einschaltens „Alles stoppen“ gedrückt? Dann sofort wieder aus.
       if (!db.prepare("UPDATE irr_steps SET state = 'run' WHERE id = ? AND state = 'wait'").run(s.id).changes) {
         if (c.backend === 'hydrawise') { addStop([s.ref], false, 'System', platzName(s.platz)); await flushStops().catch(() => null); }   // nie verlieren: notfalls nachholen
-        else try { await zoneOff(s.ref); } catch (e) { notify(`Achtung: ${s.label || s.ref} ließ sich nach dem Stopp nicht ausschalten (${e.message}).`); H.securityAlert('stopp', `Beregnung: ${s.label || s.ref} ließ sich nach dem Stopp nicht ausschalten (${e.message}). Bitte vor Ort prüfen.`, { key: s.ref }); }
+        else {
+          const errs = await haOff([s.ref]);
+          if (errs.length) {
+            const z = s.label || s.ref, why = errs.join('; ');
+            markOff(s.ref, { alerted: true });
+            notify(`Achtung: ${z} ließ sich nach dem Stopp nicht ausschalten (${why}). Clubwerk versucht es weiter.`);
+            H.securityAlert('stopp', `Beregnung: ${z} ließ sich nach dem Stopp nicht ausschalten (${why}). Clubwerk versucht es weiter – bitte vor Ort prüfen.`, { key: s.ref });
+          }
+        }
       }
     } catch (e) {
       if (e.rate) return;   // Hydrawise bremst: Zone bleibt wartend und startet, sobald die Steuerung wieder annimmt
+      // Home Assistant hat vielleicht doch eingeschaltet (Zeitüberschreitung, Fehler nach dem Schalten): vorsichtshalber ausschalten
+      if (c.backend !== 'hydrawise') await haOff([s.ref]);
       db.prepare("UPDATE irr_steps SET state = 'fail', err = ? WHERE id = ? AND state = 'wait'").run(e.message, s.id);
       log('fehler', null, platzName(s.platz), null, `${s.label || s.ref}: ${e.message}`);
       notify(`${platzName(s.platz)}${s.label ? ' ' + s.label : ''} konnte nicht gestartet werden: ${e.message}`);
@@ -369,6 +437,13 @@ async function hwStop(refs, all, who, platz) {
   try { const w = await flushStops(); return { errs: [], pendingSec: w === null ? 0 : Math.ceil(w / 1000) }; }
   catch (e) { return { errs: [e.message], pendingSec: 0 }; }
 }
+/* Home Assistant: Stopp gescheitert → Warnung schon jetzt; die Zonen bleiben vorgemerkt und werden wiederholt (keine zweite Warnung) */
+function stopAlert(c, text, key) {
+  const retry = c.backend !== 'hydrawise';
+  notify(retry ? `${text} Clubwerk versucht es weiter.` : text);
+  H.securityAlert('stopp', retry ? `Beregnung: ${text} Clubwerk versucht es weiter – bitte vor Ort prüfen.` : `Beregnung: ${text} Bitte vor Ort prüfen.`, { key });
+}
+function haAlerted(errs) { for (const x of haOffs()) if (errs.some(e => e.startsWith(x.ref + ':'))) markOff(x.ref, { alerted: true }); }
 /** Einen Platz stoppen (auch von der Automatik gestartet); wartende Plätze rücken nach */
 async function stopPlatz(platzIdx, who) {
   const c = cfg(), p = c.plaetze[platzIdx];
@@ -385,7 +460,7 @@ async function stopPlatz(platzIdx, who) {
     const others = z ? Object.entries(z).some(([r, st]) => st.running && !refs.includes(r)) || db.prepare("SELECT 1 FROM irr_steps WHERE state = 'run' LIMIT 1").get() : true;
     if (todo.length) ({ errs, pendingSec } = await hwStop(todo.length > 1 && !others ? [] : todo, todo.length > 1 && !others, who, p.name));
   } else {
-    for (const r of refs) { if (haSkip(c, r, ran)) continue; try { await zoneOff(r); } catch (e) { errs.push(`${r}: ${e.message}`); } }
+    errs = await haOff(refs.filter(r => !haSkip(c, r, ran)));
   }
   // Warteschlange zusammenschieben: was hinter diesem Platz wartete, startet entsprechend früher
   const running = db.prepare("SELECT MAX(end_at) e FROM irr_steps WHERE state = 'run'").get().e;
@@ -393,7 +468,7 @@ async function stopPlatz(platzIdx, who) {
   const up = db.prepare('UPDATE irr_steps SET start_at = ?, end_at = ? WHERE id = ?');
   db.transaction(() => { for (const w of db.prepare("SELECT * FROM irr_steps WHERE state = 'wait' ORDER BY start_at, id").all()) { up.run(t, t + w.sec * 1000, w.id); t += w.sec * 1000; } })();
   log('stop', who, p.name, null, errs.length ? 'Fehler: ' + errs.join('; ') : pendingSec ? `Hydrawise bremst – Stopp wird in ${pendingSec} s nachgeholt` : null);
-  if (errs.length) { notify(`Stopp ${p.name} nicht vollständig: ` + errs.join('; ')); H.securityAlert('stopp', `Beregnung: Stopp ${p.name} nicht vollständig: ${errs.join('; ')}. Bitte vor Ort prüfen.`, { key: p.name }); }
+  if (errs.length) { haAlerted(errs); stopAlert(c, `Stopp ${p.name} nicht vollständig: ${errs.join('; ')}.`, p.name); }
   setImmediate(tick);
   return { errs, pendingSec };
 }
@@ -409,10 +484,10 @@ async function stopAll(who) {
   } else {
     // alle eingerichteten Zonen schließen – auch solche, die die Automatik gestartet hat
     const refs = [...new Set(c.plaetze.flatMap(p => (p.zones || []).map(z => String(z.ref))))];
-    for (const r of refs) { if (haSkip(c, r, ran)) continue; try { await zoneOff(r); } catch (e) { errs.push(`${r}: ${e.message}`); } }
+    errs = await haOff(refs.filter(r => !haSkip(c, r, ran)));
   }
   log('stop', who, was.join(', ') || null, null, errs.length ? 'Fehler: ' + errs.join('; ') : pendingSec ? `Hydrawise bremst – Stopp wird in ${pendingSec} s nachgeholt` : null);
-  if (errs.length) { notify('Stopp nicht vollständig: ' + errs.join('; ')); H.securityAlert('stopp', `Beregnung: Stopp nicht vollständig: ${errs.join('; ')}. Bitte vor Ort prüfen.`, { key: 'alle' }); }
+  if (errs.length) { haAlerted(errs); stopAlert(c, `Stopp nicht vollständig: ${errs.join('; ')}.`, 'alle'); }
   return { errs, pendingSec };
 }
 
@@ -432,11 +507,17 @@ async function status() {
     }
   }
   const steps = db.prepare("SELECT * FROM irr_steps WHERE state IN ('wait','run') ORDER BY start_at").all();
+  const offs = c.backend === 'hydrawise' ? [] : haOffs();
   const lastEnd = db.prepare("SELECT platz, MAX(end_at) e FROM irr_steps WHERE state IN ('done','run') GROUP BY platz").all();
   const plaetze = c.plaetze.map((p, i) => {
     const mine = steps.filter(s => s.platz === i);
     const zones = (p.zones || []).map(z => ({ label: z.label || '', sec: parseInt(z.sec, 10) || 0 }));
     const base = { id: i, name: p.name, sub: p.sub || autoSub(p), zones };
+    // Home Assistant: Ausschalten noch nicht bestätigt (wird wiederholt) – ehrlich zeigen statt „läuft“ oder „Automatik läuft“;
+    // solange startet auf keinem Platz eine weitere Zone
+    const po = offs.filter(x => (p.zones || []).some(z => String(z.ref) === x.ref));
+    if (po.length && (!ctl || (p.zones || []).some(z => ctl.zones[String(z.ref)] && ctl.zones[String(z.ref)].running)))
+      return { ...base, state: 'stopping', stopIn: Math.max(1, Math.ceil((Math.min(...po.map(x => x.next)) - now) / 1000)) };
     if (mine.length) {
       const cur = mine.find(s => s.state === 'run' || (s.start_at <= now && s.end_at > now));
       const first = mine[0];
@@ -483,13 +564,15 @@ const APP_ONLY = 'Die Beregnung ist nur für freigeschaltete Mitglieder in der M
 // länger) und der Vorstand bekommt eine Warnung. Erraten über viele Geräte hinweg funktioniert so nicht.
 let pinFails = null, allFails = null;
 const limits = () => { if (!pinFails) { const { limiter } = H.require('./security'); pinFails = limiter(); allFails = limiter({ per: 20, baseMs: 3600000 }); } };
-function pinOk(req) {
+async function pinOk(req) {
   const h = getSetting('ext_beregnung_pin_hash', '');
   const pin = String((req.body && req.body.pin) || '');
-  return Boolean(h && pin && auth.verifySecret(pin, h));
+  const ok = Boolean(h && pin && await auth.verifySecret(pin, h));
+  if (ok && auth.pinUmstellen(h)) setSetting('ext_beregnung_pin_hash', await auth.hashPin(pin));   // alte PIN auf Pfeffer umstellen
+  return ok;
 }
 /** wer darf? → { who } oder sendet Fehler */
-function guard(req, res, { forStop = false } = {}) {
+async function guard(req, res, { forStop = false } = {}) {
   const c = cfg();
   if (c.mode === 'login') {
     const u = auth.currentUser(req, 'beregnung') || auth.currentUser(req);
@@ -499,12 +582,15 @@ function guard(req, res, { forStop = false } = {}) {
   }
   if (forStop && c.stopFree) return { who: 'ohne PIN' };
   if (c.mode === 'app') { res.status(403).json({ error: APP_ONLY, app: true }); return null; }
+  return auth.nacheinander('beregnung-pin', () => pinGuard(req, res));   // eine Vereins-PIN: Prüfungen nacheinander, Sperre vor dem asynchronen scrypt
+}
+async function pinGuard(req, res) {
   const ip = req.ip || '?';
   limits();
   const wAll = allFails.blocked('*'), wIp = pinFails.blocked(ip);
   if (wAll || wIp) { res.status(429).json({ error: `Zu viele falsche PINs – bitte ${Math.max(wAll, wIp)} Min. warten.` }); return null; }
   if (!getSetting('ext_beregnung_pin_hash', '')) { res.status(403).json({ error: 'In der Verwaltung ist noch keine PIN für die Beregnung festgelegt.' }); return null; }
-  if (!pinOk(req)) {
+  if (!(await pinOk(req))) {
     const one = pinFails.fail(ip), all = allFails.fail('*');
     if (all.locked) {
       audit(null, 'Beregnung: PIN-Eingabe für alle gesperrt', `20 falsche PINs, zuletzt von ${ip}`);
@@ -541,14 +627,14 @@ function appRouter(ctx) {
     if (cfg().mode === 'app') return res.status(403).json({ error: APP_ONLY, app: true });
     res.json(await status());
   });
-  r.post('/verify-pin', rateLimit('bpin', 20, 60000), (req, res) => { if (guard(req, res)) res.json({ ok: true }); });
-  r.post('/run', rateLimit('brun', 30, 60000), (req, res) => {
-    const g = guard(req, res); if (!g) return;
+  r.post('/verify-pin', rateLimit('bpin', 20, 60000), async (req, res) => { if (await guard(req, res)) res.json({ ok: true }); });
+  r.post('/run', rateLimit('brun', 30, 60000), async (req, res) => {
+    const g = await guard(req, res); if (!g) return;
     const i = parseInt((req.body || {}).platz, 10);
     try { res.json({ ok: true, ...enqueue(i, g.who) }); } catch (e) { res.status(400).json({ error: e.message }); }
   });
   r.post('/stop', rateLimit('bstop', 30, 60000), async (req, res) => {
-    const g = guard(req, res, { forStop: true }); if (!g) return;
+    const g = await guard(req, res, { forStop: true }); if (!g) return;
     const b = req.body || {};
     if (b.platz !== undefined && b.platz !== null && b.platz !== '') {   // einzelnen Platz stoppen (wie in der Mitglieder-App)
       try { return stopAnswer(res, await stopPlatz(parseInt(b.platz, 10), g.who), 'Der Platz ließ sich nicht vollständig stoppen – bitte erneut versuchen!'); }
@@ -556,10 +642,10 @@ function appRouter(ctx) {
     }
     stopAnswer(res, await stopAll(g.who), 'Nicht alle Zonen ließen sich stoppen – bitte erneut versuchen!');
   });
-  r.post('/login', rateLimit('blogin', 10, 60000), (req, res) => {
+  r.post('/login', rateLimit('blogin', 10, 60000), async (req, res) => {
     const { username, password } = req.body || {};
     if (req.get('X-Clubwerk') !== '1') return res.status(403).json({ error: 'Ungültige Anfrage.' });
-    const out = auth.login(username, password, req.ip, 'beregnung', { known: auth.knownDevice(req, username) });
+    const out = await auth.login(username, password, req.ip, 'beregnung', { known: auth.knownDevice(req, username) });
     if (!out.ok) { audit(String(username || '').slice(0, 30), 'Beregnung: Anmeldung fehlgeschlagen', req.ip); return res.status(401).json({ error: out.error }); }
     audit(String(username || '').toLowerCase(), 'Beregnung: Anmeldung', req.ip);
     res.setHeader('Set-Cookie', `gbereg=${out.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${8 * 3600}${req.secure ? '; Secure' : ''}`);
@@ -717,10 +803,10 @@ function activate(ctx) {
   // Im Vereins-WLAN ohne extra PIN: das Handy ist gekoppelt und für die Beregnung freigeschaltet – dafür gebremst (10 je Minute),
   // damit niemand im Sekundentakt Ventile schaltet. Unterwegs (Ausnahme „auch unterwegs“) zusätzlich mit PIN: ein gestohlener
   // Geräteschlüssel allein reicht dann nicht, um aus der Ferne zu bewässern. Stoppen geht immer ohne PIN (Sicherheit vor Bequemlichkeit).
-  ctx.member.post('/run', ctx.rateLimit('bgmrun', 10, 60000), (req, res) => {
+  ctx.member.post('/run', ctx.rateLimit('bgmrun', 10, 60000), async (req, res) => {
     if (req.away && typeof req.pinOk === 'function') {
       if (!String((req.body || {}).pin || '')) return res.status(428).json({ error: 'Unterwegs bitte mit deiner PIN bestätigen.', needPin: true });   // ohne PIN: nachfragen (428), nicht als Fehlversuch zählen
-      if (!req.pinOk()) return;
+      if (!(await req.pinOk())) return;
     }
     try { res.json({ ok: true, ...enqueue(parseInt((req.body || {}).platz, 10), req.member.name) }); } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -756,7 +842,7 @@ function activate(ctx) {
   /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
   ctx.hooks.probeCounts = () => [{ label: 'Beregnungsprotokoll', n: db.prepare("SELECT COUNT(*) n FROM irr_log").get().n }];
   ctx.hooks.setupSteps = () => [
-    { id: 'anbindung', title: 'Anbindung der Bewässerung', text: 'Über Home Assistant oder direkt beim Hersteller der Steuerung.', page: 'beregnung', tab: ['beregnung', 'einstellungen'], card: ['Anbindung'] },
+    { id: 'anbindung', title: 'Anbindung der Bewässerung', text: 'Über Home Assistant oder direkt beim Hersteller der Steuerung. Über Home Assistant im Gerät eine Höchstlaufzeit einstellen – falls Home Assistant ausfällt.', page: 'beregnung', tab: ['beregnung', 'einstellungen'], card: ['Anbindung'] },
     { id: 'plaetze', title: 'Plätze und Zonen', text: 'Welche Ventile zu welchem Platz gehören und wie lange sie laufen – danach einen Platz testweise starten.', page: 'beregnung', tab: ['beregnung', 'plaetze'], card: ['Plätze & Zonen'], done: cfg().plaetze.length > 0 },
   ];
   ctx.hooks.overview = async () => {
@@ -795,7 +881,7 @@ function activate(ctx) {
   // Geräte neu zuordnen nur mit eigenem Passwort (src/geraete.js) – falsche Versuche je Benutzer gebremst
   admin.put('/config', need('beregnung'), async (req, res) => {
     const b = req.body || {};
-    const pw = G.bestaetigt(req, res, ctx.ownPwOk); if (!pw) return;
+    const pw = await G.bestaetigt(req, res, ctx.ownPwOk); if (!pw) return;
     let geprueft;
     try { geprueft = await geraetePruefen(cfg(), cleanCfg(b, cleanName), { user: req.user, confirmed: pw.confirmed }); }
     catch (e) { if (G.antwort(res, e)) return; return bad(res, e.message); }
@@ -804,16 +890,16 @@ function activate(ctx) {
     try { out = cleanCfg(b, cleanName); nachgeprueft(geprueft, before, out); } catch (e) { return bad(res, e.message); }
     if (out.backend !== before.backend && (db.prepare("SELECT 1 FROM irr_steps WHERE state IN ('wait','run') LIMIT 1").get() || pendingStop())) return bad(res, 'Während einer laufenden Beregnung kann die Anbindung nicht gewechselt werden.');
     setSetting('ext_beregnung_cfg', JSON.stringify(out));
-    zoneAlert(before, out, req.user.name || req.user.username);
+    zoneAlert(before, out, ctx.userName(req));
     cache.at = 0;
     audit(req.user, 'Beregnung eingerichtet', `${out.plaetze.length} Plätze, ${vendorOf(out).name}, Schutz: ${{ login: 'Anmeldung', app: 'nur Mitglieder-App' }[out.mode] || 'Vereins-PIN'}`);
     res.json({ ok: true, cfg: out });
   });
-  admin.put('/pin', need('beregnung'), (req, res) => {
+  admin.put('/pin', need('beregnung'), async (req, res) => {
     const pin = String((req.body || {}).pin || '');
     if (!/^\d{4,8}$/.test(pin)) return bad(res, 'Die PIN muss aus 4 bis 8 Ziffern bestehen.');
     { const steps = new Set([...pin].slice(1).map((c, i) => c - pin[i])); if (steps.size === 1 && [0, 1, -1].includes([...steps][0])) return bad(res, 'Diese PIN ist zu leicht zu erraten (z. B. 1111 oder 1234) – bitte eine andere wählen.'); }
-    setSetting('ext_beregnung_pin_hash', auth.hashSecret(pin));
+    setSetting('ext_beregnung_pin_hash', await auth.hashPin(pin));
     audit(req.user, 'Beregnung: Vereins-PIN geändert', '');
     res.json({ ok: true });
   });
@@ -827,10 +913,10 @@ function activate(ctx) {
   });
   /* Bedienen in der Verwaltung – dieselben Kacheln wie in Mitglieder-App und am Tablet: Platz starten, einzeln oder alles stoppen */
   admin.post('/run', need('beregnung', 'beregnung_bedienen'), (req, res) => {
-    try { res.json({ ok: true, ...enqueue(parseInt((req.body || {}).platz, 10), req.user.name || req.user.username) }); } catch (e) { res.status(400).json({ error: e.message }); }
+    try { res.json({ ok: true, ...enqueue(parseInt((req.body || {}).platz, 10), ctx.userName(req)) }); } catch (e) { res.status(400).json({ error: e.message }); }
   });
   admin.post('/stop', need('beregnung', 'beregnung_bedienen'), async (req, res) => {
-    const b = req.body || {}, who = req.user.name || req.user.username;
+    const b = req.body || {}, who = ctx.userName(req);
     if (b.platz !== undefined && b.platz !== null && b.platz !== '') {
       try { const r = await stopPlatz(parseInt(b.platz, 10), who); return res.json({ ok: !r.errs.length, errors: r.errs, pendingSec: r.pendingSec }); } catch (e) { return res.status(400).json({ error: e.message }); }
     }
@@ -841,32 +927,16 @@ function activate(ctx) {
     const hits = cfg().backend === 'hydrawise' ? hwHits().length : 0;
     res.json({ ...(await status()), shared: hits >= 3 ? SHARED(hits) : '' });
   });
-  const monthRows = m => db.prepare('SELECT * FROM irr_log WHERE at >= ? AND at < ? ORDER BY at DESC').all(m + '-01', nextMonth(m) + '-01');
-  admin.get('/log', need('beregnung'), (req, res) => {
-    const months = db.prepare("SELECT DISTINCT substr(at,1,7) m FROM irr_log ORDER BY m DESC").all().map(r => r.m);
-    const cur = localTs().slice(0, 7);
-    if (!months.includes(cur)) months.unshift(cur);
-    const m = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : cur;
-    setSetting('ext_beregnung_err_seen', localTs());   // Verlauf angesehen: Fehler-Hinweis auf der Übersicht erledigt
-    res.json({ month: m, months, rows: monthRows(m) });
-  });
-  async function logXlsx(m) {
-    const ExcelJS = ctx.require('exceljs');
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Beregnung ' + m);
-    ws.columns = [{ header: 'Zeitpunkt', key: 'at', width: 20 }, { header: 'Aktion', key: 'action', width: 10 }, { header: 'Platz', key: 'platz', width: 22 },
-      { header: 'Minuten', key: 'min', width: 10 }, { header: 'Wer', key: 'who', width: 22 }, { header: 'Hinweis', key: 'detail', width: 50 }];
-    ws.getRow(1).font = { bold: true };
-    for (const r of monthRows(m).reverse()) ws.addRow({ ...r, at: r.at.split(' ')[0].split('-').reverse().join('.') + ' ' + r.at.slice(11, 16), action: { start: 'Start', stop: 'Stopp', fehler: 'Fehler', kopplung: 'Freischaltung' }[r.action] || r.action, min: r.sec ? Math.round(r.sec / 6) / 10 : null });
-    return Buffer.from(await wb.xlsx.writeBuffer());
-  }
-  // lesbarer Auszug für die nächtliche Datensicherung (Kern): Protokoll des laufenden Monats
-  ctx.hooks.backupExports = async () => { const m = localTs().slice(0, 7); return [{ name: `Beregnung-Protokoll_${m}.xlsx`, buffer: await logXlsx(m) }]; };
-  admin.get('/log.xlsx', need('beregnung'), async (req, res) => {
-    const m = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : localTs().slice(0, 7);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="beregnung-${m}.xlsx"`);
-    res.end(await logXlsx(m));
+  /* Verlauf (Monatsliste, Excel, Auszug für die nächtliche Datensicherung) */
+  Monat.einrichten(ctx, admin, {
+    perm: need('beregnung'), cur: () => localTs().slice(0, 7),
+    months: () => db.prepare("SELECT DISTINCT substr(at,1,7) m FROM irr_log ORDER BY m DESC").all().map(r => r.m),
+    rows: m => db.prepare('SELECT * FROM irr_log WHERE at >= ? AND at < ? ORDER BY at DESC').all(m + '-01', Monat.nextMonth(m) + '-01'),
+    gelesen: () => setSetting('ext_beregnung_err_seen', localTs()),   // Verlauf angesehen: Fehler-Hinweis auf der Übersicht erledigt
+    sheet: m => `Beregnung ${m}`, file: m => `beregnung-${m}.xlsx`, backup: m => `Beregnung-Protokoll_${m}.xlsx`,
+    columns: [{ header: 'Zeitpunkt', key: 'at', width: 20 }, { header: 'Aktion', key: 'action', width: 10 }, { header: 'Platz', key: 'platz', width: 22 },
+      { header: 'Minuten', key: 'min', width: 10 }, { header: 'Wer', key: 'who', width: 22 }, { header: 'Hinweis', key: 'detail', width: 50 }],
+    row: r => ({ ...r, at: r.at.split(' ')[0].split('-').reverse().join('.') + ' ' + r.at.slice(11, 16), action: { start: 'Start', stop: 'Stopp', fehler: 'Fehler', kopplung: 'Freischaltung' }[r.action] || r.action, min: r.sec ? Math.round(r.sec / 6) / 10 : null }),
   });
 
 
@@ -878,6 +948,5 @@ function activate(ctx) {
   ctx.hooks.shutdown = async () => { if (db.prepare("SELECT 1 FROM irr_steps WHERE state IN ('wait','run') LIMIT 1").get()) await stopAll('System (Beenden)'); };
   startPortApp(ctx);
 }
-const nextMonth = m => { const [y, mo] = m.split('-').map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${pad(mo + 1)}`; };
 
 module.exports = { activate, autoSub };

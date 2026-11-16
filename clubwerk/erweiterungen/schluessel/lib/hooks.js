@@ -62,7 +62,7 @@ function register(sh) {
     { id: 'verlust_sicher', label: 'Sicherheitsrelevanter Schlüssel verloren', level: 'r', push: 'Ein sicherheitsrelevanter Schlüssel wurde als verloren gemeldet – bitte in der Verwaltung ansehen.' },
     { id: 'verlust', label: 'Schlüssel verloren', level: 'a', push: 'Ein Schlüssel wurde als verloren gemeldet.' },
     { id: 'code', label: 'Falsche Codes bei der Schlüsselübergabe am Tablet', level: 'a', push: 'Am Tablet wurde bei der Schlüsselübergabe mehrfach ein falscher Code eingegeben.' },
-    { id: 'code_alle', label: 'Code-Eingabe der Schlüsselübergabe für alle Tablets gesperrt', level: 'a', push: 'Die Code-Eingabe der Schlüsselübergabe ist für alle Tablets gesperrt.' },
+    { id: 'code_alle', label: 'Viele falsche Codes bei der Schlüsselübergabe über alle Tablets', level: 'a', push: 'Bei der Schlüsselübergabe wurden über alle Tablets viele falsche Codes eingegeben.' },
   ];
   H.probeCounts = () => [{ label: 'Schlüssel-Sorten', n: db.prepare('SELECT COUNT(*) n FROM sl_type').get().n }, { label: 'Schlüssel-Ausgaben', n: db.prepare('SELECT COUNT(*) n FROM sl_issue').get().n }, { label: 'Schlüssel-Protokolle', n: db.prepare('SELECT COUNT(*) n FROM sl_protocol').get().n }];
   H.setupSteps = () => [{ id: 'bestand', title: 'Schlüssel: Bestand anlegen', text: 'Welche Schlüssel, Transponder und Karten es gibt – und die Bedingungen für die Ausgabe.', page: 'schluessel', tab: ['schluessel', 'bestand'], card: [], done: () => Boolean(db.prepare('SELECT 1 FROM sl_type LIMIT 1').get()) }];

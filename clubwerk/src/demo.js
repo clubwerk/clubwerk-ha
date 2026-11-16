@@ -148,14 +148,14 @@ function seal(db, m) {
   })();
 }
 /** Zufällige Zugangsdaten der Demo (Hashes mit der Passwortfunktion des Kerns) */
-function secrets(hash) {
+async function secrets(hash) {
   const pw = () => crypto.randomBytes(9).toString('base64').replace(/[+/=]/g, '').slice(0, 10) + '-' + crypto.randomInt(10, 99);
   const a = pw(), t = pw();
-  return { admin: { user: 'admin', pw: a, hash: hash(a) }, tablet: { pw: t, hash: hash(t) } };
+  return { admin: { user: 'admin', pw: a, hash: await hash(a) }, tablet: { pw: t, hash: await hash(t) } };
 }
 /** Markierung für den Demo-Start (Passwörter zufällig; Hashes mit der Passwortfunktion des Kerns) */
-function markStart(dataDir, hash) {
-  const m = secrets(hash);
+async function markStart(dataDir, hash) {
+  const m = await secrets(hash);
   fs.writeFileSync(START(dataDir), JSON.stringify(m), { mode: 0o600 });
   return { username: 'admin', password: m.admin.pw, tablet: m.tablet.pw };
 }

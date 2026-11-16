@@ -33,7 +33,7 @@
       .tu-more .tu-res { padding: 4px 0 2px; }`;
     document.head.appendChild(s);
   }
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
   const dd = d => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
   const dm = d => (d ? `${WD[new Date(d + 'T12:00:00').getDay()]}, ${dd(d)}` : '');
@@ -45,8 +45,7 @@
     id: 'turniere',
     render(el, ctx) {
       let d = null, view = 'spiele', league = null, comp = 'E', dkey = null;
-      const sheet = () => { let sh = document.getElementById('tuSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'tuSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); } return sh; };
-      const close = () => { const sh = document.getElementById('tuSheet'); if (sh) sh.classList.remove('show'); };
+      const { open: sheet, close } = VA.sheet('tuSheet');
       ctx.onLeave(close);
 
       async function load(focus) {

@@ -78,7 +78,7 @@ let reservedCache = null;
 function reservedPaths() {
   if (!reservedCache) {
     reservedCache = new Set(['api', 'x', 'app', 'm', 'p', 'verkauf', 'logo', 'gate', 'admin', 'index', 'manifest', 'vereinsicon', 'vereinsicon-maskable', 'demo']);
-    try { for (const f of fs.readdirSync(PUBLIC_DIR)) reservedCache.add(f.replace(/\.[^.]*$/, '').toLowerCase()); } catch (e) { /* egal */ }
+    try { for (const f of fs.readdirSync(PUBLIC_DIR)) reservedCache.add(f.replace(/\.[^.]*$/, '').toLowerCase()); } catch (e) { /* ohne Ordner nichts reserviert */ }
   }
   return reservedCache;
 }
@@ -103,7 +103,7 @@ function tabletPage(id, baseHref) {
   const fonts = ['jakarta-latin.woff2', 'barlow-condensed-600.woff2'].filter(f => !html.includes(f)).map(f => `<link rel="preload" href="../../fonts/${f}" as="font" type="font/woff2" crossorigin>`).join('\n');
   if (fonts) html = html.replace(`<base href="${baseHref}">`, m => m + '\n' + fonts);
   if (!/id="gkHeader"/.test(html)) html = html.replace(/<body([^>]*)>/i, `<body$1>\n<header id="gkHeader"></header>\n<script src="../../nav.js" data-base="../../" data-active="${id}"></script>`);
-  return html;
+  return require('./versioniert').html(html);
 }
 /** Pfade aller Tablet-Seiten der Module (/<pfad>/) – ohne Tablet leiten sie zur Verwaltung um */
 const tabletSlugs = () => new Set([...plugins.values()].map(tabletSlug).filter(Boolean));
@@ -151,7 +151,7 @@ function discover() {
         const ok = snapHash && getSetting(approvedKey(id), '') === snapHash;
         if (ok) {
           // freigegebene Kopie verwenden (auch ihre erweiterung.json)
-          try { const m2 = JSON.parse(fs.readFileSync(path.join(snap, 'erweiterung.json'), 'utf8')); if (m2.id === id) Object.assign(p.meta, { name: id, version: '0', ...m2, id, standardAktiv: false }); } catch (e) { /* */ }
+          try { const m2 = JSON.parse(fs.readFileSync(path.join(snap, 'erweiterung.json'), 'utf8')); if (m2.id === id) Object.assign(p.meta, { name: id, version: '0', ...m2, id, standardAktiv: false }); } catch (e) { /* Kopie ohne lesbare Beschreibung: Name bleibt die Kennung */ }
           p.dir = snap; p.liveDir = pdir;
           if (live && live !== snapHash) { p.pending = true; p.error = null; }
         } else if (!p.error) {
@@ -204,7 +204,7 @@ function load({ app, admin, helpers }) {
       const ctx = {
         id, meta: p.meta, appVersion: APP_VERSION, tablet, admin: adminR, db, getSetting, setSetting, audit, auditDiff, auth,
         isActive: () => isActive(id), require: name => require(name), ...helpers,
-        setting: (k, d) => getSetting(`ext_${id}_${k}`, d), setSetting2: (k, v) => setSetting(`ext_${id}_${k}`, v),
+        setting: (k, d = '') => getSetting(`ext_${id}_${k}`, d), setSetting2: (k, v) => setSetting(`ext_${id}_${k}`, v == null ? '' : String(v)),   // Einstellungen des Moduls: lesen (mit Vorgabe) · schreiben (immer als Text)
         calendarLink: ev => require('./kalender').eventLink(ev),   // Link auf die .ics-Datei eines einzelnen Termins für „In den Kalender“ (Mitglieder-App)
         clubAddress: () => ({ street: getSetting('club_street', ''), city: getSetting('club_city', ''), email: getSetting('club_email', ''), phone: getSetting('club_phone', '') }),   // Anschrift und Kontakt des Vereins (Einstellungen › Verein)
         // Zugangsdaten fremder Dienste (API-Schlüssel, Passwörter, Tokens): nur über ctx.geheim – liegen im Tresor, Name bekommt ext_<id>_ (planung/geheimnisse.md)
@@ -216,6 +216,9 @@ function load({ app, admin, helpers }) {
         // Sicherheitswarnungen („Sicherheit & Betrieb“): Arten meldet das Modul über hooks.securityEvents an; securityAlert('art', text, { key, member })
         securityAlert: (ev, text, opts) => require('./security').securityAlert(`${id}.${ev}`, text, opts),
         push: { send: (ids, ev, msg) => require('./push').send(ids, `${id}.${ev}`, msg), enabled: ev => require('./push').enabled(`${id}.${ev}`), lead: ev => require('./push').lead(`${id}.${ev}`) },
+        addColumns: (table, cols) => require('./util').addColumns(db, table, cols),   // fehlende Spalten nachrüsten: { spalte: 'TEXT …' } → Namen der neu angelegten
+        userName: req => (req.user && (req.user.name || req.user.username)) || '',   // Name des angemeldeten Admins für Protokoll und „erstellt von“
+        xlsx: require('./xlsx'),   // Excel-Ausgabe: book() · sheet(wb, name, columns, rows, { freeze }) · safe(text) · buffer(wb) · send(res, dateiname, wb)
         bank: require('./bank'),   // Bankkonten des Vereins: list() · get(id) · def() · forDepartment(id) · pick({ id, department })
         // Übersetzen: ctx.T('Text {0}', [wert]) in der Sprache der Anfrage bzw. der Vereinssprache (Fehlermeldungen, E-Mails, Excel und PDF übersetzt der Kern selbst)
         T: (t, v) => require('./i18n').T(t, v), lang: () => require('./i18n').current(),
@@ -241,6 +244,9 @@ function load({ app, admin, helpers }) {
           return out;
         },
         isModuleActive: other => isActive(other),
+        /** Uhr plausibel? false nach einem Start mit falscher Uhrzeit (src/uhr.js) – dann keine Geldläufe und keine zeitgesteuerten Geräte */
+        uhrOk: () => require('./uhr').ok(),
+        uhrMsg: require('./uhr').MSG,
         /** Adresse der Mitglieder-App (https) für Links in E-Mails, z. B. Kalender – leer, wenn keine eingetragen ist */
         appUrl: () => memberapp.appUrl(),
         /** E-Mail-Einladung zur Mitglieder-App für eine eigene Mail des Moduls (Willkommens-Mail): state(id) → { ok, reason, email }, create(id, user) → { url, until, steps, note, to, revoke } */
@@ -251,7 +257,7 @@ function load({ app, admin, helpers }) {
         messagesOf: id => require('./nachrichten').dataOf(id),
         autoMailsOf: id => require('./mailer').autoOf(id),   // vom Vorstand ausgelöste Mails (Willkommen, Austritt, Einladung, Mahnung) mit Text – für die Auskunft
         // Home-Assistant-Geräte gehören genau einem Modul: z. B. kann der Türöffner nicht als Beregnungs-Zone eingetragen werden
-        entityOwner: ent => { for (const q of plugins.values()) { if (q.meta.id === id || typeof q.hooks.usedEntities !== 'function') continue; try { if (q.hooks.usedEntities().includes(ent)) return q.meta.name; } catch (e) { /* */ } } return null; },   // Mitglieder-App: Router unter /api/m/<id>, Freischaltungen je Mitglied
+        entityOwner: ent => { for (const q of plugins.values()) { if (q.meta.id === id || typeof q.hooks.usedEntities !== 'function') continue; try { if (q.hooks.usedEntities().includes(ent)) return q.meta.name; } catch (e) { console.error(`Modul ${q.meta.id}: belegte Geräte nicht lesbar:`, e.message); } } return null; },   // Mitglieder-App: Router unter /api/m/<id>, Freischaltungen je Mitglied
       };
       if (p.meta.mitgliederApp) memberapp.register(id, { name: p.meta.name, label: p.meta.mitgliederApp.label || p.meta.name, kopf: p.meta.mitgliederApp.kopf, order: p.meta.mitgliederApp.order,
         dir: p.dir, router: member, hooks: p.hooks, isActive: () => isActive(id), perm: p.meta.verwaltung ? p.meta.verwaltung.recht : null, scripts: sharedScripts(p.meta),
@@ -306,7 +312,7 @@ function tabletSwitches() {
   const out = [];
   for (const p of plugins.values()) {
     if (!isActive(p.meta.id) || !p.meta.tablet || !p.hooks.tabletSwitch) continue;
-    try { out.push({ id: p.meta.id, label: String(p.meta.tablet.label || p.meta.name), on: Boolean(p.hooks.tabletSwitch.get()) }); } catch (e) { /* Modul-Fehler blendet den Schalter aus */ }
+    try { out.push({ id: p.meta.id, label: String(p.meta.tablet.label || p.meta.name), on: Boolean(p.hooks.tabletSwitch.get()) }); } catch (e) { console.error(`Modul ${p.meta.id}: Tablet-Schalter nicht lesbar (ausgeblendet):`, e.message); }
   }
   return out.map((x, i) => ({ x, i })).sort((a, b) => orderPos(a.x.id) - orderPos(b.x.id) || a.i - b.i).map(o => o.x);
 }
@@ -406,4 +412,4 @@ const get = id => plugins.get(id);
 /** Ordner der geladenen, freigegebenen Erweiterungen (für deren Sprachdateien) */
 const dirs = () => [...plugins.values()].filter(p => p.dir && !p.error && !p.unapproved && !p.pending).map(p => p.dir);
 
-module.exports = { tabletSlug, tabletSlugs, tabletPage, dirs, APPROVED_DIR, load, list, setActive, isActive, tabletNav, tabletSwitches, setTabletSwitch, orderPos, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };
+module.exports = { tabletSlugs, tabletPage, dirs, load, list, setActive, isActive, tabletNav, tabletSwitches, setTabletSwitch, orderPos, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };

@@ -1,43 +1,59 @@
 'use strict';
 /* Tablet: Turniertag (LK-Turnier) – einchecken mit Nenngeld, Plätze mit laufendem und nächstem Match, „Match starten“ und Ergebnis eintragen.
    Ohne PIN: Spieler fremder Vereine haben kein Konto. Ein Ergebnis lässt sich am Tablet nur einmal eintragen – korrigieren kann die Turnierleitung.
+   Hat die Turnierleitung einen Code festgelegt, fragt das Tablet ihn vor jedem Eintrag ab (15 Min. gemerkt).
    tablet.js ruft TurnierTag.load() auf und setzt den Inhalt vor die Tabellen der Clubmeisterschaft. */
 (() => {
   const $ = id => document.getElementById(id);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-  const euro = c => `${((c || 0) / 100).toFixed(2).replace('.', ',')} €`;
+  const esc = CW.esc;
+  const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // je Sprache (siehe i18n-dom.js)
+  const euro = c => EUR.format((c || 0) / 100);
   const COURT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16M3 12h18"/></svg>';
   const IN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/></svg>';
   const RES = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/></svg>';
   let d = null, onChange = () => {};
-  const toast = (msg, error = false) => { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (error ? ' error' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 5000); };
-  const dlg = html => { $('dialog').innerHTML = html; $('overlay').classList.remove('hidden'); };
-  const closeDlg = () => { $('overlay').classList.add('hidden'); $('dialog').innerHTML = ''; };
+  const toast = GKTab.toast(5000);
+  const { dlg, closeDlg } = GKTab;
   $('overlay').addEventListener('mousedown', e => { if (e.target === $('overlay')) closeDlg(); });
-  async function call(url, body) {
-    const r = await fetch('../../api/tablet/x/turniere/lk/' + url, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const j = await r.json().catch(() => ({}));
-    if (r.status === 401 && j.gate) throw Object.assign(new Error('Seite gesperrt'), { gate: true });
-    if (!r.ok) throw new Error(j.error || 'Das hat nicht geklappt.');
-    return j;
-  }
+  const call = (url, body) => GKTab.api('../../api/tablet/x/turniere/lk/' + url, body);
   const done = async msg => { closeDlg(); toast(msg); await onChange(); };
   const T = (t, v) => (window.T ? window.T(t, v) : String(t).replace(/\{(\d+)\}/g, (m, i) => (v && v[i] != null ? v[i] : m)));
   const delay = m => (m.delay >= 5 ? ` · +${m.delay}\u00a0min` : '');
 
+  /* ---------- Code der Turnierleitung (nur wenn festgelegt) ---------- */
+  const KEY = id => `cw_lk_code_${id}`;
+  const stored = id => { try { const x = JSON.parse(sessionStorage.getItem(KEY(id)) || 'null'); return x && Date.now() - x.at < 15 * 60000 ? x.code : null; } catch (e) { return null; } };
+  const keep = (id, code) => { try { sessionStorage.setItem(KEY(id), JSON.stringify({ code, at: Date.now() })); } catch (e) { /* egal */ } };
+  const forget = id => { try { sessionStorage.removeItem(KEY(id)); } catch (e) { /* egal */ } };
+  /** then(code) – ohne festgelegten Code sofort, sonst erst der Ziffernblock */
+  function leitung(then) {
+    if (!d.day.code) return then(undefined);
+    const c = stored(d.day.id);
+    if (c) { keep(d.day.id, c); return then(c); }
+    GKPin.ask({ show: dlg, close: closeDlg, title: esc(T('Turnierleitung')), sub: esc(T('Bitte den Code der Turnierleitung eingeben')), min: 4, minText: T('Bitte mindestens 4 Ziffern.') }, async pin => {
+      try { await call('pruefen', { code: pin }); keep(d.day.id, pin); then(pin); }
+      catch (e) { if (e.gate) return closeDlg(); return e.message; }
+    });
+  }
+  /** Schreiben mit Code; ein abgelehnter Code wird vergessen */
+  async function write(url, body, code) {
+    try { return await call(url, code ? { ...body, code } : body); }
+    catch (e) { if (e.status === 403 || e.status === 429) forget(d.day.id); throw e; }
+  }
+
   /* ---------- Einchecken: Namen suchen (ab 2 Buchstaben), dann einchecken und Nenngeld ---------- */
-  function pickName() {
+  function pickName(code) {
     dlg(`<h2>Einchecken</h2><div class="sub">Namen eingeben – dann einchecken und Nenngeld</div><input class="q" id="tq" placeholder="Vor- oder Nachname" autocomplete="off"><div class="vh-names" id="tnm"></div><div class="dlg-btns"><button id="tx">Abbrechen</button></div>`);
     const draw = () => {
       const q = $('tq').value.trim().toLowerCase();
       const hits = q.length < 2 ? [] : d.people.filter(p => p.name.toLowerCase().includes(q)).slice(0, 30);
       $('tnm').innerHTML = q.length < 2 ? '<div class="vh-names-hint">Bitte die ersten Buchstaben des Vor- oder Nachnamens eingeben.</div>'
         : hits.length ? hits.map(p => `<button data-p="${p.id}" translate="no"><span>${esc(p.name)}${p.checked_in ? ' ✓' : ''}</span></button>`).join('') : '<div class="vh-names-hint">Niemand gefunden – bitte bei der Turnierleitung melden.</div>';
-      $('tnm').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => person(d.people.find(p => p.id === +b.dataset.p)); });
+      $('tnm').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => person(d.people.find(p => p.id === +b.dataset.p), code); });
     };
     draw(); $('tq').oninput = draw; $('tx').onclick = closeDlg; setTimeout(() => $('tq').focus(), 50);
   }
-  function person(p) {
+  function person(p, code) {
     const btns = [];
     if (!p.checked_in) btns.push(['ci', p.fee && !p.paid ? 'Nur einchecken' : 'Einchecken', { checkin: true }]);
     if (p.fee && !p.paid) { btns.push(['bar', `Einchecken · ${euro(p.fee)} bar bezahlt`, { checkin: true, paid: 'bar' }]); btns.push(['dig', `Einchecken · ${euro(p.fee)} digital bezahlt`, { checkin: true, paid: 'digital' }]); }
@@ -50,22 +66,22 @@
     $('dialog').querySelectorAll('[data-a]').forEach(b => { b.onclick = async () => {
       const body = btns.find(x => x[0] === b.dataset.a)[2];
       b.disabled = true;
-      try { await call('person/' + p.id, body); await done(body.paid ? `Eingecheckt, ${euro(p.fee)} ${body.paid} – danke!` : body.absent === false ? 'Willkommen zurück.' : 'Eingecheckt – viel Erfolg!'); }
+      try { await write('person/' + p.id, body, code); await done(body.paid ? `Eingecheckt, ${euro(p.fee)} ${body.paid} – danke!` : body.absent === false ? 'Willkommen zurück.' : 'Eingecheckt – viel Erfolg!'); }
       catch (e) { b.disabled = false; toast(e.message, true); }
     }; });
   }
 
   /* ---------- Ergebnis: Match wählen, Sätze eintragen ---------- */
   const line = m => `${m.a || 'offen'} – ${m.b || 'offen'}`;
-  function pickMatch() {
+  function pickMatch(code) {
     const list = [...d.open, ...d.upcoming.filter(m => !d.open.some(x => x.id === m.id))].slice(0, 30);
     dlg(`<h2>Ergebnis eintragen</h2><div class="sub">Welches Match habt ihr gespielt?</div>
       <div class="vh-names eins">${list.length ? list.map(m => `<button data-m="${m.id}" translate="no"><span>${esc(line(m))}</span></button>`).join('') : '<div class="vh-names-hint">Gerade läuft kein Match.</div>'}</div>
       <div class="dlg-btns"><button id="tx">Abbrechen</button></div>`);
     $('tx').onclick = closeDlg;
-    $('dialog').querySelectorAll('[data-m]').forEach(b => { b.onclick = () => result(list.find(m => m.id === +b.dataset.m)); });
+    $('dialog').querySelectorAll('[data-m]').forEach(b => { b.onclick = () => result(list.find(m => m.id === +b.dataset.m), code); });
   }
-  function result(m) {
+  function result(m, code) {
     const third = m.full ? 'Satz 3' : 'Match-Tiebreak';
     dlg(`<h2 translate="no">${esc(line(m))}</h2><div class="sub">${esc(m.event)} · ${esc(m.roundLabel)}${m.court ? ` · ${esc(m.court)}` : ''}</div>
       <div class="tl-sets"><span></span><span class="h" translate="no">${esc(String(m.a).split(/[,/]/)[0])}</span><span></span><span class="h" translate="no">${esc(String(m.b).split(/[,/]/)[0])}</span>
@@ -77,7 +93,7 @@
     $('tok').onclick = async () => {
       const sets = [0, 1, 2].map(i => [$('ra' + i).value.trim(), $('rb' + i).value.trim()]).filter(x => x[0] !== '' || x[1] !== '');
       $('tok').disabled = true;
-      try { await call(`match/${m.id}/ergebnis`, { sets }); await done('Ergebnis gespeichert – danke!'); }
+      try { await write(`match/${m.id}/ergebnis`, { sets }, code); await done('Ergebnis gespeichert – danke!'); }
       catch (e) { $('tok').disabled = false; toast(e.message, true); }
     };
   }
@@ -90,8 +106,8 @@
       ${n ? `<p class="tl-p">${esc(T('Als Nächstes'))}${n.est ? ` (${esc(T('etwa {0} Uhr', [n.est]))}${esc(delay(n))})` : ''}:<br><b translate="no">${esc(line(n))}</b>${n.wait ? `<br><span class="muted">${esc(n.wait)}</span>` : ''}</p>` : ''}
       <div class="dlg-btns">${r ? '<button class="pri" id="tres">Ergebnis eintragen</button>' : ''}${canStart ? '<button class="pri" id="tgo">Match starten</button>' : ''}<button id="tx">Schließen</button></div>`);
     $('tx').onclick = closeDlg;
-    if ($('tres')) $('tres').onclick = () => result({ ...r, court: c.name });
-    if ($('tgo')) $('tgo').onclick = async () => { $('tgo').disabled = true; try { await call(`match/${n.id}/start`, {}); await done('Match gestartet – viel Spaß!'); } catch (e) { $('tgo').disabled = false; toast(e.message, true); } };
+    if ($('tres')) $('tres').onclick = () => leitung(code => result({ ...r, court: c.name }, code));
+    if ($('tgo')) $('tgo').onclick = () => leitung(async code => { try { await write(`match/${n.id}/start`, {}, code); await done('Match gestartet – viel Spaß!'); } catch (e) { toast(e.message, true); if ($('tgo')) $('tgo').disabled = false; } });
   }
 
   /** Inhalt für tablet.js → { html, bind } oder null, wenn heute kein Turnier läuft */
@@ -111,7 +127,7 @@
       <h2 class="sec">Plätze</h2><div class="tk-grid">${d.courts.map(tile).join('')}</div>
       ${d.queue.length ? `<h2 class="sec">Warteschlange</h2><div class="tk-grid">${d.queue.slice(0, 8).map(m => `<div class="tk-tile span2"><span class="tk-txt"><b translate="no">${esc(line(m))}</b><span>${esc(m.event)} · ${esc(m.wait || 'bereit – wartet auf einen Platz')}</span></span></div>`).join('')}</div>` : ''}`;
     const bind = () => {
-      $('tlIn').onclick = pickName; $('tlRes').onclick = pickMatch;
+      $('tlIn').onclick = () => leitung(pickName); $('tlRes').onclick = () => leitung(pickMatch);
       document.querySelectorAll('[data-c]').forEach(b => { b.onclick = () => court(d.courts.find(c => c.id === +b.dataset.c)); });
     };
     return { html, bind, day: d.day };

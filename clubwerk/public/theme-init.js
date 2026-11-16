@@ -16,7 +16,7 @@
   var now = function () { return root.getAttribute('data-tk-theme') || parentTk() || mine(); };
   apply(now());
   // „wie das Gerät“: Wechsel am Gerät (z. B. abends dunkel) sofort übernehmen
-  if (window.matchMedia) ['(prefers-color-scheme: dark)', '(prefers-contrast: more)'].forEach(function (q) { var m = matchMedia(q); var f = function () { apply(now()); }; if (m.addEventListener) m.addEventListener('change', f); else if (m.addListener) m.addListener(f); });
+  if (window.matchMedia) ['(prefers-color-scheme: dark)', '(prefers-contrast: more)'].forEach(function (q) { var m = matchMedia(q); var f = function () { apply(now()); }; m.addEventListener('change', f); });
   window.CWTheme = {
     choice: mine,
     set: function (t) { try { if (t === 'auto') localStorage.removeItem('cw_theme'); else localStorage.setItem('cw_theme', t); } catch (e) { /* privat */ } apply(now()); },
@@ -32,6 +32,41 @@
   // stürzten sonst ab („T is not defined“, Fund Wackler-Jagd 11.11.2026, Mitglieder-App englisch). i18n.js ersetzt ihn durch die echte Übersetzung.
   if (!window.T) window.T = function (t, v) { if (v && Array.isArray(v)) { var o = {}; for (var i = 0; i < v.length; i++) o[i] = v[i]; v = o; } return String(t == null ? '' : t).replace(/\{(\w+)\}/g, function (m, k) { return v && v[k] !== undefined ? v[k] : m; }); };
   document.write('<script src="' + base + 'i18n.js?' + q + '"><\/script>');
+})();
+
+/* Kleine Helfer für alle Oberflächen (statt je Seite neu geschrieben): CW.esc (Text für HTML maskieren), CW.euro (Cent als „1,50 €“ in der Sprache der Seite –
+   der Formatierer entsteht beim ersten Betrag, also nach dem Laden der Sprache). */
+(function () {
+  var EUR = null;
+  window.CW = {
+    esc: function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]; }); },
+    euro: function (c) { return (EUR = EUR || new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' })).format((c || 0) / 100); },
+  };
+})();
+
+/* Ein gemeinsamer Beobachter für den Seiteninhalt (statt eines MutationObserver je Baustein): CWDom.beobachte(fn, { typen, ziel }).
+   typen: Arten von Änderungen, die fn braucht ('childList' ist der Standard, dazu 'attributes' – nur class und hidden, mit Vorwert – und 'characterData');
+   ziel: Element (oder Funktion dazu), in dem sie liegen müssen. fn bekommt nur die passenden Änderungen. Reihenfolge: wie angemeldet. */
+(function () {
+  var subs = [], mo = null;
+  var verteilen = function (recs) {
+    for (var i = 0; i < subs.length; i++) {
+      var s = subs[i], z = typeof s.ziel === 'function' ? s.ziel() : s.ziel, mine = [];
+      for (var j = 0; j < recs.length; j++) { var r = recs[j]; if (s.typen.indexOf(r.type) >= 0 && (!z || z.contains(r.target))) mine.push(r); }
+      if (mine.length) s.fn(mine);
+    }
+  };
+  var an = function () {
+    if (mo || !document.body) return;
+    mo = new MutationObserver(verteilen);
+    mo.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden'], attributeOldValue: true });
+  };
+  window.CWDom = {
+    beobachte: function (fn, o) {
+      subs.push({ fn: fn, typen: (o && o.typen) || ['childList'], ziel: o && o.ziel });
+      if (document.body) an(); else document.addEventListener('DOMContentLoaded', an);
+    },
+  };
 })();
 
 /* Planblöcke (Belegungs- und Zeitpläne: .bk-blk, .bkm-blk, .tl-plan .blk): nur ganze Zeilen zeigen. Was nicht mehr ganz in den Block passt, wird ausgeblendet
@@ -51,7 +86,7 @@
   };
   var plan = 0, alle = function () { plan = 0; document.querySelectorAll(SEL).forEach(fit); };
   var los = function () { if (!plan) plan = requestAnimationFrame(alle); };
-  var start = function () { new MutationObserver(los).observe(document.body, { childList: true, subtree: true }); addEventListener('resize', los); los(); };
+  var start = function () { CWDom.beobachte(los); addEventListener('resize', los); los(); };
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();
 
@@ -96,7 +131,7 @@
   };
   var plan = 0, alle = function () { plan = 0; meldung(); reiter(); fenster(); ebenen(); };
   var los = function () { if (!plan) plan = requestAnimationFrame(alle); };
-  var start = function () { new MutationObserver(los).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] }); los(); };
+  var start = function () { CWDom.beobachte(los, { typen: ['childList', 'attributes'] }); los(); };
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
   window.CWA11y = { jetzt: alle };   // Tests/Prüfstand: sofort anwenden statt aufs nächste Bild zu warten
 })();
@@ -169,13 +204,13 @@
   };
   var start = function () {
     walk(document.body);
-    new MutationObserver(function (list) {
+    CWDom.beobachte(function (list) {
       for (var i = 0; i < list.length; i++) {
         var r = list[i];
         if (r.type === 'characterData') fix(r.target);
         else for (var j = 0; j < r.addedNodes.length; j++) walk(r.addedNodes[j]);
       }
-    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    }, { typen: ['childList', 'characterData'] });
   };
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
   // Kopieren: das feste Leerzeichen vor „·“ nie in die Zwischenablage – dort steht wieder ein normales
@@ -201,7 +236,7 @@
     }
   }
   function sched() { if (!q) q = requestAnimationFrame(run); }
-  function start() { new MutationObserver(sched).observe(document.documentElement, { childList: true, subtree: true, characterData: true }); sched(); }
+  function start() { CWDom.beobachte(sched, { typen: ['childList', 'characterData'] }); sched(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
 
@@ -247,23 +282,16 @@
   window.addEventListener('pageswap', still); window.addEventListener('pagereveal', still);
 })();
 
-/* Verwaltung im Tablet-Rahmen (verwaltung.html bettet …/tadmin/admin.html ein; der Prüfstand setzt window.__cwTabRahmen): <html class="tabrahmen">.
-   Dort gilt die Tablet-Form der Verwaltung (Listen statt Tabellen) bis 1399 px Breite statt nur bis 1279 px – echte Tablets haben 1024, 1180, 1280
-   oder 1366 px – und die Vereinskarte der Seitenleiste entfällt (die Tablet-Kopfzeile zeigt den Verein schon; planung/tablet-aufraeumen.md). */
+/* Verwaltung im Tablet-Rahmen (verwaltung.html bettet …/tadmin/admin.html ein; der Prüfstand setzt window.__cwTabRahmen): <html class="tabrahmen"> –
+   die Vereinskarte der Seitenleiste entfällt (die Tablet-Kopfzeile zeigt den Verein schon).
+   <html class="cw-liste"> gilt bis 1279 px, im Tablet-Rahmen bis 1399 px (echte Tablets haben 1024, 1180, 1280 oder 1366 px): die Verwaltung zeigt kompakte
+   Tabellen dann als Liste statt als Tabelle (admin.html). */
 (function () {
-  if (!(/\/tadmin\//.test(location.pathname) || window.__cwTabRahmen)) return;
-  document.documentElement.classList.add('tabrahmen');
-  var weiter = function (rs) {
-    for (var i = 0; i < rs.length; i++) {
-      var r = rs[i];
-      if (r.media && /^\(min-width:\s*701px\)\s*and\s*\(max-width:\s*1279px\)$/.test(r.media.mediaText)) r.media.mediaText = '(min-width: 701px) and (max-width: 1399px)';
-      else if (r.cssRules && !r.media) weiter(r.cssRules);
-    }
-  };
-  var alle = function () { [].forEach.call(document.styleSheets, function (b) { try { weiter(b.cssRules); } catch (e) { /* fremde Datei */ } }); };
-  document.addEventListener('DOMContentLoaded', alle);
-  // Module hängen ihr Stylesheet erst beim ersten Öffnen ihrer Seite an: auch das bekommt die weitere Tablet-Form
-  new MutationObserver(function (ms) { ms.forEach(function (m) { [].forEach.call(m.addedNodes, function (n) { if (n.tagName === 'STYLE' && n.sheet) { try { weiter(n.sheet.cssRules); } catch (e) { /* leer */ } } }); }); }).observe(document.documentElement, { childList: true, subtree: true });
+  var rahmen = /\/tadmin\//.test(location.pathname) || window.__cwTabRahmen, root = document.documentElement;
+  if (rahmen) root.classList.add('tabrahmen');
+  var mq = matchMedia('(max-width: ' + (rahmen ? 1399 : 1279) + 'px)');
+  var setze = function () { root.classList.toggle('cw-liste', mq.matches); };
+  setze(); mq.addEventListener('change', setze);
 })();
 
 /* Zoom-Sperre für Tablet-Seiten (Baustein CWZoom; Wunsch 11.11.2026: „Auf dem Tablet sollte man nirgends zoomen können, nur in der Verwaltung“;
@@ -281,21 +309,32 @@
   };
 })();
 
-/* Blätter (.vh-sheet: Tablet-Seiten der Module, Mitglieder-App, Beregnungs-Webapp) blenden weich ein und aus wie die Fenster (.overlay).
-   Ausblenden: Das Blatt ist sofort zu (ein Tipp trifft nie eine verblassende Ebene), nur die Abdunklung klingt kurz nach
-   (Aussehen in kit.css, .cw-blatt-aus). Egal, wie die Seite das Blatt schließt (Klasse „show“ entfällt). */
+/* Weiches Ausblenden – einmal für alle Oberflächen: Schließt eine Seite ein Fenster (.overlay bekommt „hidden“: Verwaltung, Tablet) oder ein Blatt
+   (.vh-sheet verliert „show“: Tablet-Seiten der Module, Mitglieder-App, Beregnung), ist es sofort zu (ein Tipp trifft nie eine verblassende Ebene);
+   nur die Abdunklung klingt 0,16 s nach. Egal, wie die Seite es schließt. Das Einblenden steht in den Stilen (style.css, admin.html, kit.css). */
 (function () {
+  var glow = null, anim = null;
+  var nachklingen = function (e, ebene) {
+    if (!e.animate || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    if (!glow) {
+      glow = document.createElement('div'); glow.className = 'cw-abblenden'; glow.setAttribute('aria-hidden', 'true');
+      glow.style.cssText = 'display:none;position:fixed;top:0;right:0;bottom:0;left:0;pointer-events:none'; document.body.appendChild(glow);
+    }
+    if (anim) anim.cancel();
+    glow.style.zIndex = ebene; glow.style.background = getComputedStyle(e).backgroundColor; glow.style.display = 'block';
+    anim = glow.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'ease-in', fill: 'forwards' });
+    anim.onfinish = function () { glow.style.display = 'none'; };
+  };
+  var hat = function (v, k) { return new RegExp('(^|\\s)' + k + '(\\s|$)').test(v || ''); };
   var start = function () {
-    var glow = document.createElement('div'); glow.className = 'cw-blatt-aus'; glow.setAttribute('aria-hidden', 'true'); document.body.appendChild(glow);
-    glow.addEventListener('animationend', function () { glow.classList.remove('an'); });
-    new MutationObserver(function (recs) {
+    CWDom.beobachte(function (recs) {
       recs.forEach(function (r) {
         var e = r.target;
-        if (!e.classList || !e.classList.contains('vh-sheet') || e.classList.contains('show') || !/(^|\s)show(\s|$)/.test(r.oldValue || '')) return;
-        glow.style.background = getComputedStyle(e).backgroundColor;
-        glow.classList.remove('an'); void glow.offsetWidth; glow.classList.add('an');
+        if (r.attributeName !== 'class' || !e.classList) return;
+        if (e.classList.contains('overlay') && e.classList.contains('hidden') && !hat(r.oldValue, 'hidden')) nachklingen(e, 19);
+        else if (e.classList.contains('vh-sheet') && !e.classList.contains('show') && hat(r.oldValue, 'show')) nachklingen(e, 100);
       });
-    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+    }, { typen: ['attributes'] });
   };
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();

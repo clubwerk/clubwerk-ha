@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.49';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.50';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -18,11 +18,11 @@
       const h = Math.ceil(Math.max(content, sheet, 240));
       if (h !== lastH) { lastH = h; embedPost('size', { height: h }); }
     };
-    try { new ResizeObserver(sendSize).observe(document.body); } catch (e) { /* unten der Zeitgeber */ }
-    setInterval(sendSize, 700);
+    try { new ResizeObserver(sendSize).observe(document.body); } catch (e) { /* unten die Änderungsbeobachtung */ }
+    try { new MutationObserver(sendSize).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] }); } catch (e) { /* egal */ }   // offenes Blatt (liegt fest über der Seite) ändert die Körpergröße nicht – statt Zeitgeber alle 700 ms
     window.addEventListener('load', sendSize);
   }
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const store = { get(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* privat */ } } };
   // Die PIN bleibt nur im Speicher dieser Seite (bis sie neu geladen wird) – nicht im sessionStorage, der auf dem Home-Bildschirm
   // faktisch dauerhaft wäre und bei Gerätezugriff auslesbar ist
@@ -112,7 +112,11 @@
   /* ---------- Bereiche ---------- */
   const SECTIONS = {};
   const FM = 'fuermich', FM_T = 'Für mich';   // Startseite „Für mich“: kein Modul, immer vorn in der Leiste
-  window.VA = { registerSection(s) { SECTIONS[s.id] = s; } };
+  /* Bausteine der Bereiche (member.js): Betrag, Datum, Blatt mit fester Kennung (open() legt es beim ersten Mal an, close() blendet es aus) */
+  const deD = d => (d ? d.slice(0, 10).split('-').reverse().join('.') : '');
+  const sheetEl = (id, cls = 'vh-sheet') => document.getElementById(id) || document.body.appendChild(Object.assign(document.createElement('div'), { id, className: cls }));
+  const sheetOf = (id, cls = 'vh-sheet vh-form') => ({ open: () => sheetEl(id, cls), close: () => { const sh = document.getElementById(id); if (sh) sh.classList.remove('show'); } });
+  window.VA = { registerSection(s) { SECTIONS[s.id] = s; }, esc, euro: CW.euro, deD, sheet: sheetOf };
   let me = null, current = null, cleanup = null;
   const loadScript = src => new Promise(res => { const s = document.createElement('script'); s.async = false; s.src = src; s.onload = res; s.onerror = res; document.body.appendChild(s); });
   /** Bereich laden, erst wenn er gebraucht wird: alle Skripte des Moduls (erweiterung.json „skripte“, dann member.js) laden gleichzeitig
@@ -229,8 +233,9 @@
   /* Plattform erkennen: zuerst über Merkmale (PushManager, Notification, Standalone), der User-Agent ergänzt nur (Version, eingebettete Browser) */
   const UA_EMBED_IOS = /FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Line\/|Twitter|Snapchat|MicroMessenger|GSA\/|Gmail|OutlookMobile|WhatsApp|Telegram|MetaIAB/i;
   const UA_EMBED_AND = /; wv\)|FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Line\/|Twitter|Snapchat|MicroMessenger|GSA\/|Gmail|WhatsApp|MetaIAB/i;
+  const iosOf = (ua = navigator.userAgent) => /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function platformEnv(ua = navigator.userAgent) {
-    const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1), android = /Android/.test(ua);
+    const ios = iosOf(ua), android = /Android/.test(ua);
     const v = ua.match(/OS (\d+)[_.](\d+)/), thirdParty = /CriOS|FxiOS|EdgiOS|OPiOS|Brave/.test(ua);
     return { ios, android, desktop: !ios && !android, browser: browserOf(ua), safariVer: (ua.match(/Version\/(\d+)/) || [])[1] | 0, thirdParty, standalone: standalone(), push: pushSupported(), perm: 'Notification' in window ? Notification.permission : 'default',
       iosVer: ios && v ? [+v[1], +v[2]] : null,
@@ -248,10 +253,15 @@
     return e.perm === 'denied' ? 'denied' : 'ask';
   }
   window.cwPushPlan = pushPlan; window.cwPlatformEnv = platformEnv;
+  const copyText = async t => {   // true, wenn kopiert (ohne Clipboard-Schnittstelle über ein verstecktes Feld)
+    try { await navigator.clipboard.writeText(t); return true; } catch (e) { /* Rückfall */ }
+    const f = document.body.appendChild(Object.assign(document.createElement('textarea'), { value: t })); f.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (x) { /* egal */ } f.remove(); return ok;
+  };
   const hintOpen = () => { const h = $('installHint'); return Boolean(h) && !h.classList.contains('hidden'); };
   const copyAddress = async () => {
     const u = location.origin + location.pathname;
-    try { await navigator.clipboard.writeText(u); } catch (e) { const t = document.createElement('textarea'); t.value = u; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (x) { /* egal */ } t.remove(); }
+    await copyText(u);
     toast('Adresse kopiert.');
   };
   /* Satz der Karte: nennt die vom Verein freigegebenen Bereiche (höchstens 4, dann „und mehr“) */
@@ -475,7 +485,7 @@
   const imgIO = window.IntersectionObserver && new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { imgIO.unobserve(e.target); loadAuthImg(e.target); } }), { rootMargin: '100% 0px' });
   const queueImg = img => { img.decoding = 'async'; imgIO ? imgIO.observe(img) : loadAuthImg(img); };
   const scanImgs = root => (root.querySelectorAll ? root.querySelectorAll('img[data-auth-src]') : []).forEach(queueImg);
-  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.matches && n.matches('img[data-auth-src]')) queueImg(n); scanImgs(n); } }))).observe(document.body, { childList: true, subtree: true });
+  CWDom.beobachte(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.matches && n.matches('img[data-auth-src]')) queueImg(n); scanImgs(n); } })));
 
   /* ---------- Profilbild: selbst hochladen, selbst bestimmen, wo es erscheint ---------- */
   const initials = n => String(n || '').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -490,7 +500,7 @@
   /* ---------- „Mehr“-Blatt: übrige Bereiche (ab 6 Bereichen) und Mein Konto – auch hinter dem Profilbild oben ---------- */
   let openPhoto = null, openLang = null, langName = '';
   function moreSheet() {
-    let sh = $('accSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'accSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
+    const sh = sheetEl('accSheet', 'vh-sheet');
     const rest = me.sections.length > 4 ? me.sections.slice(3) : [];
     const close = () => sh.classList.remove('show');
     sh.innerHTML = `<div class="vh-box">
@@ -534,7 +544,7 @@
   /* ---------- Darstellung auf diesem Handy: wie das Handy, hell, dunkel oder Hoher Kontrast (theme-init.js) ---------- */
   const LOOKS = [['auto', 'Wie das Handy'], ['light', 'Hell'], ['dark', 'Dunkel'], ['hc', 'Hoher Kontrast']];
   function lookSheet() {
-    let sh = $('lookSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'lookSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
+    const sh = sheetEl('lookSheet', 'vh-sheet');
     const cur = CWTheme.choice();
     sh.innerHTML = `<div class="vh-box"><h2>Darstellung</h2><p>Gilt nur auf diesem Handy. „Hoher Kontrast“ zeigt kräftige Ränder und stärkere Schrift – gut bei Sonne.</p>
       <div class="vh-langs">${LOOKS.map(([k, l]) => `<button type="button" class="vh-lang${k === cur ? ' on' : ''}" data-look="${k}">${esc(l)}</button>`).join('')}</div>
@@ -553,7 +563,7 @@
   }
   /* ---------- Kalender abonnieren: persönlicher Link für den Kalender des Handys (eigene Dienste, Termine, Buchungen, Spiele) ---------- */
   async function calSheet() {
-    let sh = $('calSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'calSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); }
+    const sh = sheetEl('calSheet', 'vh-sheet vh-form');
     const close = () => sh.classList.remove('show');
     const draw = d => {
       sh.innerHTML = `<div class="vh-box"><h2>Kalender abonnieren</h2><p>Deine Dienste, zugesagten Termine, Platzbuchungen und Spiele erscheinen im Kalender deines Handys und bleiben dort von selbst aktuell.</p>
@@ -568,14 +578,14 @@
       on('#calMake', async () => draw(await call('kalender', 'POST', {})));
       on('#calNew', async () => { draw(await call('kalender', 'POST', {})); toast('Neuer Link – bitte im Kalender neu abonnieren.'); });
       on('#calOff', async () => { await call('kalender', 'DELETE'); draw({}); toast('Abo beendet.'); });
-      on('#calCp', async () => { try { await navigator.clipboard.writeText(d.url); toast('Link kopiert.'); } catch (e) { toast('Kopieren geht hier nicht – bitte von Hand übernehmen.', true); } });
+      on('#calCp', async () => { if (await copyText(d.url)) toast('Link kopiert.'); else toast('Kopieren geht hier nicht – bitte von Hand übernehmen.', true); });
     };
     draw(await call('kalender'));
     sh.classList.add('show');
   }
   /* ---------- PIN ändern: gilt auch am Tablet; die bisherige PIN zählt in die Sperre nach Fehlversuchen ---------- */
   function pinChangeSheet() {
-    let sh = $('pinChSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'pinChSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
+    const sh = sheetEl('pinChSheet', 'vh-sheet');
     const inp = (id, ph) => `<input class="vh-input pin" id="${id}" type="password" inputmode="numeric" maxlength="${id === 'pcOld' ? 8 : 6}" autocomplete="off" placeholder="${ph}">`;
     sh.innerHTML = `<div class="vh-box"><h2>PIN ändern</h2>
       <p>${me.pinTablet ? 'Die neue PIN gilt auch am Tablet.' : 'Die neue PIN gilt für die App.'}</p>
@@ -630,7 +640,7 @@
     return { sub, st: await call('push/subscribe', 'POST', { subscription: sub.toJSON() }) };
   }
   async function notifSheet() {
-    let sh = $('pushSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'pushSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
+    const sh = sheetEl('pushSheet', 'vh-sheet');
     const sup = pushSupported();
     let reg = null, sub = null;
     if (sup) { try { reg = await swReady(); sub = await reg.pushManager.getSubscription(); } catch (e) { reg = null; } }
@@ -686,7 +696,7 @@
     fr.readAsDataURL(file);
   });
   function photoSheet(p, done) {
-    let sh = $('photoSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'photoSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
+    const sh = sheetEl('photoSheet', 'vh-sheet');
     let data = null, use = new Set(p.use);
     const draw = () => {
       sh.innerHTML = `<div class="vh-box"><h2>Profilbild</h2><div class="vh-photo">${data ? `<img src="${data}" alt="">` : p.has ? `<img data-auth-src="api/photo/img?v=${esc(p.v || '')}" alt="">` : esc(initials(me.member))}</div>
@@ -710,7 +720,7 @@
 
   /* ---------- Übernahme in die Home-Bildschirm-App (iPhone: eigener Speicher je Home-Bildschirm-App) ---------- */
   const standalone = () => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } };
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isIOS = iosOf();
   const fmtCode = c => c.slice(0, 5) + '-' + c.slice(5);
   async function prepareTransfer() {
     if (standalone() || !dev()) return;
@@ -727,8 +737,7 @@
   const mark = (on, n) => { $('istep1').classList.toggle('done', on); $('istep1').querySelector('.vh-n').textContent = on ? '✓' : '1'; $('installCopy').textContent = tx(n); };
   $('installCopy').onclick = async () => {
     const code = $('installCode').textContent.trim();
-    try { await navigator.clipboard.writeText(code); }
-    catch (e) { const r = document.createRange(); r.selectNodeContents($('installCode')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); try { document.execCommand('copy'); } catch (x) { /* egal */ } }
+    await copyText(code);
     codeCopied = true; mark(true, '✓ Kopiert');
   };
   $('installAddr').onclick = copyAddress;
@@ -762,7 +771,7 @@
   $('lockCode').onclick = () => transferFlow('');
   $('trNo').onclick = () => { $('trSheet').classList.remove('show'); lock(); };
   $('trPaste').onclick = async () => {
-    try { const c = (await navigator.clipboard.readText()).toUpperCase().replace(/[^A-Z0-9]/g, ''); if (c.length === 10) { $('trCode').value = fmtCode(c); $('trPin').focus(); return; } } catch (e) { }
+    try { const c = (await navigator.clipboard.readText()).toUpperCase().replace(/[^A-Z0-9]/g, ''); if (c.length === 10) { $('trCode').value = fmtCode(c); $('trPin').focus(); return; } } catch (e) { /* Zwischenablage gesperrt: von Hand eintippen */ }
     $('trCode').focus();
   };
   $('trPin').addEventListener('keydown', e => { if (e.key === 'Enter') $('trOk').click(); });

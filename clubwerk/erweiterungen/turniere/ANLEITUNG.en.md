@@ -250,6 +250,12 @@ The address of the TV display: open it in the browser of the TV (on the club Wi-
 
 ![The “TV in the clubhouse” card.](bild: seite=turniertag; tab=einstellungen; ziel=[data-card="fernseher"])
 
+#### Tournament director code on the tournament day
+
+Optional. Without a code, players check themselves in on the tablet and enter their own results. If you set a code with **Set code** (4 to 6 digits), the tablet asks for it before check-in, entry fee, “Start match” and results – then only the tournament director can do this. **Remove code** takes it back. The code is not shown again, so remember it! After ten wrong codes, entry is blocked for a while; a new code lifts the block.
+
+![The “Tournament director code” card on the tournament day.](bild: seite=turniertag; tab=einstellungen; ziel=[data-card="code"])
+
 #### Tournament day
 
 Here you change the **name** of the tournament day and see which files it was imported from. **End tournament …** closes the day: player links stop working, blocks in the booking system are lifted, and results stay for the result list. **Reopen tournament** undoes that. **Delete tournament day** removes players, check-in, entry fees and results and lifts blocks.
@@ -400,7 +406,7 @@ Only the tournament director enters results, here in the admin area or on the ta
 
 **On the tablet** (tab “Tournaments”, no PIN) you can see the club championship’s tables, knockout stage, play-offs and the honours board. On a tournament day what is happening today appears above them:
 
-- **LK tournament day:** “Check in” (search the name, check in and pay the entry fee in cash or digitally), “Enter result” (tap the match, enter the sets; a result can be entered on the tablet only once, and you enter walkovers and retirements in the admin area) and the courts: tapping one shows the running and the next match, ready to start.
+- **LK tournament day:** “Check in” (search the name, check in and pay the entry fee in cash or digitally), “Enter result” (tap the match, enter the sets; a result can be entered on the tablet only once, and you enter walkovers and retirements in the admin area) and the courts: tapping one shows the running and the next match, ready to start. If you have set a tournament director code, the tablet asks for it first.
 - **Village tournament and other free tournaments:** courts with the running and next match, tables and bracket to look at. “Enter result” and “Start next matches” only work with the **tournament director code** (number pad); it stays valid on the tablet for 15 minutes after the last entry.
 
 **In the member app** (section “Tournaments”, visible to all members while a season exists):

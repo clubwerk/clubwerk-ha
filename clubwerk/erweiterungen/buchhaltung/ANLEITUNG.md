@@ -178,7 +178,7 @@ Filter: **Gebucht**, **Storniert**, **Alle**, dazu Jahr (bzw. Geschäftsjahr) un
 - **Bezahlt am**, **Betrag (€, brutto)**, **Empfänger** (Firmen aus „Firmen & Sponsoren“ werden vorgeschlagen), **Ausgabeart** und **Wofür** sind Pflicht.
 - **Umsatzsteuer:** nur, wenn in den Einstellungen der Vorsteuerabzug eingeschaltet ist.
 - **Bezahlt von:** Bankkonto oder Kasse. Eine Kasse kann nicht ins Minus gehen, und in einem festgeschriebenen Monat lässt sich nichts mehr buchen.
-- **Beleg:** „Foto aufnehmen“ (am Handy oder Tablet öffnet sich die Kamera) oder „Datei wählen“ (JPG, PNG, HEIC oder PDF, höchstens 15 MB). Fotos werden vor dem Hochladen verkleinert. Gibt es keinen Beleg, begründet ihr das mit „Kein Beleg vorhanden …“ als **Eigenbeleg**.
+- **Beleg:** „Foto aufnehmen“ (am Handy oder Tablet öffnet sich die Kamera) oder „Datei wählen“ (JPG, PNG, HEIC oder PDF, höchstens 15 MB). Fotos werden vor dem Hochladen verkleinert. Gibt es keinen Beleg, begründet ihr das mit „Kein Beleg vorhanden …“ als **Eigenbeleg**. Ein hochgeladener Beleg, zu dem keine Ausgabe gespeichert wird, verschwindet nach zwei Stunden wieder.
 
 > Der Beleg wird beim Speichern eingefroren (Prüfsumme) und liegt verschlüsselt im Tresor. Er lässt sich danach nicht mehr ersetzen; wurde die Datei verändert, meldet Clubwerk das beim Öffnen.
 

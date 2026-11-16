@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { db, getSetting, setSetting, audit, auditDiff } = require('./db');
+const { db, getSetting, getJsonSetting, isObj, setSetting, audit, auditDiff } = require('./db');
 const { normIp } = require('./security');
 const invites = require('./invites');
 const tls = require('./tls');
@@ -20,7 +20,7 @@ const tunnelUrl = () => getSetting('ext_tunnel_url', '');
 /** Rechnername der öffentlichen Tunnel-Adresse (leer ohne Tunnel) */
 const tunnelHost = () => { try { return tunnelUrl() ? new URL(tunnelUrl()).host.toLowerCase() : ''; } catch (e) { return ''; } };
 /** Bereich „von unterwegs“ (über den Tunnel) nutzbar? Einstellung je Bereich, sonst Vorgabe des Moduls (Beregnung, Türen: nein) */
-const extCfg = () => { try { const x = JSON.parse(getSetting('app_ext_modules', '{}')); return x && typeof x === 'object' ? x : {}; } catch (e) { return {}; } };
+const extCfg = () => getJsonSetting('app_ext_modules', {}, isObj);
 function extAllowed(id) { const c = extCfg(); if (c[id] !== undefined) return Boolean(c[id]); const m = modules.get(id); return m ? m.away !== false : false; }
 /* Vereins-WLAN = Anfrage kommt direkt aus dem privaten Netz bei Home Assistant an (nicht über den Tunnel). Die App erreicht
    im Vereinsheim die lokale HTTPS-Adresse (Einstellung „Adresse im Vereins-WLAN“) und nutzt sie dann für alle Aufrufe. */
@@ -45,7 +45,7 @@ const sms = require('./sms');
 /** Kontaktdaten aus der Mitgliederverwaltung (falls aktiv) → { email, mobile }; hooked: Module mit memberAddress, wenn schon ermittelt (bei vielen Mitgliedern) */
 function contactOf(memberId, hooked = null, pre = null) {
   if (pre) return pre.get(memberId) || null;
-  try { for (const p of hooked || require('./plugins').withHook('memberAddress')) { const a = p.hooks.memberAddress(memberId); if (a) return a; } } catch (e) { /* Modul-Fehler: keine Kontaktdaten */ }
+  try { for (const p of hooked || require('./plugins').withHook('memberAddress')) { const a = p.hooks.memberAddress(memberId); if (a) return a; } } catch (e) { console.error('Mitglieder-App: Kontaktdaten aus dem Modul nicht lesbar:', e.message); }
   return null;
 }
 /** Kontaktdaten vieler Mitglieder auf einmal (Hook memberAddresses) → Map – oder null, wenn ein Modul sie nur einzeln liefert (dann je Mitglied) */
@@ -267,7 +267,7 @@ register('nachrichten', require('./nachrichten').info());   // Kern-Bereich „N
 const publics = new Map();
 function registerPublic(id, info) { publics.set(id, info); if (process.env.CW_TEST_ROUTEN) require('./routen').extra('Mitglieder-App', `/api/p/${id}`, info.router); }
 /** Bereiche, die der Verein in der App ausgeschaltet hat (Reiter weg für alle, Freischaltungen bleiben erhalten) */
-const appOff = () => { try { return new Set(JSON.parse(getSetting('app_off', '[]')) || []); } catch (e) { return new Set(); } };
+const appOff = () => new Set(getJsonSetting('app_off', [], Array.isArray));
 const appVisible = (m, memberId) => { try { return !(m.hooks && typeof m.hooks.appVisible === 'function') || Boolean(m.hooks.appVisible(memberId)); } catch (e) { return false; } };
 /** Konto „Kein Mitglied“ (z. B. Trainer)? Es bekommt nur Bereiche mit keinMitglied (Buchen, Türen, Beregnung) – und nur mit eigener Freischaltung */
 const isNonMember = id => (db.prepare('SELECT kind FROM members WHERE id = ?').get(id) || {}).kind === 'nichtmitglied';
@@ -288,7 +288,7 @@ function accessFor(memberId, id) {
 }
 /* Reihenfolge der Bereiche in der App (Reiter) und in der Freischaltungstabelle: Einstellung app_module_order (JSON-Liste von IDs),
    nicht gelistete Bereiche dahinter in der zentralen Reihenfolge der Module (MODULE_ORDER in plugins.js, Tablet und App gleich) */
-const moduleOrder = () => { try { const x = JSON.parse(getSetting('app_module_order', '[]')); return Array.isArray(x) ? x.map(String) : []; } catch (e) { return []; } };
+const moduleOrder = () => getJsonSetting('app_module_order', [], Array.isArray).map(String);
 const push = require('./push');
 const activeModules = () => {
   const ord = moduleOrder(), pos = id => { const i = ord.indexOf(id); return i < 0 ? 1e6 : i; };
@@ -344,7 +344,7 @@ function memberState(memberId, pre = null) {
   };
 }
 /** Beim Freischalten vorausgewählt? Bereiche, die im Verein etwas schalten (z. B. Türen, Licht), standardmäßig nicht – nur für ausgewählte Mitglieder */
-const preselect = id => { const m = modules.get(id); let o = {}; try { o = JSON.parse(getSetting('app_preselect', '{}')) || {}; } catch (e) { o = {}; } return id in o ? Boolean(o[id]) : !(m && m.sensitive && !m.open); };
+const preselect = id => { const m = modules.get(id); const o = getJsonSetting('app_preselect', {}, isObj); return id in o ? Boolean(o[id]) : !(m && m.sensitive && !m.open); };
 const moduleInfo = () => activeModules().map(([id, m]) => {
   let options = null;
   try { options = m.hooks.accessOptions ? m.hooks.accessOptions() : null; } catch (e) { options = null; }
@@ -453,6 +453,102 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
 
   const api = express.Router();
   const dev = req => req.get('X-Geraet') || '';
+  apiStart({ api, dev, rateLimit });
+  apiKoppeln({ api, dev, rateLimit, rateLimitKey });
+  /* Profilbild: das Mitglied lädt es selbst hoch und bestimmt, wo es erscheint */
+  const photos = require('./photos');
+  const meOr403 = (req, res) => { const w = invites.whoIs(SCOPE, dev(req)); if (!w) res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet.', device: true }); return w; };
+  const modOn = id => { try { return require('./plugins').isActive(id); } catch (e) { return false; } };
+  api.get('/privacy', (req, res) => { if (meOr403(req, res)) res.json(require('./datenschutz').notice()); });   // Datenschutzhinweis des Vereins
+  api.get('/photo', (req, res) => { const w = meOr403(req, res); if (w) res.json(photos.info(w.memberId, modOn)); });
+  api.put('/photo', rateLimit('appphoto', 20, 3600000), (req, res) => {
+    const w = meOr403(req, res); if (!w) return;
+    const b = req.body || {};
+    try { if (b.data) photos.save(w.memberId, b.data, b.use, { username: 'app', name: w.name }); else photos.setUse(w.memberId, b.use); res.json(photos.info(w.memberId, modOn)); }
+    catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  api.delete('/photo', (req, res) => { const w = meOr403(req, res); if (!w) return; photos.remove(w.memberId, { username: 'app', name: w.name }); res.json({ ok: true }); });
+  api.get('/photo/img', (req, res) => { const w = meOr403(req, res); if (w) photos.send(res, w.memberId, null); });
+  api.get('/photo/of/:id', (req, res) => {   // Bilder anderer (Platzbuchung, Helferdienste) – nur gekoppelte Handys, nur mit Freigabe
+    const w = meOr403(req, res); if (!w) return;
+    // … und nur, wer den Bereich selbst nutzen darf (Modul aktiv, Freischaltung gültig) – der Kreis der Betrachter bleibt so, wie es die App zeigt
+    const u = String(req.query.u || ''); const mod = { buchung: 'buchung', helfer: 'arbeitseinsatz' }[u];
+    if (!mod || !modOn(mod) || !accessFor(w.memberId, mod).ok) return res.status(404).end();
+    photos.send(res, parseInt(req.params.id, 10), u);
+  });
+  // Schreibende Aufrufe je Gerät bremsen (Schlüssel: Hash des Gerätetokens, nicht die Adresse – draußen teilen sich viele Handys eine Adresse,
+  // drinnen könnte ein Gerät die Adresse wechseln). Schützt vor Dauerfeuer auf PIN-prüfende Routen (scrypt kostet Rechenzeit) und Türimpulse.
+  const crypto = require('crypto');
+  const writeLimit = rateLimitKey('mwrite', 60, 60000, req => crypto.createHash('sha256').update(dev(req)).digest('hex').slice(0, 32));
+  // Module: /api/m/<id>/… – nur gekoppeltes Gerät mit Freischaltung für dieses Modul
+  api.use('/m/:id', (req, res, next) => {
+    const m = modules.get(req.params.id);
+    if (!m || !m.isActive()) return res.status(404).json({ error: 'Dieser Bereich ist nicht aktiv.' });
+    const w = invites.whoIs(SCOPE, dev(req));
+    if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet. Bitte beim Vorstand einen neuen QR-Code holen.', device: true });
+    const c = accessFor(w.memberId, req.params.id);
+    if (!c.ok) return res.status(403).json({ error: c.reason, denied: true });
+    if (!awayOk(req, req.params.id, c.row)) return res.status(403).json({ error: WLAN_ONLY, denied: true, wlanOnly: true });
+    if (w.remote && m.sensitive) {
+      if (awayReq(req)) return res.status(403).json({ error: STAGED, denied: true, staged: true });
+      if (invites.trust(w.deviceId)) audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name);
+    }
+    const go = () => {
+      req.member = { id: w.memberId, name: w.name, access: c.row ? { ...c.row, flags: parseFlags(c.row.flags) } : null };
+      /** PIN prüfen (bei jeder schaltenden Aktion) → true oder Antwort gesendet */
+      req.away = awayReq(req);   // unterwegs (Tunnel oder fremdes Netz) – Module können dann strenger sein (z. B. PIN vor dem Starten der Beregnung)
+      req.pinOk = async () => {   // asynchron (scrypt) – Module rufen „if (!(await req.pinOk())) return;“
+        const r = await invites.check(SCOPE, dev(req), (req.body || {}).pin);
+        if (r.ok) return true;
+        res.status(r.status).json({ error: r.error, pin: r.pin, device: r.device });
+        return false;
+      };
+      m.router(req, res, next);
+    };
+    if (req.method === 'GET' || req.method === 'HEAD') return go();
+    writeLimit(req, res, go);
+  });
+  // Öffentliche Teile der Module (ohne Anmeldung): API unter /api/p/<id>/…, Seiten unter /p/<id>/ (Ordner public/online des Moduls)
+  api.use('/p/:id', rateLimit('apppub', 120, 60000), (req, res, next) => {
+    const m = publics.get(req.params.id);
+    if (!m || !m.isActive()) return res.status(404).json({ error: 'Dieser Bereich ist nicht aktiv.' });
+    m.router(req, res, next);
+  });
+  app.use('/p/:id', (req, res, next) => {
+    const m = publics.get(req.params.id);
+    const dir = m && m.isActive() ? path.join(m.dir, 'public', 'online') : null;
+    if (!dir || !fs.existsSync(dir)) return res.status(404).end();
+    express.static(dir, { index: 'index.html', setHeaders: r => r.setHeader('Cache-Control', 'no-cache') })(req, res, next);
+  });
+  app.use('/api', api);
+  app.use('/api', (req, res) => res.status(404).json({ error: 'Unbekannte Adresse.' }));
+  /* Startseite der App: Skript und Stile mit Versionsnummer verknüpft (app.js?v=…) und nie zwischengespeichert –
+     Home-Bildschirm-Apps auf dem iPhone halten sonst nach einem Update noch tagelang das alte Skript fest */
+  const APP_DIR = path.join(__dirname, '..', 'public', 'app');
+  const appIndex = (req, res) => {
+    const v = encodeURIComponent(require('../package.json').version);
+    let html = fs.readFileSync(path.join(APP_DIR, 'index.html'), 'utf8');
+    const col = appColor();
+    html = html.replace(/(href|src)="(app\.js|early\.js|style\.css|theme\.css|kit\.css)"/g, (m, a, f) => `${a}="${f}?v=${v}${f === 'theme.css' ? '-' + col.slice(1) : ''}"`)
+      .replace(/<meta name="theme-color" content="#[0-9a-fA-F]{6}">/, `<meta name="theme-color" content="${col}">`);   // Statusleiste am Handy in Vereinsfarbe
+    res.set({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).send(html);
+  };
+  app.get(['/', '/index.html'], appIndex);
+  app.use((req, res, next) => { req.cwVersioned = versioned(req); next(); }, (req, res, next) => express.static(APP_DIR, { index: false, setHeaders: (r, p) => r.setHeader('Cache-Control', req.cwVersioned ? IMMUTABLE : /\.(js|html)$/.test(p) ? 'no-store' : 'no-cache') })(req, res, next));
+  /* Fehler immer als JSON, ohne interne Details – echte Programmfehler landen im Protokoll statt als „Ungültige Anfrage“ unterzugehen */
+  app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+    if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Die Datei ist zu groß.' });
+    if (err && err.cwMeldung) return res.status(err.status || 400).json({ error: err.message });   // gewollte Meldung (z. B. PINs nach Wiederherstellung)
+    if (err && (err.type === 'entity.parse.failed' || (err.status >= 400 && err.status < 500))) return res.status(400).json({ error: 'Ungültige Anfrage.' });
+    console.error('Mitglieder-App:', err);
+    res.status(500).json({ error: 'Interner Fehler.' });
+  });
+  const srv = tls.listen(app, port, process.env.HOST || '0.0.0.0', 'Mitglieder-App');
+  srv.on('error', e => console.error(`Mitglieder-App: Port ${port} nicht nutzbar (${e.code || e.message}).`));
+}
+
+/** Mitglieder-App: Verbindungstest, eigene Bereiche, „Für mich“ (Teil von startPort) */
+function apiStart({ api, dev, rateLimit }) {
   // Diagnose: ip = so sieht Clubwerk den Absender; wlan = Anfrage kam direkt aus dem Vereinsnetz (nicht über den Tunnel)
   api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', color: appColor(), club: getSetting('club_name', ''), tunnel: Boolean(req.viaTunnel), wlan: !awayReq(req), ip: normIp(req.ip) }));
   /** Bereiche dieses Handys bei dieser Anfrage: freigeschaltet, „Nur im Vereins-WLAN“ (unterwegs) oder „wartet aufs WLAN“ (vertraulich nach Kopplung von unterwegs) */
@@ -524,6 +620,10 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     db.prepare('INSERT OR IGNORE INTO app_forme_seen(member_id, key) VALUES (?,?)').run(w.memberId, key);
     res.json({ ok: true });
   });
+}
+
+/** Mitglieder-App: Einladung, Koppeln, Umzug aufs neue Handy, Übergabe, Push, PIN, Abmelden (Teil von startPort) */
+function apiKoppeln({ api, dev, rateLimit, rateLimitKey }) {
   /** Einladung schon eingelöst und erneut geöffnet: Vorstand warnen (einmal je Einladung) */
   const usedAlert = p => {
     if (!invites.markAlerted(p.deviceId)) return;
@@ -544,7 +644,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     if (!awayReq(req)) return res.status(400).json({ error: 'Im Vereins-WLAN ist kein SMS-Code nötig.' });
     const phone = smsPhone(p.memberId);
     if (!phone) return res.status(400).json({ error: 'Für dich ist keine Handynummer hinterlegt.' });
-    const o = invites.otpCreate(SCOPE, t);
+    const o = await invites.otpCreate(SCOPE, t);
     if (o.error) return res.status(o.status).json({ error: o.error });
     try {
       await sms.send(phone, `${getSetting('club_name', 'Verein')}: Dein Code fuer die Mitglieder-App: ${o.code}. Gilt ${o.minutes} Minuten. Niemandem weitergeben.`);
@@ -555,7 +655,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
       res.status(502).json({ error: 'Die SMS konnte gerade nicht verschickt werden. Du kannst ohne Code weitermachen. ' + wlanNote(stagedAreas(p.memberId)), smsFailed: true });
     }
   });
-  api.post('/pair', rateLimit('apppair', 10, 60000), (req, res) => {
+  api.post('/pair', rateLimit('apppair', 10, 60000), async (req, res) => {
     const b = req.body || {}, t = String(b.t || '');
     try {
       const p = invites.peek(SCOPE, t);
@@ -566,13 +666,13 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
       if (away) {
         const phone = smsPhone(p.memberId);
         if (phone && String(b.otp || '').trim()) {
-          const c = invites.otpCheck(SCOPE, t, b.otp);
+          const c = await invites.otpCheck(SCOPE, t, b.otp);
           if (!c.ok) return res.status(c.status).json({ error: c.error, otp: true });
           verified = 'sms';
         } else if (phone && !b.skipSms) return res.status(400).json({ error: 'Bitte zuerst den Code aus der SMS eingeben.', otp: true });
         else remote = true;   // ohne zweiten Faktor von unterwegs: gestufte Freischaltung
       }
-      const out = invites.redeem(SCOPE, t, b.pin, req.get('user-agent'), req.get('host'), { remote, verified });
+      const out = await invites.redeem(SCOPE, t, b.pin, req.get('user-agent'), req.get('host'), { remote, verified });
       audit(null, 'Mitglieder-App: Handy freigeschaltet', `${out.member}${verified ? ' · mit SMS-Code' : remote ? ' · von unterwegs (sensible Bereiche erst im Vereins-WLAN)' : ''}`);
       pairedMail(out.memberId, { device: req.get('user-agent'), remote, verified });
       res.json({ ok: true, device: out.device, member: out.member, staged: remote && stagedAreas(out.memberId).length > 0, stagedAreas: remote ? stagedAreas(out.memberId) : [] });
@@ -585,12 +685,12 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     res.json({ code });
   });
   const trFails = require('./security').limiter({ per: 10, baseMs: 15 * 60000 });
-  api.post('/transfer/redeem', rateLimit('apptrr', 10, 60000), (req, res) => {
+  api.post('/transfer/redeem', rateLimit('apptrr', 10, 60000), async (req, res) => {
     const ip = req.ip || '';
     const wait = trFails.blocked(ip);
     if (wait) return res.status(429).json({ error: `Zu viele Versuche – bitte in ${wait} Min. erneut versuchen.` });
     const b = req.body || {};
-    const r = invites.redeemTransfer(SCOPE, b.code, b.pin, req.get('user-agent'), req.get('host'));
+    const r = await invites.redeemTransfer(SCOPE, b.code, b.pin, req.get('user-agent'), req.get('host'));
     if (!r.ok) { if (r.badCode) trFails.fail(ip); return res.status(r.status || 400).json({ error: r.error, pin: r.pin, badCode: r.badCode }); }
     trFails.ok(ip);
     audit(null, 'Mitglieder-App: Freischaltung in Home-Bildschirm-App übernommen', r.member);
@@ -604,13 +704,13 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     if (!code) return res.status(403).json({ error: 'Dieses Gerät ist nicht freigeschaltet.', device: true });
     res.json({ code, url });
   });
-  api.post('/handover/redeem', rateLimit('apphor', 10, 60000), (req, res) => {
+  api.post('/handover/redeem', rateLimit('apphor', 10, 60000), async (req, res) => {
     if (awayReq(req)) return res.status(403).json({ error: 'Die lokale Adresse lässt sich nur im Vereins-WLAN einlösen.' });
     const ip = req.ip || '';
     const wait = trFails.blocked(ip);
     if (wait) return res.status(429).json({ error: `Zu viele Versuche – bitte in ${wait} Min. erneut versuchen.` });
     const b = req.body || {};
-    const r = invites.redeemHandover(SCOPE, b.code, b.pin, req.get('host'));
+    const r = await invites.redeemHandover(SCOPE, b.code, b.pin, req.get('host'));
     if (!r.ok) { if (r.badCode) trFails.fail(ip); return res.status(r.status || 400).json({ error: r.error, pin: r.pin, badCode: r.badCode }); }
     trFails.ok(ip);
     audit(null, 'Mitglieder-App: lokale Route im Vereinsheim übernommen', r.member);
@@ -641,17 +741,17 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     const r = await push.send(w.memberId, 'app.test', { title: `${getSetting('club_name', 'Verein')}: Testnachricht`, body: 'Push-Benachrichtigungen funktionieren auf diesem Handy.' }, { endpoint: String((req.body || {}).endpoint || '') });
     res.json({ ok: r.sent > 0, sent: r.sent, skipped: r.skipped || null });
   });
-  api.post('/verify-pin', rateLimit('apppin', 20, 60000), (req, res) => {
-    const c = invites.check(SCOPE, dev(req), (req.body || {}).pin);
+  api.post('/verify-pin', rateLimit('apppin', 20, 60000), async (req, res) => {
+    const c = await invites.check(SCOPE, dev(req), (req.body || {}).pin);
     if (!c.ok) return res.status(c.status).json({ error: c.error, pin: c.pin, device: c.device });
     res.json({ ok: true });
   });
   /* Mein Konto: PIN ändern (gilt auch am Tablet) und Abmelden. Die alte PIN zählt in dieselbe Sperre wie jede PIN-Eingabe
      am Handy (5 falsch → Pause, 15 → Handy gesperrt) – von unterwegs genauso wie im Vereins-WLAN. */
   const pinLimit = rateLimitKey('apppinc', 20, 60000, req => require('crypto').createHash('sha256').update(dev(req)).digest('hex').slice(0, 32));   // je Gerät, wie writeLimit
-  api.post('/pin', rateLimit('apppinip', 60, 60000), pinLimit, (req, res) => {
+  api.post('/pin', rateLimit('apppinip', 60, 60000), pinLimit, async (req, res) => {
     const b = req.body || {};
-    const r = invites.changePin(SCOPE, dev(req), b.pin, typeof b.newPin === 'string' ? b.newPin : '');
+    const r = await invites.changePin(SCOPE, dev(req), b.pin, typeof b.newPin === 'string' ? b.newPin : '');
     if (!r.ok) return res.status(r.status).json({ error: r.error, pin: r.pin, device: r.device });
     audit(null, 'Mitglieder-App: PIN geändert', r.name);
     // andere Abos des Mitglieds (z. B. die App im Vereins-WLAN) bekommen einen Hinweis – nicht das Handy, auf dem es gerade passiert ist
@@ -664,95 +764,6 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     audit(null, 'Mitglieder-App: Handy abgemeldet (vom Mitglied)', w.name);
     res.json({ ok: true });
   });
-  /* Profilbild: das Mitglied lädt es selbst hoch und bestimmt, wo es erscheint */
-  const photos = require('./photos');
-  const meOr403 = (req, res) => { const w = invites.whoIs(SCOPE, dev(req)); if (!w) res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet.', device: true }); return w; };
-  const modOn = id => { try { return require('./plugins').isActive(id); } catch (e) { return false; } };
-  api.get('/privacy', (req, res) => { if (meOr403(req, res)) res.json(require('./datenschutz').notice()); });   // Datenschutzhinweis des Vereins
-  api.get('/photo', (req, res) => { const w = meOr403(req, res); if (w) res.json(photos.info(w.memberId, modOn)); });
-  api.put('/photo', rateLimit('appphoto', 20, 3600000), (req, res) => {
-    const w = meOr403(req, res); if (!w) return;
-    const b = req.body || {};
-    try { if (b.data) photos.save(w.memberId, b.data, b.use, { username: 'app', name: w.name }); else photos.setUse(w.memberId, b.use); res.json(photos.info(w.memberId, modOn)); }
-    catch (e) { res.status(400).json({ error: e.message }); }
-  });
-  api.delete('/photo', (req, res) => { const w = meOr403(req, res); if (!w) return; photos.remove(w.memberId, { username: 'app', name: w.name }); res.json({ ok: true }); });
-  api.get('/photo/img', (req, res) => { const w = meOr403(req, res); if (w) photos.send(res, w.memberId, null); });
-  api.get('/photo/of/:id', (req, res) => {   // Bilder anderer (Platzbuchung, Helferdienste) – nur gekoppelte Handys, nur mit Freigabe
-    const w = meOr403(req, res); if (!w) return;
-    // … und nur, wer den Bereich selbst nutzen darf (Modul aktiv, Freischaltung gültig) – der Kreis der Betrachter bleibt so, wie es die App zeigt
-    const u = String(req.query.u || ''); const mod = { buchung: 'buchung', helfer: 'arbeitseinsatz' }[u];
-    if (!mod || !modOn(mod) || !accessFor(w.memberId, mod).ok) return res.status(404).end();
-    photos.send(res, parseInt(req.params.id, 10), u);
-  });
-  // Schreibende Aufrufe je Gerät bremsen (Schlüssel: Hash des Gerätetokens, nicht die Adresse – draußen teilen sich viele Handys eine Adresse,
-  // drinnen könnte ein Gerät die Adresse wechseln). Schützt vor Dauerfeuer auf PIN-prüfende Routen (scrypt kostet Rechenzeit) und Türimpulse.
-  const crypto = require('crypto');
-  const writeLimit = rateLimitKey('mwrite', 60, 60000, req => crypto.createHash('sha256').update(dev(req)).digest('hex').slice(0, 32));
-  // Module: /api/m/<id>/… – nur gekoppeltes Gerät mit Freischaltung für dieses Modul
-  api.use('/m/:id', (req, res, next) => {
-    const m = modules.get(req.params.id);
-    if (!m || !m.isActive()) return res.status(404).json({ error: 'Dieser Bereich ist nicht aktiv.' });
-    const w = invites.whoIs(SCOPE, dev(req));
-    if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet. Bitte beim Vorstand einen neuen QR-Code holen.', device: true });
-    const c = accessFor(w.memberId, req.params.id);
-    if (!c.ok) return res.status(403).json({ error: c.reason, denied: true });
-    if (!awayOk(req, req.params.id, c.row)) return res.status(403).json({ error: WLAN_ONLY, denied: true, wlanOnly: true });
-    if (w.remote && m.sensitive) {
-      if (awayReq(req)) return res.status(403).json({ error: STAGED, denied: true, staged: true });
-      if (invites.trust(w.deviceId)) audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name);
-    }
-    const go = () => {
-      req.member = { id: w.memberId, name: w.name, access: c.row ? { ...c.row, flags: parseFlags(c.row.flags) } : null };
-      /** PIN prüfen (bei jeder schaltenden Aktion) → true oder Antwort gesendet */
-      req.away = awayReq(req);   // unterwegs (Tunnel oder fremdes Netz) – Module können dann strenger sein (z. B. PIN vor dem Starten der Beregnung)
-      req.pinOk = () => {
-        const r = invites.check(SCOPE, dev(req), (req.body || {}).pin);
-        if (r.ok) return true;
-        res.status(r.status).json({ error: r.error, pin: r.pin, device: r.device });
-        return false;
-      };
-      m.router(req, res, next);
-    };
-    if (req.method === 'GET' || req.method === 'HEAD') return go();
-    writeLimit(req, res, go);
-  });
-  // Öffentliche Teile der Module (ohne Anmeldung): API unter /api/p/<id>/…, Seiten unter /p/<id>/ (Ordner public/online des Moduls)
-  api.use('/p/:id', rateLimit('apppub', 120, 60000), (req, res, next) => {
-    const m = publics.get(req.params.id);
-    if (!m || !m.isActive()) return res.status(404).json({ error: 'Dieser Bereich ist nicht aktiv.' });
-    m.router(req, res, next);
-  });
-  app.use('/p/:id', (req, res, next) => {
-    const m = publics.get(req.params.id);
-    const dir = m && m.isActive() ? path.join(m.dir, 'public', 'online') : null;
-    if (!dir || !fs.existsSync(dir)) return res.status(404).end();
-    express.static(dir, { index: 'index.html', setHeaders: r => r.setHeader('Cache-Control', 'no-cache') })(req, res, next);
-  });
-  app.use('/api', api);
-  app.use('/api', (req, res) => res.status(404).json({ error: 'Unbekannte Adresse.' }));
-  /* Startseite der App: Skript und Stile mit Versionsnummer verknüpft (app.js?v=…) und nie zwischengespeichert –
-     Home-Bildschirm-Apps auf dem iPhone halten sonst nach einem Update noch tagelang das alte Skript fest */
-  const APP_DIR = path.join(__dirname, '..', 'public', 'app');
-  const appIndex = (req, res) => {
-    const v = encodeURIComponent(require('../package.json').version);
-    let html = fs.readFileSync(path.join(APP_DIR, 'index.html'), 'utf8');
-    const col = appColor();
-    html = html.replace(/(href|src)="(app\.js|early\.js|style\.css|theme\.css|kit\.css)"/g, (m, a, f) => `${a}="${f}?v=${v}${f === 'theme.css' ? '-' + col.slice(1) : ''}"`)
-      .replace(/<meta name="theme-color" content="#[0-9a-fA-F]{6}">/, `<meta name="theme-color" content="${col}">`);   // Statusleiste am Handy in Vereinsfarbe
-    res.set({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).send(html);
-  };
-  app.get(['/', '/index.html'], appIndex);
-  app.use((req, res, next) => { req.cwVersioned = versioned(req); next(); }, (req, res, next) => express.static(APP_DIR, { index: false, setHeaders: (r, p) => r.setHeader('Cache-Control', req.cwVersioned ? IMMUTABLE : /\.(js|html)$/.test(p) ? 'no-store' : 'no-cache') })(req, res, next));
-  /* Fehler immer als JSON, ohne interne Details – echte Programmfehler landen im Protokoll statt als „Ungültige Anfrage“ unterzugehen */
-  app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
-    if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Die Datei ist zu groß.' });
-    if (err && (err.type === 'entity.parse.failed' || (err.status >= 400 && err.status < 500))) return res.status(400).json({ error: 'Ungültige Anfrage.' });
-    console.error('Mitglieder-App:', err);
-    res.status(500).json({ error: 'Interner Fehler.' });
-  });
-  const srv = tls.listen(app, port, process.env.HOST || '0.0.0.0', 'Mitglieder-App');
-  srv.on('error', e => console.error(`Mitglieder-App: Port ${port} nicht nutzbar (${e.code || e.message}).`));
 }
 
 /* ---------- Verwaltung ---------- */
@@ -830,6 +841,114 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     try { const buf = await g.pdf(lang); res.type('application/pdf'); res.setHeader('Content-Disposition', `attachment; filename="${g.FILE(lang)}"`); res.setHeader('Cache-Control', 'no-store'); res.send(buf); }
     catch (e) { console.error('Anleitung Mitglieder-App:', e.message); bad(res, 'Die Anleitung konnte nicht erstellt werden.', 500); }
   });
+  adminEinladungen({ admin, auth, bad, missingFor, need, permsAll });
+  const { smsInfo } = adminSms({ admin, bad, need });
+  admin.delete('/app/member/:id/device', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    { const miss = missingFor(req, id); if (miss.length) return bad(res, `Zum Entfernen des Handys fehlt dir das Recht für: ${miss.join(', ')} – bitte einen Admin mit diesem Recht fragen.`, 403); }
+    const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id);
+    invites.revoke(SCOPE, id); push.removeMember(id);
+    audit(req.user, 'Mitglieder-App: Handy entfernt', m ? m.name : String(id));
+    res.json({ ok: true });
+  });
+  /** Ganz aus der App entfernen: Handy und alle Freischaltungen weg – das Mitglied steht danach wieder unter „Mitglied freischalten“ */
+  admin.delete('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id);
+    if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
+    const miss = missingFor(req, id);
+    if (miss.length) return bad(res, `Zum Entfernen aus der App fehlt dir das Recht für: ${miss.join(', ')} – bitte einen Admin mit diesem Recht fragen.`, 403);
+    invites.revoke(SCOPE, id); push.removeMember(id);
+    const n = db.prepare('DELETE FROM member_access WHERE member_id = ?').run(id).changes;
+    audit(req.user, 'Mitglieder-App: aus der App entfernt', `${m.name} (Handy und ${n} ${n === 1 ? 'Freischaltung' : 'Freischaltungen'})`);
+    res.json({ ok: true });
+  });
+  /** Bereich (Türen, Beregnung …) allen Mitgliedern auf einmal entziehen – z. B. wenn er nur noch für Platzwart und Vorstand da sein soll */
+  admin.post('/app/module/:id/revoke-all', need('einstellungen'), (req, res) => {
+    const mod = modules.get(req.params.id);
+    if (!mod || mod.open) return bad(res, 'Diesen Bereich gibt es nicht oder er gilt für alle.');
+    const keep = new Set((Array.isArray((req.body || {}).keep) ? req.body.keep : []).map(Number));
+    const rows = access.list(req.params.id).filter(r => !keep.has(r.member_id));
+    db.transaction(() => rows.forEach(r => access.remove(r.member_id, req.params.id)))();
+    audit(req.user, 'Mitglieder-App: Bereich allen entzogen', `${mod.label || mod.name}: ${rows.length} Mitglieder${keep.size ? `, ${keep.size} behalten` : ''}`);
+    res.json({ ok: true, removed: rows.length });
+  });
+  /** Bereich für ein Mitglied freischalten oder die Freischaltung ändern – derselbe Schreibweg für einzeln und gesammelt */
+  function grantOne(user, id, name, modId, fields, opts) {
+    const mod = modules.get(modId);
+    const isNew = !access.get(id, modId);
+    if (isNew && fields.profile === undefined && opts && opts.defaultProfile) fields.profile = opts.defaultProfile;
+    // Handy/Einladung wurde von jemandem erzeugt, der diesen Bereich nicht verwalten darf → entkoppeln, neuer QR-Code nötig
+    let reinvite = false;
+    if (isNew && mod.perm && !invites.issuerCovers(SCOPE, id, mod.perm)) {
+      invites.revoke(SCOPE, id); reinvite = true;
+      audit(user, 'Mitglieder-App: Handy entkoppelt (neuer Bereich, Einladung von Admin ohne dieses Recht)', name);
+    }
+    access.set(id, modId, fields);
+    audit(user, `${mod.name}: ${isNew ? 'freigeschaltet' : 'Freischaltung geändert'}`, name);
+    return { reinvite };
+  }
+
+  const { bulkLastInfo, bulkModules } = adminSammelfreigabe({ admin, bad, grantOne, ownPwOk });
+  admin.put('/app/member/:id/access', (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const b = req.body || {};
+    const mod = modules.get(String(b.module || ''));
+    if (!mod || !mod.isActive()) return bad(res, 'Unbekannter Bereich.');
+    if (!mayModule(req, b.module)) return bad(res, 'Dafür fehlt dir die Berechtigung.', 403);
+    const m = db.prepare("SELECT name, kind FROM members WHERE id = ? AND deleted = 0 AND kind IN ('mitglied','nichtmitglied')").get(id);
+    if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
+    const nm = m.kind === 'nichtmitglied';
+    if (nm && !mod.nonMembers) return bad(res, ONLY_MEMBERS);
+    const open = mod.open && !nm;   // „für alle“ gilt nur für Mitglieder – „Kein Mitglied“ braucht immer eine eigene Freischaltung
+    if (b.flags !== undefined && b.grant === undefined) {   // zusätzliche Haken des Moduls (z. B. Buchen → „Gebühren zeigen“)
+      const cur = access.get(id, b.module);
+      if (!open && !cur) return bad(res, 'Zuerst den Bereich freischalten.');
+      let opts = null; try { opts = mod.hooks.accessOptions ? mod.hooks.accessOptions() : null; } catch (e) { opts = null; }
+      const known = ((opts && opts.flags) || []).map(f => f.id);
+      const next = { ...(cur ? parseFlags(cur.flags) : {}) };
+      const changed = [];
+      for (const [k, v] of Object.entries(b.flags && typeof b.flags === 'object' ? b.flags : {})) { if (!known.includes(k)) return bad(res, 'Unbekannte Einstellung.'); if (v) next[k] = true; else delete next[k]; changed.push(`${((opts.flags.find(f => f.id === k) || {}).label) || k}: ${v ? 'an' : 'aus'}`); }
+      const keep = Object.keys(next).length ? JSON.stringify(next) : null;
+      if (open && cur && !cur.blocked && !cur.away && !keep) access.remove(id, b.module); else access.set(id, b.module, { flags: keep, blocked: cur ? cur.blocked : 0 });
+      audit(req.user, `${mod.name}: ${changed.join(', ') || 'Einstellung geändert'}`, m.name);
+      return res.json({ ok: true, ...memberState(id) });
+    }
+    if (b.away !== undefined && b.grant === undefined) {   // Ausnahme „auch unterwegs“ (nur sinnvoll für Bereiche, die sonst nur im WLAN gelten)
+      const cur = access.get(id, b.module);
+      if (!open && !cur) return bad(res, 'Zuerst den Bereich freischalten.');
+      if (b.away) access.set(id, b.module, { away: 1, blocked: cur ? cur.blocked : 0 });
+      else if (open && cur && !cur.blocked && !hasFlags(cur)) access.remove(id, b.module); else access.set(id, b.module, { away: 0 });
+      audit(req.user, `${mod.name}: ${b.away ? 'auch von unterwegs nutzbar' : 'nur noch im Vereins-WLAN'}`, m.name);
+      return res.json({ ok: true, ...memberState(id) });
+    }
+    if (open && (b.grant === false || b.grant === true)) {
+      // Bereich „für alle“: Haken weg = für dieses Mitglied abgeschaltet, Haken dran = wieder wie alle (eine Ausnahme „unterwegs“ bleibt erhalten)
+      if (b.grant) { const cur = access.get(id, b.module); if (cur && (cur.away || hasFlags(cur))) access.set(id, b.module, { blocked: 0 }); else access.remove(id, b.module); } else access.set(id, b.module, { blocked: 1 });
+      audit(req.user, `${mod.name}: ${b.grant ? 'in der App freigeschaltet' : 'in der App abgeschaltet'}`, m.name);
+      return res.json({ ok: true, reinvite: false, ...memberState(id) });
+    }
+    if (b.grant === false) {
+      access.remove(id, b.module);
+      audit(req.user, `${mod.name}: Freischaltung entzogen`, m.name);
+      return res.json({ ok: true });
+    }
+    const fields = {};
+    if (b.valid_until !== undefined) { if (b.valid_until && !/^\d{4}-\d{2}-\d{2}$/.test(b.valid_until)) return bad(res, 'Ungültiges Datum.'); fields.valid_until = b.valid_until || null; }
+    if (b.blocked !== undefined) fields.blocked = b.blocked ? 1 : 0;
+    const opts = mod.hooks.accessOptions ? mod.hooks.accessOptions() : null;
+    if (b.profile !== undefined) {
+      if (opts && opts.profiles && !opts.profiles.some(p => p.id === b.profile)) return bad(res, 'Unbekanntes Profil.');
+      fields.profile = b.profile;
+    }
+    const { reinvite } = grantOne(req.user, id, m.name, b.module, fields, opts);
+    res.json({ ok: true, reinvite, ...memberState(id) });
+  });
+  adminAppEinstellungen({ admin, bad, need });
+}
+
+/** Verwaltung: Einladung per E-Mail, einzeln und gesammelt, Briefe (Teil von adminRoutes) */
+function adminEinladungen({ admin, auth, bad, missingFor, need, permsAll }) {
   /* ----- Einladung per E-Mail (einzeln) und Sammelversand / Briefe ----- */
   const inviteOne = async (req, id, kind, owners = null, { guide = false } = {}) => {
     if (!auth.memberAllowed(req.user, id)) return { error: 'fehlendes Recht „Mitglieder“' };
@@ -882,6 +1001,10 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     audit(req.user, 'Mitglieder-App: Handy freigegeben (sensible Bereiche)', m ? m.name : String(id));
     res.json({ ok: true, ...memberState(id) });
   });
+}
+
+/** Verwaltung: SMS-Modem für den zweiten Faktor (Teil von adminRoutes) */
+function adminSms({ admin, bad, need }) {
   /* ----- SMS-Modem (zweiter Faktor) ----- */
   const smsLimit = new Map();
   const smsInfo = () => ({ on: sms.on(), device: sms.device(), ready: sms.ready(), candidates: sms.candidates() });
@@ -902,52 +1025,11 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     try { await sms.send(to, `${getSetting('club_name', 'Verein')}: Test-SMS aus Clubwerk. Der Versand funktioniert.`); audit(req.user, 'Mitglieder-App: Test-SMS', sms.maskPhone(to)); res.json({ ok: true, to: sms.maskPhone(to) }); }
     catch (e) { bad(res, e.message, 502); }
   });
-  admin.delete('/app/member/:id/device', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    { const miss = missingFor(req, id); if (miss.length) return bad(res, `Zum Entfernen des Handys fehlt dir das Recht für: ${miss.join(', ')} – bitte einen Admin mit diesem Recht fragen.`, 403); }
-    const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id);
-    invites.revoke(SCOPE, id); push.removeMember(id);
-    audit(req.user, 'Mitglieder-App: Handy entfernt', m ? m.name : String(id));
-    res.json({ ok: true });
-  });
-  /** Ganz aus der App entfernen: Handy und alle Freischaltungen weg – das Mitglied steht danach wieder unter „Mitglied freischalten“ */
-  admin.delete('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id);
-    if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
-    const miss = missingFor(req, id);
-    if (miss.length) return bad(res, `Zum Entfernen aus der App fehlt dir das Recht für: ${miss.join(', ')} – bitte einen Admin mit diesem Recht fragen.`, 403);
-    invites.revoke(SCOPE, id); push.removeMember(id);
-    const n = db.prepare('DELETE FROM member_access WHERE member_id = ?').run(id).changes;
-    audit(req.user, 'Mitglieder-App: aus der App entfernt', `${m.name} (Handy und ${n} ${n === 1 ? 'Freischaltung' : 'Freischaltungen'})`);
-    res.json({ ok: true });
-  });
-  /** Bereich (Türen, Beregnung …) allen Mitgliedern auf einmal entziehen – z. B. wenn er nur noch für Platzwart und Vorstand da sein soll */
-  admin.post('/app/module/:id/revoke-all', need('einstellungen'), (req, res) => {
-    const mod = modules.get(req.params.id);
-    if (!mod || mod.open) return bad(res, 'Diesen Bereich gibt es nicht oder er gilt für alle.');
-    const keep = new Set((Array.isArray((req.body || {}).keep) ? req.body.keep : []).map(Number));
-    const rows = access.list(req.params.id).filter(r => !keep.has(r.member_id));
-    db.transaction(() => rows.forEach(r => access.remove(r.member_id, req.params.id)))();
-    audit(req.user, 'Mitglieder-App: Bereich allen entzogen', `${mod.label || mod.name}: ${rows.length} Mitglieder${keep.size ? `, ${keep.size} behalten` : ''}`);
-    res.json({ ok: true, removed: rows.length });
-  });
-  /** Bereich für ein Mitglied freischalten oder die Freischaltung ändern – derselbe Schreibweg für einzeln und gesammelt */
-  function grantOne(user, id, name, modId, fields, opts) {
-    const mod = modules.get(modId);
-    const isNew = !access.get(id, modId);
-    if (isNew && fields.profile === undefined && opts && opts.defaultProfile) fields.profile = opts.defaultProfile;
-    // Handy/Einladung wurde von jemandem erzeugt, der diesen Bereich nicht verwalten darf → entkoppeln, neuer QR-Code nötig
-    let reinvite = false;
-    if (isNew && mod.perm && !invites.issuerCovers(SCOPE, id, mod.perm)) {
-      invites.revoke(SCOPE, id); reinvite = true;
-      audit(user, 'Mitglieder-App: Handy entkoppelt (neuer Bereich, Einladung von Admin ohne dieses Recht)', name);
-    }
-    access.set(id, modId, fields);
-    audit(user, `${mod.name}: ${isNew ? 'freigeschaltet' : 'Freischaltung geändert'}`, name);
-    return { reinvite };
-  }
+  return { smsInfo };
+}
 
+/** Verwaltung: Bereich für mehrere Mitglieder auf einmal freigeben (Teil von adminRoutes) */
+function adminSammelfreigabe({ admin, bad, grantOne, ownPwOk }) {
   /* ---------- Bereich für mehrere Mitglieder auf einmal freigeben (planung/bereich-fuer-alle-freigeben.md) ----------
      Nur Bereiche „nur ausgewählte“. Wer? alle in der App-Liste, eine Mitgliedsart oder Abteilung (Hook memberGroups der Mitgliederverwaltung)
      oder eine eigene Auswahl. Vorschau → Ausführen mit demselben Stand (Prüfwert); bei Bereichen, die im Verein etwas schalten (sensitive:
@@ -960,13 +1042,13 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
   // Mitgliedsart/Abteilung verraten mehr als nur Namen: nur mit dem vollen Recht „Mitglieder“ (nicht nur eigene Abteilung)
   const mayGroups = req => req.user.perms.includes('konten') && !(req.user.deptOnly || []).includes('konten');
   const groups = () => { const out = []; for (const p of require('./plugins').withHook('memberGroups')) { try { out.push(...(p.hooks.memberGroups() || [])); } catch (e) { console.error('memberGroups:', e.message); } } return out; };
-  const bulkLast = () => { try { const x = JSON.parse(getSetting('app_bulk_last', '') || 'null'); return x && typeof x === 'object' ? x : null; } catch (e) { return null; } };
+  const bulkLast = () => getJsonSetting('app_bulk_last', null, isObj);
   const sameRow = (r, s) => Boolean(r && s) && (r.profile ?? null) === (s.profile ?? null) && (r.valid_until || null) === (s.valid_until || null) && Boolean(r.blocked) === Boolean(s.blocked) && Boolean(r.away) === Boolean(s.away) && (r.flags || null) === (s.flags || null);
   /** Zustand der letzten Sammel-Freigabe für die Verwaltung (ohne Mitglieds-IDs) */
   const bulkLastInfo = req => { const x = bulkLast(); const m = x && modules.get(x.module); if (!x || x.undone || !m || !m.isActive()) return null;
     return { module: x.module, label: m.label || m.name, n: x.rows.length, by: x.by, at: x.at, undo: mayBulk(req, x.module) }; };
   /** Bereich, für den der Hinweis „Neuer Bereich: für wen freigeben?“ gilt: aktiv, eigens freizuschalten, niemand freigeschaltet, nicht weggeklickt */
-  const seenNew = () => { try { const x = JSON.parse(getSetting('app_new_seen', '[]')); return new Set(Array.isArray(x) ? x.map(String) : []); } catch (e) { return new Set(); } };
+  const seenNew = () => new Set(getJsonSetting('app_new_seen', [], Array.isArray).map(String));
   const markSeen = id => { const s = seenNew(); if (!s.has(id)) { s.add(id); setSetting('app_new_seen', JSON.stringify([...s])); } };
   const newAreas = req => { const seen = seenNew(); return bulkModules(req).filter(([id]) => id !== 'nachrichten' && !seen.has(id) && !access.list(id).some(r => !r.blocked)).map(([id, m]) => ({ id, label: m.label || m.name })); };
 
@@ -1031,12 +1113,12 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     let p; try { p = bulkPlan(req, req.body || {}); } catch (e) { if (planErr(res, e)) return; throw e; }
     res.json({ module: p.modId, label: p.mod.label || p.mod.name, sensitive: Boolean(p.mod.sensitive), who: p.label, add: p.add.map(pub), have: p.have.map(pub), skip: p.skip.map(pub), away: p.away.length, noDevice: p.noDevice, token: p.token, word: p.mod.sensitive ? BULK_WORD : null });
   });
-  admin.post('/app/bulk-access', bulkGuard, (req, res) => {
+  admin.post('/app/bulk-access', bulkGuard, async (req, res) => {
     const b = req.body || {};
     let p; try { p = bulkPlan(req, b); } catch (e) { if (planErr(res, e)) return; throw e; }
     if (p.mod.sensitive) {
       if (String(b.confirm || '').trim().toUpperCase() !== BULK_WORD) return bad(res, `Bitte zur Bestätigung das Wort ${BULK_WORD} eintippen.`);
-      const pw = require('./geraete').bestaetigt(req, res, ownPwOk); if (!pw) return;
+      const pw = await require('./geraete').bestaetigt(req, res, ownPwOk); if (!pw) return;
       if (!pw.confirmed) return res.status(428).json({ error: 'Bitte mit deinem Passwort bestätigen.', needPassword: true });
     } else if (b.confirm !== true) return bad(res, 'Bitte bestätigen.');
     if (!p.add.length) return bad(res, 'Es gibt niemanden, der den Bereich neu bekommt.');
@@ -1085,60 +1167,11 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     markSeen(id); audit(req.user, 'Mitglieder-App: Hinweis „neuer Bereich“ ausgeblendet', (modules.get(id).label || modules.get(id).name));
     res.json({ ok: true });
   });
-  admin.put('/app/member/:id/access', (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    const b = req.body || {};
-    const mod = modules.get(String(b.module || ''));
-    if (!mod || !mod.isActive()) return bad(res, 'Unbekannter Bereich.');
-    if (!mayModule(req, b.module)) return bad(res, 'Dafür fehlt dir die Berechtigung.', 403);
-    const m = db.prepare("SELECT name, kind FROM members WHERE id = ? AND deleted = 0 AND kind IN ('mitglied','nichtmitglied')").get(id);
-    if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
-    const nm = m.kind === 'nichtmitglied';
-    if (nm && !mod.nonMembers) return bad(res, ONLY_MEMBERS);
-    const open = mod.open && !nm;   // „für alle“ gilt nur für Mitglieder – „Kein Mitglied“ braucht immer eine eigene Freischaltung
-    if (b.flags !== undefined && b.grant === undefined) {   // zusätzliche Haken des Moduls (z. B. Buchen → „Gebühren zeigen“)
-      const cur = access.get(id, b.module);
-      if (!open && !cur) return bad(res, 'Zuerst den Bereich freischalten.');
-      let opts = null; try { opts = mod.hooks.accessOptions ? mod.hooks.accessOptions() : null; } catch (e) { opts = null; }
-      const known = ((opts && opts.flags) || []).map(f => f.id);
-      const next = { ...(cur ? parseFlags(cur.flags) : {}) };
-      const changed = [];
-      for (const [k, v] of Object.entries(b.flags && typeof b.flags === 'object' ? b.flags : {})) { if (!known.includes(k)) return bad(res, 'Unbekannte Einstellung.'); if (v) next[k] = true; else delete next[k]; changed.push(`${((opts.flags.find(f => f.id === k) || {}).label) || k}: ${v ? 'an' : 'aus'}`); }
-      const keep = Object.keys(next).length ? JSON.stringify(next) : null;
-      if (open && cur && !cur.blocked && !cur.away && !keep) access.remove(id, b.module); else access.set(id, b.module, { flags: keep, blocked: cur ? cur.blocked : 0 });
-      audit(req.user, `${mod.name}: ${changed.join(', ') || 'Einstellung geändert'}`, m.name);
-      return res.json({ ok: true, ...memberState(id) });
-    }
-    if (b.away !== undefined && b.grant === undefined) {   // Ausnahme „auch unterwegs“ (nur sinnvoll für Bereiche, die sonst nur im WLAN gelten)
-      const cur = access.get(id, b.module);
-      if (!open && !cur) return bad(res, 'Zuerst den Bereich freischalten.');
-      if (b.away) access.set(id, b.module, { away: 1, blocked: cur ? cur.blocked : 0 });
-      else if (open && cur && !cur.blocked && !hasFlags(cur)) access.remove(id, b.module); else access.set(id, b.module, { away: 0 });
-      audit(req.user, `${mod.name}: ${b.away ? 'auch von unterwegs nutzbar' : 'nur noch im Vereins-WLAN'}`, m.name);
-      return res.json({ ok: true, ...memberState(id) });
-    }
-    if (open && (b.grant === false || b.grant === true)) {
-      // Bereich „für alle“: Haken weg = für dieses Mitglied abgeschaltet, Haken dran = wieder wie alle (eine Ausnahme „unterwegs“ bleibt erhalten)
-      if (b.grant) { const cur = access.get(id, b.module); if (cur && (cur.away || hasFlags(cur))) access.set(id, b.module, { blocked: 0 }); else access.remove(id, b.module); } else access.set(id, b.module, { blocked: 1 });
-      audit(req.user, `${mod.name}: ${b.grant ? 'in der App freigeschaltet' : 'in der App abgeschaltet'}`, m.name);
-      return res.json({ ok: true, reinvite: false, ...memberState(id) });
-    }
-    if (b.grant === false) {
-      access.remove(id, b.module);
-      audit(req.user, `${mod.name}: Freischaltung entzogen`, m.name);
-      return res.json({ ok: true });
-    }
-    const fields = {};
-    if (b.valid_until !== undefined) { if (b.valid_until && !/^\d{4}-\d{2}-\d{2}$/.test(b.valid_until)) return bad(res, 'Ungültiges Datum.'); fields.valid_until = b.valid_until || null; }
-    if (b.blocked !== undefined) fields.blocked = b.blocked ? 1 : 0;
-    const opts = mod.hooks.accessOptions ? mod.hooks.accessOptions() : null;
-    if (b.profile !== undefined) {
-      if (opts && opts.profiles && !opts.profiles.some(p => p.id === b.profile)) return bad(res, 'Unbekanntes Profil.');
-      fields.profile = b.profile;
-    }
-    const { reinvite } = grantOne(req.user, id, m.name, b.module, fields, opts);
-    res.json({ ok: true, reinvite, ...memberState(id) });
-  });
+  return { bulkLastInfo, bulkModules };
+}
+
+/** Verwaltung: Einstellungen der Mitglieder-App, Prüfung des externen Zugangs, QR-Code (Teil von adminRoutes) */
+function adminAppEinstellungen({ admin, bad, need }) {
   admin.put('/settings/app', need('app', 'einstellungen'), (req, res) => {
     const mayCfg = req.user.perms.includes('app') || req.user.perms.includes('einstellungen');
     const b = req.body || {};
@@ -1247,6 +1280,7 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
   });
 }
 
+
 /** Adresse der Mitglieder-App für Links in E-Mails (von unterwegs, sonst im Vereins-WLAN) – nur https, sonst leer */
 const appUrl = () => { const u = String(qrUrl() || '').replace(/\/+$/, ''); return /^https:\/\//i.test(u) ? u : ''; };
-module.exports = { mailInviteState, mailInviteFor, appUrl, netsFromInfo, register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, inClubNets, hasClubNets, validNets, cidrList };
+module.exports = { mailInviteState, mailInviteFor, appUrl, netsFromInfo, register, registerPublic, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, inClubNets, hasClubNets, validNets };

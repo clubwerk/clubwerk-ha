@@ -7,7 +7,7 @@ function register(sh) {
   const admin = C.admin, db = C.db;
   const P = need('mitglieder');
   const isDate = fees.isDate;
-  const ExcelJS = C.require('exceljs');
+  const X = C.xlsx;
   /* Altersgruppen der Bestandserhebung (LSB Hessen; andere Landessportbünde ähnlich) */
   const LSB_GROUPS = [[0, 6, 'bis 6'], [7, 14, '7–14'], [15, 18, '15–18'], [19, 26, '19–26'], [27, 40, '27–40'], [41, 60, '41–60'], [61, 200, '61 und älter']];
 
@@ -64,23 +64,19 @@ function register(sh) {
       avgAge: ages.length ? Math.round(ages.reduce((s, a) => s + a, 0) / ages.length * 10) / 10 : null, years, depts, lsb: lsb(day), events: events.slice(0, 60) });
   });
 
-  const style = ws => { ws.getRow(1).font = { bold: true }; ws.views = [{ state: 'frozen', ySplit: 1 }]; };
-  const safeCell = v => (typeof v === 'string' && /^[=+\-@]/.test(v) ? "'" + v : v);
   admin.get('/stats/lsb.xlsx', P, ar(async (req, res) => {
     const day = isDate(req.query.day) ? req.query.day : `${today().slice(0, 4)}-01-01`;
     const r = lsb(day);
-    const wb = new ExcelJS.Workbook();
+    const wb = X.book();
     const sheet = (title, rows) => {
-      const ws = wb.addWorksheet(title.slice(0, 31).replace(/[\\/?*[\]:]/g, ' '));
-      ws.columns = [{ header: 'Altersgruppe', width: 16 }, { header: 'männlich', width: 11 }, { header: 'weiblich', width: 11 }, { header: 'ohne Angabe', width: 13 }, { header: 'gesamt', width: 10 }];
-      rows.forEach((x, i) => ws.addRow([r.groups[i], x.m, x.w, x.x, x.m + x.w + x.x]));
+      const ws = X.sheet(wb, title.slice(0, 31).replace(/[\\/?*[\]:]/g, ' '), [{ header: 'Altersgruppe', width: 16 }, { header: 'männlich', width: 11 }, { header: 'weiblich', width: 11 }, { header: 'ohne Angabe', width: 13 }, { header: 'gesamt', width: 10 }],
+        rows.map((x, i) => [r.groups[i], x.m, x.w, x.x, x.m + x.w + x.x]), { freeze: true });
       const s = k => rows.reduce((a, x) => a + x[k], 0);
       ws.addRow(['Summe', s('m'), s('w'), s('x'), s('m') + s('w') + s('x')]).font = { bold: true };
-      style(ws);
     };
     sheet(`Verein gesamt ${deD(day)}`, r.total);
     for (const d of r.depts) sheet(d.name + (d.federation ? ` (${d.federation})` : ''), d.rows);
-    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Bestandserhebung_${day}.xlsx"` }).send(Buffer.from(await wb.xlsx.writeBuffer()));
+    await X.send(res, `Bestandserhebung_${day}.xlsx`, wb);
   }));
 
   /* Einwilligungen: wer heute Mitglied ist und zugestimmt hat (z. B. für den Pressewart) – Zahlen und Liste als Excel */
@@ -97,12 +93,11 @@ function register(sh) {
   });
   admin.get('/consents.xlsx', P, ar(async (req, res) => {
     const rows = consentRows(), cons = sh.consentList();
-    const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Einwilligungen');
-    ws.columns = [{ header: 'Name', width: 28 }, { header: 'Mitgliedsnummer', width: 16 }, ...cons.map(c => ({ header: c.short, width: Math.max(14, c.short.length + 2) }))];
-    for (const r of rows) ws.addRow([safeCell(lastFirst(r.name, 'mitglied')), safeCell(r.no || ''), ...cons.map(c => (!r.c[c.key] ? 'nein' : isDate(String(r.c[c.key]).slice(0, 10)) ? `ja (seit ${deD(String(r.c[c.key]).slice(0, 10))})` : 'ja'))]);
-    style(ws);
+    const wb = X.book();
+    X.sheet(wb, 'Einwilligungen', [{ header: 'Name', width: 28 }, { header: 'Mitgliedsnummer', width: 16 }, ...cons.map(c => ({ header: c.short, width: Math.max(14, c.short.length + 2) }))],
+      rows.map(r => [X.safe(lastFirst(r.name, 'mitglied')), X.safe(r.no || ''), ...cons.map(c => (!r.c[c.key] ? 'nein' : isDate(String(r.c[c.key]).slice(0, 10)) ? `ja (seit ${deD(String(r.c[c.key]).slice(0, 10))})` : 'ja'))]), { freeze: true });
     C.audit(req.user, 'Mitglieder: Einwilligungen exportiert', `${rows.length} Mitglieder`);
-    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Einwilligungen_${today()}.xlsx"` }).send(Buffer.from(await wb.xlsx.writeBuffer()));
+    await X.send(res, `Einwilligungen_${today()}.xlsx`, wb);
   }));
 
   /* Mitgliederliste als Excel (Spalten wählbar; Bankdaten nur mit Recht) */
@@ -114,8 +109,7 @@ function register(sh) {
     const canBank = req.user.perms.includes('mitglieder_bank');
     const cols = COLS.filter(([k]) => want.includes(k) && (canBank || !['iban', 'mandate_ref', 'mandate_date'].includes(k)));
     const rows = listRows(req.query);
-    const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Mitglieder');
-    ws.columns = cols.map(([, h]) => ({ header: h, width: Math.max(12, h.length + 2) }));
+    const wb = X.book(); const ws = X.sheet(wb, 'Mitglieder', cols.map(([, h]) => ({ header: h, width: Math.max(12, h.length + 2) })), [], { freeze: true });
     const cons = sh.consentList();
     // Personen- und Bankdaten aller Zeilen mit je einer Abfrage statt zwei je Mitglied
     const all = t => new Map(db.prepare(`SELECT * FROM ${t} WHERE member_id IN (SELECT value FROM json_each(?))`).all(JSON.stringify(rows.map(r => r.id))).map(x => [x.member_id, x]));
@@ -126,11 +120,10 @@ function register(sh) {
       const c = JSON.parse(p.consents || '{}');
       const val = { ...p, ...r, gender: store.GENDER[r.gender] || '', payer: r.payer_name || '', family: r.family_head_name || '', payment: store.PAYMENT[r.payment] || '', iban: b.iban ? sepa.fmtIban(b.iban) : '', mandate_ref: b.mandate_ref || '', mandate_date: b.mandate_date || '',
         consents: cons.filter(x => c[x.key]).map(x => x.short).join(', ') };
-      ws.addRow(cols.map(([k]) => { const v = val[k]; return safeCell(/_date$/.test(k) && isDate(v) ? deD(v) : v == null ? '' : v); }));
+      ws.addRow(cols.map(([k]) => { const v = val[k]; return X.safe(/_date$/.test(k) && isDate(v) ? deD(v) : v == null ? '' : v); }));
     }
-    style(ws);
     C.audit(req.user, 'Mitgliederliste exportiert', `${rows.length} Mitglieder, Spalten: ${cols.map(c => c[1]).join(', ')}`);
-    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Mitglieder_${today()}.xlsx"` }).send(Buffer.from(await wb.xlsx.writeBuffer()));
+    await X.send(res, `Mitglieder_${today()}.xlsx`, wb);
   }));
   admin.get('/export/cols', P, (req, res) => res.json(COLS.filter(([k]) => req.user.perms.includes('mitglieder_bank') || !['iban', 'mandate_ref', 'mandate_date'].includes(k))));
 

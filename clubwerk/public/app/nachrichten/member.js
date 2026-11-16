@@ -8,7 +8,9 @@
     s.textContent = `
       .nx-row .vh-tx { min-width: 0; flex: 1; }
       .nx-row .vh-tx strong { overflow-wrap: anywhere; }
+      .nx-row .vh-tx .vh-chip { margin: -2px 0; }   /* der Chip macht die Meta-Zeile nicht höher als Zeilen ohne Chip */
       .nx-row .vh-tx .nx-pre { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+      .nx-row .nx-att { white-space: nowrap; } .nx-row .nx-att svg { width: 12px; height: 12px; vertical-align: -1px; margin-right: 2px; }   /* Anhänge als Klammer mit Zahl: das Wort („Attachments“) machte die Meta-Zeile am Handy zweizeilig */
       .nx-row.read strong { font-weight: 600; }
       .nx-row .vh-fm-ico { position: relative; }
       .nx-row:not(.read) .vh-fm-ico::after { content: ''; position: absolute; top: 5px; right: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--brand); border: 2px solid var(--card); }
@@ -32,7 +34,7 @@
       .nx-opt b { font-variant-numeric: tabular-nums; white-space: nowrap; }`;
     document.head.appendChild(s);
   }
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const deD = s => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '');
   const kb = n => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1).replace('.', ',')} MB`);
   const MAIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/></svg>';
@@ -91,7 +93,7 @@
         if (!d.items.length) { el.innerHTML = '<div class="vh-empty">Keine Nachrichten. Was der Verein dir schickt, erscheint hier.</div>'; return; }
         el.innerHTML = `<div class="vh-card flush"><h3>Nachrichten${d.unread ? ` <small>${d.unread} neu</small>` : ''}</h3><div class="vh-rows">${d.items.map(m => `<button type="button" class="vh-fm nx-row${m.read ? ' read' : ''}" data-id="${m.id}">
             <span class="vh-fm-ico">${MAIL}</span>
-            <span class="vh-tx"><strong translate="no">${esc(m.subject)}</strong><small class="nx-pre" translate="no">${esc(m.preview)}</small><small>${deD(m.at)}${m.from ? ' · ' + esc(m.from) : ''}${m.files ? ` · ${m.files} ${m.files === 1 ? 'Anhang' : 'Anhänge'}` : ''}${m.poll === 'offen' ? ' · <span class="vh-chip a">Umfrage</span>' : ''}${m.pinned ? ' · <span class="vh-chip a">angeheftet</span>' : ''}</small></span>${CHEV}</button>`).join('')}</div></div>`;
+            <span class="vh-tx"><strong translate="no">${esc(m.subject)}</strong><small class="nx-pre" translate="no">${esc(m.preview)}</small><small>${deD(m.at)}${m.from ? ' · ' + esc(m.from) : ''}${m.files ? ` · <span class="nx-att" title="${m.files === 1 ? 'Anhang' : 'Anhänge'}">${CLIP}${m.files}</span>` : ''}${m.poll === 'offen' ? ' · <span class="vh-chip a">Umfrage</span>' : ''}${m.pinned ? ' · <span class="vh-chip a">angeheftet</span>' : ''}</small></span>${CHEV}</button>`).join('')}</div></div>`;
         el.querySelectorAll('[data-id]').forEach(b => { b.onclick = () => open(+b.dataset.id); });
       }
 

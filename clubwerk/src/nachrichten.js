@@ -57,9 +57,9 @@ function visibleFor(memberId) {
   return Boolean(db.prepare(`SELECT 1 FROM mail_message WHERE status != 'entwurf' AND channels LIKE '%"app"%' LIMIT 1`).get());
 }
 
-const SAFE = { 'image/jpeg': [0xff, 0xd8], 'image/png': [0x89, 0x50], 'image/gif': [0x47, 0x49], 'image/webp': [0x52, 0x49], 'application/pdf': [0x25, 0x50] };
+const SAFE = { jpg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', pdf: 'application/pdf' };
 /** Nur Bilder und PDF werden in der App gezeigt, wenn der Anfang der Datei zum Typ passt – alles andere bleibt ein Download */
-const safeType = (f, buf) => (SAFE[f.type] && buf.length > 4 && SAFE[f.type].every((b, i) => buf[i] === b) ? f.type : 'application/octet-stream');
+const safeType = (f, buf) => { const t = SAFE[require('./util').imageType(buf)]; return t && t === f.type ? t : 'application/octet-stream'; };
 const kindOf = f => (/^image\/(jpeg|png|gif|webp)$/.test(f.type || '') ? 'image' : f.type === 'application/pdf' ? 'pdf' : 'other');
 
 function router() {
@@ -141,4 +141,4 @@ function info() {
   };
 }
 
-module.exports = { info, unread, visibleFor, appHtml, personOf, dataOf };
+module.exports = { info, unread, personOf, dataOf };

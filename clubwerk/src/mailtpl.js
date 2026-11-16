@@ -5,7 +5,7 @@
    Nur Tabellen und Inline-Stile – so sieht es auch in Outlook, Gmail und Apple Mail gleich aus. */
 const { getSetting, clubColor: color, mixColor } = require('./db');
 
-const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const { esc } = require('./util');
 const tint = (hex, t) => mixColor(hex, 'white', t);   // Richtung Weiß mischen (0 = Farbe, 1 = weiß)
 /** Logo als eingebettetes Bild (PNG/JPG – SVG zeigen viele Mailprogramme nicht) */
 function logo() {

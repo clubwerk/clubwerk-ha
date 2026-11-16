@@ -342,6 +342,10 @@
       <div class="card" data-card="fernseher"><h3>Fernseher im Clubhaus</h3>
         <p class="muted s" style="margin-top:0">Im Browser des Fernsehers diese Adresse öffnen (im Vereins-WLAN, einmal mit dem Tablet-Passwort freischalten). Die Anzeige zeigt am Turniertag Plätze, Verzug und Ergebnisse und aktualisiert sich selbst.</p>
         <div class="row" style="align-items:center"><code id="tlTv" style="overflow-wrap:anywhere;flex:1 1 240px">${esc(new URL('x/turniere/tv.html', location.href).href)}</code><button class="btn" id="tlTvCopy">Adresse kopieren</button></div></div>
+      <div class="card" data-card="code"><h3>Code der Turnierleitung</h3>
+        <p class="muted s" style="margin-top:0">Freiwillig. Ohne Code checken Spieler am Tablet selbst ein und tragen ihre Ergebnisse ein. Ist ein Code festgelegt (4 bis 6 Ziffern), fragt das Tablet ihn vor Check-in, Nenngeld, „Match starten“ und Ergebnis ab. ${day.code ? 'Ein Code ist festgelegt.' : 'Kein Code festgelegt.'}</p>
+        ${day.finished_at ? '' : `<div class="frm"><label class="f w1">Neuer Code<input id="tlCode" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6"></label></div>
+        <div class="btns">${day.code ? '<button class="btn" id="tlCodeOff">Code entfernen</button>' : ''}<button class="btn primary" id="tlCodeOk">Code festlegen</button></div>`}</div>
       <div class="card" data-card="turniertag"><h3>Turniertag</h3>
         <label class="f">Name<input id="tlName" maxlength="120" value="${esc(day.name)}"></label>
         <p class="muted s">Importiert aus: ${esc(day.sources.map(s => s.file || s.name).join(', ') || '–')}</p>
@@ -349,6 +353,8 @@
         <div class="btns" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px"><button class="btn danger" id="tlDel">Turniertag löschen</button></div></div>`;
     const put = (btn, body) => GK.busy($(btn), async () => { try { await api('einstellungen', 'PUT', body); toast('Gespeichert.'); await load(); } catch (e) { fail(e); } });
     $('tlTvCopy').onclick = () => { GK.copyText($('tlTv').textContent); toast('Adresse kopiert.'); };
+    if ($('tlCodeOk')) $('tlCodeOk').onclick = () => GK.busy($('tlCodeOk'), async () => { try { await api(`tag/${st.did}/code`, 'POST', { code: $('tlCode').value }); toast('Code festgelegt – bitte merken, er wird nicht wieder angezeigt.'); await reload(); } catch (e) { fail(e); } });
+    if ($('tlCodeOff')) $('tlCodeOff').onclick = async () => { if (!await GK.ask('Code entfernen?\n\nAm Tablet checken Spieler dann wieder ohne Code ein und tragen ihre Ergebnisse selbst ein.', { ok: 'Entfernen' })) return; try { await api(`tag/${st.did}/code`, 'POST', { code: '' }); toast('Code entfernt.'); await reload(); } catch (e) { fail(e); } };
     $('tlSave1').onclick = () => put('tlSave1', { minutes: +$('tlMin').value, pause: +$('tlPau').value });
     $('tlSave2').onclick = () => put('tlSave2', { keep_days: +$('tlKeep').value });
     $('tlSave3').onclick = () => GK.busy($('tlSave3'), async () => { try { await api('tag/' + st.did, 'PUT', { name: $('tlName').value }); toast('Gespeichert.'); await days(); await load(); lead(); } catch (e) { fail(e); } });

@@ -272,7 +272,7 @@ Mitglieder können sich in der App bis 24 Stunden vor Beginn selbst austragen. D
 
 ![Karte „Kalender der Homepage“.](bild: seite=aw-einstellungen; ziel=[data-set="kalender"])
 
-Hat eure Homepage einen Kalender zum Abonnieren (z. B. ein Kalender-Plugin oder ein Google-Kalender), tragt ihr hier seinen **Abo-Link** ein (beginnt mit `webcal://`, `https://` oder `http://`). Clubwerk holt die Termine beim Speichern und danach jede Stunde ab und zeigt sie in der Mitglieder-App im Reiter **Termine** als „Vereinskalender“ und auf der Startseite „Für mich“. Gepflegt werden die Termine weiter auf der Homepage, in Clubwerk lassen sie sich nicht ändern.
+Hat eure Homepage einen Kalender zum Abonnieren (z. B. ein Kalender-Plugin oder ein Google-Kalender), tragt ihr hier seinen **Abo-Link** ein (beginnt mit `webcal://` oder `https://`). Aus Sicherheitsgründen holt Clubwerk nur Adressen aus dem Internet ab, keine aus dem eigenen Netz und keine unverschlüsselten (`http://`). Clubwerk holt die Termine beim Speichern und danach jede Stunde ab und zeigt sie in der Mitglieder-App im Reiter **Termine** als „Vereinskalender“ und auf der Startseite „Für mich“. Gepflegt werden die Termine weiter auf der Homepage, in Clubwerk lassen sie sich nicht ändern.
 
 - **Jetzt abrufen** holt den Kalender sofort.
 - Darunter steht, wann zuletzt abgerufen wurde, wie viele Termine es sind und die nächsten drei. Klappt ein Abruf nicht (Homepage nicht erreichbar, keine Kalenderdatei, Datei größer als 2 MB), steht der Grund in Rot. Die App zeigt dann weiter den letzten Stand.

@@ -21,7 +21,7 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 
 const PREFIX = 'clubwerk-teil-';
-const LESEN_MS = Number(process.env.CW_TEIL_LESEN_SEK || 180) * 1000;   // höchstens so lange darf die Lesekopie brauchen
+const LESEN_MS = 180 * 1000;                                            // höchstens so lange darf die Lesekopie brauchen
 const OFFEN_MS = 30 * 60000;                                            // geöffnete Sicherung verfällt nach 30 Minuten
 const MAX_ERGEBNIS = 64 * 1024 * 1024;                                  // Ergebnis der Lesekopie (JSON) höchstens 64 MB
 const MAX_KONTEN = 20000;
@@ -184,11 +184,12 @@ async function oeffnen({ src, upload, password, key, tresor, user, appVersion, f
     fs.writeFileSync(path.join(base, 'clubwerk.pid'), String(process.pid));
     const dir = path.join(base, 'daten');
     const man = await fullbackup.extract(src, password ? { password, outDir: dir } : { key, outDir: dir });
+    if (man.app && neuer(man.app, appVersion)) throw new Error(`Diese Sicherung stammt aus Clubwerk ${man.app} – hier läuft ${appVersion}. Bitte zuerst Clubwerk aktualisieren.`);   // geprüfte Angabe
     const err = backup.validate(path.join(dir, fullbackup.DB_NAME));
     if (err) throw new Error(err);
     const quelle = herkunftVon(path.join(dir, fullbackup.DB_NAME));
     const out = await lesen(dir, tresor);
-    if (cur && cur.upload && cur.upload !== upload) { try { fs.unlinkSync(cur.upload); } catch (e) { /* */ } }
+    if (cur && cur.upload && cur.upload !== upload) { try { fs.unlinkSync(cur.upload); } catch (e) { /* schon gelöscht */ } }
     cur = { id: crypto.randomBytes(12).toString('hex'), userId: user.id, at: Date.now(), created: man.created, app: man.app || head.app || '', club: man.club || '',
       quelle, upload, ...out };
     return cur;
@@ -378,7 +379,7 @@ function routes(admin, d) {
     } catch (e) {
       if (e.needPassword) { behalten = b.source === 'upload'; return res.status(400).json({ error: e.message, needPassword: true }); }
       bad(res, e.message);
-    } finally { if (q.temp && !behalten) { try { fs.unlinkSync(q.src); } catch (e) { /* egal */ } } }
+    } finally { if (q.temp && !behalten) { try { fs.unlinkSync(q.src); } catch (e) { /* schon gelöscht */ } } }
   }));
   admin.post('/backups/teil/vorschau', need('einstellungen'), owner, asyncRoute(async (req, res) => {
     const b = req.body || {}; const c = offen(req.user.id);
@@ -390,7 +391,7 @@ function routes(admin, d) {
     } catch (e) { bad(res, e.message); }
   }));
   admin.post('/backups/teil/uebernehmen', need('einstellungen'), rateLimit('bkteilu', 10, 10 * 60000), asyncRoute(async (req, res) => {
-    if (!ownerConfirm(req, res)) return;
+    if (!(await ownerConfirm(req, res))) return;
     const b = req.body || {}; const c = offen(req.user.id);
     if (!c || c.id !== b.id) return bad(res, 'Die geöffnete Sicherung ist abgelaufen – bitte noch einmal öffnen.', 410);
     const vault = require('./vault');
@@ -410,4 +411,4 @@ function routes(admin, d) {
   admin.post('/backups/teil/schliessen', need('einstellungen'), (req, res) => { if (offen(req.user.id)) schliessen(); res.json({ ok: true }); });
 }
 
-module.exports = { lesekopie, routes, cleanup, inhalt, auswahl, probe, zaehlen, TEILE, PREFIX, aktiv: () => Boolean(cur), neuer };
+module.exports = { lesekopie, routes, cleanup, inhalt, auswahl, probe, zaehlen, PREFIX, aktiv: () => Boolean(cur), neuer };

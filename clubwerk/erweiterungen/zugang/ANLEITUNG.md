@@ -105,7 +105,7 @@ Fehlt die Verbindung zu Home Assistant, steht oben ein roter Hinweis.
 - **Art:** **Schloss** (aufschließen und abschließen), **Türöffner (Impuls)** (ein Relais, das kurz schaltet) oder **Tor / Antrieb** (öffnen und schließen).
 - **Gerät in Home Assistant:** die Auswahl zeigt nur passende Geräte. Der Hersteller aus dem Reiter „Einstellungen“ filtert die Liste. Ein Gerät, das ein anderes Modul schon nutzt (z. B. die Beregnung), lässt sich nicht noch einmal verwenden.
 - **Türkontakt (optional):** ein Sensor, der meldet, ob die Tür offen steht. Damit klappt auch die Meldung „Tür zu lange offen“.
-- **Impuls (Sekunden):** nur bei Türöffnern. So lange bleibt das Relais an (1 bis 30 Sekunden, Standard 3).
+- **Impuls (Sekunden):** nur bei Türöffnern. So lange bleibt das Relais an (1 bis 30 Sekunden, Standard 3). Lässt es sich danach nicht ausschalten, versucht Clubwerk es mehrmals und schickt dann eine Sicherheitswarnung. Steht ein Türöffner länger als seine Impulsdauer an (etwa nach einem Neustart oder von Hand in Home Assistant eingeschaltet), schaltet Clubwerk ihn aus und meldet es.
 
 ![Eine Tür vom Typ „Türöffner (Impuls)“ hat zusätzlich das Feld „Impuls (Sekunden)“.](bild: seite=zugang-tueren; klick=[data-de="2"]; ziel=dialog)
 
@@ -128,7 +128,7 @@ Ein Zeitprofil sagt, **welche Türen** ein Mitglied öffnen darf und **wann**. J
 - **Name:** bis 30 Zeichen, z. B. „Jugend“ oder „Trainer“.
 - **Standard bei neuer Freischaltung:** dieses Profil bekommt jedes neu freigeschaltete Mitglied. Es gibt immer genau ein Standardprofil.
 - **Türen:** „Alle (auch künftige)“ oder einzelne Türen. Bei „Alle“ gilt das Profil auch für Türen, die ihr später anlegt. Türen, die nicht im Profil stehen, sehen die Mitglieder in der App gar nicht.
-- **Zeiten je Wochentag:** pro Tag eine Zeile, z. B. `07:00–23:00`. Mehrere Zeitfenster trennt ihr mit Komma (`07:00–12:00, 14:00–22:00`). Leer oder „geschlossen“ heißt: an diesem Tag geht nichts. „ganztägig“ gilt rund um die Uhr. Fenster über Mitternacht sind erlaubt (z. B. `18:00–02:00`).
+- **Zeiten je Wochentag:** pro Tag eine Zeile, z. B. `07:00–23:00`. Mehrere Zeitfenster trennt ihr mit Komma (`07:00–12:00, 14:00–22:00`). Leer oder „geschlossen“ heißt: an diesem Tag geht nichts. „ganztägig“ gilt rund um die Uhr. Fenster über Mitternacht sind erlaubt (z. B. `18:00–02:00`). Stimmt die Uhrzeit von Clubwerk nach einem Neustart nicht (rote Warnung in der Übersicht), öffnen Zeitprofile mit Zeitfenstern keine Tür, bis die Uhr stimmt; „rund um die Uhr“ geht weiter.
 - **Montag auf alle Tage übertragen** und **Montag auf Mo–Fr übertragen:** spart Tipparbeit, wenn jeden Tag dasselbe gelten soll.
 - **Profil löschen …:** Clubwerk fragt vorher nach. Mitglieder mit diesem Profil bekommen das Standardprofil. Das letzte Profil lässt sich nicht löschen.
 

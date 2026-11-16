@@ -13,8 +13,8 @@
    Gespeichert werden sonst nur Zahlungseingänge und Rücklastschriften (keine anderen Abbuchungen), Name, IBAN und Verwendungszweck
    liegen im Tresor. „Gehört nicht zu Clubwerk“ löscht der Datenschutz-Löschlauf (Vorgabe 90 Tage), die Datei selbst wird nie aufbewahrt. */
 const crypto = require('crypto');
-const { db, getSetting, setSetting, audit } = require('./db');
-const { today, nowTs, addDays, euro, deD } = require('./util');
+const { db, getJsonSetting, setSetting, audit } = require('./db');
+const { nowTs, euro, deD } = require('./util');
 const lesen = require('./kontoauszug-lesen');
 const bank = require('./bank');
 const plugins = require('./plugins');
@@ -95,7 +95,7 @@ async function upload(buf, { name, accountId, map, user }) {
   let r = await lesen.read(buf, { name: file, csv });
   if (r.kind === 'csv' && !r.results) {
     // allgemeines CSV: gemerkte Spaltenzuordnung (je Aufbau der Kopfzeile) verwenden, sonst nachfragen
-    const saved = (() => { try { return JSON.parse(getSetting(`ka_csv_${sha(r.layout.sig).slice(0, 16)}`, '') || 'null'); } catch (e) { return null; } })();
+    const saved = getJsonSetting(`ka_csv_${sha(r.layout.sig).slice(0, 16)}`, null);
     const acc = saved && bank.get(saved.account);
     if (!saved || !acc || !acc.active) return { needMapping: true, layout: r.layout, accounts: bank.list().map(a => ({ id: a.id, name: a.name, iban: bank.maskIban(a.iban) })) };
     r = await lesen.read(buf, { name: file, csv: { map: saved.map, iban: acc.iban } });
@@ -261,7 +261,14 @@ function routes(admin, { need, bad, int, asyncRoute, rateLimit, express }) {
   admin.get('/kontoauszug/status', need('kontoauszug', 'mitglieder_finanzen', 'buchhaltung'), (req, res) => res.json(status()));
   admin.get('/kontoauszug', P, (req, res) => res.json({ ...status(), modules: allowed(req.user).map(p => ({ id: p.meta.id, name: p.meta.name })), accounts: bank.list().map(a => ({ id: a.id, name: a.name, iban: bank.maskIban(a.iban) })) }));
   admin.get('/kontoauszug/entries', P, run(req => list(req.user, String(req.query.tab || 'offen'))));
-  admin.get('/kontoauszug/targets', P, run(req => targets(req.user)));
+  /* Ziele zum Zuordnen von Hand: ?kind=zahlung|ruecklastschrift|ausgabe, ?q=Suchtext, ?limit=Anzahl – die Verwaltung holt nur, was sie anzeigt (bei vielen offenen Posten sonst hunderte kB je Fenster) */
+  admin.get('/kontoauszug/targets', P, run(req => {
+    let list = targets(req.user);
+    const kind = String(req.query.kind || ''), q = String(req.query.q || '').trim().toLowerCase(), lim = Math.min(500, int(req.query.limit) || 0);
+    if (kind) list = list.filter(t => (t.kind || 'zahlung') === kind);
+    if (q) list = list.filter(t => `${t.label} ${t.sub}`.toLowerCase().includes(q));
+    return lim ? list.slice(0, lim) : list;
+  }));
   admin.post('/kontoauszug/upload', P, rateLimit('kaupload', 60, 10 * 60000), express.raw({ type: () => true, limit: '5mb' }), asyncRoute(async (req, res) => {
     if (require('./vault').locked()) return res.status(423).json({ error: 'Die persönlichen Daten sind nach einem Neustart noch verschlossen. Sie öffnen sich, sobald sich ein Admin mit Schlüssel anmeldet.', vaultLocked: true });
     let map = null;

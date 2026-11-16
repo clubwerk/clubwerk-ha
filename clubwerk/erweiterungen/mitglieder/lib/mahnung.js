@@ -33,7 +33,7 @@ function register(sh) {
   /* ---------- Einstellungen ---------- */
   /** Stufen aus den Einstellungen; ohne eigene Stufen die Vorgabe – eine früher eingestellte „Mahngebühr ab 2. Mahnung“ geht darin auf */
   function levels() {
-    try { const r = sh.cleanDunningLevels(JSON.parse(S('dunning_levels', ''))); if (r.levels) return r.levels; } catch (e) { /* Vorgabe */ }
+    try { const r = sh.cleanDunningLevels(JSON.parse(S('dunning_levels', ''))); if (r.levels) return r.levels; } catch (e) { /* ungültige Einstellung: Vorgabe nehmen */ }
     const old = S('dunning_fee_cents', '');
     return DEFAULT_LEVELS(old === '' ? 250 : Math.max(0, parseInt(old, 10) || 0));
   }

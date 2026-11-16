@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // einmal anlegen statt je Betrag
   const euro = c => EUR.format(c / 100);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const IDLE_MS = 60 * 1000;      // nach 60 s ohne Eingabe zurück zum Start
   const WARN_MS = 10 * 1000;      // 10 s vorher Hinweis mit Countdown (CWZeit, WCAG 2.2.1)
   const DONE_MS = 20 * 1000;      // Bestätigung 20 s sichtbar (Rückgängig möglich)

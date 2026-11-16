@@ -58,15 +58,14 @@ CREATE INDEX IF NOT EXISTS ix_sl_protocol_issue ON sl_protocol(issue_id);
   const DIR = path.join(ctx.require('./db').DATA_DIR, 'belege', 'schluessel');
   const P = need('schluessel');
   const A = ctx.admin, T = ctx.tablet;
-  const S = (k, d) => ctx.getSetting('ext_schluessel_' + k, d);
-  const SET = (k, v) => ctx.setSetting('ext_schluessel_' + k, String(v));
+  const S = ctx.setting, SET = ctx.setSetting2;
   const clubName = () => ctx.getSetting('club_name', 'Verein');
   const mitgl = () => ctx.isModuleActive('mitglieder');
   const hook1 = (name, ...a) => { const r = ctx.callHooksSync(name, ...a).map(x => x.result).find(x => x != null); return r; };
   const cfg = () => ({ max_cost_cents: Math.min(1000000, Math.max(0, int(S('max_cost_cents', '5000')))), keep_ohnepfand: Math.min(120, Math.max(12, int(S('keep_ohnepfand', '36')) || 36)),
     keep_mitpfand: Math.min(120, Math.max(12, int(S('keep_mitpfand', '120')) || 120)), mail_on: S('mail_on', '1') === '1', cc: S('cc', '') });
   const CFG_LABELS = { max_cost_cents: ['Höchstbetrag bei Verlust', 'euro'], keep_ohnepfand: 'Aufbewahrung ohne Pfand (Monate)', keep_mitpfand: 'Aufbewahrung mit Pfand oder Kosten (Monate)', mail_on: ['E-Mail mit PDF an die Person', 'bool'], cc: 'Kopie an' };
-  const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const euro = ctx.util.euroText;
   const mailOk = s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(s || ''));
   const ageAt = (birth, on) => { const b = String(birth || '').split('-').map(Number), o = String(on).split('-').map(Number); if (b.length < 3) return 99; let a = o[0] - b[0]; if (o[1] < b[1] || (o[1] === b[1] && o[2] < b[2])) a--; return a; };
   const send = fn => async (req, res) => { try { res.json(await fn(req, res)); } catch (e) { if (!res.headersSent) bad(res, e.message, e.code || 400); } };
@@ -84,7 +83,7 @@ CREATE INDEX IF NOT EXISTS ix_sl_protocol_issue ON sl_protocol(issue_id);
     if (i.member_id) { if (!mitgl()) return ''; const a = (await ctx.callHooks('memberAddress', i.member_id)).map(x => x.result).find(Boolean); return a && mailOk(a.email) && !/@clubwerk\.invalid$/i.test(a.email) ? a.email : ''; }
     return mailOk(i.contact) ? i.contact : '';
   }
-  const clubInfo = () => { const c = (mitgl() && hook1('clubInfo')) || {}; return { name: clubName(), street: c.street || '', city: c.city || '' }; };
+  const clubInfo = () => { const c = ctx.clubAddress(); return { name: clubName(), street: c.street, city: c.city }; };
   const itemsOf = issueId => db.prepare(`SELECT ip.piece_id AS id, ip.state, ip.back_at, ip.cond, p.label, p.status AS pstatus, t.id AS type_id, t.ident, t.name, t.kind, t.opens, t.sensitive FROM sl_issue_piece ip
     JOIN sl_piece p ON p.id = ip.piece_id JOIN sl_type t ON t.id = p.type_id WHERE ip.issue_id = ? ORDER BY t.sort, t.ident, p.label`).all(issueId);
   const pieceText = it => `${pdf.itemNo(it)} ${it.name}`;

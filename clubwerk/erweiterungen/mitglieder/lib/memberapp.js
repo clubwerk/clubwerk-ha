@@ -19,16 +19,8 @@ function register(sh) {
   // Tresor gesperrt (nach einem Neustart): eigene Daten erst wieder nach dem Entsperren – sonst sähe das Mitglied leere Felder
   M.use((req, res, next) => (C.require('./vault').locked() ? res.status(423).json({ error: 'Deine Daten sind gerade verschlossen (nach einem Neustart im Vereinsheim). Bitte später noch einmal versuchen.' }) : next()));
   const P = need('mitglieder');
-  const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street: S('club_street'), city: S('club_city'), ci: S('creditor_id') });
-  /* Unterschrift: PNG (App und Formular liefern 600 px Breite). Die Maße im Bildkopf begrenzen – ein winzig gepacktes PNG mit
-     riesigen Maßen ließe sonst beim PDF-Bau Gigabytes an Speicher reservieren und den Server blockieren. */
-  const sigOk = s => {
-    if (typeof s !== 'string' || s.length >= 280000 || !/^data:image\/png;base64,[A-Za-z0-9+/=]{400,}$/.test(s)) return false;
-    const h = Buffer.from(s.slice(22, 22 + 44), 'base64');
-    if (h.length < 24 || h.readUInt32BE(0) !== 0x89504e47 || h.toString('latin1', 12, 16) !== 'IHDR') return false;
-    const w = h.readUInt32BE(16), ht = h.readUInt32BE(20);
-    return w > 0 && ht > 0 && w <= 1200 && ht <= 1200;
-  };
+  const club = () => { const { street, city } = C.clubAddress(); return { name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street, city, ci: S('creditor_id') }; };
+  const { sigOk } = C.util;   // Unterschrift: PNG (App und Formular liefern 600 px Breite), Maße begrenzt (src/util.js)
   const CHANGE_FIELDS = ['street', 'zip', 'city', 'address_extra', 'phone', 'mobile', 'email'];
   const KIND = { daten: 'Datenänderung', bank: 'Neue Bankverbindung', kuendigung: 'Kündigung', eintritt: 'Eintritt (Abteilung)', austritt: 'Austritt (Abteilung)', rueckkehr: 'Rückkehr (Abteilung)' };
   const SCOPE_KINDS = ['eintritt', 'austritt', 'rueckkehr'];
@@ -164,7 +156,7 @@ function register(sh) {
     if (!Object.keys(want).length && !consents) return bad(res, 'Du hast nichts geändert.');
     // Neue E-Mail-Adresse (dorthin gehen künftig Bestätigungen) und Einwilligungen (gelten sofort) nur mit PIN – ein entsperrt
     // herumliegendes Handy reicht dafür nicht. Anschrift und Telefon bestätigt ohnehin der Vorstand.
-    if ((want.email !== undefined || consents) && !req.pinOk()) return;
+    if ((want.email !== undefined || consents) && !await req.pinOk()) return;
     // Einwilligungen gelten sofort (Widerruf muss ohne Hürde möglich sein) – Datenänderungen bestätigt der Vorstand
     if (consents) {
       const cur = JSON.parse(p.consents || '{}');
@@ -184,7 +176,7 @@ function register(sh) {
      Weiterverwenden. Die IBAN steht in der Mail nur gekürzt (vollständig unter „Meine Daten“ bzw. beim Verein). Höchstens zweimal am Tag. */
   const sentAusk = new Map();   // Mitglied → Zeitpunkte der letzten Auskünfte (nur nach richtiger PIN gezählt; Fehlversuche zählen in die PIN-Sperre)
   M.post('/auskunft', ar(async (req, res) => {
-    if (!req.pinOk()) return;
+    if (!await req.pinOk()) return;
     const id = req.member.id; const p = personRow(id);
     const recent = (sentAusk.get(id) || []).filter(t => Date.now() - t < 86400000);
     if (recent.length >= 2) return res.status(429).json({ error: 'Du hast deine Daten heute schon angefordert – schau in dein Postfach (auch im Spam-Ordner).' });
@@ -205,7 +197,7 @@ function register(sh) {
   }));
   M.post('/bank', C.rateLimit('mvbank', 5, 3600000), ar(async (req, res) => {
     if (!store.appPerms().edit.bank) return bad(res, 'Eine neue Bankverbindung bitte direkt beim Verein abgeben – in der App ist das nicht freigeschaltet.', 403);
-    if (!req.pinOk()) return;
+    if (!await req.pinOk()) return;
     const id = req.member.id; const p = personRow(id); const b = req.body || {};
     if (!p || p.anonymized_at) return bad(res, 'Für dich sind keine Vereinsdaten hinterlegt.');
     if (store.payerOf(id) !== id) return bad(res, 'Deine Beiträge zahlt ein anderes Mitglied – die Bankverbindung ändert der Hauptzahler.');
@@ -226,7 +218,7 @@ function register(sh) {
   }));
   M.post('/kuendigung', C.rateLimit('mvkuend', 5, 3600000), ar(async (req, res) => {
     if (!store.appPerms().edit.kuendigung) return bad(res, 'Eine Kündigung bitte schriftlich beim Vorstand einreichen – in der App ist das nicht freigeschaltet.', 403);
-    if (!req.pinOk()) return;
+    if (!await req.pinOk()) return;
     const id = req.member.id; const p = personRow(id); const b = req.body || {};
     if (!p || p.anonymized_at) return bad(res, 'Für dich sind keine Vereinsdaten hinterlegt.');
     if (p.exit_date) return bad(res, `Dein Austritt ist schon zum ${deD(p.exit_date)} eingetragen.`);

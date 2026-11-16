@@ -58,29 +58,23 @@ function activate(ctx) {
   const db = ctx.db;
   tables(db);
   const { need, bad, int, rateLimit } = ctx;
-  const S = (k, d = '') => ctx.getSetting('ext_arbeitseinsatz_' + k, d);
-  const SET = (k, v) => ctx.setSetting('ext_arbeitseinsatz_' + k, String(v));
+  const S = ctx.setting, SET = ctx.setSetting2;
   const P = need('arbeitseinsatz');
   const admin = ctx.admin, T = ctx.tablet, M = ctx.member;
   // Dauerhafte Einsätze (z. B. Thekendienst): ganzjährig ohne festen Termin, am Tablet wählbar solange aktiv
-  if (!db.prepare('PRAGMA table_info(aw_event)').all().some(c => c.name === 'permanent')) db.exec('ALTER TABLE aw_event ADD COLUMN permanent INTEGER NOT NULL DEFAULT 0');
-  // Dienstpläne: Schichten gehören zu einer Veranstaltung (plan_id); counts = zählt zu den Arbeitsstunden
-  { const cols = db.prepare('PRAGMA table_info(aw_event)').all().map(c => c.name);
-    if (!cols.includes('plan_id')) db.exec('ALTER TABLE aw_event ADD COLUMN plan_id INTEGER');
-    if (!cols.includes('counts')) db.exec('ALTER TABLE aw_event ADD COLUMN counts INTEGER NOT NULL DEFAULT 1');
+  ctx.addColumns('aw_event', {
+    permanent: 'INTEGER NOT NULL DEFAULT 0',
+    // Dienstpläne: Schichten gehören zu einer Veranstaltung (plan_id); counts = zählt zu den Arbeitsstunden
+    plan_id: 'INTEGER', counts: 'INTEGER NOT NULL DEFAULT 1',
     // Termine: Antwortfrist und „Bitte um Antwort“ schon verschickt
-    if (!cols.includes('deadline')) db.exec('ALTER TABLE aw_event ADD COLUMN deadline TEXT');
-    if (!cols.includes('asked')) db.exec('ALTER TABLE aw_event ADD COLUMN asked INTEGER NOT NULL DEFAULT 0'); }
+    deadline: 'TEXT', asked: 'INTEGER NOT NULL DEFAULT 0' });
   // Antworten auf Termine: bisherige Eintragungen gelten als Zusage mit einer Person
-  { const cols = db.prepare('PRAGMA table_info(aw_signup)').all().map(c => c.name);
-    if (!cols.includes('answer')) db.exec("ALTER TABLE aw_signup ADD COLUMN answer TEXT NOT NULL DEFAULT 'ja'");
-    if (!cols.includes('persons')) db.exec('ALTER TABLE aw_signup ADD COLUMN persons INTEGER NOT NULL DEFAULT 1');
-    if (!cols.includes('note')) db.exec('ALTER TABLE aw_signup ADD COLUMN note TEXT'); }
+  ctx.addColumns('aw_signup', { answer: "TEXT NOT NULL DEFAULT 'ja'", persons: 'INTEGER NOT NULL DEFAULT 1', note: 'TEXT' });
   if (S('seed_theke') !== '1') {
     if (!db.prepare("SELECT 1 FROM aw_event WHERE permanent = 1 AND kind = 'theke'").get()) db.prepare("INSERT INTO aw_event(kind, title, date, permanent, created_by) VALUES ('theke', 'Thekendienst', date('now','localtime'), 1, 'Clubwerk')").run();
     SET('seed_theke', '1');
   }
-  const uname = req => req.user.name || req.user.username;
+  const uname = ctx.userName;
   const ar = fn => ctx.asyncRoute(fn);
   const cfg = () => ({
     default_minutes: parseInt(S('default_minutes', '240'), 10) || 0, min_age: parseInt(S('min_age', '12'), 10) || 0, max_age: parseInt(S('max_age', '0'), 10) || 0,
@@ -179,15 +173,12 @@ function activate(ctx) {
   admin.get('/overview', P, ar(async (req, res) => res.json(await overview(yearArg(req.query.year) || yearOf(today())))));
   admin.get('/overview.xlsx', P, ar(async (req, res) => {
     const o = await overview(yearArg(req.query.year) || yearOf(today()));
-    const ExcelJS = ctx.require('exceljs'); const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Arbeitsstunden ' + o.label);
-    ws.columns = [{ header: 'Mitglied', width: 28 }, { header: 'Soll (h)', width: 10 }, { header: 'Geleistet (h)', width: 13 }, { header: 'Offen gemeldet (h)', width: 17 }, { header: 'Begründung Soll', width: 34 }];
-    for (const r of o.rows) ws.addRow([r.name, r.target / 60, r.done / 60, r.open / 60, r.why]);
-    ws.getRow(1).font = { bold: true };
-    const ws2 = wb.addWorksheet(o.pool ? 'Familien' : 'Abrechnung');
-    ws2.columns = [{ header: o.pool ? 'Zahler / Familie' : 'Mitglied', width: 28 }, { header: 'Soll (h)', width: 10 }, { header: 'Geleistet (h)', width: 13 }, { header: 'Fehlend (h)', width: 12 }, { header: 'Betrag (€)', width: 12 }];
-    for (const f of o.families) ws2.addRow([f.name, f.target / 60, f.done / 60, f.missing / 60, f.cents / 100]);
-    ws2.getRow(1).font = { bold: true };
-    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Arbeitsstunden_${o.label.replace('/', '-')}.xlsx"` }).send(Buffer.from(await wb.xlsx.writeBuffer()));
+    const wb = ctx.xlsx.book();
+    ctx.xlsx.sheet(wb, 'Arbeitsstunden ' + o.label, [{ header: 'Mitglied', width: 28 }, { header: 'Soll (h)', width: 10 }, { header: 'Geleistet (h)', width: 13 }, { header: 'Offen gemeldet (h)', width: 17 }, { header: 'Begründung Soll', width: 34 }],
+      o.rows.map(r => [r.name, r.target / 60, r.done / 60, r.open / 60, r.why]));
+    ctx.xlsx.sheet(wb, o.pool ? 'Familien' : 'Abrechnung', [{ header: o.pool ? 'Zahler / Familie' : 'Mitglied', width: 28 }, { header: 'Soll (h)', width: 10 }, { header: 'Geleistet (h)', width: 13 }, { header: 'Fehlend (h)', width: 12 }, { header: 'Betrag (€)', width: 12 }],
+      o.families.map(f => [f.name, f.target / 60, f.done / 60, f.missing / 60, f.cents / 100]));
+    await ctx.xlsx.send(res, `Arbeitsstunden_${o.label.replace('/', '-')}.xlsx`, wb);
   }));
   /* Dauerhafte Befreiung vom Arbeitseinsatz (Mitglied kann Stunden leisten, es wird aber nichts abgerechnet) */
   admin.get('/exempt', P, (req, res) => res.json(db.prepare('SELECT e.*, m.name FROM aw_exempt e JOIN members m ON m.id = e.member_id ORDER BY name_key(m.name, m.kind)').all()));
@@ -301,14 +292,11 @@ function activate(ctx) {
   admin.get('/events/:id/answers.xlsx', P, ar(async (req, res) => {
     const e = db.prepare("SELECT * FROM aw_event WHERE id = ? AND kind = 'termin'").get(int(req.params.id)); if (!e) return bad(res, 'Nicht gefunden.', 404);
     const a = answersOf(e.id);
-    const ExcelJS = ctx.require('exceljs'); const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Antworten');
-    ws.columns = [{ header: 'Name', width: 30 }, { header: 'Antwort', width: 18 }, { header: 'Personen', width: 11 }, { header: 'Anmerkung', width: 40 }];
-    for (const r of a.yes) ws.addRow([lf(r.name), 'kommt', r.persons, r.note || '']);
-    for (const r of a.no) ws.addRow([lf(r.name), 'kommt nicht', '', r.note || '']);
-    for (const r of a.none) ws.addRow([lf(r.name), 'keine Antwort', '', '']);
-    ws.getRow(1).font = { bold: true };
+    const wb = ctx.xlsx.book();
+    const ws = ctx.xlsx.sheet(wb, 'Antworten', [{ header: 'Name', width: 30 }, { header: 'Antwort', width: 18 }, { header: 'Personen', width: 11 }, { header: 'Anmerkung', width: 40 }], [
+      ...a.yes.map(r => [lf(r.name), 'kommt', r.persons, r.note || '']), ...a.no.map(r => [lf(r.name), 'kommt nicht', '', r.note || '']), ...a.none.map(r => [lf(r.name), 'keine Antwort', '', ''])]);
     ws.addRow([]); ws.addRow(['Zusagen insgesamt', '', a.yes.reduce((x, r) => x + r.persons, 0)]).font = { bold: true };
-    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Termin_${e.title.replace(/[^\w\-äöüÄÖÜß ]/g, '').replace(/ /g, '_')}.xlsx"` }).send(Buffer.from(await wb.xlsx.writeBuffer()));
+    await ctx.xlsx.send(res, `Termin_${e.title.replace(/[^\w\-äöüÄÖÜß ]/g, '').replace(/ /g, '_')}.xlsx`, wb);
   }));
   /** Termin: Mitglieder, die noch nicht geantwortet haben, per Push um Antwort bitten (beim Anlegen: Einladung) */
   function askOpen(e, first) {
@@ -343,9 +331,15 @@ function activate(ctx) {
 
   /* ---------------------------------------------------------------- Dienstpläne (Veranstaltungen mit Schichten) */
   const lf = ctx.require('./db').lastFirst;
-  const helpersOf = id => [
-    ...db.prepare('SELECT s.member_id, m.name FROM aw_signup s JOIN members m ON m.id = s.member_id WHERE s.event_id = ? ORDER BY name_key(m.name, m.kind)').all(id).map(r => ({ member_id: r.member_id, name: r.name, ln: lf(r.name), ph: ctx.require('./photos').version(r.member_id, 'helfer') })),
-    ...db.prepare('SELECT id AS extern_id, name, note FROM aw_extern WHERE event_id = ? ORDER BY id').all(id).map(r => ({ ...r, ln: r.name, extern: true }))];
+  const helperRows = (ids) => {   // Helfer mehrerer Dienste mit zwei Abfragen statt zwei je Dienst (Profilbild-Kennung kommt aus derselben Zeile)
+    const out = new Map(ids.map(id => [id, []])); if (!ids.length) return out;
+    const q = ids.map(() => '?').join(',');
+    for (const r of db.prepare(`SELECT s.event_id, s.member_id, m.name, m.photo, m.photo_use FROM aw_signup s JOIN members m ON m.id = s.member_id WHERE s.event_id IN (${q}) ORDER BY name_key(m.name, m.kind)`).all(...ids))
+      out.get(r.event_id).push({ member_id: r.member_id, name: r.name, ln: lf(r.name), ph: ctx.require('./photos').version({ photo: r.photo, photo_use: r.photo_use }, 'helfer') });
+    for (const r of db.prepare(`SELECT event_id, id AS extern_id, name, note FROM aw_extern WHERE event_id IN (${q}) ORDER BY id`).all(...ids)) { const { event_id, ...x } = r; out.get(event_id).push({ ...x, ln: x.name, extern: true }); }
+    return out;
+  };
+  const helpersOf = id => helperRows([id]).get(id);
   const shiftRow = e => { const hp = helpersOf(e.id); return { ...e, helpers: hp, taken: hp.length, hours: db.prepare("SELECT COUNT(*) n, COALESCE(SUM(minutes),0) min FROM aw_entry WHERE event_id = ? AND status IN ('offen','bestaetigt')").get(e.id) }; };
   const planStats = p => {
     const sh = db.prepare('SELECT * FROM aw_event WHERE plan_id = ? AND cancelled = 0').all(p.id).map(shiftRow);
@@ -430,8 +424,7 @@ function activate(ctx) {
   admin.delete('/extern/:id', P, (req, res) => { db.prepare('DELETE FROM aw_extern WHERE id = ?').run(int(req.params.id)); res.json({ ok: true }); });
   admin.get('/plans/:id/xlsx', P, ar(async (req, res) => {
     const p = db.prepare('SELECT * FROM aw_plan WHERE id = ?').get(int(req.params.id)); if (!p) return bad(res, 'Nicht gefunden.', 404);
-    const ExcelJS = ctx.require('exceljs'); const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Dienstplan');
-    ws.columns = [{ width: 18 }, { width: 28 }, { width: 10 }, { width: 40 }, { width: 40 }];
+    const wb = ctx.xlsx.book(); const ws = ctx.xlsx.sheet(wb, 'Dienstplan', [{ width: 18 }, { width: 28 }, { width: 10 }, { width: 40 }, { width: 40 }]);
     ws.addRow([`${ctx.getSetting('club_name', '')} – Dienstplan ${p.title}`]).font = { bold: true, size: 14 };
     let day = null;
     for (const e of db.prepare('SELECT * FROM aw_event WHERE plan_id = ? AND cancelled = 0 ORDER BY date, start IS NULL, start, id').all(p.id).map(shiftRow)) {
@@ -439,16 +432,24 @@ function activate(ctx) {
       const r = ws.addRow([e.start ? (e.end ? `${e.start}–${e.end}` : `ab ${e.start} Uhr`) : '', e.title, e.slots ? `${e.taken} / ${e.slots}` : String(e.taken), e.helpers.map(x => x.ln).join('\n'), e.note || '']);
       r.alignment = { vertical: 'top', wrapText: true };
     }
-    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Dienstplan_${p.title.replace(/[^\w\-äöüÄÖÜß ]/g, '').replace(/ /g, '_')}.xlsx"` }).send(Buffer.from(await wb.xlsx.writeBuffer()));
+    await ctx.xlsx.send(res, `Dienstplan_${p.title.replace(/[^\w\-äöüÄÖÜß ]/g, '').replace(/ /g, '_')}.xlsx`, wb);
   }));
 
   /* Stunden */
+  /** Zahlen für die Reiter („Zu bestätigen“, „Eingestempelt“) – ohne die Listen selbst zu laden */
+  admin.get('/entries/zaehler', P, (req, res) => res.json({ offen: db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE status = 'offen'").get().n, laeuft: db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE status = 'laeuft'").get().n }));   // über die Teilindizes ix_awe_open / ix_awe_run
   admin.get('/entries', P, (req, res) => {
     const q = req.query, w = [], a = [];
     if (q.status && q.status !== 'alle') { w.push('e.status = ?'); a.push(q.status); }
     if (q.member) { w.push('e.member_id = ?'); a.push(int(q.member)); }
     if (yearArg(q.year)) { const p = period(yearArg(q.year)); w.push('e.date BETWEEN ? AND ?'); a.push(p.from, p.to); }
-    res.json(db.prepare(`SELECT e.*, m.name, v.title AS event_title FROM aw_entry e JOIN members m ON m.id = e.member_id LEFT JOIN aw_event v ON v.id = e.event_id ${w.length ? 'WHERE ' + w.join(' AND ') : ''} ORDER BY e.status = 'offen' DESC, e.date DESC, e.id DESC LIMIT 1000`).all(...a));
+    const where = w.length ? 'WHERE ' + w.join(' AND ') : '';
+    const lim = int(q.limit);   // mit ?limit= seitenweise ({ rows, total }), sonst wie bisher bis 1000 Zeilen als Liste
+    if (lim > 0) {
+      const total = db.prepare(`SELECT COUNT(*) n FROM aw_entry e ${where}`).get(...a).n;
+      return res.json({ total, rows: db.prepare(`SELECT e.*, m.name, v.title AS event_title FROM aw_entry e JOIN members m ON m.id = e.member_id LEFT JOIN aw_event v ON v.id = e.event_id ${where} ORDER BY e.status = 'offen' DESC, e.date DESC, e.id DESC LIMIT ? OFFSET ?`).all(...a, Math.min(lim, 1000), Math.max(0, int(q.offset) || 0)) });
+    }
+    res.json(db.prepare(`SELECT e.*, m.name, v.title AS event_title FROM aw_entry e JOIN members m ON m.id = e.member_id LEFT JOIN aw_event v ON v.id = e.event_id ${where} ORDER BY e.status = 'offen' DESC, e.date DESC, e.id DESC LIMIT 1000`).all(...a));
   });
   const entryInput = (b, cur = {}) => {
     const o = { date: b.date !== undefined ? b.date : cur.date, minutes: b.minutes !== undefined ? Math.round(Number(b.minutes)) : cur.minutes, text: b.text !== undefined ? txt(b.text, 140) || null : cur.text || null, event_id: b.event_id !== undefined ? (b.event_id ? int(b.event_id) : null) : cur.event_id || null };
@@ -511,6 +512,7 @@ function activate(ctx) {
      Klappt ein Abruf nicht, bleibt der letzte Stand. Beispieladressen (…example…) und die Demo-Kopie rufen nichts ab. */
   const ical = ctx.require('./ical');
   const ICAL_MAX = 2 * 1024 * 1024;
+  const aussen = ctx.require('./aussenabruf');
   const icalUrl = v => { const u = String(v || '').trim().replace(/^webcal:\/\//i, 'https://'); return !u ? '' : /^https?:\/\/[^\s/?#]+[^\s]*$/i.test(u) && u.length <= 500 ? u : null; };
   const icalHost = u => { try { return new URL(u).hostname.toLowerCase(); } catch (e) { return ''; } };
   const icalSample = u => /(^|\.)example(\.(org|com|net))?$/.test(icalHost(u)) || /^dein-verein\./.test(icalHost(u));
@@ -522,12 +524,10 @@ function activate(ctx) {
     if (icalRun) return icalRun;
     icalRun = (async () => {
       try {
-        const r = await fetch(url, { headers: { 'User-Agent': 'Clubwerk', Accept: 'text/calendar, text/plain;q=0.5' }, signal: AbortSignal.timeout(15000) });
-        if (!r.ok) throw new Error(`Die Homepage antwortet mit Fehler ${r.status}.`);
-        if (Number(r.headers.get('content-length')) > ICAL_MAX) throw new Error('Die Kalenderdatei ist zu groß (höchstens 2 MB).');
-        const parts = []; let n = 0;
-        for await (const c of r.body) { n += c.length; if (n > ICAL_MAX) throw new Error('Die Kalenderdatei ist zu groß (höchstens 2 MB).'); parts.push(c); }
-        const text = Buffer.concat(parts).toString('utf8');
+        /* Schutz vor Anfragen ins eigene Netz: nur https, öffentliche Adressen, Prüfung bei jeder Weiterleitung (src/aussenabruf.js) */
+        const r = await aussen.abrufen(url, { headers: { 'User-Agent': 'Clubwerk', Accept: 'text/calendar, text/plain;q=0.5' }, timeout: 15000, max: ICAL_MAX });
+        if (r.status < 200 || r.status > 299) throw new Error(`Die Homepage antwortet mit Fehler ${r.status}.`);
+        const text = r.body.toString('utf8');
         if (!/BEGIN:VCALENDAR/.test(text)) throw new Error('Unter dieser Adresse liegt kein Kalender (keine iCal-Datei).');
         const list = ical.events(text, { from: today(), to: addDays(today(), 400), max: 300 });
         db.transaction(() => {
@@ -537,7 +537,8 @@ function activate(ctx) {
         })();
         SET('ical_ok', JSON.stringify({ at: nowTs(), n: list.length })); SET('ical_err', 'null');
       } catch (e) {
-        const msg = e.name === 'TimeoutError' || e.name === 'AbortError' ? 'Die Homepage hat nicht rechtzeitig geantwortet.' : /fetch failed|ENOTFOUND|ECONNREFUSED|EAI_AGAIN|EDEMO/.test(`${e.message} ${e.cause && e.cause.code}`) ? 'Die Homepage ist nicht erreichbar.' : txt(e.message, 200);
+        const msg = e.code === 'ETIMEOUT' ? 'Die Homepage hat nicht rechtzeitig geantwortet.' : e.code === 'EGROSS' ? 'Die Kalenderdatei ist zu groß (höchstens 2 MB).' :
+          e.code === 'EPRIVAT' || e.code === 'EADRESSE' ? e.message : e.code === 'EWEITER' ? 'Die Homepage leitet zu oft weiter.' : /fetch failed|ENOTFOUND|ECONNREFUSED|EAI_AGAIN|EDEMO/.test(`${e.message} ${e.cause && e.cause.code}`) ? 'Die Homepage ist nicht erreichbar.' : txt(e.message, 200);
         SET('ical_err', JSON.stringify({ at: nowTs(), error: msg }));
       } finally { icalRun = null; }
       return icalState();
@@ -547,7 +548,8 @@ function activate(ctx) {
   admin.get('/ical', P, (req, res) => res.json({ url: S('ical_url'), sample: icalSample(S('ical_url')), ...icalState(), next: db.prepare('SELECT date, start, title FROM aw_ical WHERE date >= ? ORDER BY date, start LIMIT 3').all(today()) }));
   admin.put('/ical', P, ar(async (req, res) => {
     const u = icalUrl((req.body || {}).url);
-    if (u === null) return bad(res, 'Bitte den Abo-Link des Kalenders eintragen (beginnt mit webcal://, https:// oder http://).');
+    if (u === null) return bad(res, 'Bitte den Abo-Link des Kalenders eintragen (beginnt mit webcal:// oder https://).');
+    if (u && !icalSample(u)) { try { aussen.ziel(u); } catch (e) { return bad(res, e.message); } }
     const before = S('ical_url');
     if (u !== before) {
       SET('ical_url', u); SET('ical_ok', 'null'); SET('ical_err', 'null'); db.prepare('DELETE FROM aw_ical').run();
@@ -614,8 +616,16 @@ function activate(ctx) {
   const deadlineOk = e => !e.deadline || today() <= e.deadline;
   /** Mitglieder sehen nur die Summe der Personen – Namen und Absagen sieht die Verwaltung */
   const personsYes = id => db.prepare("SELECT COALESCE(SUM(persons), 0) n FROM aw_signup WHERE event_id = ? AND answer = 'ja'").get(id).n;
-  const termApp = (e, id) => {
-    const mine = db.prepare('SELECT answer, persons, note FROM aw_signup WHERE event_id = ? AND member_id = ?').get(e.id, id), total = personsYes(e.id);
+  /** Antworten zu mehreren Terminen auf einmal: Summe der Zusagen je Termin und die eigene Antwort */
+  const termInfo = (ids, member) => {
+    const q = ids.map(() => '?').join(','), total = new Map(), mine = new Map();
+    if (!ids.length) return { total, mine };
+    for (const r of db.prepare(`SELECT event_id, COALESCE(SUM(persons), 0) n FROM aw_signup WHERE answer = 'ja' AND event_id IN (${q}) GROUP BY event_id`).all(...ids)) total.set(r.event_id, r.n);
+    for (const r of db.prepare(`SELECT event_id, answer, persons, note FROM aw_signup WHERE member_id = ? AND event_id IN (${q})`).all(member, ...ids)) mine.set(r.event_id, r);
+    return { total, mine };
+  };
+  const termApp = (e, id, info) => {
+    const mine = info ? info.mine.get(e.id) : db.prepare('SELECT answer, persons, note FROM aw_signup WHERE event_id = ? AND member_id = ?').get(e.id, id), total = info ? info.total.get(e.id) || 0 : personsYes(e.id);
     const free = e.slots ? Math.max(0, e.slots - total + (mine && mine.answer === 'ja' ? mine.persons : 0)) : null;
     return { id: e.id, title: e.title, date: e.date, start: e.start, end: e.end, place: e.place, note: e.note, slots: e.slots, deadline: e.deadline, persons_total: total, free, answer: mine ? mine.answer : null,
       persons: mine && mine.answer === 'ja' ? mine.persons : 0, my_note: mine ? mine.note || '' : '', can: deadlineOk(e), ics: ctx.calendarLink({ uid: `aw-${e.id}`, date: e.date, start: e.start, end: e.end, title: e.title, place: e.place, note: e.note }) };
@@ -627,15 +637,22 @@ function activate(ctx) {
     let tg = 0; for (const x of ids) tg += (await target(x, y)).minutes;
     const done = doneMinutes(ids, y), open = openMinutes(ids, y);
     const mine = await target(id, y);
-    const termine = db.prepare("SELECT * FROM aw_event WHERE kind = 'termin' AND cancelled = 0 AND date >= ? ORDER BY date, start LIMIT 60").all(today()).filter(isOpen).slice(0, 40).map(e => termApp(e, id));
-    const shiftApp = e => { const hp = helpersOf(e.id); return { id: e.id, kind: e.kind, title: e.title, date: e.date, start: e.start, end: e.end, place: e.place, note: e.note, slots: e.slots, counts: Boolean(e.counts),
-      taken: hp.length, mine: hp.some(x => x.member_id === id), helpers: hp.map(x => x.name), faces: hp.filter(x => x.ph).map(x => ({ id: x.member_id, v: x.ph })), canLeave: canLeave(e), open: isOpen(e),
+    const terminRows = db.prepare("SELECT * FROM aw_event WHERE kind = 'termin' AND cancelled = 0 AND date >= ? ORDER BY date, start LIMIT 60").all(today()).filter(isOpen).slice(0, 40);
+    const tinfo = termInfo(terminRows.map(e => e.id), id);
+    const termine = terminRows.map(e => termApp(e, id, tinfo));
+    const planRows = db.prepare('SELECT * FROM aw_plan WHERE published = 1 AND to_date >= ? ORDER BY from_date LIMIT 10').all(today());
+    const shiftsOf = new Map(planRows.map(p => [p.id, db.prepare('SELECT * FROM aw_event WHERE plan_id = ? AND cancelled = 0 ORDER BY date, start IS NULL, start, id').all(p.id)]));
+    const singles = db.prepare("SELECT * FROM aw_event e WHERE e.date >= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.plan_id IS NULL AND e.kind <> 'termin' ORDER BY e.date, e.start LIMIT 60").all(today()).filter(isOpen).slice(0, 40);
+    const helpers = helperRows([...singles.map(e => e.id), ...[...shiftsOf.values()].flat().map(e => e.id)]);   // alle Helferlisten zusammen: keine Abfragen je Dienst
+    /* Mitglieder sehen die Namen der Mitglieder; externe Helfer (Nichtmitglieder) nur als Anzahl – „+ n weitere“ */
+    const shiftApp = e => { const hp = helpers.get(e.id); return { id: e.id, kind: e.kind, title: e.title, date: e.date, start: e.start, end: e.end, place: e.place, note: e.note, slots: e.slots, counts: Boolean(e.counts),
+      taken: hp.length, mine: hp.some(x => x.member_id === id), helpers: hp.filter(x => !x.extern).map(x => x.name), more: hp.filter(x => x.extern).length, faces: hp.filter(x => x.ph).map(x => ({ id: x.member_id, v: x.ph })), canLeave: canLeave(e), open: isOpen(e),
       ics: hp.some(x => x.member_id === id) ? ctx.calendarLink({ uid: `aw-${e.id}`, date: e.date, start: e.start, end: e.end, title: e.title, place: e.place, note: e.note }) : null }; };
-    const plans = db.prepare('SELECT * FROM aw_plan WHERE published = 1 AND to_date >= ? ORDER BY from_date LIMIT 10').all(today()).map(p => ({ id: p.id, title: p.title, from_date: p.from_date, to_date: p.to_date, place: p.place, note: p.note, counts: Boolean(p.counts),
-      shifts: db.prepare('SELECT * FROM aw_event WHERE plan_id = ? AND cancelled = 0 ORDER BY date, start IS NULL, start, id').all(p.id).map(shiftApp) }));
+    const plans = planRows.map(p => ({ id: p.id, title: p.title, from_date: p.from_date, to_date: p.to_date, place: p.place, note: p.note, counts: Boolean(p.counts),
+      shifts: shiftsOf.get(p.id).map(shiftApp) }));
     res.json({ year: yearLabel(y), to: period(y).to, family: ids.length > 1, target: tg, done, open, mine, rate_cents: cfg().rate_cents, text: cfg().text, report: cfg().app_report, contact: cfg().contact, cancel_h: CANCEL_H, today: today(),
       plans, termine, aufgaben: aufg.mine(id), kalender: icalList(today(), addDays(today(), 400), 60).map(e => ({ ...e, ics: ctx.calendarLink({ ...e, uid: 'ical-' + require('crypto').createHash('sha1').update([e.date, e.start, e.title].join('|')).digest('hex').slice(0, 16) }) })),
-      events: db.prepare("SELECT * FROM aw_event e WHERE e.date >= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.plan_id IS NULL AND e.kind <> 'termin' ORDER BY e.date, e.start LIMIT 60").all(today()).filter(isOpen).slice(0, 40).map(shiftApp),
+      events: singles.map(shiftApp),
       entries: db.prepare(`SELECT e.id, e.date, e.minutes, e.text, e.status, e.reason, m.name FROM aw_entry e JOIN members m ON m.id = e.member_id WHERE e.member_id IN (${ids.map(() => '?').join(',')}) AND e.date >= ? ORDER BY e.date DESC LIMIT 40`).all(...ids, period(y).from) });
   }));
   M.post('/signup', rateLimit('awsig', 60, 60000), ar(async (req, res) => {

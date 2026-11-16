@@ -176,7 +176,7 @@ async function probe(cfg, folder) {
 
 async function remove(cfg, path) { return rpc(cfg, 'files/delete_v2', { path }, `Löschen ${path}`); }
 
-async function revoke(cfg) { try { await rpc(cfg, 'auth/token/revoke', null, 'Abmelden'); } catch (e) { /* egal */ } cached = { key: null, token: null, until: 0 }; }
+async function revoke(cfg) { try { await rpc(cfg, 'auth/token/revoke', null, 'Abmelden'); } catch (e) { /* Abmelden beim Anbieter ist freiwillig */ } cached = { key: null, token: null, until: 0 }; }
 
 /** Ordnername säubern: führender Schrägstrich, keine doppelten/abschließenden, keine verbotenen Zeichen */
 function cleanFolder(f) {
@@ -184,4 +184,4 @@ function cleanFolder(f) {
   return '/' + s.slice(0, 200);
 }
 
-module.exports = { authUrl, exchangeCode, account, probe, upload, uploadFile, downloadFile, listFolder, remove, revoke, cleanFolder, asciiJson };
+module.exports = { authUrl, exchangeCode, account, probe, upload, uploadFile, downloadFile, listFolder, remove, revoke, cleanFolder };

@@ -31,6 +31,7 @@ window.FlutlichtTiles = (() => {
     return sec > 0 ? Math.ceil(sec / 900) * fee.cents : 0;
   }
   const hhmmIn = min => { const d = new Date(Date.now() + min * 60000); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
-  const euro = c => (c / 100).toFixed(2).replace('.', ',') + ' €';
+  const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // je Sprache (siehe i18n-dom.js)
+  const euro = c => EUR.format((c || 0) / 100);
   return { html, durations, estimate, left, hhmmIn, euro };
 })();

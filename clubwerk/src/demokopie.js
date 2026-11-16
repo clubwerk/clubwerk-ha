@@ -63,7 +63,7 @@ async function start({ module, name, user }) {
   cur = c;
   try {
     fs.writeFileSync(path.join(dir, 'clubwerk.pid'), String(process.pid));
-    const m = demo.secrets(require('./auth').hashSecret);
+    const m = await demo.secrets(require('./auth').hashSecret);
     const { db } = demo.build(path.join(dir, 'clubwerk.db'), { modules: [module] });
     demo.seal(db, m);
     db.pragma('journal_mode = DELETE'); db.close();
@@ -71,7 +71,7 @@ async function start({ module, name, user }) {
     const [port, mport, bport] = [await freePort(), await freePort(), await freePort()];
     c.port = port; c.info = { admin: m.admin.user, password: m.admin.pw, tablet: m.tablet.pw };
     // Nur, was Clubwerk zum Laufen braucht – kein SUPERVISOR_TOKEN, kein Notfallpasswort, keine Zertifikate, kein Erweiterungsordner
-    const env = { PATH: process.env.PATH, TZ: process.env.TZ || '', NODE_ENV: process.env.NODE_ENV || 'production', LANG: process.env.LANG || '',
+    const env = { PATH: process.env.PATH, TZ: process.env.TZ || '', NODE_ENV: process.env.NODE_ENV || 'production', LANG: process.env.LANG || '', MALLOC_ARENA_MAX: '1',   // wie run.sh: scrypt im Thread-Pool hält sonst je Thread ~16 MB
       DATA_DIR: dir, PORT: String(port), HOST: '127.0.0.1', MEMBER_PORT: String(mport), BEREGNUNG_PORT: String(bport), EXT_DIR: path.join(dir, 'keine-erweiterungen'),
       TRUSTED_PROXY: '127.0.0.2', CW_DEMO_KOPIE: '1', CW_DEMO_MODUL: name, NODE_OPTIONS: '--max-old-space-size=128 --max-semi-space-size=2' };
     c.proc = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env, cwd: path.join(__dirname, '..'), stdio: ['ignore', 'ignore', 'pipe'] });

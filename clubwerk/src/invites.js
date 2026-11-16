@@ -6,7 +6,7 @@
    Neue Einladung = altes Gerät verliert sofort den Zugang. Jeder Bereich (scope) hat eigene PINs –
    unabhängig von der Getränke-PIN. Gespeichert werden nur Hashes, nie Schlüssel oder PINs im Klartext. */
 const crypto = require('crypto');
-const { db, getSetting, setSetting, audit } = require('./db');
+const { db, getSetting, audit, once } = require('./db');
 const auth = require('./auth');
 
 db.exec(`
@@ -62,7 +62,7 @@ function deviceLabel(ua) {
 /** Push-Abos entkoppelter oder gesperrter Handys entfernen – sonst bekäme ein verlorenes Handy weiter Nachrichten des Mitglieds */
 function dropPush(deviceIds) {
   if (!deviceIds.length) return;
-  try { const push = require('./push'); for (const id of deviceIds) push.removeDevice(id); } catch (e) { /* Push nicht verfügbar */ }
+  try { const push = require('./push'); for (const id of deviceIds) push.removeDevice(id); } catch (e) { console.error('Push: Geräte nicht abgemeldet:', e.message); }
 }
 const deviceIdsOf = (scope, memberId) => db.prepare('SELECT id FROM member_devices WHERE scope = ? AND member_id = ?').all(scope, memberId).map(r => r.id);
 
@@ -71,7 +71,7 @@ const deviceIdsOf = (scope, memberId) => db.prepare('SELECT id FROM member_devic
    eigenem Recht (z. B. Türen) freigeschaltet, den dieser Admin nicht verwalten durfte, wird das Handy entkoppelt – sonst
    könnte jemand mit wenig Rechten vorab sein eigenes Handy koppeln und später Türzugang „erben“. */
 /* Persönliches Kalender-Abo (src/kalender.js) hängt am Handy: neue Einladung, Sperre, Entfernen und Abmelden beenden es – das neue Handy erstellt einen neuen Link */
-const dropCal = (scope, memberId) => { if (scope !== 'app') return; try { db.prepare('DELETE FROM member_cal WHERE member_id = ?').run(memberId); } catch (e) { /* Tabelle entsteht erst mit src/kalender.js */ } };
+const dropCal = (scope, memberId) => { if (scope !== 'app') return; try { db.prepare('DELETE FROM member_cal WHERE member_id = ?').run(memberId); } catch (e) { if (!/no such table/.test(e.message)) throw e; } };   // Tabelle entsteht erst mit src/kalender.js
 function create(scope, memberId, by, issuerPerms, { kind = 'qr' } = {}) {
   scopeOk(scope);
   const hours = kind === 'qr' ? inviteHours() : mailDays() * 24;
@@ -106,7 +106,13 @@ function peek(scope, inviteToken) {
 /** Einladung einlösen: PIN festlegen, Gerät koppeln → Geräteschlüssel (nur jetzt einmal im Klartext) */
 /* remote: gekoppelt von unterwegs ohne zweiten Faktor → Türen/Beregnung erst nach dem ersten Besuch im Vereins-WLAN
    (oder Freigabe durch den Vorstand). verified: 'sms', wenn der SMS-Code stimmte. */
-function redeem(scope, inviteToken, pin, userAgent, host, { remote = false, verified = null } = {}) {
+async function redeem(scope, inviteToken, pin, userAgent, host, opts = {}) {
+  const p0 = peek(scope, inviteToken);
+  if (p0.error) throw new Error(p0.error);
+  // nacheinander je Einladung: der Zähler „failed“ wird erst in der Reihe gelesen (scrypt rechnet asynchron)
+  return auth.nacheinander('dev:' + p0.deviceId, () => redeemJetzt(scope, inviteToken, pin, userAgent, host, opts));
+}
+async function redeemJetzt(scope, inviteToken, pin, userAgent, host, { remote = false, verified = null }) {
   const p = peek(scope, inviteToken);
   if (p.error) throw new Error(p.error);
   /* Eine PIN für alles: Hat das Mitglied schon eine (Verkauf am Tablet), gilt sie auch hier und muss stimmen –
@@ -114,7 +120,7 @@ function redeem(scope, inviteToken, pin, userAgent, host, { remote = false, veri
   let pinHash;
   if (p.hasPin) {
     const m = db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(p.memberId);
-    if (!auth.verifySecret(String(pin || ''), m.pin_hash)) {
+    if (!(await auth.verifySecret(String(pin || ''), m.pin_hash))) {
       const d = db.prepare('SELECT failed FROM member_devices WHERE id = ?').get(p.deviceId), n = (d ? d.failed : 0) + 1;
       if (n >= 5) { db.prepare('UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, failed = 0 WHERE id = ?').run(p.deviceId); audit(null, 'Mitglieder-App: Einladung nach 5 falschen PINs ungültig', p.member); throw new Error('PIN 5-mal falsch – diese Einladung gilt nicht mehr. Bitte beim Vorstand eine neue holen (er kann auch die PIN zurücksetzen).'); }
       db.prepare('UPDATE member_devices SET failed = ? WHERE id = ?').run(n, p.deviceId);
@@ -124,7 +130,7 @@ function redeem(scope, inviteToken, pin, userAgent, host, { remote = false, veri
   } else {
     const bad = auth.pinProblem(String(pin || ''));
     if (bad) throw new Error(bad);
-    pinHash = auth.hashSecret(String(pin));
+    pinHash = await auth.hashPin(String(pin));
   }
   const device = crypto.randomBytes(24).toString('base64url');
   const r = db.prepare(`UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, token_hash = ?, token2_hash = NULL, handover_hash = NULL, pin_hash = ?, device = ?, paired_at = ?, paired_host = ?,
@@ -140,24 +146,28 @@ function redeem(scope, inviteToken, pin, userAgent, host, { remote = false, veri
    6 Ziffern, 10 Minuten gültig, 5 Versuche je Code; je Mitglied höchstens 3 SMS am Tag und 60 Sekunden Abstand. */
 const OTP_MIN = 10, OTP_TRIES = 5, OTP_PER_DAY = 3, OTP_GAP = 60000;
 /** neuen Code für die offene Einladung erzeugen → { code } oder { error, status } (Code nur jetzt im Klartext) */
-function otpCreate(scope, inviteToken) {
+async function otpCreate(scope, inviteToken) {
   const p = peek(scope, inviteToken); if (p.error) return { error: p.error, status: 410 };
   const d = db.prepare('SELECT * FROM member_devices WHERE id = ?').get(p.deviceId);
   const day = now().slice(0, 10), count = d.otp_day === day ? d.otp_count : 0;
   if (d.otp_last && Date.now() - d.otp_last < OTP_GAP) return { error: `Bitte ${Math.ceil((OTP_GAP - (Date.now() - d.otp_last)) / 1000)} Sekunden warten, dann geht eine neue SMS.`, status: 429 };
   if (count >= OTP_PER_DAY) return { error: `Heute wurden schon ${OTP_PER_DAY} SMS verschickt – bitte morgen noch einmal oder beim Vorstand melden.`, status: 429 };
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-  db.prepare('UPDATE member_devices SET otp_hash = ?, otp_expires = ?, otp_tries = 0, otp_day = ?, otp_count = ?, otp_last = ? WHERE id = ?').run(auth.hashSecret(`${d.id}:${code}`), Date.now() + OTP_MIN * 60000, day, count + 1, Date.now(), d.id);
+  db.prepare('UPDATE member_devices SET otp_hash = ?, otp_expires = ?, otp_tries = 0, otp_day = ?, otp_count = ?, otp_last = ? WHERE id = ?').run(await auth.hashSecret(`${d.id}:${code}`), Date.now() + OTP_MIN * 60000, day, count + 1, Date.now(), d.id);
   return { code, memberId: d.member_id, minutes: OTP_MIN };
 }
 /** Code prüfen (vor dem Einlösen) → { ok } oder { error, status } */
 function otpCheck(scope, inviteToken, code) {
+  const p0 = peek(scope, inviteToken); if (p0.error) return Promise.resolve({ error: p0.error, status: 410 });
+  return auth.nacheinander('dev:' + p0.deviceId, () => otpCheckJetzt(scope, inviteToken, code));
+}
+async function otpCheckJetzt(scope, inviteToken, code) {
   const p = peek(scope, inviteToken); if (p.error) return { error: p.error, status: 410 };
   const d = db.prepare('SELECT * FROM member_devices WHERE id = ?').get(p.deviceId);
   if (!d.otp_hash || !(d.otp_expires > Date.now())) return { error: 'Der SMS-Code ist abgelaufen – bitte einen neuen anfordern.', status: 400, otp: true };
   if (!/^\d{6}$/.test(String(code || '').trim())) return { error: 'Bitte die 6 Ziffern aus der SMS eingeben.', status: 400, otp: true };
   // gesalzen wie PINs (scrypt, Vergleich timing-safe) – ein heller sha256 von 6 Ziffern ließe sich aus einer Datenbank-Kopie sofort zurückrechnen
-  if (auth.verifySecret(`${d.id}:${String(code).trim()}`, d.otp_hash)) return { ok: true };
+  if (await auth.verifySecret(`${d.id}:${String(code).trim()}`, d.otp_hash)) return { ok: true };
   const t = d.otp_tries + 1;
   if (t >= OTP_TRIES) { db.prepare('UPDATE member_devices SET otp_hash = NULL, otp_expires = NULL, otp_tries = 0 WHERE id = ?').run(d.id); return { error: `Code ${OTP_TRIES}-mal falsch – bitte einen neuen anfordern.`, status: 400, otp: true }; }
   db.prepare('UPDATE member_devices SET otp_tries = ? WHERE id = ?').run(t, d.id);
@@ -171,12 +181,12 @@ function setMemberPin(memberId, hash, by) {
 /** neue Verkaufs-PIN auch in der App (gekoppeltes Handy) setzen – nur auf Geräten, deren PIN die bisherige war.
  *  Wer die alte App-PIN nicht kennt (z. B. erste PIN am Tablet nach „PIN zurücksetzen“), ändert die App-PIN nicht –
  *  sonst könnte jeder am Tablet die PIN eines Mitglieds mit App festlegen und damit dessen Türen öffnen. */
-function pinToApp(memberId, hash, oldPin) {
+async function pinToApp(memberId, hash, oldPin) {
   if (!oldPin) return false;
   const upd = db.prepare('UPDATE member_devices SET pin_hash = ?, pin_synced = 1, failed = 0, locked_until = NULL WHERE id = ?');
   let n = 0;
   for (const d of db.prepare("SELECT id, pin_hash FROM member_devices WHERE scope = 'app' AND member_id = ? AND token_hash IS NOT NULL").all(memberId))
-    if (d.pin_hash && auth.verifySecret(String(oldPin), d.pin_hash)) n += upd.run(hash, d.id).changes;
+    if (d.pin_hash && await auth.verifySecret(String(oldPin), d.pin_hash)) n += upd.run(hash, d.id).changes;
   return n > 0;
 }
 /** einmalig beim Start: App-PIN vorhanden, im Verkauf keine → übernehmen */
@@ -209,17 +219,18 @@ function createTransfer(scope, deviceToken) {
 }
 /** Adresse, unter der das Handy gekoppelt wurde (z. B. app.verein.de oder 192.168.178.20:5001) – das Handy merkt sich die Kopplung je Adresse */
 const cleanHost = h => (/^[A-Za-z0-9.\-\[\]:]{1,120}$/.test(String(h || '')) ? String(h).toLowerCase() : null);
-function redeemTransfer(scope, code, pin, userAgent, host) {
+async function redeemTransfer(scope, code, pin, userAgent, host) {
   scopeOk(scope);
   const c = trNorm(code);
   if (c.length !== 10) return { error: 'Der Übernahme-Code hat 10 Zeichen.', status: 400 };
   const d = db.prepare(`SELECT d.* FROM member_devices d JOIN members m ON m.id = d.member_id
     WHERE d.scope = ? AND d.transfer_hash = ? AND d.token_hash IS NOT NULL AND m.active = 1 AND m.deleted = 0`).get(scope, sha(c));
   if (!d || !(d.transfer_expires > Date.now())) return { error: 'Dieser Übernahme-Code ist ungültig oder abgelaufen. Bitte die Seite in Safari öffnen (dort steht ein neuer Code) oder beim Vorstand einen neuen QR-Code holen.', status: 400, badCode: true };
-  const r = check(scope, null, pin, d);
+  const r = await check(scope, null, pin, d);
   if (!r.ok) return r;
   const device = crypto.randomBytes(24).toString('base64url');
-  db.prepare('UPDATE member_devices SET token_hash = ?, device = ?, transfer_hash = NULL, transfer_expires = NULL, last_used = ?, paired_host = COALESCE(?, paired_host) WHERE id = ?').run(sha(device), deviceLabel(userAgent), now(), cleanHost(host), d.id);
+  const u = db.prepare('UPDATE member_devices SET token_hash = ?, device = ?, transfer_hash = NULL, transfer_expires = NULL, last_used = ?, paired_host = COALESCE(?, paired_host) WHERE id = ? AND transfer_hash = ?').run(sha(device), deviceLabel(userAgent), now(), cleanHost(host), d.id, sha(c));
+  if (!u.changes) return { error: 'Dieser Übernahme-Code wurde gerade schon verwendet.', status: 400, badCode: true };   // gleichzeitig zweimal eingelöst
   return { ok: true, device, member: r.name };
 }
 
@@ -235,17 +246,18 @@ function createHandover(scope, deviceToken) {
   db.prepare('UPDATE member_devices SET handover_hash = ?, handover_expires = ? WHERE id = ?').run(sha(code), Date.now() + HANDOVER_MS, w.deviceId);
   return code;
 }
-function redeemHandover(scope, code, pin, host) {
+async function redeemHandover(scope, code, pin, host) {
   scopeOk(scope);
   const c = trNorm(code);
   if (c.length !== 10) return { error: 'Der Code hat 10 Zeichen.', status: 400, badCode: true };
   const d = db.prepare(`SELECT d.* FROM member_devices d JOIN members m ON m.id = d.member_id
     WHERE d.scope = ? AND d.handover_hash = ? AND d.token_hash IS NOT NULL AND m.active = 1 AND m.deleted = 0`).get(scope, sha(c));
   if (!d || !(d.handover_expires > Date.now())) return { error: 'Dieser Code ist abgelaufen – bitte in der App erneut „Im Vereinsheim lokal öffnen“ antippen.', status: 410, badCode: true };
-  const r = check(scope, null, pin, d);
+  const r = await check(scope, null, pin, d);
   if (!r.ok) return r;
   const device = crypto.randomBytes(24).toString('base64url');
-  db.prepare('UPDATE member_devices SET token2_hash = ?, handover_hash = NULL, handover_expires = NULL, last_used = ?, paired_host = COALESCE(paired_host, ?) WHERE id = ?').run(sha(device), now(), cleanHost(host), d.id);
+  const u = db.prepare('UPDATE member_devices SET token2_hash = ?, handover_hash = NULL, handover_expires = NULL, last_used = ?, paired_host = COALESCE(paired_host, ?) WHERE id = ? AND handover_hash = ?').run(sha(device), now(), cleanHost(host), d.id, sha(c));
+  if (!u.changes) return { error: 'Dieser Code wurde gerade schon verwendet.', status: 410, badCode: true };
   return { ok: true, device, member: r.name };
 }
 
@@ -267,6 +279,11 @@ function blockedAlert(scope, member, device, total, memberId) {
 
 /** Gerät + PIN prüfen → { ok, name } bzw. { error, status } – je 5 Fehlversuche kurze Sperre, nach 15 ist das Gerät gesperrt */
 function check(scope, deviceToken, pin, row, opts = {}) {
+  const id = row ? row.id : (whoIs(scope, deviceToken) || {}).deviceId;
+  // nacheinander je Gerät; Zähler und Sperre erst in der Reihe frisch lesen (scrypt rechnet asynchron)
+  return auth.nacheinander('dev:' + (id || 'x'), () => checkJetzt(scope, deviceToken, pin, row && db.prepare('SELECT * FROM member_devices WHERE id = ?').get(row.id), opts));
+}
+async function checkJetzt(scope, deviceToken, pin, row, opts) {
   let w, d;
   if (row) { d = row; const m = db.prepare('SELECT name FROM members WHERE id = ?').get(d.member_id); w = { memberId: d.member_id, name: m.name }; }
   else {
@@ -275,7 +292,7 @@ function check(scope, deviceToken, pin, row, opts = {}) {
     d = db.prepare('SELECT * FROM member_devices WHERE id = ?').get(w.deviceId);
   }
   if (d.locked_until && d.locked_until > Date.now()) return { error: `Zu viele falsche PINs – bitte ${Math.ceil((d.locked_until - Date.now()) / 60000)} Min. warten.`, status: 429 };
-  if (!auth.verifySecret(String(pin || ''), d.pin_hash)) {
+  if (!(await auth.verifySecret(String(pin || ''), d.pin_hash))) {
     // am gemeinsamen Tablet zählen Fehlversuche NICHT auf das Handy – sonst könnte jemand am Tablet das Handy eines anderen sperren.
     // Das Tablet hat eigene Grenzen (je Mitglied, je Gerät, insgesamt).
     if (opts.shared) return { error: 'Falsche PIN', status: 401, pin: true };
@@ -290,11 +307,12 @@ function check(scope, deviceToken, pin, row, opts = {}) {
     db.prepare('UPDATE member_devices SET failed = ?, failed_total = ?, locked_until = ? WHERE id = ?').run(lock ? 0 : n, total, lock ? Date.now() + lock * 60000 : null, d.id);
     return { error: lock ? `PIN ${LOCK_STREAK}-mal falsch – ${lock} Minuten gesperrt. Nach ${BLOCK_AFTER} Fehlversuchen wird das Handy ganz gesperrt.` : 'Falsche PIN', status: lock ? 429 : 401, pin: true };
   }
+  if (auth.pinUmstellen(d.pin_hash)) db.prepare('UPDATE member_devices SET pin_hash = ? WHERE id = ? AND pin_hash = ?').run(await auth.hashPin(String(pin)), d.id, d.pin_hash);   // alte PIN auf Pfeffer umstellen
   if (opts.shared) db.prepare('UPDATE member_devices SET last_used = ? WHERE id = ?').run(now(), d.id);
   else db.prepare('UPDATE member_devices SET failed = 0, failed_total = 0, locked_until = NULL, last_used = ? WHERE id = ?').run(now(), d.id);
   if (scope === 'app' && !d.pin_synced && !opts.shared) {   // vor 3.24 getrennt vergeben: die App-PIN gilt ab jetzt auch im Verkauf
     const m = db.prepare('SELECT pin_hash, kind FROM members WHERE id = ?').get(d.member_id);
-    if (m && (m.kind === 'mitglied' || m.kind === 'nichtmitglied') && (!m.pin_hash || !auth.verifySecret(String(pin), m.pin_hash))) { setMemberPin(d.member_id, d.pin_hash, 'Mitglieder-App'); audit(null, 'PIN aus der Mitglieder-App in den Verkauf übernommen', w.name); }
+    if (m && (m.kind === 'mitglied' || m.kind === 'nichtmitglied') && (!m.pin_hash || !(await auth.verifySecret(String(pin), m.pin_hash)))) { setMemberPin(d.member_id, db.prepare('SELECT pin_hash FROM member_devices WHERE id = ?').get(d.id).pin_hash, 'Mitglieder-App'); audit(null, 'PIN aus der Mitglieder-App in den Verkauf übernommen', w.name); }
     db.prepare('UPDATE member_devices SET pin_synced = 1 WHERE id = ?').run(d.id);
   }
   return { ok: true, name: w.name, memberId: w.memberId };
@@ -302,13 +320,14 @@ function check(scope, deviceToken, pin, row, opts = {}) {
 
 /** PIN in der App ändern: alte PIN zählt in dieselbe Sperre wie jede PIN-Eingabe auf dem Handy (check).
  *  Die neue PIN gilt für dieses Handy und – eine PIN für alles – auch am Tablet. → wie check(), bei Erfolg mit deviceId */
-function changePin(scope, deviceToken, oldPin, newPin) {
+async function changePin(scope, deviceToken, oldPin, newPin) {
   const bad = auth.pinProblem(newPin);   // zuerst: eine ungültige neue PIN kostet keinen Fehlversuch
   if (bad) return { error: bad, status: 400 };
   if (String(oldPin || '') === newPin) return { error: 'Die neue PIN ist dieselbe wie die bisherige.', status: 400 };
-  const r = check(scope, deviceToken, oldPin);
+  const r = await check(scope, deviceToken, oldPin);
   if (!r.ok) return r;
-  const w = whoIs(scope, deviceToken), hash = auth.hashSecret(newPin);
+  const w = whoIs(scope, deviceToken), hash = await auth.hashPin(newPin);
+  if (!w) return { error: 'Dieses Gerät ist nicht (mehr) freigeschaltet.', status: 403, device: true };
   db.prepare('UPDATE member_devices SET pin_hash = ?, pin_synced = 1 WHERE id = ?').run(hash, w.deviceId);
   if (scope === 'app') setMemberPin(w.memberId, hash, 'Mitglieder-App');
   return { ...r, deviceId: w.deviceId };
@@ -351,6 +370,6 @@ async function qrSvg(text) {
 }
 
 /* einmalig mit 3.24: bisher getrennte PINs zusammenführen (nicht bei jedem Start – sonst käme nach „PIN zurücksetzen“ die alte zurück) */
-try { if (getSetting('pin_sync_324', '0') !== '1') { syncPinsOnce(); setSetting('pin_sync_324', '1'); } } catch (e) { console.error('PIN-Abgleich:', e.message); }
+try { once('pin_sync_324', syncPinsOnce); } catch (e) { console.error('PIN-Abgleich:', e.message); }
 
-module.exports = { setMemberPin, pinToApp, syncPinsOnce, inviteHours, INVITE_HOURS, mailDays, MAIL_DAYS, otpCreate, otpCheck, trust, markAlerted, OTP_PER_DAY, BLOCK_AFTER, create, peek, redeem, whoIs, check, changePin, unpair, checkMember, revoke, issuerCovers, createTransfer, redeemTransfer, createHandover, redeemHandover, qrSvg };
+module.exports = { pinToApp, inviteHours, INVITE_HOURS, mailDays, MAIL_DAYS, otpCreate, otpCheck, trust, markAlerted, BLOCK_AFTER, create, peek, redeem, whoIs, check, changePin, unpair, checkMember, revoke, issuerCovers, createTransfer, redeemTransfer, createHandover, redeemHandover, qrSvg };

@@ -4,7 +4,7 @@
    auf die Viertelstunde: bis 3 Minuten über einer Viertelstunde ab-, ab 4 Minuten aufrunden.
    Der Stundensatz ist nur in der Verwaltung sichtbar; eine Änderung gilt ab dem Monat, in dem sie eingetragen wird.
    Am 1. jedes Monats (ab 6 Uhr) geht der Monatsnachweis des Vormonats per E-Mail an die Kassiererin. */
-let ExcelJS, PDFDocument, db, getSetting, setSetting, audit, auth, ctxRef;
+let PDFDocument, db, getSetting, setSetting, audit, auth, ctxRef;
 
 function createTables() {
 db.exec(`
@@ -41,20 +41,18 @@ CREATE INDEX IF NOT EXISTS ix_time_staff ON time_entries(staff_id, start_at);
 
 const OPEN_LIMIT_MIN = 12 * 60;           // länger eingestempelt = vermutlich vergessen
 const konfigio = require('../../src/konfigio');   // gemeinsame Regeln für Funktionsexport/-import
-const { pad, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
+const { pad, nextMonth, euroText: euro, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const toDate = ts => new Date(ts.replace(' ', 'T'));
 const minutesBetween = (a, b) => Math.max(0, Math.floor((toDate(b) - toDate(a)) / 60000));
 const monthOf = ts => ts.slice(0, 7);
 const curMonth = () => localTs().slice(0, 7);
 const prevMonth = (m = curMonth()) => { const [y, mo] = m.split('-').map(Number); return mo === 1 ? `${y - 1}-12` : `${y}-${pad(mo - 1)}`; };
-const nextMonth = m => { const [y, mo] = m.split('-').map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${pad(mo + 1)}`; };
 const isMonth = m => typeof m === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(m);
 const isTs = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(v) && !Number.isNaN(toDate(v).getTime());
 const normTs = v => (v.length === 16 ? v + ':00' : v);
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 const monthName = m => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
 const hm = min => `${Math.floor(min / 60)}:${pad(min % 60)}`;
-const euro = c => (c / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const deDay = ts => { const d = toDate(ts); return `${WD[d.getDay()]} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`; };
 const clock = ts => ts.slice(11, 16);
@@ -182,19 +180,15 @@ function reportPdf(month, onlyId) {
 
 async function reportXlsx(month) {
   const rows = monthReport(month);
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('Übersicht');
-  ws.columns = [{ header: 'Name', width: 26 }, { header: 'Tätigkeit', width: 20 }, { header: 'Einsätze', width: 10 }, { header: 'Minuten genau', width: 14 },
-    { header: 'Stunden genau', width: 14 }, { header: 'Stunden abgerechnet', width: 19 }, { header: 'Stundensatz €', width: 14 }, { header: 'Betrag €', width: 12 }];
-  rows.forEach(r => ws.addRow([r.name, r.job || '', r.count, r.minutes, +(r.minutes / 60).toFixed(2), r.rounded / 60, r.rate_cents == null ? null : r.rate_cents / 100, r.amount_cents == null ? null : r.amount_cents / 100]));
-  ws.getRow(1).font = { bold: true };
+  const X = ctxRef.xlsx, wb = X.book();
+  const ws = X.sheet(wb, 'Übersicht', [{ header: 'Name', width: 26 }, { header: 'Tätigkeit', width: 20 }, { header: 'Einsätze', width: 10 }, { header: 'Minuten genau', width: 14 },
+    { header: 'Stunden genau', width: 14 }, { header: 'Stunden abgerechnet', width: 19 }, { header: 'Stundensatz €', width: 14 }, { header: 'Betrag €', width: 12 }],
+  rows.map(r => [r.name, r.job || '', r.count, r.minutes, +(r.minutes / 60).toFixed(2), r.rounded / 60, r.rate_cents == null ? null : r.rate_cents / 100, r.amount_cents == null ? null : r.amount_cents / 100]));
   ['G', 'H'].forEach(c => { ws.getColumn(c).numFmt = '#,##0.00'; });
-  const es = wb.addWorksheet('Einsätze');
-  es.columns = [{ header: 'Name', width: 26 }, { header: 'Datum', width: 12 }, { header: 'Beginn', width: 9 }, { header: 'Ende', width: 9 }, { header: 'Minuten', width: 10 }, { header: 'Bemerkung', width: 50 }];
-  rows.forEach(r => r.entries.forEach(e => es.addRow([r.name, e.start_at.slice(0, 10).split('-').reverse().join('.'), clock(e.start_at), e.end_at ? clock(e.end_at) : '', e.minutes,
-    [!e.end_at && 'nicht ausgestempelt', e.manual && 'nachgetragen', e.edited_at && !e.manual && 'korrigiert', e.note].filter(Boolean).join(' · ')])));
-  es.getRow(1).font = { bold: true };
-  return wb.xlsx.writeBuffer();
+  X.sheet(wb, 'Einsätze', [{ header: 'Name', width: 26 }, { header: 'Datum', width: 12 }, { header: 'Beginn', width: 9 }, { header: 'Ende', width: 9 }, { header: 'Minuten', width: 10 }, { header: 'Bemerkung', width: 50 }],
+    rows.flatMap(r => r.entries.map(e => [r.name, e.start_at.slice(0, 10).split('-').reverse().join('.'), clock(e.start_at), e.end_at ? clock(e.end_at) : '', e.minutes,
+      [!e.end_at && 'nicht ausgestempelt', e.manual && 'nachgetragen', e.edited_at && !e.manual && 'korrigiert', e.note].filter(Boolean).join(' · ')])));
+  return X.buffer(wb);
 }
 
 /* ---------- E-Mail ---------- */
@@ -250,7 +244,6 @@ async function autoSend() {
 function activate(ctx) {
   ctxRef = ctx;
   ({ db, getSetting, setSetting, audit, auth } = ctx);
-  ExcelJS = ctx.require('exceljs');
   PDFDocument = ctx.require('pdfkit');
   const { need, rateLimit, bad, int, cleanName } = ctx;
   const tablet = ctx.tablet, admin = ctx.admin;
@@ -287,8 +280,8 @@ function activate(ctx) {
         const job = ctx.cleanName(x.job, 40) || null;
         if (found) { db.prepare('UPDATE staff SET job = ? WHERE id = ?').run(job, found.id); z('Personal', 'aktualisiert'); }
         else {
-          // PIN unbekannt → zufällige PIN; der Vorstand vergibt danach unter „Personal verwalten“ die richtige
-          const id = Number(db.prepare('INSERT INTO staff(name, job, pin_hash) VALUES (?,?,?)').run(name, job, auth.hashSecret(String(ctx.require('crypto').randomInt(100000, 1000000)))).lastInsertRowid);
+          // PIN unbekannt → keine gültige PIN („kein-pin“ passt zu keiner Eingabe); der Vorstand vergibt danach unter „Personal verwalten“ die richtige
+          const id = Number(db.prepare('INSERT INTO staff(name, job, pin_hash) VALUES (?,?,?)').run(name, job, 'kein-pin').lastInsertRowid);
           have.set(name.toLowerCase(), { id, name }); neuePin++; z('Personal', 'neu');
         }
         const id = (have.get(name.toLowerCase()) || found).id;
@@ -325,7 +318,8 @@ function activate(ctx) {
     res.json({ clubName: getSetting('club_name', 'Unser Verein'), staff: staffState() });
   });
 
-  tablet.post('/stamp', rateLimit('zeit', 30, 60000), (req, res) => {
+  tablet.post('/stamp', rateLimit('zeit', 30, 60000), (req, res) => auth.nacheinander('zeit:' + int((req.body || {}).staffId), () => stempeln(req, res)));   // je Person nacheinander (Sperre vor dem asynchronen scrypt)
+  async function stempeln(req, res) {
     const { staffId, pin } = req.body || {};
     const s = db.prepare('SELECT * FROM staff WHERE id = ? AND active = 1').get(int(staffId));
     if (!s) return bad(res, 'Unbekannte Person.', 404);
@@ -333,7 +327,7 @@ function activate(ctx) {
     const dev = String(req.ip || '');
     const w = Math.max(zlim.blocked(s.id), zdev.blocked(dev));
     if (w) return bad(res, `Zu viele falsche PINs – bitte ${w} Min. warten.`, 429);
-    if (!auth.verifySecret(String(pin || ''), s.pin_hash)) {
+    if (!(await auth.verifySecret(String(pin || ''), s.pin_hash))) {
       const d = zdev.fail(dev);
       if (d.locked) { audit(null, 'Zeiterfassung: Gerät gesperrt (falsche PINs)', `${dev} · ${d.minutes} Min.`); ctxRef.securityAlert('geraet', `Bei der Zeiterfassung wurden an einem Gerät (${dev}) viele falsche PINs eingegeben. Das Gerät ist jetzt ${d.minutes} Minuten gesperrt.`); }
       const r = zlim.fail(s.id);
@@ -344,6 +338,7 @@ function activate(ctx) {
       return bad(res, r.locked ? `PIN mehrfach falsch – ${r.minutes} Minuten gesperrt.` : 'Falsche PIN.', 401);
     }
     zlim.soft(s.id);
+    if (auth.pinUmstellen(s.pin_hash)) db.prepare('UPDATE staff SET pin_hash = ? WHERE id = ? AND pin_hash = ?').run(await auth.hashPin(String(pin)), s.id, s.pin_hash);   // alte PIN auf Pfeffer umstellen
     const now = localTs();
     const open = db.prepare('SELECT * FROM time_entries WHERE staff_id = ? AND end_at IS NULL ORDER BY start_at DESC LIMIT 1').get(s.id);
     let action;
@@ -369,7 +364,7 @@ function activate(ctx) {
     const day = list.filter(e => e.start_at.slice(0, 10) === ref.slice(0, 10) && e.end_at).reduce((a, e) => a + e.minutes, 0);
     res.json({ action, at: now, name: s.name, since: open ? open.start_at : null, today_minutes: day, month: m,
       month_minutes: list.reduce((a, e) => a + (e.minutes || 0), 0) });
-  });
+  }
 
   /* Verwaltung */
   const Z = need('zeiterfassung');
@@ -388,18 +383,18 @@ function activate(ctx) {
   };
 
   admin.get('/staff', Z, (req, res) => res.json(db.prepare('SELECT * FROM staff ORDER BY active DESC, name_key(name, NULL)').all().map(staffRow)));
-  admin.post('/staff', Z, (req, res) => {
+  admin.post('/staff', Z, async (req, res) => {
     const b = req.body || {};
     const name = cleanName(b.name, 60), job = cleanName(b.job, 40);
     if (name.length < 2) return bad(res, 'Bitte einen Namen eintragen.');
     { const e = pinErr(b.pin); if (e) return bad(res, e); }
     const r = rateIn(b.rate); if (r.error) return bad(res, r.error);
-    const id = Number(db.prepare('INSERT INTO staff(name, job, pin_hash) VALUES (?,?,?)').run(name, job || null, auth.hashSecret(String(b.pin))).lastInsertRowid);
+    const id = Number(db.prepare('INSERT INTO staff(name, job, pin_hash) VALUES (?,?,?)').run(name, job || null, await auth.hashPin(String(b.pin))).lastInsertRowid);
     if (r.cents != null) setRate(id, r.cents);
     audit(req.user, 'Zeiterfassung: Person angelegt', name + (job ? ` (${job})` : ''));
     res.json({ id });
   });
-  admin.put('/staff/:id', Z, (req, res) => {
+  admin.put('/staff/:id', Z, async (req, res) => {
     const s = db.prepare('SELECT * FROM staff WHERE id = ?').get(int(req.params.id));
     if (!s) return bad(res, 'Nicht gefunden.', 404);
     const b = req.body || {};
@@ -409,7 +404,7 @@ function activate(ctx) {
     if (b.pin) { const e = pinErr(b.pin); if (e) return bad(res, e); }
     const r = b.rate !== undefined ? rateIn(b.rate) : null; if (r && r.error) return bad(res, r.error);
     db.prepare('UPDATE staff SET name = ?, job = ?, active = ?, pin_hash = ? WHERE id = ?')
-      .run(name, job, b.active === undefined ? s.active : (b.active ? 1 : 0), b.pin ? auth.hashSecret(String(b.pin)) : s.pin_hash, s.id);
+      .run(name, job, b.active === undefined ? s.active : (b.active ? 1 : 0), b.pin ? await auth.hashPin(String(b.pin)) : s.pin_hash, s.id);
     if (r) setRate(s.id, r.cents);
     audit(req.user, 'Zeiterfassung: Person geändert', [name, b.pin && 'neue PIN', r && 'Stundensatz ' + (r.cents == null ? 'entfernt' : euro(r.cents)), b.active === false && 'deaktiviert'].filter(Boolean).join(', '));
     res.json({ ok: true });
@@ -445,7 +440,7 @@ function activate(ctx) {
     if (!e.end) return bad(res, 'Beim Nachtragen bitte auch das Ende angeben.');
     if (overlaps(s.id, e.start, e.end)) return bad(res, 'Überschneidet sich mit einem anderen Einsatz.');
     db.prepare('INSERT INTO time_entries(staff_id, start_at, end_at, manual, note, edited_by, edited_at) VALUES (?,?,?,1,?,?,?)')
-      .run(s.id, e.start, e.end, e.note, req.user.name || req.user.username, localTs());
+      .run(s.id, e.start, e.end, e.note, ctxRef.userName(req), localTs());
     audit(req.user, 'Zeiterfassung: Einsatz nachgetragen', `${s.name}: ${e.start.slice(0, 16)} – ${e.end.slice(11, 16)} (${e.note})`);
     res.json({ ok: true });
   });
@@ -455,7 +450,7 @@ function activate(ctx) {
     const e = entryBody(req.body || {}, true); if (e.error) return bad(res, e.error);
     if (overlaps(old.staff_id, e.start, e.end, old.id)) return bad(res, 'Überschneidet sich mit einem anderen Einsatz.');
     db.prepare(`UPDATE time_entries SET start_at = ?, end_at = ?, note = ?, orig_start = COALESCE(orig_start, ?), orig_end = COALESCE(orig_end, ?, ''),
-      edited_by = ?, edited_at = ? WHERE id = ?`).run(e.start, e.end, e.note, old.start_at, old.end_at, req.user.name || req.user.username, localTs(), old.id);
+      edited_by = ?, edited_at = ? WHERE id = ?`).run(e.start, e.end, e.note, old.start_at, old.end_at, ctxRef.userName(req), localTs(), old.id);
     audit(req.user, 'Zeiterfassung: Einsatz korrigiert', `${old.name}: ${old.start_at.slice(0, 16)}–${old.end_at ? old.end_at.slice(11, 16) : 'offen'} → ${e.start.slice(0, 16)}–${e.end ? e.end.slice(11, 16) : 'offen'} (${e.note})`);
     res.json({ ok: true });
   });

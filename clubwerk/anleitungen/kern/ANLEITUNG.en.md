@@ -11,7 +11,7 @@ You switch modules (Sales, Courts, Defects …) on under Settings › Modules. T
 
 1. **First start:** Open Clubwerk in the Home Assistant sidebar. You see “Welcome to Clubwerk”. Choose the language and tap “Start setup”. (With “Try the demo” you can get to know Clubwerk first, using made-up data.)
 2. **Create the admin account:** name, username and password (at least 8 characters). This account has all permissions.
-3. **Work through the assistant:** It guides you through club, tablet, modules, security, mailbox and backups (see “Setup” below). Every item can be skipped and done later.
+3. **Work through the assistant:** It guides you through club, tablet, modules, security, mailbox, HTTPS and backups (see “Setup” below). Every item can be skipped and done later.
 4. **Create more users:** Under Users & permissions everyone gets their own account with the permissions they need.
 
 > Two things should be done straight away: set a **backup password** (Backup) and print the **emergency sheet**. Without them a backup is worthless.
@@ -353,7 +353,7 @@ Every night an **encrypted full backup** is created with everything Clubwerk con
 
 The **vault** stores addresses, bank details, birth dates, documents, photos and the like only in encrypted form – together with the credentials Clubwerk uses to reach other services (mailbox password, Dropbox and the other backup targets, Hydrawise, the backup key). Names, accounts and bookings stay readable so that operation continues at once after a restart. A collapsible section lists exactly what is protected.
 - **Switch on encryption:** enter your password, then Clubwerk shows the **recovery code** once. Print **two sheets** (one for the chair, one for the treasurer) and keep them sealed, not in the clubhouse. As a check you then type a few characters of the code.
-- **After a restart** the data is locked until an admin logs in. If that is not possible, the recovery code with your password opens it. Until then tablet, bookings and doors keep running. **Emails, the data backup and irrigation via Hydrawise wait** – the overview then shows “Vault locked – backup and emails are waiting, please sign in.” As soon as an admin with a key signs in, the emails go out and the day’s backup runs at once. If nobody has signed in by the backup time, the security warning “Vault locked – backup waiting” arrives once a day.
+- **After a restart** the data is locked until an admin logs in. If that is not possible, the recovery code with your password opens it. Until then tablet, bookings and doors keep running. **Emails, the data backup and irrigation via Hydrawise wait** – the overview then shows “Vault locked – backup and emails are waiting, please sign in.” As soon as an admin with a key signs in, the emails go out and the day’s backup runs at once. If the vault has been locked for more than two hours or nobody has signed in by the backup time, the security warning “Vault locked – backup waiting” arrives once a day (also by push), stating how long it has been locked and what is waiting.
 - **Create new recovery code** (for example when the board changes; the old one then no longer works) and **Switch off encryption** need your password.
 
 #### Now
@@ -435,6 +435,8 @@ Clubwerk uploads large backups in chunks and continues at the same point after a
 
 A full backup replaces **everything** at the next restart. The current state is set aside first. Choose the backup in the list (here or on a target) and tap **Restore …**, or load a file with **Upload full backup …**, for example after a new installation. Then “Restart now”. Only a user with all permissions may do this.
 
+**PINs after a restore on a new device:** PINs (members, teams, time tracking, irrigation) are stored with a secret key that only lives on the device and is not part of the backup. If the vault is switched on, Clubwerk fetches the key back by itself after the first admin signs in; until then the tablet says “PINs are still locked after a restore”. Without the vault the old PINs are no longer valid: a security warning tells you, reset member PINs under “Members & accounts” with **Reset PIN**, create a new QR code for the member app, and assign new PINs for teams, time tracking and irrigation.
+
 #### Take over from backup
 
 ![Window “Take over from backup”: choose a backup and enter the password.](bild: seite=sicherung; klick=#tlOpen; ziel=dialog)
@@ -451,6 +453,12 @@ Same name → updated, otherwise new. **Nothing is deleted.** Taking over twice 
 #### Database snapshots
 
 Clubwerk also backs up just the database every night (the last 14 nights), handy for quickly undoing a mistake from the last few days. **Snapshot now** creates one, **Import .db file …** uploads one, and each entry can be downloaded or restored. To download, Clubwerk asks for your password, because the snapshot also contains the backup keys.
+
+Whenever the version changes (an update, also via Home Assistant, or going back), Clubwerk makes a “vor-update” snapshot at start-up before the new version touches the database. Clubwerk tidies up old snapshots itself: it keeps the last 14 nightly ones, 10 made by hand and 3 each of the other kinds (before an update, before a restore, uploaded); of the full backups here, the last 3. That way the storage does not fill up. A Home Assistant backup contains Clubwerk with all its data, but without these snapshots and full backups, so it stays small.
+
+#### Emergency mode
+
+Once a week Clubwerk checks the whole database for damage at night, and after a power cut or crash it also runs a quick check at start-up. If the database is damaged at start-up or the storage is full, Clubwerk starts in **emergency mode**: tablet, admin area and app only show a notice page. Then open Clubwerk in the **Home Assistant sidebar** (only Home Assistant admins can do this). For a damaged database it offers **Restore latest snapshot**: Clubwerk restores the latest intact snapshot and restarts; the damaged file is kept as “vor-wiederherstellung”. If the storage is full, free up space in Home Assistant (for example delete old backups) and then tap **Restart**.
 
 ### Tab “Log” (page “System”) {#protokoll}
 
@@ -531,11 +539,13 @@ One mailbox for all modules: server (SMTP), port (usually 587, sometimes 465), s
 
 ![Card “Security warnings”: open warnings with time, type and a “Done” button.](bild: seite=einstellungen; klick=[data-sec="sicherheit"]; ziel=.card:has(#swBody))
 
-Clubwerk notices anything unusual and tells the committee – without any internet service, everything runs on your Home Assistant. Examples are many wrong passwords or PINs, a locked phone, a sign-in from a new device, changed users and permissions, an uploaded extension, the vault opened with the recovery code, changed backup destinations, a failed backup, low storage, new errors in the data, and also operational hazards: irrigation that cannot be stopped, a door that does not lock or a light that cannot be switched.
+Clubwerk notices anything unusual and tells the committee – without any internet service, everything runs on your Home Assistant. Examples are many wrong passwords or PINs, a locked phone, a sign-in from a new device, changed users and permissions, an uploaded extension, the vault opened with the recovery code, changed backup destinations, a failed backup, low storage, new errors in the data, damage in the database, frequent crashes, a wrong clock, and also operational hazards: irrigation that cannot be stopped, a door that does not lock or a light that cannot be switched.
 
 - **Red** arrives at once by push and email, at night too. The same warning comes at most once an hour, and at most ten immediate messages a day; after that one last note arrives and the rest is listed here.
 - **Yellow** arrives collected in the **daily email at 7 am**, only on days with new warnings.
 - **Only here** (grey) is only listed here and in the log, for example an installed update.
+
+**Clock is wrong:** If the clock is behind the newest saved entry at start-up (for example because the device got no time from the internet after a power cut), the overview shows this in red. Until the clock is right, settlement, membership fee run, SEPA direct debit, annual invoices, door times by time profile (except “around the clock”) and the floodlight automation are blocked. Set the Home Assistant time correctly; if it is already right, mark the warning as **Done** and everything is released.
 
 Identical warnings are combined; the number in brackets shows how often it happened. **Done** removes a warning from the list and the overview – for all recipients; the log records who did it. **All done** clears the whole list, **Also show done ones** brings them back. **Send test warning** sends a red test through every channel. Clubwerk deletes warnings after the period “Sign-ins and security messages” (Settings › Privacy).
 
@@ -602,7 +612,7 @@ The table shows all languages with code, origin and completeness. German and Eng
 
 ![Card “Update of Clubwerk”.](bild: seite=einstellungen; klick=[data-sec="update"]; ziel=#updCard)
 
-Only with all permissions. The card shows the installed version, a package that is ready, the last update and the Node.js version (with a note if “Rebuild” in Home Assistant is needed). **Upload ZIP package …**: Clubwerk checks the package and shows the checksum to compare with `PRUEFSUMMEN.md`. With your own password “Apply update to …” starts it; Clubwerk first makes an automatic backup. Home Assistant then builds the new version (2 to 10 minutes). The old version stays as a **reserve**; **Back to …** goes back, the data stays. Updates only work if the admin area is open through the Home Assistant sidebar.
+Only with all permissions. The card shows the installed version, a package that is ready, the last update and the Node.js version (with a note if “Rebuild” in Home Assistant is needed). **Upload ZIP package …**: Clubwerk checks the package and shows the checksum to compare with `PRUEFSUMMEN.md`. With your own password “Apply update to …” starts it; Clubwerk first makes an automatic backup. Home Assistant then builds the new version (2 to 10 minutes). The old version stays as a **reserve**; **Back to …** goes back, the data stays. If an older version than before is running afterwards, Clubwerk shows a red warning “The database is newer”: older versions do not know everything newer ones have created. If something is missing, update again or restore the “vor-update” snapshot from before the update. If there is not enough free storage, the update stops before anything is changed. Updates only work if the admin area is open through the Home Assistant sidebar.
 
 ### Page “My account” {#konto}
 

@@ -2,7 +2,7 @@
 /* Beitrittserklärung zum Ausfüllen und Unterschreiben – gemeinsam für Tablet („Mitglied werden“) und Online-Antrag.
    window.Antrag.mount(el, { cfg, mode: 'tablet' | 'online', post(path, body) → Promise, prefill, onDone(result), onCancel }) */
 (() => {
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
   const deD = d => (d ? d.split('-').reverse().join('.') : '');
   const ageAt = (b, day) => { if (!b) return null; let a = +day.slice(0, 4) - +b.slice(0, 4); if (day.slice(5) < b.slice(5)) a--; return a; };

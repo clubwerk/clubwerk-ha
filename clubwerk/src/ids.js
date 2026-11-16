@@ -11,7 +11,7 @@ const PK_RE = /(\bid\s+INTEGER\s+PRIMARY\s+KEY)(?!\s+AUTOINCREMENT)/i;
 /* Namen und SQL stammen aus dem Schema der Datenbank – nach einer Wiederherstellung kann das eine fremde Datei sein. Deshalb jeder
    Name in Anführungszeichen (innere verdoppelt) und jede Anweisung einzeln mit prepare() (nie exec(): das führte auch angehängte
    Anweisungen wie ATTACH aus). */
-const qid = n => `"${String(n).replace(/"/g, '""')}"`;
+const { qid } = require('./util');
 const run1 = (db, sql) => db.prepare(sql).run();
 
 function tablesToConvert(db) {
@@ -68,4 +68,4 @@ function ensureAutoincrement(db, dataDir) {
   return todo.map(t => t.name);
 }
 
-module.exports = { ensureAutoincrement, PK_RE };
+module.exports = { ensureAutoincrement };

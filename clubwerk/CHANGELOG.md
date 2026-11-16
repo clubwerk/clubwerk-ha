@@ -1,5 +1,88 @@
 # Änderungen
 
+## 2026.11.50
+
+### Neu
+- PINs von Mitgliedern, Mannschaften, Zeiterfassung und Beregnung werden zusätzlich mit einem geheimen Schlüssel gespeichert, der nicht in der Datenbank und nicht in den Sicherungen steht. Eine gestohlene Datenbank-Kopie reicht so nicht mehr, um PINs durchzuprobieren. Vorhandene PINs gelten weiter und werden beim nächsten Eingeben von selbst umgestellt.
+- Wiederherstellung auf einem neuen Gerät: Ist der Tresor eingeschaltet, holt Clubwerk diesen Schlüssel nach der ersten Anmeldung eines Admins selbst zurück; bis dahin sagt das Tablet, dass die PINs noch warten. Ohne Tresor müssen die PINs neu vergeben werden – das meldet eine Sicherheitswarnung, und statt „PIN falsch“ erscheint ein klarer Hinweis.
+- Einrichtungs-Assistent: neuer Schritt „Verschlüsselung (HTTPS)“.
+
+### Verbessert
+- Interne Aufräumarbeiten am Server, an der Bedienung ändert sich nichts. Ein Update setzt jetzt mindestens Version 3.0 voraus; Datenbanken und Komplettsicherungen der Vorgängerversion (vor 3.0) werden nicht mehr übernommen.
+- Interne Aufräumarbeiten an Tablet, Mitglieder-App und Verwaltung (gemeinsame Bausteine statt mehrfach gebauter Kopien); Aussehen und Bedienung bleiben gleich.
+- Interne Aufräumarbeiten an der Verwaltung und den gemeinsamen Oberflächen-Stilen (Tabellen als Liste, Reiterleisten, weniger doppelte Stile); Aussehen und Bedienung bleiben gleich. Der Offline-Zwischenspeicher des Tablets wächst nicht mehr ohne Grenze.
+- Ohne HTTPS warnt die Übersicht jetzt immer (vorher nur mit Türen oder Beregnung), und Einstellungen › Erreichbarkeit erklärt deutlich, was ohne HTTPS im WLAN mitlesbar ist.
+- Passwörter und PINs prüft Clubwerk jetzt im Hintergrund: Viele gleichzeitige Anmeldungen oder PIN-Eingaben halten Tablet, App und Verwaltung nicht mehr an, besonders auf kleinen Rechnern wie dem Raspberry Pi. Gleichzeitige Fehlversuche zählen trotzdem einzeln in die Sperre. Für eigene Erweiterungen: Passwort- und PIN-Prüfungen liefern jetzt ein Promise und brauchen `await` (siehe Entwicklerdoku).
+- Fehler in Modulen, beim Mailversand, bei Sicherungen und beim automatischen Flutlicht stehen jetzt im Protokoll des Add-ons, statt still übergangen zu werden.
+- Interne Aufräumarbeiten: Zugang, Beregnung, Flutlicht, Turniere, Buchungssystem und Spielbetrieb nutzen gemeinsame Bausteine statt eigener Kopien (Protokoll je Monat, PIN-Sperre am Tablet, Turnierplätze, Spielplan-Import); an der Bedienung ändert sich nichts.
+
+### Verbessert
+- Die Anleitungen (PDF) werden bei jedem Paket frisch aus den Anleitungstexten gebaut und gehören so immer zur ausgelieferten Version.
+### Behoben
+- Englische Oberfläche: Hinweise mit Platzhaltern, zusammengesetzte Fehlermeldungen (z. B. bei der Datensicherung), „morgen“ und Wochentage in der Zugangs-Übersicht und die Zahl der Mitglieder ohne Geburtsdatum erscheinen jetzt vollständig auf Englisch. In der Nachrichten-Liste der Mitglieder-App zeigt ein Anhang nur noch Klammer und Zahl, damit die Zeile nicht höher wird. Im Belegungsplan steht der Trennpunkt zwischen Namen auch in schmalen Blöcken nie allein am Zeilenanfang.
+- Benachrichtigungen: Fällt das Internet aus (z. B. übers Wochenende), gehen keine Handy-Abos mehr verloren. Ein Abo wird nur noch gelöscht, wenn der Push-Dienst es selbst als erloschen meldet. Ohne Verbindung wartet der Versand nicht mehr je Handy zehn Sekunden.
+- E-Mail-Versand: Ein unerwarteter Fehler bei einem einzelnen Empfänger stoppt nicht mehr alle anderen. Sie werden weiter zugestellt; Betroffene, die nur wegen eines vorübergehenden Problems nicht ankamen, werden später automatisch nachgeholt.
+- Tablet und Verwaltung laden Skripte, Stile und Schriften jetzt versioniert und halten sie ein Jahr im Zwischenspeicher. Beim Seitenwechsel fragt das Tablet nicht mehr bei jeder Datei nach; nach einem Update gilt sofort der neue Stand.
+- Profilbilder werden ein Jahr zwischengespeichert, solange das Bild gleich bleibt (ein neues Bild bekommt eine neue Adresse).
+- Verwaltung: Ein Klick auf einen offenen Posten (Bezahlt, Ändern, Stornieren) lädt nur noch diesen einen Posten statt der ganzen Liste.
+- Große Listen laden nur, was angezeigt wird, der Rest kommt über „Weitere anzeigen“: Buchungen (Verkauf), Buchungsprotokoll der Plätze und Stunden (Alle). Das Zuordnen von Hand im Kontoauszug holt höchstens 60 Treffer und sucht auf dem Server.
+- Mitglieder-App › Dienste öffnet schneller: die Helfer und Antworten aller Dienste werden gemeinsam geladen.
+- Schnellerer Start des Servers, kleinere Last im Hintergrund (kein Zeitgeber mehr in der App-Vorschau, Teilindex für wartende Mails).
+
+### Behoben
+- Verwaltung › Offene Posten: Bei sehr vielen offenen Posten (über 2 000) ließen sich die hinteren nicht mehr öffnen.
+### Neu
+- Bei jedem Wechsel der Version (Update, auch über Home Assistant mit „Neu bauen“, oder zurück auf eine frühere Version) legt Clubwerk beim Start einen Schnappschuss „vor-update“ an, bevor die neue Version die Datenbank anfasst.
+- Läuft nach einem Zurück eine ältere Version als zuletzt, warnt Clubwerk rot „Die Datenbank ist neuer“ und nennt den Ausweg (wieder aktualisieren oder den Schnappschuss „vor-update“ zurückspielen).
+
+### Verbessert
+- Alte Sicherungen räumt Clubwerk jetzt vollständig selbst auf: 14 nächtliche, 10 von Hand angelegte und je 3 der übrigen Schnappschüsse, die letzten 3 Komplettsicherungen, die letzten 2 beiseitegelegten Ordner früherer Wiederherstellungen und Reste abgebrochener Vorgänge. Aufgeräumt wird auch dann, wenn eine Sicherung gerade nicht klappt, so wird ein voller Speicher wieder frei.
+- Home-Assistant-Backups enthalten Clubwerk mit allen Daten, aber nicht mehr die eigenen Schnappschüsse, Komplettsicherungen und Reserven alter Versionen – sie werden dadurch deutlich kleiner.
+- Update in der Verwaltung: Der neue Stand wird erst vollständig neben den bisherigen Ordner gelegt und dann in einem Schritt getauscht. Ist zu wenig Speicher frei, bricht das Update ab, bevor etwas verändert ist; nach einem Stromausfall mitten im Tausch kommt beim Start der bisherige Stand zurück.
+
+### Behoben
+- Eine abgebrochene nächtliche Sicherung (zum Beispiel bei vollem Speicher) erscheint nicht mehr als gültige Sicherung in der Liste, und der Tag gilt erst nach einer erfolgreichen Sicherung als erledigt; bis dahin versucht es Clubwerk stündlich erneut.
+- Datensicherung: Die Liste der Datenbank-Schnappschüsse ist am Handy nicht mehr in einem kleinen eigenen Scrollbereich abgeschnitten; Schnappschüsse vor einem Update heißen „vor Update“.
+- Wiederherstellen beim Start ersetzt die Datenbank erst, wenn die neue vollständig auf der Platte liegt; ist zu wenig Speicher frei, bleibt die bisherige unverändert und die Meldung sagt, wie viel Platz nötig ist.
+- Mitgelieferte Programmbibliotheken für SFTP, Datenbank und E-Mail auf den aktuellen Stand gebracht. Unter anderem hängt eine Sicherung auf ein SFTP-Ziel nicht mehr, wenn der Server die Verbindung plötzlich trennt.
+
+### Behoben
+- Sicherungsziel FTP/FTPS: Ein manipulierter Server konnte mit einer präparierten Verzeichnisliste die Liste der Sicherungen und das Aufräumen alter Sicherungen dort scheitern lassen. Die FTP-Bibliothek ist aktualisiert.
+- Einstellungen › Buchführung öffnet auch mit vielen früheren DATEV-Exporten sofort; ob sich ein Zeitraum seit dem Export geändert hat, wird in einem Durchgang für alle Exporte ermittelt. Bisher konnten Tablet und Mitglieder-App dabei für einige Sekunden hängen.
+- Einnahmen-Überschuss-Rechnung, Kassenbuch, DATEV-Export und Buchungsübersicht rechnen nur noch neu, wenn sich seit dem letzten Aufruf etwas an Geld oder Belegen geändert hat. Die Ergebnisse bleiben genau gleich.
+- Die Prüfung der ganzen Prüfkette des Änderungsjournals läuft in Abschnitten, sodass Clubwerk währenddessen weiter antwortet.
+- Die Prüfwerte des Änderungsjournals werden einmal am Tag (und bei jedem Export) außerhalb der Datenbank festgehalten statt alle zehn Minuten – weniger Schreibarbeit für die Speicherkarte.
+- Demo: Einstellungen › Buchführung zeigt frühere DATEV-Exporte, einer davon „seitdem geändert“.
+- Beregnung über Home Assistant: Eine Zone, die sich nicht ausschalten lässt, wird alle 10 Sekunden erneut ausgeschaltet, bis Home Assistant sie als aus meldet – auch nach einem Neustart. Solange startet keine weitere Zone, die Bedienseite zeigt „Stopp wird nachgeholt“, und nach 5 Minuten kommt eine Sicherheitswarnung.
+- Beregnung: Antwortet Home Assistant beim Einschalten zu spät, wird die Zone vorsichtshalber wieder ausgeschaltet.
+- Beregnung › Einstellungen › Anbindung: deutlicher Hinweis, im Gerät oder in Home Assistant eine Höchstlaufzeit einzustellen.
+- Zugang: Lässt sich ein Türöffner nach dem Impuls nicht ausschalten, versucht Clubwerk es mehrmals und schickt dann eine Sicherheitswarnung. Ein Türöffner, der länger als seine Impulsdauer an ist, wird erkannt, ausgeschaltet und gemeldet.
+- Flutlicht: Meldet Home Assistant den Zustand eines Lichts nicht, schaltet Clubwerk es zur Nachtruhe trotzdem einmal aus.
+- Beregnung, Zugang und Flutlicht fragen Home Assistant gemeinsam ab statt jedes Modul für sich; ohne eingerichtete Lichtanlage fragt das Flutlicht gar nicht mehr.
+### Neu
+- Turniertag (LK-Turnier): freiwilliger Code der Turnierleitung unter Einstellungen. Ist er festgelegt, fragt das Tablet ihn vor Check-in, Nenngeld, „Match starten“ und Ergebnis ab; ohne Code bleibt alles wie bisher.
+
+### Verbessert
+- Dienste & Termine: Der Kalender der Homepage wird nur noch über https:// und nur von öffentlichen Adressen im Internet abgeholt – auch nach einer Weiterleitung nie aus dem eigenen Netz.
+- Mitglieder-App: Bei Diensten stehen Helfer ohne Mitgliedschaft nur noch als Anzahl („+ 1 weitere“), nicht mehr mit Namen.
+- Schlüsselübergabe und Beitrittserklärung am Tablet: Viele falsche Codes über mehrere Tablets lösen eine Sicherheitswarnung aus, sperren aber nicht mehr die Code-Eingabe aller Tablets. Gesperrt wird nur das Tablet, an dem falsch eingegeben wurde. Ein falscher Code belastet den Server nicht mehr spürbar.
+- Ausgaben und neue Mitglieder: Hochgeladene Belege und Beitrittserklärungen, die nicht gespeichert werden, verschwinden nach zwei Stunden; je Person bleiben höchstens die zehn neuesten liegen.
+- Komplettsicherung: Datum und Version im Kopf der Datei sind jetzt mit geschützt – eine nachträgliche Änderung fällt beim Einspielen auf. Ältere Sicherungen lassen sich weiter einspielen. Ein neu festgelegtes Sicherungspasswort wird doppelt so aufwendig geschützt, ohne dass der Server dabei stockt.
+### Neu
+- Notfallmodus: Ist die Datenbank beim Start beschädigt oder der Speicher voll, zeigt Clubwerk eine Hinweisseite statt immer wieder neu zu starten. In der Seitenleiste von Home Assistant lässt sich dort der letzte intakte Schnappschuss übernehmen; die beschädigte Datei bleibt aufgehoben.
+- Uhrzeit-Prüfung: Liegt die Uhr beim Start vor dem neuesten gespeicherten Eintrag (z. B. Gerät ohne Internet nach einem Stromausfall), erscheinen eine Warnung in der Übersicht und eine Sicherheitswarnung. Abrechnung, Beitragslauf, SEPA-Einzug, Jahresrechnungen, Türzeiten nach Zeitprofil und die Flutlicht-Automatik sind dann gesperrt, bis die Uhr stimmt oder ein Admin die Warnung als erledigt markiert.
+- Einmal pro Woche prüft Clubwerk nachts die ganze Datenbank auf Schäden, ohne Tablet und App zu bremsen. Bei einem Fund gibt es eine Sicherheitswarnung.
+
+### Verbessert
+- Buchungen und Änderungen stehen sofort fest auf dem Speicher und überstehen auch einen Stromausfall direkt danach.
+- Hängt Clubwerk länger als 90 Sekunden, startet es von selbst neu. Nach einem unerwarteten Fehler beendet es sich geordnet und startet neu, statt in einem ungewissen Zustand weiterzulaufen. Wird Clubwerk innerhalb eines Tages dreimal unerwartet beendet, gibt es eine Sicherheitswarnung.
+- Nach einem Stromausfall oder Absturz wird die Datenbank beim Start kurz geprüft.
+- Ist der Tresor nach einem Neustart über zwei Stunden gesperrt, bekommt der Vorstand eine Warnung (auch per Push) mit der Dauer und dem, was so lange wartet (E-Mails, Datensicherung).
+- Clubwerk begrenzt seinen Arbeitsspeicher auf ein Viertel des Geräts (256 bis 512 MB), damit Home Assistant auf kleinen Geräten genug Platz behält.
+- Die Prüfwerte des Änderungsjournals (GoBD) werden sicher auf den Speicher geschrieben; ein Stromausfall löst keinen falschen Alarm mehr aus.
+- Beträge beim Lichtgeld und im Turniertag am Tablet erscheinen in der Schreibweise der gewählten Sprache.
+- Interne Aufräumarbeiten: Briefkopf und Fußzeile der PDFs, Excel-Ausgaben und Vereinsanschrift sind jetzt an einer Stelle gebaut; die Dokumente sehen unverändert aus.
+
 ## 2026.11.49
 
 ### Behoben

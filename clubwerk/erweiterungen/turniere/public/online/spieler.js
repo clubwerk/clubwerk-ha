@@ -5,7 +5,7 @@
 (() => {
   const el = document.getElementById('sec');
   const tok = (location.hash.match(/[#&]t=([A-Za-z0-9_-]{32})/) || [])[1] || '';
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = CW.esc;
   const T = (t, v) => (window.T ? window.T(t, v) : String(t).replace(/\{(\d+)\}/g, (m, i) => (v && v[i] != null ? v[i] : m)));
   const logo = document.getElementById('logo');
   logo.onload = () => document.getElementById('logoBox').classList.remove('hidden');

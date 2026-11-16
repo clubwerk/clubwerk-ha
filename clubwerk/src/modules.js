@@ -161,7 +161,7 @@ async function restore(p, src) {
     throw new Error('Diese Sicherung stammt nicht aus dieser Clubwerk-Installation oder wurde verändert – sie wird aus Sicherheitsgründen nicht eingespielt.');
   let data;
   try { data = JSON.parse(json); } catch (e) { throw new Error('Die Modul-Sicherung ist beschädigt.'); }
-  if (!['clubwerk-modul', 'vereinsheim-modul'].includes(data.format)) throw new Error('Die Datei ist keine Modul-Sicherung von Clubwerk.');
+  if (data.format !== 'clubwerk-modul') throw new Error('Die Datei ist keine Modul-Sicherung von Clubwerk.');
   if (data.module !== p.meta.id) throw new Error(`Diese Sicherung gehört zum Modul „${data.name || data.module}“, nicht zu „${p.meta.name}“.`);
   const sp = spec(p);
   const have = new Set(allTables());

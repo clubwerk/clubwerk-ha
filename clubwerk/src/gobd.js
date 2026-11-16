@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 /* ---------- GoBD: Änderungsjournal, Buchungen für den Steuerberater, DATEV- und Prüfer-Export (planung/gobd.md) ----------
    1. Änderungsjournal: Jede neue, geänderte oder gelöschte Zeile der Geld- und Belegtabellen landet mit Zeit, Benutzer,
@@ -17,7 +18,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { AsyncLocalStorage } = require('async_hooks');
-const { db, DATA_DIR, getSetting, setSetting, audit, auditDiff } = require('./db');
+const { db, DATA_DIR, getSetting, getJsonSetting, setSetting, audit, auditDiff } = require('./db');
 const plugins = require('./plugins');
 const gj = require('./geschaeftsjahr');
 const { today, addDays } = require('./util');
@@ -87,7 +88,7 @@ const CORE_TABLES = [
   { table: 'members', cols: ['id', 'name', 'first_name', 'last_name', 'kind', 'active', 'deleted'], date: null },
 ];
 const exists = t => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(t));
-const colsOf = t => db.prepare(`PRAGMA table_info("${t.replace(/"/g, '""')}")`).all().map(c => c.name);
+const colsOf = t => db.prepare(`PRAGMA table_info(${require('./util').qid(t)})`).all().map(c => c.name);
 /** Alle Tabellen mit Geld oder Belegen: Kern + aktive Module */
 function tables() {
   const out = [...CORE_TABLES];
@@ -103,7 +104,6 @@ function tables() {
       onlyIf: t.onlyIf && all.includes(t.onlyIf) && /^[a-z_][a-z0-9_]*$/.test(t.onlyIf) ? t.onlyIf : null };
   });
 }
-const tableByName = () => new Map(tables().map(t => [t.table, t]));
 
 /* ---------- Trigger (je Start neu, als TEMP – sie gehören nur zu dieser Verbindung) ---------- */
 const HEAD = '(SELECT hash FROM main.gobd_journal ORDER BY id DESC LIMIT 1)';
@@ -142,7 +142,7 @@ function install() {
   if (process.env.CW_DEMO_KOPIE === '1') return installed;   // Demo-Kopie (src/demokopie.js): Wegwerf-Sandkasten, wird restlos gelöscht – kein Journal, spart Speicher
   const list = tables();
   let known = [];
-  try { known = JSON.parse(getSetting('gobd_tables', '[]')); } catch (e) { known = []; }
+  known = getJsonSetting('gobd_tables', []);
   db.transaction(() => {
     for (const t of list) if (!known.includes(t.table)) { seed(t); known.push(t.table); }
     setSetting('gobd_tables', JSON.stringify(known));
@@ -160,6 +160,13 @@ function ensure() {
 setInterval(ensure, 60000).unref();
 
 /* ---------- Prüfkette ---------- */
+/** Datei sicher ersetzen: schreiben, auf die Platte zwingen (fsync), umbenennen – nach einem Stromausfall gibt es die alte oder die neue, nie eine leere */
+function dauerhaft(file, text) {
+  const tmp = file + '.neu', fd = fs.openSync(tmp, 'w');
+  try { fs.writeSync(fd, text); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  fs.renameSync(tmp, file);
+  try { const d = fs.openSync(path.dirname(file), 'r'); try { fs.fsyncSync(d); } finally { fs.closeSync(d); } } catch (e) { /* Ordner-fsync nicht überall möglich */ }
+}
 function anchors() { try { const a = JSON.parse(fs.readFileSync(ANCHOR_FILE, 'utf8')); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
 /** Kopf der Kette außerhalb der Datenbank festhalten (täglich und bei jedem Export) */
 function anchor() {
@@ -167,9 +174,12 @@ function anchor() {
   const list = anchors();
   if (list.length && list[list.length - 1].id === h.id) return h;
   list.push({ id: h.id, hash: h.hash, at: new Date().toISOString() });
-  try { fs.writeFileSync(ANCHOR_FILE + '.neu', JSON.stringify(list.slice(-4000))); fs.renameSync(ANCHOR_FILE + '.neu', ANCHOR_FILE); } catch (e) { console.error('GoBD-Anker:', e.message); }
+  try { dauerhaft(ANCHOR_FILE, JSON.stringify(list.slice(-4000))); } catch (e) { console.error('GoBD-Anker:', e.message); }
   return h;
 }
+/** Takt alle 10 Minuten (server.js): höchstens einmal am Tag festhalten – die Datei hat bis zu 4000 Einträge (Härtung 29: wurde bei jeder Änderung neu geschrieben) */
+let anchorDay = '';
+function anchorDaily() { const d = today(); if (anchorDay === d) return null; anchorDay = d; return anchor(); }
 /*
  * Geprüfter Stand (Entscheidung 10.11.2026, planung/n-plus-1.md): Die Prüfung rechnet nur ab dem zuletzt geprüften Eintrag nach –
  * die volle Kette wuchs mit jedem Jahr. Der Stand (ID + Hash) liegt AUSSERHALB der Datenbank (gobd-geprueft.json neben den Ankern):
@@ -189,36 +199,45 @@ function checkedState() {
 function saveChecked(c) {
   try {
     if (!c) { fs.rmSync(CHECKED_FILE, { force: true }); return; }
-    fs.writeFileSync(CHECKED_FILE + '.neu', JSON.stringify(c)); fs.renameSync(CHECKED_FILE + '.neu', CHECKED_FILE);
+    dauerhaft(CHECKED_FILE, JSON.stringify(c));
   } catch (e) { console.error('GoBD-Prüfstand:', e.message); }
 }
-/** nach einer Wiederherstellung oder Übernahme: nächste Prüfung ganz */
-const resetChecked = () => saveChecked(null);
+/** nach einer Wiederherstellung oder Übernahme: nächste Prüfung ganz (eine laufende Prüfung beginnt von vorn), gemerkte Buchungen verwerfen */
+let verifyGen = 0;
+const resetChecked = () => { verifyGen++; rawMemo = null; saveChecked(null); };
 /** einen Eintrag dauerhaft als Anker festhalten (z. B. den geprüften Stand, der nicht mehr stimmt) */
 function keepAnchor(a) {
   const list = anchors(); if (list.some(x => x.id === a.id && x.hash === a.hash)) return;
   list.push({ id: a.id, hash: a.hash, at: new Date().toISOString() }); list.sort((x, y) => x.id - y.id);
-  try { fs.writeFileSync(ANCHOR_FILE + '.neu', JSON.stringify(list.slice(-4000))); fs.renameSync(ANCHOR_FILE + '.neu', ANCHOR_FILE); } catch (e) { console.error('GoBD-Anker:', e.message); }
+  try { dauerhaft(ANCHOR_FILE, JSON.stringify(list.slice(-4000))); } catch (e) { console.error('GoBD-Anker:', e.message); }
 }
 /**
  * Kette nachrechnen: jede Zeile muss den Hash ihrer Vorgängerin tragen und ihr eigener Hash muss stimmen.
  * full: ganze Kette; sonst ab dem geprüften Stand (siehe oben), wenn es einen gibt und die letzte volle Prüfung keine Woche her ist.
- * → { ok, count (nachgerechnete Einträge), first, head, bad, anchors, beyond, full, fullAt }
+ * → Promise { ok, count (nachgerechnete Einträge), first, head, bad, anchors, beyond, full, fullAt }
+ * In Blöcken zu 5000 Einträgen mit Pause dazwischen (Härtung 29): die volle Prüfung hielt sonst Tablet und App an. Prüfungen laufen
+ * nacheinander; ändert eine Wiederherstellung oder der Löschlauf das Journal währenddessen, beginnt die Prüfung von vorn.
  */
-function verify({ full = false } = {}) {
+/** @type {Promise<any>} */
+let verifyQueue = Promise.resolve();
+function verify(opts) { const p = verifyQueue.then(() => verifyNow(opts)); verifyQueue = p.catch(() => {}); return p; }
+async function verifyNow({ full = false } = {}) {
+  const gen = verifyGen;
   const sel = db.prepare('SELECT * FROM gobd_journal WHERE id > ? ORDER BY id LIMIT 5000');
   let start = null;
-  try { start = JSON.parse(getSetting('gobd_start', 'null')); } catch (e) { start = null; }
+  start = getJsonSetting('gobd_start', null);
   const first = db.prepare('SELECT id, prev, at FROM gobd_journal ORDER BY id LIMIT 1').get() || null;
   let st = checkedState(), from = null, moved = null;
   if (st && first && st.id < first.id) st = null;   // vom Löschlauf nach Ablauf der Frist entfernt: einfach ganz prüfen
   if (st) {
     const r = db.prepare('SELECT hash FROM gobd_journal WHERE id = ?').get(st.id);
-    if (!r || r.hash !== st.hash) moved = st;   // geprüfter Eintrag verändert oder verschwunden
+    const maxId = r ? 0 : (db.prepare('SELECT MAX(id) m FROM gobd_journal').get().m || 0);
+    if (!r && st.id > maxId) st = null;   // hinter dem Ende (letzte Einträge vor einem Stromausfall nicht mehr geschrieben oder ältere Sicherung): kein Umschreiben – ganz prüfen, Anker zählen als „hinter dem Ende“
+    else if (!r || r.hash !== st.hash) moved = st;   // geprüfter Eintrag verändert oder verschwunden
     else if (!full && st.full_at && Date.parse(st.full_at) <= Date.now() && Date.now() - Date.parse(st.full_at) < FULL_DAYS * 86400000) from = st;   // Zeit in der Zukunft (gefälschte Datei) zählt nicht: ganz prüfen
   }
   if (moved) keepAnchor(moved);   // ab jetzt meldet ihn auch jede volle Prüfung
-  let last = from ? from.id : -1, prevHash = from ? from.hash : first && first.prev, count = 0, bad = null;
+  let last = from ? from.id : -1, prevHash = from ? from.hash : first && first.prev, count = 0, bad = /** @type {any} */ (null);
   if (first && start && start.id === first.id && start.prev !== first.prev) bad = { id: first.id, why: 'Der Anfang des Journals passt nicht zum letzten Löschlauf.' };
   if (moved && !bad) bad = { id: moved.id, why: 'Ein schon geprüfter Eintrag hat sich verändert – das Journal wurde neu geschrieben.' };
   for (;;) {
@@ -229,6 +248,8 @@ function verify({ full = false } = {}) {
       if (sha(r.prev, r.at, r.who, r.tbl, r.op, r.row_id, r.old, r.new) !== r.hash && !bad) bad = { id: r.id, why: 'Der Eintrag wurde nachträglich verändert.' };
       prevHash = r.hash; last = r.id; count++;
     }
+    await new Promise(r => setImmediate(r));   // Ereignisschleife frei
+    if (gen !== verifyGen) return verifyNow({ full });
   }
   if (start && first && start.id < first.id && !bad) bad = { id: first.id, why: 'Am Anfang des Journals fehlen Einträge.' };
   // Anker: Hashes, die wir früher notiert haben, müssen noch stimmen. Liegt ein Anker hinter dem Ende, wurde eine ältere Sicherung zurückgespielt.
@@ -253,7 +274,7 @@ function verify({ full = false } = {}) {
 /* ---------- Erlösarten, Konten, Sphären ---------- */
 const CFG_DEF = { berater: '', mandant: '', wj_month: 1, length: 4, skr: '', gegen: {}, konten: {} };
 function cfg() {
-  let c = {}; try { c = JSON.parse(getSetting('gobd_cfg', '{}')) || {}; } catch (e) { c = {}; }
+  let c = getJsonSetting('gobd_cfg', {});
   return { ...CFG_DEF, ...c, wj_month: gj.month(), gegen: { ...(c.gegen || {}) }, konten: { ...(c.konten || {}) } };   // Wirtschaftsjahr = Geschäftsjahr des Kerns
 }
 const ARTEN = ['einnahme', 'ausgabe', 'neutral'];
@@ -288,36 +309,63 @@ const J = s => { try { return s ? JSON.parse(s) : null; } catch (e) { return nul
 const norm = (list, at) => (Array.isArray(list) ? list : []).filter(p => p && Number.isFinite(p.cents) && p.cents).map(p => {
   const o = { cents: Math.round(p.cents), via: VIAS[p.via] ? p.via : 'ueberweisung', key: String(p.key || 'ohne'), text: String(p.text || '').slice(0, 120), doc: String(p.doc || '').slice(0, 36), date: day(p.date) || day(at),
     ...(/^\d{1,4}$/.test(String(p.bu || '')) ? { bu: String(p.bu) } : {}) };
-  let n; Object.defineProperty(o, 'name', { enumerable: true, get: () => (n === undefined ? (n = p.name ? String(p.name).slice(0, 80) : '') : n) });
+  Object.defineProperty(o, 'name', { enumerable: true, get: () => { const v = p.name; return v ? String(v).slice(0, 80) : ''; } });   // bei jedem Lesen frisch (Zwischenspeicher)
   return o;
 });
 const copy = (p, extra) => Object.assign(Object.defineProperties({}, Object.getOwnPropertyDescriptors(p)), extra);   // Getter (name) bleiben Getter
 const money = l => JSON.stringify(l.map(p => [p.cents, p.via, p.key, p.date]));
 const same = (a, b) => money(a) === money(b);   // nur Betrag, Zahlweg, Erlösart und Datum zählen – ein geänderter Text bucht nichts um
-/** Zahlungseingänge im Zeitraum [from, to] (JJJJ-MM-TT), Stornos und Rücknahmen als Gegenbuchung */
-function postings(from, to) {
+/*
+ * Zwischenspeicher (Härtung 29): Das Nachrechnen des Journals ist teuer (jede Zeile zweimal durch ihre Regel). Gemerkt wird das Ergebnis
+ * je Stand des Journals – erster und letzter Eintrag (mit Hash, also auch nach dem Zurückspielen einer Sicherung eindeutig) und die
+ * aktiven Module (Regeln, Erlösarten über Präfixe). Jede Änderung an Geld oder Belegen schreibt einen Journal-Eintrag, damit einen neuen
+ * Stand und rechnet beim nächsten Abruf neu. Gemerkt werden alle Buchungen ab einer Untergrenze (Zeitpunkt des Eintrags); ein Abruf
+ * nimmt sich daraus genau die Einträge, die er früher selbst gelesen hätte (Startbestand oder ab seiner Untergrenze) – das Ergebnis ist
+ * dasselbe wie ohne Zwischenspeicher. Namen (Getter) werden bei jedem Lesen frisch nachgeschlagen, sie stehen teils nur im Tresor.
+ */
+let rawMemo = null;   // { stamp, lower, raw: [{ p, at, s }] }
+function journalStamp() {
+  const h = lastRow(), f = db.prepare('SELECT MIN(id) m FROM gobd_journal').get().m;
+  return h ? `${f}|${h.id}|${h.hash}|${plugins.activeIds().join(',')}` : null;
+}
+/** Alle Buchungen aus Journal-Einträgen ab lower (Startbestand immer), in Journal-Reihenfolge, noch ohne Zeitraum */
+function rawPostings(lower) {
+  const stamp = process.env.CW_DEMO_KOPIE === '1' ? null : journalStamp();   // Demo-Kopie: Journal steht still, Nachschlagen nicht – nie merken
+  if (stamp && rawMemo && rawMemo.stamp === stamp && rawMemo.lower <= lower) return rawMemo;
+  if (stamp && rawMemo && rawMemo.lower < lower) lower = rawMemo.lower;   // die bisher größte Spanne behalten, sonst rechnete jeder Zeitraum für sich neu
   const rules = tables().filter(t => typeof t.paid === 'function');
-  if (!rules.length) return [];
-  const byT = new Map(rules.map(t => [t.table, t]));
-  const lower = addDays(from, -400);
-  const sel = db.prepare(`SELECT id, at, tbl, op, row_id, old, new FROM gobd_journal WHERE tbl IN (${rules.map(() => '?').join(',')}) AND (op = 'S' OR at >= ?) AND id > ? ORDER BY id LIMIT 5000`);
-  const out = []; let last = -1;
-  const run = (t, row, at) => { try { return norm(row ? t.paid(row) : [], at); } catch (e) { return []; } };
-  for (;;) {
-    const rows = sel.all(...rules.map(t => t.table), lower, last);
-    if (!rows.length) break;
-    const parsed = rows.map(j => ({ j, o: J(j.old), n: J(j.new) }));
-    for (const t of rules) if (typeof t.prefetch === 'function') { try { t.prefetch(parsed.filter(x => x.j.tbl === t.table).flatMap(x => [x.o, x.n]).filter(Boolean)); } catch (e) { pre = null; } }   // ein Block: Nachschlagen in wenigen Abfragen statt je Zeile
-    for (const { j, o, n } of parsed) {
-      last = j.id;
-      const t = byT.get(j.tbl), a = run(t, o, j.at), b = run(t, n, j.at);
-      if (same(a, b)) continue;
-      for (const p of a) out.push(copy(p, { cents: -p.cents, date: day(j.at), text: `Rücknahme: ${p.text}`.slice(0, 120), ref: `${j.tbl}:${j.row_id}`, jid: j.id }));
-      for (const p of b) out.push(copy(p, { ref: `${j.tbl}:${j.row_id}`, jid: j.id }));
+  const raw = [];
+  if (rules.length) {
+    const byT = new Map(rules.map(t => [t.table, t]));
+    const lim = { a: db.prepare('SELECT MIN(id) m FROM gobd_journal').get().m, b: (lastRow() || {}).id };   // getrennt: MIN und MAX zusammen liest SQLite ganz
+    // Blöcke über die Zeilennummer (Primärschlüssel): kein Index über tbl/at, keine Sortierung je Block – liest jede Zeile einmal
+    const sel = db.prepare(`SELECT id, at, tbl, op, row_id, old, new FROM gobd_journal WHERE id > ? AND id <= ? AND +tbl IN (${rules.map(() => '?').join(',')}) AND (op = 'S' OR +at >= ?) ORDER BY id`);
+    const run = (t, row, at) => { try { return norm(row ? t.paid(row) : [], at); } catch (e) { return []; } };
+    for (let lo = (lim.a || 1) - 1; lim.b != null && lo < lim.b; lo += 5000) {
+      const rows = sel.all(lo, lo + 5000, ...rules.map(t => t.table), lower);
+      if (!rows.length) continue;
+      const parsed = rows.map(j => ({ j, o: J(j.old), n: J(j.new) }));
+      for (const t of rules) if (typeof t.prefetch === 'function') { try { t.prefetch(parsed.filter(x => x.j.tbl === t.table).flatMap(x => [x.o, x.n]).filter(Boolean)); } catch (e) { pre = null; } }   // ein Block: Nachschlagen in wenigen Abfragen statt je Zeile
+      for (const { j, o, n } of parsed) {
+        const t = byT.get(j.tbl), a = run(t, o, j.at), b = run(t, n, j.at);
+        if (same(a, b)) continue;
+        const s = j.op === 'S';
+        for (const p of a) raw.push({ p: copy(p, { cents: -p.cents, date: day(j.at), text: `Rücknahme: ${p.text}`.slice(0, 120), ref: `${j.tbl}:${j.row_id}`, jid: j.id }), at: j.at, s });
+        for (const p of b) raw.push({ p: copy(p, { ref: `${j.tbl}:${j.row_id}`, jid: j.id }), at: j.at, s });
+      }
     }
+    pre = null;
   }
-  pre = null;
-  return out.filter(p => p.date >= from && p.date <= to).sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : x.jid - y.jid));
+  const m = { stamp, lower, raw };
+  if (stamp) rawMemo = m;
+  return m;
+}
+/** Zahlungseingänge im Zeitraum [from, to] (JJJJ-MM-TT), Stornos und Rücknahmen als Gegenbuchung. Die Einträge nicht verändern (gemerkt). */
+function postings(from, to) {
+  const lower = addDays(from, -400), m = rawPostings(lower);
+  const out = [];
+  for (const x of m.raw) if ((x.s || x.at >= lower) && x.p.date >= from && x.p.date <= to) out.push(x.p);
+  return out.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : x.jid - y.jid));
 }
 /** Summen je Erlös-/Ausgabeart und je Sphäre: spheres = Einnahmen (für die Freigrenzen), expenses = Ausgaben (positiv); Geldtransit zählt in keins */
 function summary(list) {
@@ -366,9 +414,12 @@ function record(kind, from, to, list, buf, user) {
   db.prepare('INSERT INTO gobd_export(kind, from_date, to_date, count, cents, sha256, head_id, head_hash, by_user) VALUES (?,?,?,?,?,?,?,?,?)')
     .run(kind, from, to, list.length, list.reduce((s, p) => s + p.cents, 0), crypto.createHash('sha256').update(buf).digest('hex'), h.id || null, h.hash || null, user || null);
 }
-/** Frühere Exporte; geändert = derselbe Zeitraum ergibt heute eine andere Summe (nachträglich erfasst oder storniert) */
+/** Frühere Exporte; geändert = derselbe Zeitraum ergibt heute eine andere Summe (nachträglich erfasst oder storniert).
+ *  Ein Durchgang durchs Journal für alle Exporte (Härtung 28: früher je Export einer – 12 Exporte hielten den Server Sekunden an). */
 function exportsList() {
-  return db.prepare('SELECT * FROM gobd_export ORDER BY id DESC LIMIT 30').all().map(e => {
+  const list = db.prepare('SELECT * FROM gobd_export ORDER BY id DESC LIMIT 30').all(), dv = list.filter(e => e.kind === 'datev').map(e => e.from_date).sort();
+  if (dv.length) rawPostings(addDays(dv[0], -400));   // früheste Untergrenze zuerst: jeder Export nimmt sich daraus seinen Teil
+  return list.map(e => {
     let changed = false;
     if (e.kind === 'datev') { const l = postings(e.from_date, e.to_date); changed = l.length !== e.count || l.reduce((s, p) => s + p.cents, 0) !== e.cents; }
     return { id: e.id, kind: e.kind, from: e.from_date, to: e.to_date, count: e.count, cents: e.cents, at: e.at, by: e.by_user, changed };
@@ -413,7 +464,7 @@ async function pruefer(year, user, club) {
       t.cols.map(c => `        <VariableColumn>\n          <Name>${xml(c.name)}</Name>\n          ${c.dec ? '<Numeric>\n            <Accuracy>2</Accuracy>\n          </Numeric>' : c.num ? '<Numeric/>' : '<AlphaNumeric/>'}\n        </VariableColumn>\n`).join('') +
       '      </VariableLength>\n    </Table>\n').join('') + '  </Media>\n</DataSet>\n';
   zip.file('index.xml', ixml);
-  const v = verify();
+  const v = await verify();
   zip.file('LIESMICH.txt', [`Clubwerk – Datenüberlassung für das Geschäftsjahr ${yl} (${deDate(from)} bis ${deDate(to)})`, `Erstellt: ${new Date().toISOString()} von ${user || ''}`, '',
     'index.xml beschreibt alle Dateien im Beschreibungsstandard für die Datenüberlassung (Z3). Die Dateien sind UTF-8 mit BOM (SkipNumBytes 3).',
     'Beträge in Spalten mit „cents“ sind Cent-Beträge, in zahlungseingaenge.csv Euro mit Komma.',
@@ -428,6 +479,7 @@ async function pruefer(year, user, club) {
 function purge(cut) {
   const n = db.prepare('SELECT COUNT(*) n FROM gobd_journal WHERE at < ?').get(cut).n;
   if (!n) return 0;
+  verifyGen++;   // laufende Prüfung beginnt von vorn
   db.transaction(() => {
     db.prepare('DELETE FROM gobd_journal WHERE at < ?').run(cut);
     const f = db.prepare('SELECT id, prev FROM gobd_journal ORDER BY id LIMIT 1').get();
@@ -470,7 +522,7 @@ function routes(admin, { need, bad, asyncRoute }) {
     res.json({ ok: true, cfg: c, keys: keys() });
   });
   // ohne voll: ab dem geprüften Stand (beim Öffnen der Seite) · voll: ganze Kette („Ganze Prüfkette prüfen“)
-  admin.post('/gobd/pruefen', P, (req, res) => { const full = (req.body || {}).voll === true; const v = verify({ full }); if (v.ok) anchor(); if (full) audit(req.user, 'Buchführung: ganze Prüfkette geprüft', v.ok ? `${v.count} Einträge, intakt` : `unterbrochen bei Eintrag ${v.bad.id}`); res.json(v); });
+  admin.post('/gobd/pruefen', P, asyncRoute(async (req, res) => { const full = (req.body || {}).voll === true; const v = await verify({ full }); if (v.ok) anchor(); if (full) audit(req.user, 'Buchführung: ganze Prüfkette geprüft', v.ok ? `${v.count} Einträge, intakt` : `unterbrochen bei Eintrag ${v.bad.id}`); res.json(v); }));
   const range = (req, res) => {
     const from = String(req.query.from || ''), to = String(req.query.to || '');
     if (!isDate(from) || !isDate(to) || from > to) { bad(res, 'Bitte einen gültigen Zeitraum wählen.'); return null; }
@@ -500,11 +552,11 @@ function routes(admin, { need, bad, asyncRoute }) {
 }
 
 /** Für die Datenqualität: Prüfkette */
-function healthCheck() {
-  const v = verify();
+async function healthCheck() {
+  const v = await verify();
   return { id: 'gobd', title: 'Änderungsjournal (GoBD) unterbrochen', level: 'r', count: v.ok ? 0 : 1, detail: v.ok ? '' : `Eintrag ${v.bad.id}`,
     why: v.ok ? 'Jede Änderung an Geld und Belegen ist lückenlos festgehalten.' : `${v.bad.why} Bitte sofort den Verantwortlichen und den Steuerberater informieren und keine Sicherung überschreiben.`,
     fix: { label: 'Buchführung öffnen', page: 'einstellungen', sec: ['cw_setsec', 'buchfuehrung'] } };
 }
 
-module.exports = { install, ensure, middleware, appMiddleware, verify, resetChecked, anchor, postings, summary, keys, keyForExt, cfg, datev, pruefer, retention, routes, healthCheck, viaOf, SPHERES, VIAS, tables };
+module.exports = { install, ensure, middleware, appMiddleware, verify, resetChecked, anchorDaily, postings, summary, keys, keyForExt, cfg, datev, pruefer, retention, routes, healthCheck, viaOf, SPHERES, tables };

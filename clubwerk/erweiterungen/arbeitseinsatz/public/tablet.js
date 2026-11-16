@@ -2,17 +2,11 @@
 /* Tablet: Arbeitseinsatz ein- und ausstempeln (Name wählen, PIN wie bei den Getränken) */
 (() => {
   const $ = id => document.getElementById(id);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   const BASE = '../../api/tablet/';
   let state = { running: [], events: [], people: [] };
-  function toast(msg, error = false) { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (error ? ' error' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 4000); }
-  async function call(p, body) {
-    const r = await fetch(BASE + p, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const d = await r.json().catch(() => ({}));
-    if (r.status === 401 && d.gate) { showGate(); throw Object.assign(new Error(d.error || 'Gesperrt'), { gate: true }); }
-    if (!r.ok) throw Object.assign(new Error(d.error || 'Das hat nicht geklappt.'), { status: r.status });
-    return d;
-  }
+  const toast = GKTab.toast(4000);
+  const call = (p, body) => GKTab.api(BASE + p, body);
   const since = ts => { const m = Math.max(0, Math.round((Date.now() - new Date(ts.replace(' ', 'T')).getTime()) / 60000)); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
 
   /** Datumsblock wie überall (Verwaltung, Mitglieder-App): Datum groß, Wochentag klein darunter */
@@ -31,8 +25,7 @@
     $('running').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => { const p = state.people.find(x => x.id === +b.dataset.r) || { id: +b.dataset.r, name: b.querySelector('b').textContent, pin: true }; confirmStop(p, state.running.find(x => x.member_id === p.id)); }; });
   }
 
-  const dlg = html => { $('dialog').innerHTML = html; $('overlay').classList.remove('hidden'); };
-  const closeDlg = () => { $('overlay').classList.add('hidden'); $('dialog').innerHTML = ''; };
+  const { dlg, closeDlg } = GKTab;
   $('overlay').addEventListener('mousedown', e => { if (e.target === $('overlay')) closeDlg(); });
 
   function pickName() {
@@ -50,14 +43,10 @@
   function unlock(p, title, next) {
     const go = async pin => {
       try { const r = await call('unlock', { memberId: p.id, pin }); next(r.token); }
-      catch (e) { if (e.gate) return closeDlg(); if ($('perr')) { $('perr').textContent = e.message; pinVal = ''; dots(); } else toast(e.message, true); }
+      catch (e) { if (e.gate) return closeDlg(); if ($('perr')) return e.message; toast(e.message, true); }
     };
     if (!p.pin) return go('');
-    let pinVal = '';
-    dlg(GKPin.pad(esc(p.name), `Bitte deine PIN eingeben – ${esc(title)}`));
-    function dots() { $('dots').innerHTML = GKPin.dots(pinVal.length); }
-    dots();
-    $('dialog').querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { const k = b.dataset.k; if (k === 'x') return closeDlg(); if (k === 'ok') return go(pinVal); if (pinVal.length < 6) { pinVal += k; dots(); } if (pinVal.length === 6) go(pinVal); }; });
+    GKPin.ask({ show: dlg, close: closeDlg, title: esc(p.name), sub: `Bitte deine PIN eingeben – ${esc(title)}`, auto: true }, go);
   }
   function chooseWork(token) {
     const evs = state.events;
@@ -99,18 +88,7 @@
   }
   $('startBtn').onclick = pickName;
 
-  let gateShown = false;
-  function showGate() { if (gateShown) return; gateShown = true; closeDlg(); $('gate').classList.remove('hidden'); $('gatePw').value = ''; $('gateErr').textContent = ''; setTimeout(() => $('gatePw').focus(), 50); }
-  async function gateLogin() {
-    try {
-      const r = await fetch('../../api/gate/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('gatePw').value }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { $('gateErr').textContent = d.error || 'Das hat nicht geklappt.'; return; }
-      gateShown = false; $('gate').classList.add('hidden'); load();
-    } catch (e) { $('gateErr').textContent = 'Keine Verbindung zum Server.'; }
-  }
-  $('gateGo').onclick = gateLogin;
-  $('gatePw').addEventListener('keydown', e => { if (e.key === 'Enter') gateLogin(); });
+  GKTab.gate(load, closeDlg);
   setInterval(() => { if ($('overlay').classList.contains('hidden')) load(); }, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   { const last = GKMerk.holen('arbeitseinsatz'); if (last && last.running) { state = last; zeigen(); } }   // letzter Stand sofort, danach frisch (nav.js, GKMerk)

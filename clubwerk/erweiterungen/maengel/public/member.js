@@ -30,8 +30,8 @@
       .vh-rows .mg-row .vh-tx { min-width: 0; } .vh-rows .mg-row small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }   /* zwei Zeilen: kurze Meldungen stehen ganz da, nur lange enden mit „…“ (02.11.2026) */`;
     document.head.appendChild(s);
   }
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-  const deD = s => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '');
+  const esc = CW.esc;
+  const deD = s => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '');   // auch auf dem Tablet (index.html): dort gibt es VA nicht
   const STATUS = { neu: ['', 'neu'], arbeit: ['a', 'in Arbeit'], erledigt: ['g', 'erledigt'], abgelehnt: ['', 'abgelehnt'] };
   const chip = st => { const c = STATUS[st] || ['', st]; return `<span class="vh-chip ${c[0]}">${esc(c[1])}</span>`; };
   const OTHER = '__anders';

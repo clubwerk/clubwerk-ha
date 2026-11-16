@@ -3,49 +3,10 @@
  * PDF der Schlüsselübergabe, Rückgabe, Verlustanzeige und Stornierung – im Stil der Beitrittserklärung (Kopf mit Logo, Linie in Vereinsfarbe,
  * nummerierte Abschnitte, Unterschriften, Prüfwert). Wird beim Unterschreiben einmal gebaut und nie neu erzeugt.
  */
-const PDFDocument = require('pdfkit');
 const { deD } = require('../../../src/util');
+const B = require('../../../src/brief');
+const { L, R, W, BOTTOM, INK, MUTED, SOFT, euro, imgFromData, collect, brand, newDoc, head, footer } = B;
 
-const PW = 595.28, PH = 841.89, L = 56.7, R = PW - 56.7, W = R - L, TOP = 40, BOTTOM = PH - 64, FOOT = PH - 38;
-const INK = '#1b1f24', MUTED = '#6b7280', SOFT = '#9aa1ab', LINE = '#d5d9df';
-const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-const mix = (hex, t) => '#' + [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).map(v => Math.round(v + (255 - v) * t).toString(16).padStart(2, '0')).join('');
-const isImg = b => Buffer.isBuffer(b) && b.length > 100 && ((b[0] === 0x89 && b[1] === 0x50) || (b[0] === 0xff && b[1] === 0xd8));
-const imgFromData = d => { const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(String(d || '')); return m ? Buffer.from(m[1], 'base64') : null; };
-
-let core = null; try { core = require('../../../src/db'); } catch (e) { core = null; }
-function brand() {
-  const g = (k, d = '') => { try { return core ? core.getSetting(k, d) : d; } catch (e) { return d; } };
-  let color = g('club_color', ''); if (!/^#[0-9a-f]{6}$/i.test(color)) color = '#1f6b3a';
-  let logo = null; const type = g('club_logo_type');
-  try {
-    if (type === 'png' || type === 'jpg') logo = Buffer.from(g('club_logo'), 'base64');
-    else if (type && g('club_logo_png') && g('club_logo_png_ver') === g('club_logo_ver', 'std')) logo = Buffer.from(g('club_logo_png'), 'base64');
-  } catch (e) { logo = null; }
-  return { color, soft: mix(color, 0.9), logo: isImg(logo) ? logo : null };
-}
-function head(doc, club, b) {
-  const H = 46, y0 = TOP; let x = L;
-  if (b.logo) { try { const img = doc.openImage(b.logo); const k = Math.min(130 / img.width, H / img.height); doc.image(img, L, y0 + (H - img.height * k) / 2, { width: img.width * k, height: img.height * k }); x = L + img.width * k + 14; } catch (e) { x = L; } }
-  const addr = [club.street, club.city].filter(Boolean);
-  doc.font('Helvetica-Bold').fontSize(13).fillColor(INK);
-  const name = String(club.name || '').replace(/\s+(e\.)\s*(V\.)/g, ' $1 $2');
-  const nh = doc.heightOfString(name, { width: R - x - 170 });
-  doc.text(name, x, y0 + (H - nh) / 2, { width: R - x - 170 });
-  if (addr.length) { doc.font('Helvetica').fontSize(8.5).fillColor(MUTED); const ah = doc.heightOfString(addr.join('\n'), { width: 160, lineGap: 1.5 }); doc.text(addr.join('\n'), R - 160, y0 + (H - ah) / 2, { width: 160, align: 'right', lineGap: 1.5 }); }
-  const ly = y0 + H + 10; doc.moveTo(L, ly).lineTo(R, ly).lineWidth(1.4).strokeColor(b.color).stroke();
-  return ly + 1;
-}
-function footer(doc, club) {
-  const range = doc.bufferedPageRange(), text = [club.name, club.street, club.city].filter(Boolean).join(' · ');
-  for (let i = range.start; i < range.start + range.count; i++) {
-    doc.switchToPage(i); const mb = doc.page.margins.bottom; doc.page.margins.bottom = 0;
-    doc.moveTo(L, FOOT - 8).lineTo(R, FOOT - 8).lineWidth(0.5).strokeColor(LINE).stroke();
-    doc.font('Helvetica').fontSize(7.2).fillColor(SOFT).text(text, L, FOOT, { width: W - 74, height: 9, ellipsis: true });
-    if (range.count > 1) doc.text(`Seite ${i - range.start + 1} von ${range.count}`, R - 70, FOOT, { width: 70, align: 'right', lineBreak: false });
-    doc.page.margins.bottom = mb;
-  }
-}
 /** „Nr. 07“ bzw. „Nr. 07, Stück 2“ (Einzelnummer des Exemplars) */
 const itemNo = it => { const l = String(it.label || ''), id = String(it.ident); return !l || l === id ? `Nr. ${id}` : `Nr. ${id}, Stück ${l.startsWith(id + '-') ? l.slice(id.length + 1) : l}`; };
 const need = (doc, y, h, club, b) => { if (y + h <= BOTTOM) return y; doc.addPage(); return head(doc, club, b) + 18; };
@@ -72,9 +33,9 @@ function rows(doc, y, list, club, b) {
  *      extra: [[Beschriftung, Wert]], sigs: [{ label, name, png }], sha256, refNo }
  */
 async function build(p) {
-  const b = brand(), club = p.club || {};
-  const doc = new PDFDocument({ size: 'A4', margins: { top: TOP, bottom: 20, left: L, right: PW - R }, bufferPages: true, info: { Title: `${p.title} ${p.no}`, Author: club.name || '' } });
-  const done = new Promise((res, rej) => { const ch = []; doc.on('data', c => ch.push(c)); doc.on('end', () => res(Buffer.concat(ch))); doc.on('error', rej); });
+  const club = p.club || {}, b = brand(club);
+  const doc = newDoc(club, `${p.title} ${p.no}`);
+  const done = collect(doc);
   let y = head(doc, club, b) + 22;
   doc.font('Helvetica-Bold').fontSize(18).fillColor(INK).text(p.title, L, y, { width: W - 130 });
   doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(`Nr. ${p.no}`, R - 120, y + 4, { width: 120, align: 'right' });

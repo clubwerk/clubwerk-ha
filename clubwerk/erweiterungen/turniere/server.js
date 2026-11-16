@@ -59,16 +59,15 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
 );
 `);
   // 3.72: Doppel (Doppel-Ligen, Anmeldung, Partner), Saisonabschluss
-  { const has = (t, c) => db.prepare(`PRAGMA table_info(${t})`).all().some(x => x.name === c);
-    if (!has('tu_season', 'doubles')) db.exec("ALTER TABLE tu_season ADD COLUMN doubles TEXT NOT NULL DEFAULT '[]'");   // Doppel-Ligen: ["A+B", "C+D", "E"]
-    if (!has('tu_season', 'paired_at')) db.exec('ALTER TABLE tu_season ADD COLUMN paired_at TEXT');                  // Doppelpartner ausgelost
-    if (!has('tu_season', 'ddrawn_at')) db.exec('ALTER TABLE tu_season ADD COLUMN ddrawn_at TEXT');                  // Doppel-Gruppen ausgelost
-    if (!has('tu_player', 'doubles')) db.exec('ALTER TABLE tu_player ADD COLUMN doubles INTEGER NOT NULL DEFAULT 0');
-    if (!has('tu_team', 'p2')) db.exec('ALTER TABLE tu_team ADD COLUMN p2 INTEGER'); }
+  ctx.addColumns('tu_season', {
+    doubles: "TEXT NOT NULL DEFAULT '[]'",   // Doppel-Ligen: ["A+B", "C+D", "E"]
+    paired_at: 'TEXT',                        // Doppelpartner ausgelost
+    ddrawn_at: 'TEXT' });                     // Doppel-Gruppen ausgelost
+  ctx.addColumns('tu_player', { doubles: 'INTEGER NOT NULL DEFAULT 0' });
+  ctx.addColumns('tu_team', { p2: 'INTEGER' });
   const { lastFirst } = ctx.require('./db');
   const P = need('turniere');
-  const S = (k, d) => ctx.getSetting('ext_turniere_' + k, d);
-  const SET = (k, v) => ctx.setSetting('ext_turniere_' + k, String(v));
+  const S = ctx.setting, SET = ctx.setSetting2;
   const cfg = () => ({ minutes: [60, 90, 120, 150, 180].includes(int(S('minutes', '120'))) ? int(S('minutes', '120')) : 120 });
   const ar = fn => ctx.asyncRoute(fn);
   const bookingOn = () => ctx.isModuleActive('buchung');
@@ -194,7 +193,7 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     { id: 'erinnerung', label: 'Erinnerung vom Sportwart', desc: 'Clubmeisterschaft: Der Sportwart erinnert an ein offenes Spiel.', default: true },
   ];
   // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
-  ctx.hooks.securityEvents = () => [{ id: 'code', label: 'Turnierplaner: viele falsche Codes', level: 'r', push: 'Turnierplaner: viele falsche Codes der Turnierleitung.' }];
+  ctx.hooks.securityEvents = () => [{ id: 'code', label: 'Turniere: viele falsche Codes der Turnierleitung', level: 'r', push: 'Turniere: viele falsche Codes der Turnierleitung.' }];
   /** Push an die Spieler eines Spiels (ohne „except“) – msg(mm) bekommt { opp (Gegner aus Sicht des Empfängers), due, phase … } */
   function tellPlayers(m, ev, msg, { except = null } = {}) {
     const s = seasonRow(m.season_id), nm = names();
@@ -587,7 +586,7 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
 
   /* ================================================================= Verwaltung (/api/admin/x/turniere/…) */
   const A = ctx.admin;
-  const uname = req => req.user.name || req.user.username;
+  const uname = ctx.userName;
   const seasonOr404 = (req, res) => { const s = seasonRow(req.params.id); if (!s) { bad(res, 'Saison nicht gefunden.', 404); return null; } return s; };
   const SEASON_LABELS = { name: 'Name', leagues: ['Ligen', 'list'], doubles: ['Doppel-Ligen', 'list'], reg_until: 'Anmeldeschluss', due_groups: 'Frist Gruppenphase', due_final: 'Frist Endspiele + Relegation' };
   const showSeason = s => ({ name: s.name, leagues: leaguesOf(s), doubles: doublesOf(s), reg_until: s.reg_until ? deD(s.reg_until) : '', due_groups: s.due_groups ? deD(s.due_groups) : '', due_final: s.due_final ? deD(s.due_final) : '' });

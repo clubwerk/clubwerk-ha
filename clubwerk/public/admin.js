@@ -2,7 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const T = window.T || ((s, v) => String(s).replace(/\{(\w+)\}/g, (m, k) => (v && v[k] !== undefined ? v[k] : m)));   // Übersetzen (i18n.js); ohne Sprachdatei bleibt Deutsch
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = CW.esc;
   // Formatierer einmal anlegen – toLocaleString baut sie sonst bei jedem Betrag/Datum neu (bei langen Listen spürbar langsam)
   const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }), NUM = new Intl.NumberFormat('de-DE');
   const DT = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -117,7 +117,7 @@
     const versteckt = new Set(), ro = new ResizeObserver(es => { let neu = false; es.forEach(e => { if (e.contentRect.width > 0 || !e.target.isConnected) { ro.unobserve(e.target); versteckt.delete(e.target); neu = neu || e.contentRect.width > 0; } }); if (neu) requestAnimationFrame(later); });   // erst im nächsten Bild messen: Layout-Änderung im Beobachter selbst gäbe „ResizeObserver loop …“
     const fit = () => { t = 0; if (innerWidth > 700 && !document.querySelector('[data-einspaltig]')) return; versteckt.forEach(r => { if (!r.isConnected) { ro.unobserve(r); versteckt.delete(r); } }); document.querySelectorAll(':is(.row, .btns, .acts):not(.tbl *, .knopfspalte):not(:has(> :not(.btn, span:empty))):has(> .btn ~ .btn)').forEach(r => { if (!r.offsetParent && !versteckt.has(r)) { versteckt.add(r); ro.observe(r); } const soll = innerWidth <= 700 && einspaltig(r); if (soll !== r.hasAttribute('data-einspaltig')) { if (soll) r.dataset.einspaltig = ''; else delete r.dataset.einspaltig; } }); };
     const later = () => { if (!t) { t = 1; queueMicrotask(fit); } };   // einmal je Änderungsschub, vor dem nächsten Bild
-    new MutationObserver(later).observe(document.body, { childList: true, subtree: true }); window.addEventListener('resize', () => { if (innerWidth !== breite) { breite = innerWidth; later(); } }); later();
+    CWDom.beobachte(later); window.addEventListener('resize', () => { if (innerWidth !== breite) { breite = innerWidth; later(); } }); later();
     if (document.fonts) { document.fonts.ready.then(later); document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', later); }   // Webschrift geladen: Breiten neu messen (vorher misst die Ersatzschrift – „Bestellung jetzt senden“ lief in WebKit über)   // nur bei geänderter Breite (die Höhe ändert sich am Handy schon beim Scrollen)
   })();
   function closeDialog() { $('overlay').classList.add('hidden'); $('dialog').innerHTML = ''; }
@@ -199,24 +199,35 @@
   }
   window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 
+  /** Reiterleiste (ein Baustein für alle Seiten): Schalter mit Attribut `attr` (z. B. data-tab), list = [[key, label]].
+   *  opts: cur (aktiver Reiter), pick(k) (zeigt den Inhalt), role (role="tablist"/"tab"), label (aria-label), cls, id, badge(k) (HTML hinter der Beschriftung),
+   *  leave (Standard: vor dem Wechsel nach ungespeicherten Änderungen fragen), stop (Klick nicht weitergeben). bar.show(k) wechselt, bar.reload() zeigt den aktuellen neu. */
+  function tabBar(list, attr, { cur = null, pick, role = false, label = '', cls = '', id = '', badge = () => '', leave = true, stop = false }) {
+    const bar = document.createElement('div'); bar.className = ('tabs ' + cls).trim(); if (id) bar.id = id;
+    if (role) bar.setAttribute('role', 'tablist'); if (label) bar.setAttribute('aria-label', label);
+    bar.innerHTML = list.map(([k, l]) => `<button type="button"${role ? ' role="tab"' : ''} ${attr}="${esc(k)}"${k === cur ? ' class="on"' : ''}>${esc(l)}${badge(k)}</button>`).join('');
+    const show = async k => {
+      if (k !== cur && leave && !(await leaveOk())) return;
+      cur = k;
+      bar.querySelectorAll(`[${attr}]`).forEach(b => { b.classList.toggle('on', b.getAttribute(attr) === k); if (b.getAttribute(attr) === k) revealTab(b); });
+      await pick(k);
+    };
+    bar.querySelectorAll(`[${attr}]`).forEach(b => { b.onclick = e => { if (stop) e.stopPropagation(); show(b.getAttribute(attr)); }; });
+    bar.show = show; bar.reload = () => { const k = cur; cur = null; return show(k); };
+    return bar;
+  }
   /** Reiter innerhalb einer Seite. tabs: [[key, label]], merkt sich den Reiter je Seite. */
   function tabs(el, key, list, onShow) {
     const store = `tab_${key}`;
     let cur = sessionStorage.getItem(store);
     if (!list.some(t => t[0] === cur)) cur = list[0][0];
-    el.innerHTML = `<div class="tabs">${list.map(([k, l]) => `<button data-tab="${k}">${esc(l)}</button>`).join('')}</div><div class="tabbody"></div>`;
+    el.innerHTML = '<div class="tabbody"></div>';
     const body = el.querySelector('.tabbody');
-    const show = async k => {
-      if (k !== cur && !(await leaveOk())) return;
-      cur = k; sessionStorage.setItem(store, k);
-      el.querySelectorAll('[data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === k); if (b.dataset.tab === k) revealTab(b); });
-      body.innerHTML = '<p class="muted">Lade …</p>';
-      try { await onShow(k, body); } catch (e) { fail(e); }
-    };
-    el.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => show(b.dataset.tab); });
-    cur = cur || list[0][0];
-    const first = cur; cur = null; show(first);
-    return { reload: () => { const k = cur; cur = null; show(k); } };
+    const bar = tabBar(list, 'data-tab', {
+      pick: async k => { sessionStorage.setItem(store, k); body.innerHTML = '<p class="muted">Lade …</p>'; try { await onShow(k, body); } catch (e) { fail(e); } },
+    });
+    el.prepend(bar); bar.show(cur);
+    return { reload: bar.reload };
   }
   /** Reiterleiste bei Platzmangel: aktiven Reiter mittig hineinscrollen und die Kanten weich auslaufen lassen (Hinweis auf weitere Reiter) */
   function tabFade(bar) {
@@ -278,17 +289,33 @@
      rows: fertige <tr>-Zeilen, cols: Spaltenzahl. Knöpfe in den Zeilen über einen Klick auf die Tabelle anbinden, dann wirken sie auch in nachgeladenen Zeilen. */
   const MORE_STEP = 150, moreRest = new Map(); let moreSeq = 0;
   const moreRow = (id, left, cols) => `<tr class="more"><td colspan="${cols}" style="text-align:center"><button class="btn small" type="button" data-more="${id}">Weitere ${Math.min(MORE_STEP, left)} anzeigen</button> <span class="muted s">noch ${left}</span></td></tr>`;
-  function moreRows(rows, cols) {
+  /** paged (optional): { total, loaded(), load() } – der Server liefert die Seiten, der Knopf holt die nächste (load gibt fertige Zeilen zurück) */
+  function moreRows(rows, cols, paged) {
+    if (paged) {
+      const id = String(++moreSeq); moreRest.set(id, { rows: [], cols, paged });
+      if (moreRest.size > 20) moreRest.delete(moreRest.keys().next().value);
+      return rows.join('') + moreRow(id, paged.total - paged.loaded(), cols);
+    }
     if (rows.length <= MORE_STEP) return rows.join('');
     const id = String(++moreSeq); moreRest.set(id, { rows: rows.slice(MORE_STEP), cols });
     if (moreRest.size > 20) moreRest.delete(moreRest.keys().next().value);   // Listen früherer Ansichten vergessen
     return rows.slice(0, MORE_STEP).join('') + moreRow(id, rows.length - MORE_STEP, cols);
   }
-  document.addEventListener('click', e => {
+  document.addEventListener('click', async e => {
     const b = e.target.closest('[data-more]'), m = b && moreRest.get(b.dataset.more); if (!m) return;
-    const tr = b.closest('tr'), table = tr.closest('table'), next = m.rows.splice(0, MORE_STEP);
-    tr.insertAdjacentHTML('beforebegin', next.join('') + (m.rows.length ? moreRow(b.dataset.more, m.rows.length, m.cols) : ''));
-    tr.remove(); if (!m.rows.length) moreRest.delete(b.dataset.more);
+    const tr = b.closest('tr'), table = tr.closest('table');
+    let next;
+    if (m.paged) {
+      if (b.disabled) return; b.disabled = true;
+      try { next = await m.paged.load(); } catch (err) { b.disabled = false; return fail(err); }
+      const left = m.paged.total - m.paged.loaded();
+      tr.insertAdjacentHTML('beforebegin', next.join('') + (left > 0 && next.length ? moreRow(b.dataset.more, left, m.cols) : ''));
+      tr.remove(); if (left <= 0 || !next.length) moreRest.delete(b.dataset.more);
+    } else {
+      next = m.rows.splice(0, MORE_STEP);
+      tr.insertAdjacentHTML('beforebegin', next.join('') + (m.rows.length ? moreRow(b.dataset.more, m.rows.length, m.cols) : ''));
+      tr.remove(); if (!m.rows.length) moreRest.delete(b.dataset.more);
+    }
     labelTables(table.parentNode);
   });
 
@@ -327,15 +354,8 @@
   document.addEventListener('input', e => { const t = e.target; if (t.matches && t.matches('textarea[data-grow]')) { if (/\n/.test(t.value)) t.value = t.value.replace(/\s*\n\s*/g, ' '); growFit(t); } });
   document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches && e.target.matches('textarea[data-grow]')) e.preventDefault(); });
   addEventListener('resize', () => growAll(document));
-  new MutationObserver(() => { labelTables(document); growAll(document); }).observe(document.getElementById('app'), { childList: true, subtree: true });
-  new MutationObserver(() => { labelTables($('dialog')); growAll($('dialog')); }).observe($('dialog'), { childList: true, subtree: true });
-  /* Fenster schließen: Abdunklung kurz nachklingen lassen (Aussehen in admin.html, .cw-abblenden) – für jedes .overlay, egal wie es geschlossen wird */
-  { const glow = document.createElement('div'); glow.className = 'cw-abblenden'; glow.setAttribute('aria-hidden', 'true'); document.body.appendChild(glow);
-    glow.addEventListener('animationend', () => glow.classList.remove('an'));
-    new MutationObserver(recs => { for (const r of recs) { const e = r.target;
-      if (!e.classList.contains('overlay') || !e.classList.contains('hidden') || /(^|\s)hidden(\s|$)/.test(r.oldValue || '')) continue;
-      glow.style.background = getComputedStyle(e).backgroundColor; glow.classList.remove('an'); void glow.offsetWidth; glow.classList.add('an'); } })
-      .observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true }); }
+  CWDom.beobachte(() => { labelTables(document); growAll(document); }, { ziel: document.getElementById('app') });
+  CWDom.beobachte(() => { labelTables($('dialog')); growAll($('dialog')); }, { ziel: $('dialog') });
 
   /* ---------- Anmeldung ---------- */
   let me = null, permLabels = {};
@@ -494,7 +514,7 @@
   let tabToolsOwner = null;   // Inhalt, zu dem die Knöpfe in der Reiterzeile gehören
   /* Reiterzeile pflegen: Knöpfe entfernen, wenn ihr Inhalt verschwindet; eine Knopfleiste (.toolbar mit nur Knöpfen) ganz oben im
      Seiteninhalt wandert automatisch rechts in die Reiterzeile – so stehen „+ Neu …“ und Co. auf allen Seiten an derselben Stelle */
-  new MutationObserver(ms => {
+  CWDom.beobachte(ms => {
     if (ms.some(m => (m.target.nodeType === 1 && m.target.closest('#main .tabrow > .tabtools')) || [...m.addedNodes].some(n => n.nodeType === 1 && (n.matches('.tabrow') || n.querySelector('.tabrow'))))) fitTools();   // Knöpfe, die eine Seite selbst in die Reiterzeile setzt (z. B. „Einrichtung fortsetzen“): neben oder unter den Reitern, bündig
     if (tabToolsOwner && !document.body.contains(tabToolsOwner)) { tabToolsOwner = null; const b = $('tabTools'); if (b) b.innerHTML = ''; }
     const box = $('tabTools'), row = box && box.parentElement; if (!row || row.parentElement !== $('main')) return;
@@ -504,8 +524,7 @@
     const owner = tb.nextElementSibling || tb.parentElement;
     box.replaceChildren(...tb.childNodes); tb.remove(); tabToolsOwner = owner;
     fitTools();
-  }).observe(document.documentElement, { childList: true, subtree: true });
-  const APP_EXTRA = [];   // Reiter der Seite „Mitglieder-App“, die Module beisteuern
+  });
   const PAGES = [
     ['uebersicht', 'Übersicht', null, 'start'],
     ['buchungen', 'Buchungen', 'buchungen', 'getraenke'], ['abrechnung', 'Abrechnung & Export', ['abrechnung', 'export'], 'getraenke'],
@@ -921,9 +940,10 @@
     const h = m.querySelector(':scope > h2.page'); if (!h) return;
     h.textContent = T(MODG[g].label);   // überall gleich: Überschrift = Seite im Menü, der Reiter zeigt den Bereich
     const after = fixLead(h);
-    const t = document.createElement('div'); t.className = 'tabs drinktabs'; t.setAttribute('role', 'tablist');
-    t.innerHTML = GPAGES(g).map(([k, l]) => `<button role="tab" data-tab="${k}" class="${k === page ? 'on' : ''}">${esc(TAB_LABEL[k] || l)}${badges[k] ? `<span class="badge">${badges[k]}</span>` : ''}</button>`).join('');
-    t.querySelectorAll('[data-tab]').forEach(b => { b.onclick = e => { e.stopPropagation(); go(b.dataset.tab); }; });
+    const t = tabBar(GPAGES(g).map(([k, l]) => [k, TAB_LABEL[k] || l]), 'data-tab', {
+      cur: page, cls: 'drinktabs', role: true, stop: true, leave: false, badge: k => (badges[k] ? `<span class="badge">${badges[k]}</span>` : ''),
+      pick: k => go(k),   // go() fragt selbst nach ungespeicherten Änderungen
+    });
     // Reiterzeile: links die Reiter, rechts die Knöpfe der Seite („+ Neu …“, Export) – siehe GK.tabTools
     const row = document.createElement('div'); row.className = 'tabrow';
     row.append(t); row.insertAdjacentHTML('beforeend', '<div class="tabtools" id="tabTools"></div>');
@@ -997,20 +1017,17 @@
     let cur = sget(store); if (!list.some(t => t[0] === cur)) cur = list[0][0];
     $('main').innerHTML = `<h2 class="page" translate="no">${esc(rec.title)}</h2>${rec.lead ? `<p class="lead">${esc(rec.lead)}</p>` : ''}
       <div class="tabrow detailrow"><button type="button" class="btn ghost detback" id="detBack">← ${esc(d.back)}</button>
-        ${list[0][1] ? `<div class="tabs" role="tablist">${list.map(([k, l]) => `<button role="tab" data-tab="${esc(k)}">${esc(l)}</button>`).join('')}</div>` : ''}<div class="tabtools" id="tabTools"></div></div>
+        <span id="detTabs"></span><div class="tabtools" id="tabTools"></div></div>
       <div class="tabbody detbody"></div>`;
-    const body = $('main').querySelector('.detbody'), bar = $('main').querySelector('.detailrow .tabs');
+    const body = $('main').querySelector('.detbody');
     $('detBack').onclick = () => go(page);
-    const show = async k => {
-      if (k !== cur && !(await leaveOk())) return;
-      cur = k; sset(store, k);
-      if (bar) bar.querySelectorAll('[data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === k); if (b.dataset.tab === k) revealTab(b); });
+    const pick = async k => {
+      sset(store, k);
       const tt = $('tabTools'); if (tt) tt.innerHTML = '';
       body.innerHTML = '<p class="muted">Lade …</p>';
       try { await d.render(k, body, rec, det.id); } catch (e) { fail(e); }
     };
-    if (bar) bar.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => show(b.dataset.tab); });
-    const first = cur; cur = null; await show(first);
+    if (list[0][1]) { const bar = tabBar(list, 'data-tab', { pick, role: true }); $('detTabs').replaceWith(bar); await bar.show(cur); } else { $('detTabs').remove(); await pick(cur); }
   }
 
   /** Hauptüberschrift: die Seitenüberschrift (h2.page) gilt für Screenreader als Ebene 1 – so hat jede Seite genau eine (WCAG 1.3.1, planung/ui-review.md Punkt 4) */
@@ -1076,7 +1093,7 @@
      ${create && can('artikel') ? '<option value="new">+ neuen Artikel anlegen …</option>' : ''}`;
 
   function rangeBar(from, to, id = 'rng', extra = '') {   // extra: weiteres Filterfeld in derselben Zeile (z. B. „Nur Konto“)
-    return `<div class="row" id="${id}" style="margin-bottom:14px">
+    return `<div class="row mb14" id="${id}">
       <label class="f">Von<input type="date" name="from" value="${from}"></label>
       <label class="f">Bis<input type="date" name="to" value="${to}"></label>${extra}
       <button class="btn" data-r="apply" data-pruefbar>Anzeigen</button>
@@ -1119,7 +1136,7 @@
   function funcBox(el, id, name, after) {
     if (!el) return;
     el.innerHTML = `<div class="card"><h3>Einstellungen übertragen</h3>
-      <p class="muted s" style="margin-top:0">Alle Einstellungen und Listen von „${esc(name)}“ (z. B. Artikel, Plätze, Beitragsarten) als Datei sichern oder aus einer Datei übernehmen – z. B. für einen zweiten Verein oder nach einer Neuinstallation. Beim Import werden gleichnamige Einträge aktualisiert, neue angelegt, nichts gelöscht. PINs, Passwörter und Schlüssel sind nicht enthalten.</p>
+      <p class="muted s mt0">Alle Einstellungen und Listen von „${esc(name)}“ (z. B. Artikel, Plätze, Beitragsarten) als Datei sichern oder aus einer Datei übernehmen – z. B. für einen zweiten Verein oder nach einer Neuinstallation. Beim Import werden gleichnamige Einträge aktualisiert, neue angelegt, nichts gelöscht. PINs, Passwörter und Schlüssel sind nicht enthalten.</p>
       <div class="row"><a class="btn" href="api/admin/extensions/${esc(id)}/export" download>Einstellungen exportieren</a><button class="btn" data-fbimp="1">Einstellungen importieren …</button></div></div>`;
     el.querySelector('[data-fbimp]').onclick = () => funcImport(id, name, after);
   }
@@ -1148,8 +1165,8 @@
   window.GK = {
     /** Selbst wachsendes einzeiliges Textfeld (<textarea data-grow rows="1">) nach einer Wertänderung per Skript anpassen */
     fit: growFit,
-    gjLabel, sortKit, $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
-    scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, funcImport, lastFirst, busy, klebend, invite: (...a) => appInvite(...a), go: p => go(p),
+    sortKit, $, esc, euro, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
+    scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, lastFirst, busy, klebend, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
     /** ungespeicherte Änderungen? Rückfrage „Verwerfen?“ → true = weiter */
     leaveOk: () => leaveOk(),
@@ -1173,9 +1190,6 @@
       fitTools();
       return box;
     },
-    /** Eigener Reiter auf der Seite „Mitglieder-App“ (Verein): registerAppSection({ key, label, perm, render(el) }) –
-     *  el ist eine leere Karte, render füllt sie (Überschrift, Felder, Speichern) */
-    registerAppSection({ key, label, perm, render }) { if (/^[a-z0-9-]+$/.test(key) && !APP_EXTRA.some(x => x.key === key)) APP_EXTRA.push({ key, label, perm, render }); },
     /** registerPage({ key, title, perm, render, group, before, icon, tab, order, bereich })
      *  group: 'module' (eigener Menüeintrag, Standard) · 'verein' · 'system' (Reiter von „System“) · { key, label, icon, order } = Modul mit mehreren Seiten als Reiter (wie „Verkauf“)
      *  order: Position, wenn der Eintrag in BEREICHE nicht vorkommt (ohne Angabe 50 = hinten, in Registrierungsreihenfolge)
@@ -1366,6 +1380,7 @@
     else if (vs && !vs.on && vs.may && (cache.modules || []).some(m => m === 'mitglieder' || m === 'buchhaltung')) alerts.push({ level: 'a', who: 'Datenschutz', text: 'Mitgliederdaten liegen unverschlüsselt.', detail: 'Die persönlichen Daten der Mitglieder liegen unverschlüsselt auf dem Home Assistant. Empfohlen: Verschlüsselung einschalten.', go: 'sicherung', link: 'Einschalten' });
     const sw = can('sicherheit') ? await api('security/alerts?counts=1').catch(() => null) : null;
     const swN = sw ? sw.counts.r + sw.counts.a : 0;
+    if (sw && sw.uhr) alerts.push({ level: 'r', who: 'Uhrzeit', text: 'Uhrzeit falsch – Geldläufe und Automatik gesperrt.', detail: T('Die Uhr zeigt {0}, der neueste Eintrag ist von {1}. Stimmt die Uhrzeit doch, die Warnung unter Sicherheit als erledigt markieren.', [sw.uhr.jetzt, sw.uhr.neuester]), go: 'einstellungen', sec: ['cw_setsec', 'sicherheit'], link: 'Ansehen' });   // src/uhr.js
     if (swN) alerts.push({ level: sw.counts.r ? 'r' : 'a', who: 'Sicherheit', text: swN === 1 ? '1 neue Warnung – bitte ansehen.' : `${swN} neue Warnungen – bitte ansehen.`, go: 'einstellungen', sec: ['cw_setsec', 'sicherheit'], link: 'Ansehen' });
     // neu eingeschalteter Bereich der App, den noch niemand hat: „für wen freigeben?“ (öffnet das Sammel-Fenster mit diesem Bereich)
     const na = (cache.appModules || []).length ? await api('app/new-areas').catch(() => []) : [];
@@ -1395,8 +1410,10 @@
     if (pending.length) alerts.push({ level: 'a', who: 'Mitglieder', text: `${pending.length} neue Einträge vom Tablet zu bestätigen.`, go: 'konten', link: 'Prüfen' });
     // Ohne HTTPS gehen PIN und Geräteschlüssel der Mitglieder-App unverschlüsselt durchs WLAN – bei Türen ein echtes Risiko
     const httpsAreas = ['App', ...(cache.modules || []).includes('zugang') ? ['Türen'] : [], ...(cache.modules || []).includes('beregnung') ? ['Beregnung'] : []];
-    if (SCHEME !== 'https' && httpsAreas.length > 1 && can('einstellungen'))
-      alerts.push({ level: 'r', who: 'Sicherheit', text: `HTTPS ist aus – ${httpsAreas.slice(0, -1).join(', ')} und ${httpsAreas[httpsAreas.length - 1]} laufen im WLAN unverschlüsselt.`, detail: 'Bitte HTTPS einschalten (Add-on-Option „HTTPS für alle Geräte“, Anleitung in der Installationsanleitung, Abschnitt 9c).' });
+    // Ohne Türen/Beregnung trotzdem sichtbar: Passwörter der Verwaltung und PINs gehen sonst ebenfalls lesbar durchs WLAN
+    if (SCHEME !== 'https' && can('einstellungen'))
+      alerts.push(httpsAreas.length > 1 ? { level: 'r', who: 'Sicherheit', text: `HTTPS ist aus – ${httpsAreas.slice(0, -1).join(', ')} und ${httpsAreas[httpsAreas.length - 1]} laufen im WLAN unverschlüsselt.`, detail: 'Bitte HTTPS einschalten (Add-on-Option „HTTPS für alle Geräte“, Anleitung in der Installationsanleitung, Abschnitt 9c).', go: 'einstellungen', sec: ['cw_setsec', 'erreichbar'], link: 'Einrichten' }
+        : { level: 'a', who: 'Sicherheit', text: 'HTTPS ist aus – Passwörter und PINs gehen im WLAN unverschlüsselt durchs Netz.', detail: 'Bitte HTTPS einschalten (Add-on-Option „HTTPS für alle Geräte“, Anleitung in der Installationsanleitung, Abschnitt 9c).', go: 'einstellungen', sec: ['cw_setsec', 'erreichbar'], link: 'Einrichten' });
     mods.forEach(m => m.alerts.forEach(a => alerts.push({ level: a.level, who: m.name, text: a.text, detail: a.detail, go: m.pageKey, link: a.link, sec: Array.isArray(a.sec) && a.sec.length === 2 ? a.sec.map(String) : undefined })));   // sec: Unterbereich, in dem der Hinweis erledigt wird
     const modCards = mods.map(m => {
       const bad = m.alerts.some(a => a.level === 'r'), warn = m.alerts.length;
@@ -1520,7 +1537,7 @@
         <div class="${p.fileId ? 'split' : ''}">
           ${p.fileId ? `<div class="preview">${isPdf ? `<iframe src="${src}#view=FitH"></iframe>` : `<img src="${src}" alt="Beleg">`}</div>` : ''}
           <div>
-            <div class="frm" style="margin-bottom:12px">   <!-- Formularraster: Kanten fluchten von Zeile zu Zeile (02.11.2026) -->
+            <div class="frm mb12">   <!-- Formularraster: Kanten fluchten von Zeile zu Zeile (02.11.2026) -->
               <label class="f wall">Lieferant<input id="dSup" list="supList" value="${esc(p.supplier || '')}" placeholder="z. B. Getränkehandel Muster"></label>
               <label class="f w1">Lieferdatum<input type="date" id="dDate" value="${date}"></label>
               <label class="f w1">Belegart<select id="dKind">${Object.entries(DOCKIND).map(([k, l]) => `<option value="${k}" ${k === (p.docKind || 'lieferung') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
@@ -1652,14 +1669,14 @@
           <td class="r"><input class="n" data-o="${r.id}" value="${r.suggest || ''}" inputmode="numeric" placeholder="0"></td></tr>`).join('')}</table></div>
         <p class="muted s">Mindestbestand und „bestellen bis“ stellt man unter „Artikel“ ein. Die Artikelnummern kommen automatisch aus den hochgeladenen Rechnungen.</p></div>
       <div class="card"><h3>E-Mail</h3>
-        ${o.mailReady ? '' : `<div class="banner a" style="margin:0 0 12px"><span>Zum direkten Senden fehlt noch das Vereinspostfach (${o.mayMailSetup ? '<a href="#einstellungen" data-gomail style="margin:0">Einstellungen → Postfach</a>' : 'ein Admin mit Recht „Einstellungen“ richtet es unter Einstellungen → Postfach ein'}). Bis dahin: Text kopieren oder im E-Mail-Programm öffnen.</span></div>`}
-        <div class="row"><label class="f" style="flex:1;min-width:240px">An (Lieferant)<input id="oMail" type="email" value="${esc(st.order_email)}" placeholder="bestellung@lieferant.de" autocomplete="off"></label>
-          <label class="f" style="flex:1;min-width:240px">Kopie an (optional, z. B. Vorstand)<input id="oCc" type="email" value="${esc(st.order_cc)}" placeholder="vorstand@verein.de" autocomplete="off"></label></div>
-        <label class="f" style="margin-top:8px">Betreff<textarea id="oSubj" data-grow rows="1"></textarea></label>
-        <label class="f" style="margin-top:8px">Text<textarea id="oText" rows="16" style="font-family:inherit"></textarea></label>
+        ${o.mailReady ? '' : `<div class="banner a m-0-0-12"><span>Zum direkten Senden fehlt noch das Vereinspostfach (${o.mayMailSetup ? '<a href="#einstellungen" data-gomail class="m0">Einstellungen → Postfach</a>' : 'ein Admin mit Recht „Einstellungen“ richtet es unter Einstellungen → Postfach ein'}). Bis dahin: Text kopieren oder im E-Mail-Programm öffnen.</span></div>`}
+        <div class="row"><label class="f fx1-240">An (Lieferant)<input id="oMail" type="email" value="${esc(st.order_email)}" placeholder="bestellung@lieferant.de" autocomplete="off"></label>
+          <label class="f fx1-240">Kopie an (optional, z. B. Vorstand)<input id="oCc" type="email" value="${esc(st.order_cc)}" placeholder="vorstand@verein.de" autocomplete="off"></label></div>
+        <label class="f mt8">Betreff<textarea id="oSubj" data-grow rows="1"></textarea></label>
+        <label class="f mt8">Text<textarea id="oText" rows="16" style="font-family:inherit"></textarea></label>
         <div class="row knopfspalte" style="margin-top:10px;align-items:center"><button class="btn primary" id="oSend" ${o.mailReady ? '' : 'disabled'}>Bestellung jetzt senden</button><button class="btn" id="oCopy">Text kopieren</button><a class="btn" id="oMailBtn" href="#">In E-Mail-Programm öffnen</a>
           <span class="muted s" id="oInfo"></span></div>
-        ${o.lastSent ? `<p class="muted s" style="margin:8px 0 0">Zuletzt gesendet: ${esc(deTime(o.lastSent.split(' · ')[0]))} Uhr an ${esc(o.lastSent.split(' · ')[1] || '')}</p>` : ''}</div>`;
+        ${o.lastSent ? `<p class="muted s m-8-0-0">Zuletzt gesendet: ${esc(deTime(o.lastSent.split(' · ')[0]))} Uhr an ${esc(o.lastSent.split(' · ')[1] || '')}</p>` : ''}</div>`;
 
     const build = () => {
       const lines = rows.map(r => ({ r, n: Number(($('main').querySelector(`[data-o="${r.id}"]`) || {}).value) || 0 })).filter(x => x.n > 0);
@@ -1704,7 +1721,7 @@
     const tracked = stock.filter(s => s.track_stock && s.active);
     $('main').innerHTML = `<h2 class="page">Bestand & Inventur</h2>
       <p class="lead">Soll-Bestand = Lieferungen − Buchungen ± Bruch/Korrekturen. Bei der Inventur einfach zählen und eintragen – die Differenz wird als Schwund erfasst.</p>
-      <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Aktueller Bestand</h3>
+      <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 class="m0">Aktueller Bestand</h3>
         <div class="row"><label class="f">Inventur-Datum<input type="date" id="invDate" value="${today()}"></label><button class="btn primary" id="saveInv">Inventur speichern</button></div></div>
         <div class="scroll"><table class="tbl kompakt"><tr><th>Artikel</th><th class="k-breit">Kategorie</th><th class="r">Soll (Stück)</th><th class="r hide-md">Soll in Gebinden</th><th class="r hide-md">Mindestbestand</th><th class="r">Gezählt: Gebinde</th><th class="r">Gezählt: Stück</th></tr>
         ${tracked.map(s => `<tr><td>${esc(s.name)} ${s.stock <= s.min_stock && s.delivered > 0 ? '<span class="pill a">nachbestellen</span>' : ''}</td><td class="muted k-breit">${esc(s.category)}</td>
@@ -1760,7 +1777,7 @@
     const r = await api(`shrinkage?from=${from || new Date().getFullYear() + '-01-01'}&to=${to || today()}`);
     const sum = k => r.rows.reduce((s, x) => s + (x[k] || 0), 0);
     el.innerHTML = `<h3>Abgleich Lieferungen ↔ Buchungen</h3>
-      <p class="muted s" style="margin-top:0">Was ist geliefert, was gebucht worden? „Offen“ ist noch im Lager oder wurde nicht gebucht – Klarheit bringt die Inventur.</p>
+      <p class="muted s mt0">Was ist geliefert, was gebucht worden? „Offen“ ist noch im Lager oder wurde nicht gebucht – Klarheit bringt die Inventur.</p>
       ${rangeBar(r.from, r.to)}
       ${r.rows.length ? `<div class="scroll"><table class="tbl kompakt"><tr><th>Artikel</th><th class="k-breit">Kategorie</th><th class="r">Geliefert</th><th class="r">Konten</th><th class="r k-mid">Verein frei</th><th class="r k-mid">Gast bar</th><th class="r k-mid">Veranstaltung</th><th class="r">Bruch/Korr.</th><th class="r">Offen</th><th class="r">Inventur-Diff.</th><th class="r">Schwund €</th></tr>
       ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="muted k-breit">${esc(x.category)}</td><td class="r k-lbl">${num(x.delivered)}</td><td class="r k-weg">${num(x.konto)}</td><td class="r k-weg k-mid">${num(x.verein)}</td><td class="r k-weg k-mid">${num(x.gast)}</td><td class="r k-weg k-mid">${num(x.event)}</td><td class="r k-weg">${num(x.bruch + x.korrektur)}</td><td class="r k-lbl">${num(x.open)}</td><td class="r k-weg ${x.inventur < 0 ? 'neg' : ''}">${num(x.inventur)}</td><td class="r k-lbl ${x.shrink_cents ? 'neg' : ''}">${x.shrink_cents ? euro(x.shrink_cents) : ''}</td></tr>`).join('')}
@@ -1781,26 +1798,28 @@
     await Promise.all([loadArticles(), loadMembers()]);
     const q = new URLSearchParams();
     if (from) q.set('from', from); if (to) q.set('to', to); if (memberId) q.set('memberId', memberId);
+    if (!memberId) q.set('limit', MORE_STEP);   // erste Seite; der Rest kommt auf Knopfdruck vom Server (mit Konto-Filter bleibt die Summe oben über alle Zeilen)
     const r = await api('bookings?' + q);
+    const bookRow = b => `<tr class="${b.cancelled_at ? 'off' : ''}"><td>${deTime(b.created_at)}</td><td>${esc(b.member_kind ? lastFirst(b.member, b.member_kind) : b.member || (b.event ? 'Barverkauf ohne Namen' : ''))}${b.event ? `<div class="muted s k-weg">${esc(b.event)}</div>` : ''}</td>
+        <td class="k-weg"><span class="pill ${BKIND[b.kind][1]}">${b.tab_id && b.kind === 'gast' ? (b.tab_status === 'bezahlt' ? 'Deckel · ' + (b.tab_method === 'karte' ? 'Karte' : 'bar') : 'Deckel · offen')
+          : b.tab_id && b.kind === 'verein' ? 'Deckel · abgeschrieben'
+          : b.kind === 'event' ? (b.event_guest_id ? (b.pay_method === 'bar' ? 'Liste · bar bezahlt' : b.pay_method === 'karte' ? 'Liste · Karte' : 'Liste · offen') : 'bar') : BKIND[b.kind][0]}</span>${b.transferred_at ? ` <span class="pill b k-weg hide-md">von ${b.tab_id ? 'Gäste-Deckel' : 'Veranstaltung'} übernommen</span>` : ''}${b.settled_id && !b.cancelled_at ? ' <span class="pill k-weg hide-md">abgerechnet</span>' : ''}</td><td>${esc(b.article)}</td><td class="r k-lbl">${b.qty}</td><td class="r">${euro(b.total_cents)}</td>
+        <td class="r">${b.cancelled_at ? `storniert (${esc(b.cancelled_by)})` : `<button class="btn small danger" data-cx="${b.id}">Storno</button>`}</td></tr>`;
     $('main').innerHTML = `<h2 class="page">Buchungen</h2><p class="lead">Alle Buchungen im Zeitraum. Falschbuchungen hier stornieren oder vergessene Buchungen nachtragen.</p>
       ${rangeBar(r.from, r.to, 'rng', `<label class="f">Nur Konto<select id="bMem"><option value="">alle</option>${cache.members.map(m => `<option value="${m.id}" ${Number(memberId) === m.id ? 'selected' : ''}>${pName(m)}</option>`).join('')}</select></label>`)}
-      ${memberId ? `<div class="row" style="margin-bottom:14px">${(() => { const act = r.rows.filter(b => !b.cancelled_at); const konto = act.filter(b => b.kind === 'konto');
+      ${memberId ? `<div class="row mb14">${(() => { const act = r.rows.filter(b => !b.cancelled_at); const konto = act.filter(b => b.kind === 'konto');
           return `<div class="kpi" style="padding:8px 14px"><div class="l">${esc((m => m ? lastFirst(m.name, m.kind) : '')(cache.members.find(m => m.id === Number(memberId))))} im Zeitraum</div>
             <div style="font-weight:700">${act.reduce((x, b) => x + b.qty, 0)} Stück · ${euro(konto.reduce((x, b) => x + b.total_cents, 0))} aufs Konto${act.length !== konto.length ? ' · dazu bar/frei/angeschrieben' : ''}</div></div>`; })()}</div>` : ''}
       <div class="card"><h3>Nachtragen</h3><div class="row" style="flex-wrap:wrap">
-        <label class="f" style="flex:1;min-width:180px">Konto<select id="nbMem">${cache.members.filter(m => m.active).map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
-        <label class="f" style="flex:1;min-width:180px">Artikel<select id="nbArt">${articleOptions(null)}<option value="__betrag">— freier Betrag … —</option></select></label>
+        <label class="f fx1-180">Konto<select id="nbMem">${cache.members.filter(m => m.active).map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
+        <label class="f fx1-180">Artikel<select id="nbArt">${articleOptions(null)}<option value="__betrag">— freier Betrag … —</option></select></label>
         <label class="f" id="nbQtyL">Menge<input id="nbQty" class="n" value="1" inputmode="numeric" style="width:80px"></label>
         <label class="f hidden" id="nbAmtL">Betrag €<input id="nbAmt" class="n" placeholder="0,00" inputmode="decimal" style="width:90px"></label>
         <label class="f hidden" id="nbNoteL">Wofür?<input id="nbNote" placeholder="z. B. Startgeld" maxlength="60"></label>
         <label class="f">Datum<input type="date" id="nbDate" value="${today()}"></label>
         <button class="btn" id="nbSave">Nachtragen</button></div></div>
       <div class="scroll"><table class="tbl kompakt" id="buTbl"><tr><th>Zeit</th><th>Konto</th><th>Art</th><th>Artikel</th><th class="r">Menge</th><th class="r">Betrag</th><th></th></tr>
-      ${moreRows(r.rows.map(b => `<tr class="${b.cancelled_at ? 'off' : ''}"><td>${deTime(b.created_at)}</td><td>${esc(b.member_kind ? lastFirst(b.member, b.member_kind) : b.member || (b.event ? 'Barverkauf ohne Namen' : ''))}${b.event ? `<div class="muted s k-weg">${esc(b.event)}</div>` : ''}</td>
-        <td class="k-weg"><span class="pill ${BKIND[b.kind][1]}">${b.tab_id && b.kind === 'gast' ? (b.tab_status === 'bezahlt' ? 'Deckel · ' + (b.tab_method === 'karte' ? 'Karte' : 'bar') : 'Deckel · offen')
-          : b.tab_id && b.kind === 'verein' ? 'Deckel · abgeschrieben'
-          : b.kind === 'event' ? (b.event_guest_id ? (b.pay_method === 'bar' ? 'Liste · bar bezahlt' : b.pay_method === 'karte' ? 'Liste · Karte' : 'Liste · offen') : 'bar') : BKIND[b.kind][0]}</span>${b.transferred_at ? ` <span class="pill b k-weg hide-md">von ${b.tab_id ? 'Gäste-Deckel' : 'Veranstaltung'} übernommen</span>` : ''}${b.settled_id && !b.cancelled_at ? ' <span class="pill k-weg hide-md">abgerechnet</span>' : ''}</td><td>${esc(b.article)}</td><td class="r k-lbl">${b.qty}</td><td class="r">${euro(b.total_cents)}</td>
-        <td class="r">${b.cancelled_at ? `storniert (${esc(b.cancelled_by)})` : `<button class="btn small danger" data-cx="${b.id}">Storno</button>`}</td></tr>`), 7) }</table></div>${r.rows.length ? '' : '<p class="empty">Keine Buchungen im Zeitraum.</p>'}`;
+      ${moreRows(r.rows.map(bookRow), 7, r.total > r.rows.length ? { total: r.total, loaded: () => r.rows.length, load: async () => { const x = await api('bookings?' + new URLSearchParams({ ...Object.fromEntries(q), offset: r.rows.length })); r.rows.push(...x.rows); return x.rows.map(bookRow); } } : null) }</table></div>${r.rows.length ? '' : '<p class="empty">Keine Buchungen im Zeitraum.</p>'}`;
     bindRange('rng', (f, t) => RENDER.buchungen(f, t, $('bMem').value).catch(fail));
     $('bMem').onchange = () => RENDER.buchungen(r.from, r.to, $('bMem').value).catch(fail);
     $('nbArt').onchange = () => { const amt = $('nbArt').value === '__betrag'; $('nbQtyL').classList.toggle('hidden', amt); $('nbAmtL').classList.toggle('hidden', !amt); $('nbNoteL').classList.toggle('hidden', !amt); };
@@ -1822,7 +1841,7 @@
       // schon abgerechnet: sagen, wo – solange aus einem Verkaufs-Einzug nichts eingezogen ist, lieber den Lauf zurücknehmen
       let st; try { st = await api(`bookings/${row.id}/settlement`); } catch (e2) { fail(e2); return; }
       dialog(`<h2>Buchung ist schon abgerechnet</h2>
-        <p style="margin-top:0">Abgerechnet über: <b>${esc(st.where)}</b>.</p>
+        <p class="mt0">Abgerechnet über: <b>${esc(st.where)}</b>.</p>
         ${st.credit ? `<p class="muted">Stornieren bucht deshalb eine <b>Gutschrift</b> über ${euro(row.total_cents)}, die bei der nächsten Abrechnung abgezogen wird.</p>` : '<p class="muted">Der Posten dazu ist storniert – die Buchung wird normal storniert.</p>'}
         ${st.undo ? `<p class="muted">Aus diesem Verkaufs-Einzug wurde noch nichts eingezogen. Besser: <b>Lauf zurücknehmen</b> – die Buchung wird normal storniert, alle übrigen Verkaufskonten des Laufs (${st.undo.count} Posten, ${euro(st.undo.cents)}) sind wieder offen.</p>` : ''}
         <div class="btns"><button class="btn ghost" id="sxX">Abbrechen</button><button class="btn ${st.undo ? '' : 'danger'}" id="sxOk">${st.credit ? 'Gutschrift buchen' : 'Stornieren'}</button>${st.undo ? '<button class="btn primary" id="sxRun">Lauf zurücknehmen und stornieren</button>' : ''}</div>`);
@@ -1871,14 +1890,14 @@
     const isDone = x => ticks[x.id] === x.cents;          // Haken gilt nur, solange der Betrag gleich bleibt
     const stand = deTime(d.asOf);
     dialog(`<h2>Abtippliste für die Vereinsverwaltung</h2>
-      <p class="muted" style="margin-top:0">Stand ${stand} Uhr – genau die Beträge aus Liste und Excel. Nach Nachnamen sortiert, Mannschaften am Ende.
+      <p class="muted mt0">Stand ${stand} Uhr – genau die Beträge aus Liste und Excel. Nach Nachnamen sortiert, Mannschaften am Ende.
         Haken setzen, sobald ein Betrag eingetragen ist; die Haken bleiben auf diesem Gerät erhalten.</p>
       <div class="row" style="flex-wrap:nowrap;margin-bottom:6px">
-        <label class="f" style="flex:1;min-width:0">Buchungstext${mayEdit ? ' – Vorlage, Platzhalter {von} {bis} {jahr} {verein}' : ''}
+        <label class="f fx1-0">Buchungstext${mayEdit ? ' – Vorlage, Platzhalter {von} {bis} {jahr} {verein}' : ''}
           <input id="btTpl" value="${esc(d.template)}" maxlength="140" ${mayEdit ? '' : 'disabled'}></label>
       </div>
       <div class="row" style="flex-wrap:nowrap;margin-bottom:14px">
-        <label class="f" style="flex:1;min-width:0">So wird er eingetragen<input id="btOut" value="${esc(d.text)}" readonly></label>
+        <label class="f fx1-0">So wird er eingetragen<input id="btOut" value="${esc(d.text)}" readonly></label>
         <button class="btn" id="btCopy">Buchungstext kopieren</button>
       </div>
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -2010,7 +2029,7 @@
     void tot;
     $('svBody').innerHTML = `<div class="filterbar"><select id="svY" class="ds-sel" data-nodirty>${d.years.map(y => `<option value="${y}" ${y === d.year ? 'selected' : ''}>${esc(T(d.fiscal > 1 ? 'Geschäftsjahr {0}' : 'Jahr {0}', [d.labels[y]]))}</option>`).join('')}</select>
         <select id="svC" class="ds-sel" data-nodirty><option value="">Alle Kategorien</option>${d.categories.map(k => `<option value="${esc(k)}" ${k === d.cat ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select>
-        <span style="flex:1"></span><span class="muted s">${d.fiscal > 1 ? `<span>${deDate(d.from)}–${deDate(d.to)}</span> · ` : ''}${d.year === d.current ? `<span>bis heute (${deDate(d.until)})</span> · ` : ''}Vergleich mit ${esc(d.prevLabel)}</span></div>
+        <span class="fx1"></span><span class="muted s">${d.fiscal > 1 ? `<span>${deDate(d.from)}–${deDate(d.to)}</span> · ` : ''}${d.year === d.current ? `<span>bis heute (${deDate(d.until)})</span> · ` : ''}Vergleich mit ${esc(d.prevLabel)}</span></div>
       <div class="ds-kpis">
         ${DS.kpi('e', 'Umsatz', euro(c.revenue), DS.delta(c.revenue, p.revenue), DS.spark(c.month, p.month, 'var(--brand)'))}
         ${DS.kpi('u', 'Verkaufte Artikel', num(c.units), DS.delta(c.units, p.units), DS.spark(c.monthUnits, p.monthUnits, '#e07b16'), 'o')}
@@ -2039,7 +2058,7 @@
   async function amountDialog(done) {
     await loadMembers();
     dialog(`<h2>Betrag auf ein Konto buchen</h2>
-      <p class="muted" style="margin-top:0">Zum Beispiel Essen, Startgeld oder eine Kiste fürs Fest. Der Betrag steht danach auf dem Verkaufskonto und wird mit der nächsten Abrechnung bezahlt.</p>
+      <p class="muted mt0">Zum Beispiel Essen, Startgeld oder eine Kiste fürs Fest. Der Betrag steht danach auf dem Verkaufskonto und wird mit der nächsten Abrechnung bezahlt.</p>
       <label class="f">Konto<select id="amMem">${cache.members.filter(m => m.active).map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
       <div class="row"><label class="f" style="flex:1 1 140px">Betrag €<input id="amC" class="n" inputmode="decimal" placeholder="0,00"></label>
         <label class="f" style="flex:1 1 140px">Datum<input type="date" id="amD" value="${today()}"></label></div>
@@ -2073,9 +2092,9 @@
           : '<span class="muted s" style="align-self:center">Als abgerechnet markieren darf nur, wer das Recht „Abrechnung“ hat.</span>'}
         <a class="btn ${sepa ? '' : 'primary'}" href="${xls}">Excel</a>
       </div>
-      <details class="howto" style="margin-bottom:14px"><summary>So geht's</summary><p class="muted s" style="margin:8px 0 0"><b>1.</b> Excel herunterladen oder die <b>Abtippliste</b> öffnen (nach Nachnamen sortiert, mit fertigem Buchungstext, zum Abhaken oder Ausdrucken) · <b>2.</b> in der Vereinsverwaltung bei den Mitgliedern abbuchen ·
+      <details class="howto mb14"><summary>So geht's</summary><p class="muted s m-8-0-0"><b>1.</b> Excel herunterladen oder die <b>Abtippliste</b> öffnen (nach Nachnamen sortiert, mit fertigem Buchungstext, zum Abhaken oder Ausdrucken) · <b>2.</b> in der Vereinsverwaltung bei den Mitgliedern abbuchen ·
         <b>3.</b> hier einzelne oder alle Konten als <b>abgerechnet</b> markieren – ihr offener Betrag steht danach auf 0. Erfasst wird genau der Stand der Liste (${stand} Uhr); was danach am Tablet gebucht wird, bleibt für die nächste Abrechnung offen.</p></details>
-      ${r.eventOpen.length ? `<div class="banner r" style="margin-bottom:14px">Auf ${r.eventOpen.length === 1 ? 'der Liste' : 'den Listen'} ${r.eventOpen.map(e => `„${esc(e.name)}“ (${euro(e.c)})`).join(', ')} haben Mitglieder noch offene Beträge.
+      ${r.eventOpen.length ? `<div class="banner r mb14">Auf ${r.eventOpen.length === 1 ? 'der Liste' : 'den Listen'} ${r.eventOpen.map(e => `„${esc(e.name)}“ (${euro(e.c)})`).join(', ')} haben Mitglieder noch offene Beträge.
         Diese erscheinen hier erst, wenn der Kassierer sie unter „Veranstaltungen“ auf die Konten übernimmt – am besten vor dem Export.</div>` : ''}
       <div class="kpis">
         <div class="kpi"><div class="l">Offen gesamt</div><div class="v">${euro(r.total_cents)}</div></div>
@@ -2084,7 +2103,7 @@
         <div class="kpi"><div class="l">Zuletzt abgerechnet</div><div class="v">${hist.length ? deDate(hist[0].created_at.slice(0, 10)) : '–'}</div></div>
       </div>
       ${sepa ? `<div class="card" style="margin-bottom:16px"><div class="row" style="justify-content:space-between;align-items:center">
-        <div style="flex:1 1 260px;min-width:0"><h3 style="margin:0 0 4px">Per Lastschrift einziehen</h3><p class="muted s" style="margin:0">Alle Mitglieder mit Mandat in einem Schritt bis zur SEPA-Datei, getrennt von den Beiträgen. Die Konten werden dabei als abgerechnet markiert; Mannschaften und Konten ohne Mandat bleiben offen.</p></div>
+        <div style="flex:1 1 260px;min-width:0"><h3 style="margin:0 0 4px">Per Lastschrift einziehen</h3><p class="muted s m0">Alle Mitglieder mit Mandat in einem Schritt bis zur SEPA-Datei, getrennt von den Beiträgen. Die Konten werden dabei als abgerechnet markiert; Mannschaften und Konten ohne Mandat bleiben offen.</p></div>
         <button class="btn primary" id="sepaGo">Per Lastschrift einziehen …</button></div></div>` : ''}
       <div class="scroll"><table class="tbl kompakt" id="abTbl"><tr><th>Konto</th><th class="hide-md">offen seit</th>${cats.map(c => `<th class="r hide-md">${esc(c)}</th>`).join('')}<th class="r">Betrag</th>${mayClose ? '<th></th>' : ''}</tr>
         ${moreRows(r.rows.map(x => `<tr><td>${pName(x)} ${x.kind === 'mannschaft' ? '<span class="pill">Mannschaft</span>' : ''}${x.eventOpen_cents ? ` <span class="pill r" title="Noch auf einer Veranstaltungsliste offen – erst nach Übernahme auf der Getränkeliste">+ ${euro(x.eventOpen_cents)} Veranstaltung</span>` : ''}</td>
@@ -2092,17 +2111,17 @@
           ${mayClose ? `<td class="r"><button class="btn small" data-settle="${x.id}">abgerechnet</button></td>` : ''}</tr>`), cats.length + 3 + (mayClose ? 1 : 0))
           || ''}
         ${r.rows.length ? `<tr class="sum"><td>Summe</td><td class="hide-md"></td>${cats.map(c => `<td class="r k-weg hide-md">${r.rows.reduce((a, x) => a + (x.byCategory[c] || 0), 0)}</td>`).join('')}<td class="r">${euro(r.total_cents)}</td>${mayClose ? '<td></td>' : ''}</tr>` : ''}</table></div>${r.rows.length ? '' : '<p class="empty">Keine offenen Beträge – alles abgerechnet.</p>'}
-      ${(r.mvOpen || []).length ? `<div class="card" style="margin-top:16px"><h3>Offene Verkaufs-Posten in der Mitgliederverwaltung <span class="muted s">${r.mvOpen.length} · ${euro(r.mvOpen.reduce((a, c) => a + c.cents, 0))}</span></h3>
-        <p class="muted s" style="margin-top:0">Schon abgerechnet oder von Hand angelegt, aber noch nicht bezahlt – sie kommen mit dem nächsten Einzug per Lastschrift mit.</p>
+      ${(r.mvOpen || []).length ? `<div class="card mt16"><h3>Offene Verkaufs-Posten in der Mitgliederverwaltung <span class="muted s">${r.mvOpen.length} · ${euro(r.mvOpen.reduce((a, c) => a + c.cents, 0))}</span></h3>
+        <p class="muted s mt0">Schon abgerechnet oder von Hand angelegt, aber noch nicht bezahlt – sie kommen mit dem nächsten Einzug per Lastschrift mit.</p>
         <div class="scroll"><table class="tbl"><tr><th>Zahler</th><th>Posten</th><th>fällig</th><th class="r">Betrag</th></tr>
           ${r.mvOpen.map(c => `<tr><td>${esc(lastFirst(c.payer, c.payer_kind))}</td><td translate="no">${esc(c.text)}</td><td class="nw">${deDate(c.due_date)}</td><td class="r">${euro(c.cents)}</td></tr>`).join('')}</table></div></div>` : ''}
-      ${mayClose ? `<div class="card" style="margin-top:16px"><h3>Bisherige Abrechnungen</h3>
+      ${mayClose ? `<div class="card mt16"><h3>Bisherige Abrechnungen</h3>
         ${hist.length ? `<table class="tbl kompakt"><tr><th>markiert am</th><th>Konten</th><th class="r">Betrag</th><th>von</th><th></th></tr>
           ${hist.map(h => `<tr><td>${deTime(h.created_at)}</td><td>${h.names ? esc(h.names) : esc(T(h.batch.startsWith('alle-') ? 'alle {0} Konten' : '{0} Konten', [h.members]))}</td>
             <td class="r">${euro(h.cents)}</td><td class="k-weg">${esc(h.by_user || '')}</td>
             <td class="r">${h.undo ? `<button class="btn small" data-undo="${esc(h.batch)}">Rückgängig</button>` : ''}</td></tr>`).join('')}</table>`
           : '<p class="empty">Noch keine Abrechnungen.</p>'}</div>` : ''}
-      <div class="card" style="margin-top:16px"><h3>Auswertung für einen Zeitraum</h3>
+      <div class="card mt16"><h3>Auswertung für einen Zeitraum</h3>
         <p class="muted">Gilt für die Kennzahlen hier und die Blätter „Buchungen“, „Abgleich“ und „Veranstaltungen“ in der Excel-Datei.</p>
         ${rangeBar(r.from, r.to)}
         <div class="kpis">
@@ -2156,14 +2175,14 @@
         <div class="kpi"><div class="l">Heute bar bezahlt</div><div class="v">${euro(r.today.bar ? r.today.bar.c : 0)}</div></div>
         <div class="kpi"><div class="l">Heute mit Karte</div><div class="v">${euro(r.today.karte ? r.today.karte.c : 0)}</div></div>
       </div>
-      ${old ? `<div class="banner r" style="margin-bottom:14px">${old === 1 ? 'Ein Deckel ist' : old + ' Deckel sind'} seit mehr als einem Tag offen – vermutlich vergessen zu bezahlen.</div>` : ''}
+      ${old ? `<div class="banner r mb14">${old === 1 ? 'Ein Deckel ist' : old + ' Deckel sind'} seit mehr als einem Tag offen – vermutlich vergessen zu bezahlen.</div>` : ''}
       <div class="card"><h3>Offen</h3>
         ${r.open.length ? `<table class="tbl kompakt"><tr><th>Deckel</th><th>Angeschrieben</th><th>geöffnet</th><th class="r">offen</th><th></th></tr>
         ${r.open.map(t => `<tr><td><b>${esc(t.name)}</b>${age(t) >= 1 ? ` <span class="pill r">seit ${age(t)} ${age(t) === 1 ? 'Tag' : 'Tagen'}</span>` : ''}</td>
           <td class="k-weg muted s">${items(t) || 'noch nichts angeschrieben'}</td><td>${deTime(t.created_at)}</td><td class="r"><b>${euro(t.open_cents)}</b></td>
           <td class="r">${mayPay || mayClose ? `<button class="btn small" data-tx="${t.id}">Abrechnen …</button>` : ''}</td></tr>`).join('')}</table>`
           : '<p class="empty">Keine offenen Deckel.</p>'}</div>
-      <div class="card" style="margin-top:16px"><h3>Geschlossen (letzte ${r.days} Tage)</h3>
+      <div class="card mt16"><h3>Geschlossen (letzte ${r.days} Tage)</h3>
         ${r.closed.length ? `<table class="tbl kompakt"><tr><th>Deckel</th><th>Angeschrieben</th><th>geschlossen</th><th>Status</th><th class="r">Betrag</th><th>von</th><th></th></tr>
         ${r.closed.map(t => `<tr><td><b>${esc(t.name)}</b></td><td class="k-weg muted s">${items(t)}</td><td>${deTime(t.closed_at)}</td><td>${ST[t.status](t)}</td>
           <td class="r">${euro(t.status === 'abgeschrieben' ? t.sum_cents : t.cents)}</td><td class="k-weg">${esc(t.closed_by || '')}</td>
@@ -2237,12 +2256,12 @@
         <td><span class="gname">${esc(g.member_kind ? lastFirst(g.name, g.member_kind) : g.name)}</span> ${g.member_id ? '<span class="pill k-weg">Mitglied</span>' : '<span class="pill a">Gast – kein Konto</span>'}
           ${g.member_id && g.member_name && g.member_name !== g.name ? `<div class="muted s k-weg">→ ${esc(lastFirst(g.member_name, g.member_kind))}</div>` : ''}</td>
         <td class="r">${g.qty}</td><td class="r">${euro(g.total_cents)}</td><td>${STATUS(g)}</td>
-        <td class="r" style="white-space:nowrap">${btns.join(' ')}</td></tr>`;
+        <td class="r ws-nw">${btns.join(' ')}</td></tr>`;
     };
     $('main').innerHTML = `<h2 class="page">Veranstaltungen</h2>
       <p class="lead">Jede Veranstaltung hat eigene Preise und eine Abrechnungsliste: Am Tablet tragen sich die Leute ein, bezahlt wird hier abgehakt.</p>
       ${showEv ? `${canEv ? `<div class="card"><h3>Neue Veranstaltung</h3><div class="row">
-        <label class="f" style="flex:1;min-width:220px">Name<input id="evName" placeholder="z. B. Löffelcup 2027"></label>
+        <label class="f fx1-220">Name<input id="evName" placeholder="z. B. Löffelcup 2027"></label>
         <label class="f">Datum<input type="date" id="evDate" value="${today()}"></label>
         <label class="f">Artikel & Preise übernehmen von<select id="evCopy"><option value="">alle Artikel zum Normalpreis</option>${list.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>
         <button class="btn primary" id="evAdd">Anlegen</button></div></div>` : ''}
@@ -2254,12 +2273,12 @@
         const open = e.guests.filter(g => g.open_cents);
         const memberOpen = open.filter(g => g.member_id);
         return `<div class="card" data-evcard="${e.id}"><div class="row" style="justify-content:space-between">
-          <h3 style="margin:0">${esc(e.name)} · ${deDate(e.date)} ${st}</h3>
+          <h3 class="m0">${esc(e.name)} · ${deDate(e.date)} ${st}</h3>
           ${canEv ? `<div class="row">${e.closed_at ? '' : `<button class="btn small" data-drinks="${e.id}">Artikel & Preise (${e.articles.length})</button>
             ${e.active ? `<button class="btn small" data-off="${e.id}">Deaktivieren</button>` : `<button class="btn small primary" data-on="${e.id}">Aktivieren</button>`}`}
             <button class="btn small" data-close="${e.id}">${e.closed_at ? 'Kasse neu zählen' : 'Kasse zählen & abschließen'}</button>
             ${e.active ? '' : `<button class="btn small danger abgesetzt" data-evdel="${e.id}">Löschen</button>`}</div>` : ''}</div>
-        <div class="kpis" style="margin-top:12px">
+        <div class="kpis mt12">
           <div class="kpi"><div class="l">Umsatz</div><div class="v">${euro(e.total_cents)}</div></div>
           <div class="kpi"><div class="l">Bar (gehört in die Kasse)</div><div class="v">${euro(e.bar_cents)}</div>${e.sale_cents ? `<div class="muted s">davon ${euro(e.sale_cents)} ohne Namen</div>` : ''}
             ${e.cash_cents != null ? `<div class="s ${e.cash_cents - e.bar_cents < 0 ? 'neg' : 'muted'}">gezählt ${euro(e.cash_cents)} · Differenz ${euro(e.cash_cents - e.bar_cents)}</div>` : ''}</div>
@@ -2271,7 +2290,7 @@
           <span>${memberOpen.length ? `Kassierer: ${memberOpen.length} ${memberOpen.length === 1 ? 'Mitglied hat' : 'Mitglieder haben'} ${euro(e.open_member_cents)} nicht direkt bezahlt.` : 'Kassierer: Alle Mitglieder sind erledigt.'}${e.open_manual.length ? ` <br><span style="font-weight:400">Nicht übernehmbar (Gast ohne Konto – erst „Mitglied zuordnen“ oder bar kassieren): ${e.open_manual.map(x => esc(x.name) + ' ' + euro(x.open_cents)).join(', ')}</span>` : ''}</span>
           ${memberOpen.length ? `<button class="btn primary" data-transfer="${e.id}">Übernehmen auf Konten (${euro(e.open_member_cents)})</button>` : ''}</div>` : ''}
         <div class="row" style="justify-content:space-between;margin:14px 0 8px">
-          <h3 style="margin:0">Abrechnungsliste <span class="muted s">${e.guests.length} Namen</span></h3>
+          <h3 class="m0">Abrechnungsliste <span class="muted s">${e.guests.length} Namen</span></h3>
           <div class="row">
             <div class="seg">${['alle', 'offen', 'bezahlt'].map(k => `<button type="button" class="${f === k ? 'on' : ''}" aria-pressed="${f === k}" data-filt="${k}" data-ev="${e.id}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
             ${canEv && !e.closed_at ? `<input id="gAdd${e.id}" list="peopleList" placeholder="Name oder Mitglied …" style="min-height:36px;padding:4px 10px;border:1px solid var(--line);border-radius:10px;min-width:220px">
@@ -2279,12 +2298,12 @@
           </div></div>
         <div class="scroll evscroll"><table class="tbl kompakt evlist" data-f="${f}"><tr><th>Name</th><th class="r">Stück</th><th class="r">Betrag</th><th>Status</th><th></th></tr>
           ${e.guests.map(g => guestRow(e, g)).join('') || '<tr><td colspan="5" class="muted">Noch niemand auf der Liste – Namen hier hinzufügen oder am Tablet eintragen lassen.</td></tr>'}</table></div>
-        ${e.payments.length ? `<details style="margin-top:10px"><summary>Zahlungen (${e.payments.length})</summary>
-          <table class="tbl" style="margin-top:6px"><tr><th>Zeit</th><th>Name</th><th>Art</th><th class="r">Betrag</th><th>abgehakt von</th><th></th></tr>
+        ${e.payments.length ? `<details class="mt10"><summary>Zahlungen (${e.payments.length})</summary>
+          <table class="tbl mt6"><tr><th>Zeit</th><th>Name</th><th>Art</th><th class="r">Betrag</th><th>abgehakt von</th><th></th></tr>
           ${e.payments.map(p => `<tr><td>${deTime(p.at)}</td><td>${esc(p.member_kind ? lastFirst(p.name, p.member_kind) : p.name)}</td><td>${p.method === 'bar' ? 'bar' : 'Karte'}</td><td class="r">${euro(p.cents)}</td><td>${esc(p.by_user || '')}</td>
             <td class="r">${canEv ? `<button class="btn small ghost" data-unpay="${p.id}" data-ev="${e.id}">Rückgängig</button>` : ''}</td></tr>`).join('')}</table></details>` : ''}
-        <details style="margin-top:10px"><summary>Verkaufte Artikel (${e.items.reduce((t, i) => t + i.qty, 0)} Stück)</summary>
-          <table class="tbl" style="margin-top:6px"><tr><th>Artikel</th><th class="r">Menge</th><th class="r">Umsatz</th><th class="r">Verein frei</th></tr>
+        <details class="mt10"><summary>Verkaufte Artikel (${e.items.reduce((t, i) => t + i.qty, 0)} Stück)</summary>
+          <table class="tbl mt6"><tr><th>Artikel</th><th class="r">Menge</th><th class="r">Umsatz</th><th class="r">Verein frei</th></tr>
           ${e.items.map(i => `<tr><td>${esc(i.name)}</td><td class="r">${i.qty}</td><td class="r">${euro(i.total_cents)}</td><td class="r">${i.free_qty || ''}</td></tr>`).join('') || '<tr><td class="muted" colspan="4">Noch nichts gebucht.</td></tr>'}</table></details>
         </div>`;
       }).join('')}` : ''}
@@ -2321,7 +2340,7 @@
         dialog(`<h2>„${esc(g.name)}“ einem Mitglied zuordnen</h2>
           <p class="muted">Danach kann der offene Betrag auf dessen Konto übernommen werden.</p>
           <label class="f">Mitglied<input id="lnk" list="peopleList" placeholder="Name eingeben …" autocomplete="off"></label>
-          <div class="err" id="lnkErr" style="text-align:left"></div>
+          <div class="err ta-l" id="lnkErr"></div>
           <div class="btns"><button class="btn ghost" id="lc">Abbrechen</button><button class="btn primary" id="lo">Zuordnen</button></div>`);
         setTimeout(() => $('lnk')?.focus(), 30);
         $('lc').onclick = () => { closeDialog(); res(null); };
@@ -2433,17 +2452,17 @@
           <label class="f w1">Mindestbestand<input name="min_stock" value="${x.min_stock}" inputmode="numeric"></label>
           <label class="f w1">Bestellen bis<input name="target_stock" value="${x.target_stock || ''}" placeholder="2× Mindest" inputmode="numeric"></label></div>
         <p class="muted s" style="margin:6px 0 0">Mindestbestand und „Bestellen bis“ in Einzelartikeln (Flaschen, Tüten, Dosen …).</p>
-        <div class="row" style="margin-top:12px"><label class="chk"><input type="checkbox" name="track_stock" ${x.track_stock ? 'checked' : ''}> Bestand führen</label>
+        <div class="row mt12"><label class="chk"><input type="checkbox" name="track_stock" ${x.track_stock ? 'checked' : ''}> Bestand führen</label>
           <label class="chk"><input type="checkbox" name="active" ${x.active ? 'checked' : ''}> Auf dem Tablet anzeigen</label></div>
         <div class="artlook"><div id="aPrevT"></div><div style="min-width:0">
           <div class="seg" id="aMode">${[['icon', 'Symbol'], ['image', 'Eigenes Bild'], ['none', 'Ohne']].map(([k, l]) => `<button type="button" data-m="${k}">${l}</button>`).join('')}</div>
           <div id="aModeIcon"><div class="icgrid">${(window.ArtIcons ? ArtIcons.groups : []).map(([g, gl]) => `<div class="gl">${esc(gl)}</div>${ArtIcons.list.filter(i => i.group === g).map(i => `<button type="button" data-ic="${i.key}" title="${esc(i.label)}" aria-label="${esc(i.label)}" style="${ArtIcons.style(i.key)}">${ArtIcons.svg(i.key, 22)}</button>`).join('')}`).join('')}</div></div>
           <div id="aModeImage"><div class="imgpick"><label class="btn"><input type="file" id="aImg" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" hidden>Bild wählen …</label><span class="muted s" id="aImgName"></span></div>
-            <p class="muted s" style="margin:8px 0 0">PNG, JPG, WebP oder SVG, höchstens 2 MB. Wird automatisch quadratisch auf 384 × 384 Pixel verkleinert. Am besten ein Logo oder Foto auf hellem oder transparentem Hintergrund.</p></div>
-          <div id="aModeNone"><p class="muted s" style="margin:0">Am Tablet steht dann ein Kürzel aus dem Namen in der Kachel.</p></div>
+            <p class="muted s m-8-0-0">PNG, JPG, WebP oder SVG, höchstens 2 MB. Wird automatisch quadratisch auf 384 × 384 Pixel verkleinert. Am besten ein Logo oder Foto auf hellem oder transparentem Hintergrund.</p></div>
+          <div id="aModeNone"><p class="muted s m0">Am Tablet steht dann ein Kürzel aus dem Namen in der Kachel.</p></div>
         </div></div>
-        <div class="err" id="aErr" style="text-align:left"></div>
-        <div class="btns">${a && !nested ? '<button class="btn danger" data-a="delete" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" data-a="cancel">Abbrechen</button><button class="btn primary" data-a="save">Speichern</button></div>`;
+        <div class="err ta-l" id="aErr"></div>
+        <div class="btns">${a && !nested ? '<button class="btn danger mr-auto" data-a="delete">Löschen</button>' : ''}<button class="btn ghost" data-a="cancel">Abbrechen</button><button class="btn primary" data-a="save">Speichern</button></div>`;
       if (nested) box.innerHTML = html; else dialog(html);
       const done = v => { if (nested) holder.remove(); else closeDialog(); resolve(v); };
       // Darstellung am Tablet: Symbol / eigenes Bild / ohne
@@ -2515,7 +2534,7 @@
           Weicht ein vorhandener Artikel ab, entscheidest du je Artikel, welche Fassung gilt.</p>
         <label class="f">Datei<input type="file" id="aFile" accept=".xlsx"></label>
         <div id="aPrev"></div>
-        <label class="chk hidden" id="aHideL" style="margin-top:10px"><input type="checkbox" id="aHide"> <span id="aHideT"></span></label>
+        <label class="chk hidden mt10" id="aHideL"><input type="checkbox" id="aHide"> <span id="aHideT"></span></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok" disabled>Übernehmen</button></div>`, true);
       $('c').onclick = closeDialog;
       let last = null; const choice = new Map();   // Artikel-ID → 'datei' | 'bestand'
@@ -2541,7 +2560,7 @@
                 <tr><td class="muted">Bestand</td>${r.diff.map(k => `<td>${fmt(k, r.current[k])}</td>`).join('')}</tr>
                 <tr><td class="muted">Datei</td>${r.diff.map(k => `<td><b>${fmt(k, r[k])}</b></td>`).join('')}</tr></table>
               <div class="seg" role="radiogroup" aria-label="Fassung für ${esc(r.current.name)}"><button type="button" data-pick="${r.id}" data-v="bestand" class="${choice.get(r.id) === 'bestand' ? 'on' : ''}">Bestand behalten</button><button type="button" data-pick="${r.id}" data-v="datei" class="${choice.get(r.id) === 'datei' ? 'on' : ''}">Aus Datei übernehmen</button></div></div>`).join('')}</div>` : ''}
-          <details style="margin-top:10px"><summary class="muted">Alle Zeilen der Datei anzeigen</summary>
+          <details class="mt10"><summary class="muted">Alle Zeilen der Datei anzeigen</summary>
           <div class="scroll" style="max-height:240px"><table class="tbl"><tr><th class="r">Zeile</th><th>Artikel</th><th>Kategorie</th><th class="r">Preis</th><th>Status</th></tr>
             ${d.rows.map(r => `<tr class="${r.status === 'neu' || r.status === 'ändern' ? '' : 'off'}"><td class="r">${r.line}</td><td>${esc(r.name)}${r.id ? ` <span class="muted s">ID ${r.id}</span>` : ''}</td><td>${esc(r.category)}</td><td class="r">${Number.isFinite(r.price_cents) ? euro(r.price_cents) : '–'}</td>
               <td>${r.status === 'neu' ? '<span class="pill g">neu</span>' : r.status === 'ändern' ? '<span class="pill b">abweichend</span>' : esc(r.status)}</td></tr>`).join('')}</table></div></details>`;
@@ -2580,8 +2599,8 @@
       ${mayCat ? '<div class="card" id="vkCat"></div>' : ''}
       ${mayMap ? '<div class="card" id="vkMap"></div>' : ''}
       ${mayTop ? `<div class="card" id="vkTop"><h3>Gerade oft hier am Tablet</h3>
-        <div class="row"><label class="f" style="flex:1;min-width:200px">Wie viele Namen (0 = ausblenden)<input id="topN" class="n" value="${st.topN}" inputmode="numeric"></label>
-          <label class="f" style="flex:1;min-width:200px">Zeitraum (Tage)<input id="topDays" class="n" value="${st.topDays}" inputmode="numeric"></label></div>
+        <div class="row"><label class="f fx1-200">Wie viele Namen (0 = ausblenden)<input id="topN" class="n" value="${st.topN}" inputmode="numeric"></label>
+          <label class="f fx1-200">Zeitraum (Tage)<input id="topDays" class="n" value="${st.topDays}" inputmode="numeric"></label></div>
         <p class="muted s">Oben auf der Startseite stehen die Mitglieder mit den meisten Buchungen im Zeitraum – alphabetisch, damit niemand eine Rangliste sieht. Tablets übernehmen die Änderung innerhalb einer Minute.</p>
         <div class="btns"><button class="btn primary" id="saveTop">Speichern</button></div></div>` : ''}
       ${mayTop ? '<div id="vkFunc"></div>' : ''}`;
@@ -2589,12 +2608,12 @@
       const el = $('vkCat'); let list = cats.map(c => ({ name: c.category, n: c.n, act: c.act }));
       const draw = () => {
         el.innerHTML = `<h3>Reihenfolge der Kategorien</h3>
-          <p class="muted s" style="margin-top:0">So erscheinen die Kategorien am Tablet (von oben links nach unten rechts) und in Bestand, Abrechnung und Exporten. Die Artikel innerhalb einer Kategorie stehen alphabetisch.</p>
+          <p class="muted s mt0">So erscheinen die Kategorien am Tablet (von oben links nach unten rechts) und in Bestand, Abrechnung und Exporten. Die Artikel innerhalb einer Kategorie stehen alphabetisch.</p>
           ${list.length ? `<table class="tbl kompakt" id="coTbl">${list.map((c, i) => `<tr><td>${i + 1}. <b>${esc(c.name)}</b> <span class="muted s">${c.n} Artikel${c.act < c.n ? `, ${c.n - c.act} ausgeblendet` : ''}</span></td>
-            <td class="r" style="white-space:nowrap"><button class="btn small" data-up="${i}" ${i ? '' : 'disabled'} aria-label="nach oben" style="width:46px;justify-content:center">▲</button>
+            <td class="r ws-nw"><button class="btn small" data-up="${i}" ${i ? '' : 'disabled'} aria-label="nach oben" style="width:46px;justify-content:center">▲</button>
               <button class="btn small" data-dn="${i}" ${i < list.length - 1 ? '' : 'disabled'} aria-label="nach unten" style="width:46px;justify-content:center">▼</button></td></tr>`).join('')}</table>`
             : '<p class="empty">Noch keine Artikel – die Kategorien entstehen mit dem ersten Artikel.</p>'}
-          <div class="btns"><button class="btn ghost" id="coAlpha" style="margin-right:auto">Alphabetisch</button><button class="btn primary" id="coSave" ${list.length ? '' : 'disabled'}>Speichern</button></div>`;
+          <div class="btns"><button class="btn ghost mr-auto" id="coAlpha">Alphabetisch</button><button class="btn primary" id="coSave" ${list.length ? '' : 'disabled'}>Speichern</button></div>`;
         el.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { const i = +b.dataset.up; [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); });
         el.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => { const i = +b.dataset.dn; [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); });
         $('coAlpha').onclick = () => { list.sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' })); draw(); };
@@ -2606,7 +2625,7 @@
     }
     if (mayMap) {
       $('vkMap').innerHTML = `<h3>Gemerkte Zuordnungen von Lieferanten-Artikeln</h3>
-        <p class="muted s" style="margin-top:0">Clubwerk merkt sich, welcher Artikel auf dem Beleg zu welchem Artikel in der App gehört. „Vergessen“ löscht nur die Zuordnung.</p>
+        <p class="muted s mt0">Clubwerk merkt sich, welcher Artikel auf dem Beleg zu welchem Artikel in der App gehört. „Vergessen“ löscht nur die Zuordnung.</p>
         ${map.length ? `<div class="scroll"><table class="tbl kompakt"><tr><th>Lieferant</th><th>Art.-Nr.</th><th>Text auf dem Beleg</th><th>Artikel in der App</th><th class="r">Gebinde</th><th></th></tr>
           ${map.map(m => `<tr><td>${esc(m.supplier)}</td><td>${/^lidl:/.test(m.art_no) ? '' : esc(m.art_no)}</td><td class="k-weg">${esc(m.text || '')}</td><td>${m.article_id ? esc(m.article) : '<span class="muted">ignoriert</span>'}</td><td class="r k-lbl">${m.pack_size}</td>
             <td class="r"><button class="btn small ghost" data-sup="${esc(m.supplier)}" data-no="${esc(m.art_no)}">Vergessen</button></td></tr>`).join('')}</table></div>` : '<p class="empty">Noch keine – entsteht automatisch beim ersten Rechnungs-Upload unter Lager › Lieferungen.</p>'}`;
@@ -2643,7 +2662,7 @@
             <button class="btn small" data-merge="${m.id}">Ist schon Mitglied …</button>
             ${m.bookings ? '' : `<button class="btn small danger" data-rm="${m.id}">Löschen</button>`}</td></tr>`).join('')}</table></div>` : ''}
       ${absent.length ? `<div class="card warnbox">
-        <div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Diese Saison nicht da (${absent.length})</h3>
+        <div class="row" style="justify-content:space-between;align-items:center"><h3 class="m0">Diese Saison nicht da (${absent.length})</h3>
           <button class="btn" id="abShow">${cache.showAbsent ? 'Liste zuklappen' : 'Liste anzeigen'}</button></div>
         ${cache.showAbsent ? `<p class="muted" style="margin:10px 0">Seit Saisonbeginn (${deDate(cache.seasonStart)}) nichts gebucht und auf keiner Veranstaltungsliste. „Entfernen“ löscht Mitglieder ohne jede Buchung; wer früher schon gebucht hat, wird nur ausgeblendet (die alten Abrechnungen bleiben erhalten, „Bearbeiten“ holt ihn zurück).</p>
           <table class="tbl kompakt"><tr><th>Name</th><th>zuletzt da</th><th>angelegt</th><th class="r">offen</th><th></th></tr>
@@ -2729,10 +2748,10 @@
       removeAbsent([m.id], m.bookings ? `${m.name} ausblenden? Die bisherigen Buchungen bleiben erhalten.` : `${m.name} löschen?`); });
     $('mNew').onclick = () => {
       dialog(`<h2>${mvOn ? 'Neues Konto' : 'Neues Mitglied oder Konto'}</h2>
-        ${mvOn ? '<p class="muted" style="margin-top:0">Mitglieder legst du in der Mitgliederverwaltung an (mit Beitrag und Zahlungsdaten). Hier entstehen Konten für den Verkauf, zum Beispiel „Kein Mitglied“ für Trainer: Sie buchen am Tablet mit PIN und zahlen unter Abrechnung bar oder mit Karte.</p>' : ''}
-        <div class="row"><label class="f" style="flex:1;min-width:220px">Name<input id="mName" placeholder="Vorname Nachname" autocomplete="off"></label>
+        ${mvOn ? '<p class="muted mt0">Mitglieder legst du in der Mitgliederverwaltung an (mit Beitrag und Zahlungsdaten). Hier entstehen Konten für den Verkauf, zum Beispiel „Kein Mitglied“ für Trainer: Sie buchen am Tablet mit PIN und zahlen unter Abrechnung bar oder mit Karte.</p>' : ''}
+        <div class="row"><label class="f fx1-220">Name<input id="mName" placeholder="Vorname Nachname" autocomplete="off"></label>
         <label class="f">Typ<select id="mKind">${Object.entries(KIND).filter(([k]) => !(mvOn && k === 'mitglied')).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label></div>
-        <label class="f hidden" id="mPinL" style="margin-top:12px">PIN der Mannschaft (Pflicht)<input id="mPin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
+        <label class="f hidden mt12" id="mPinL">PIN der Mannschaft (Pflicht)<input id="mPin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="mAdd">Anlegen</button></div>`);
       $('c').onclick = closeDialog; setTimeout(() => $('mName')?.focus(), 50);
       $('mKind').onchange = () => $('mPinL').classList.toggle('hidden', $('mKind').value !== 'mannschaft');
@@ -2801,7 +2820,7 @@
           dialog(`<h2>„${esc(lastFirst(m.name, m.kind))}“ zusammenführen</h2>
             <p class="muted">Die ${m.bookings} ${m.bookings === 1 ? 'Buchung' : 'Buchungen'} werden auf das gewählte Konto verschoben, der doppelte Eintrag wird gelöscht.</p>
             <label class="f">Richtiges Konto<input id="mgSearch" placeholder="Name suchen"></label>
-            <label class="f" style="margin-top:8px"><select id="mgInto" size="8" style="min-height:200px"></select></label>
+            <label class="f mt8"><select id="mgInto" size="8" style="min-height:200px"></select></label>
             <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok2">Zusammenführen</button></div>`);
           const fill = () => {
             const q = $('mgSearch').value.trim().toLowerCase();
@@ -2822,13 +2841,13 @@
         if (ed) {
           const m = cache.members.find(x => x.id === Number(ed.dataset.ed));
           const special = m.kind === 'verein' || m.kind === 'gast';
-          dialog(`<h2>Konto bearbeiten</h2><div class="row"><label class="f" style="flex:1">Name<input id="eName" value="${esc(m.name)}"></label>
+          dialog(`<h2>Konto bearbeiten</h2><div class="row"><label class="f fx1">Name<input id="eName" value="${esc(m.name)}"></label>
             <label class="f">Typ<select id="eKind">${Object.entries(KIND).filter(([k]) => !(mvOn && k === 'mitglied' && m.kind !== 'mitglied')).map(([k, l]) => `<option value="${k}" ${k === m.kind ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
-            <div class="${m.kind === 'mannschaft' ? '' : 'hidden'}" id="ePinRow" style="margin-top:12px"><label class="f">PIN der Mannschaft ${m.hasPin ? '(leer = unverändert)' : '(Pflicht)'}<input id="ePin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
+            <div class="${m.kind === 'mannschaft' ? '' : 'hidden'} mt12" id="ePinRow"><label class="f">PIN der Mannschaft ${m.hasPin ? '(leer = unverändert)' : '(Pflicht)'}<input id="ePin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
               <p class="muted s" style="margin:6px 0 0">Mannschaftskonten buchen nur mit dieser PIN. Sie wird hier vom Vorstand vergeben und kann am Tablet nicht geändert werden.</p></div>
-            <label class="chk" style="margin-top:12px"><input type="checkbox" id="eAct" ${m.active ? 'checked' : ''}> Auf dem Tablet anzeigen</label>
+            <label class="chk mt12"><input type="checkbox" id="eAct" ${m.active ? 'checked' : ''}> Auf dem Tablet anzeigen</label>
             ${isPerson(m.kind) && !m.pending && (cache.appModules || []).length ? '<div class="card soft" id="eApp" style="margin:14px 0 0"><p class="muted">Lade …</p></div>' : ''}
-            <div class="btns">${special ? '' : '<button class="btn danger" id="eDel" style="margin-right:auto">Löschen</button>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok3">Speichern</button></div>`);
+            <div class="btns">${special ? '' : '<button class="btn danger mr-auto" id="eDel">Löschen</button>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok3">Speichern</button></div>`);
           $('c').onclick = closeDialog;
           $('eKind').onchange = () => $('ePinRow').classList.toggle('hidden', $('eKind').value !== 'mannschaft');
           if ($('eApp')) appBox($('eApp'), m.id).catch(fail);
@@ -2973,13 +2992,13 @@
     const draw = () => {
       const L = list(), n = L.filter(x => sel.has(x.id)).length, nm = L.filter(x => sel.has(x.id) && mail.has(x.id)).length, ns = L.filter(x => sel.has(x.id) && shared[x.id]).length;
       dialog(`<h2>Einladungen verschicken</h2>
-        <p class="muted" style="margin-top:0">Jedes ausgewählte Mitglied bekommt einen persönlichen Link (gilt ${r.security.inviteMailDays} Tage, einmal). Mitglieder mit bereits freigeschaltetem Handy werden übersprungen.${r.security.sms && r.security.sms.ready ? ' Von unterwegs wird mit einem Code per SMS bestätigt.' : ' Türen und Beregnung schalten sich bei Kopplung von unterwegs erst im Vereins-WLAN frei.'}</p>
+        <p class="muted mt0">Jedes ausgewählte Mitglied bekommt einen persönlichen Link (gilt ${r.security.inviteMailDays} Tage, einmal). Mitglieder mit bereits freigeschaltetem Handy werden übersprungen.${r.security.sms && r.security.sms.ready ? ' Von unterwegs wird mit einem Code per SMS bestätigt.' : ' Türen und Beregnung schalten sich bei Kopplung von unterwegs erst im Vereins-WLAN frei.'}</p>
         <div class="row" style="align-items:center;gap:8px 18px;margin-bottom:8px"><label class="chk"><input type="checkbox" id="ivAll" ${n && n === L.filter(x => !(x.dev && x.dev.status === 'gekoppelt')).length ? 'checked' : ''}> alle ohne Handy</label>
           ${r.members.length ? `<label class="chk"><input type="checkbox" id="ivNew" ${showNew ? 'checked' : ''}> Auch Mitglieder, die noch nicht in der App sind (${r.members.length})</label>` : ''}</div>
         <div class="invlist">${L.map(x => { const paired = x.dev && x.dev.status === 'gekoppelt'; return `<label><input type="checkbox" data-iv="${x.id}" ${sel.has(x.id) ? 'checked' : ''} ${paired ? 'disabled' : ''}><b>${pName(x)}</b>
           <span>${paired ? '<span class="pill g">Handy freigeschaltet</span>' : x.inApp ? devPill(x.dev) : '<span class="pill">neu in der App</span>'}</span><span class="muted s"${shared[x.id] ? ` title="${esc(T('E-Mail-Adresse gehört zu {0} – bitte per QR-Code freischalten.', [lastFirst(shared[x.id].name)]))}"` : ''}>${mail.has(x.id) ? 'E-Mail ✓' : shared[x.id] ? esc(sharedTxt(shared[x.id])) : 'keine E-Mail'}</span></label>`; }).join('') || '<p class="empty">Niemand.</p>'}</div>
-        ${!r.security.mailReady ? '<p class="muted s" style="margin:10px 0 0">Für E-Mails erst ein Postfach einrichten (Einstellungen → Postfach).</p>' : n > nm ? `<p class="muted s" style="margin:10px 0 0">${n - nm - ns ? esc(T('{0} ohne E-Mail-Adresse – für sie Briefe drucken.', [n - nm - ns])) + ' ' : ''}${ns ? esc(T('{0} mit geteilter E-Mail-Adresse – nur per QR-Code (Bildschirm oder Brief).', [ns])) : ''}</p>` : ''}
-        <div class="ivguide" style="margin-top:12px"><label class="chk"><input type="checkbox" id="ivGuideMail" data-nodirty ${guideMail ? 'checked' : ''}> ${esc(T('E-Mail: Anleitung als PDF anhängen'))}</label><label class="chk"><input type="checkbox" id="ivGuideBrief" data-nodirty ${guideBrief ? 'checked' : ''}> ${esc(T('Brief: Anleitung mitdrucken'))}</label></div>
+        ${!r.security.mailReady ? '<p class="muted s m-10-0-0">Für E-Mails erst ein Postfach einrichten (Einstellungen → Postfach).</p>' : n > nm ? `<p class="muted s m-10-0-0">${n - nm - ns ? esc(T('{0} ohne E-Mail-Adresse – für sie Briefe drucken.', [n - nm - ns])) + ' ' : ''}${ns ? esc(T('{0} mit geteilter E-Mail-Adresse – nur per QR-Code (Bildschirm oder Brief).', [ns])) : ''}</p>` : ''}
+        <div class="ivguide mt12"><label class="chk"><input type="checkbox" id="ivGuideMail" data-nodirty ${guideMail ? 'checked' : ''}> ${esc(T('E-Mail: Anleitung als PDF anhängen'))}</label><label class="chk"><input type="checkbox" id="ivGuideBrief" data-nodirty ${guideBrief ? 'checked' : ''}> ${esc(T('Brief: Anleitung mitdrucken'))}</label></div>
         <div class="btns"><button class="btn" id="ivX">Abbrechen</button><button class="btn" id="ivBrief" ${n ? '' : 'disabled'}>${n} ${n === 1 ? 'Brief' : 'Briefe'} drucken</button><button class="btn primary" id="ivMail" ${nm && r.security.mailReady ? '' : 'disabled'}>${nm} ${nm === 1 ? 'E-Mail' : 'E-Mails'} schicken</button></div>`, true);
       $('ivX').onclick = closeDialog;
       $('ivGuideMail').onchange = () => { guideMail = $('ivGuideMail').checked; }; $('ivGuideBrief').onchange = () => { guideBrief = $('ivGuideBrief').checked; };
@@ -3022,15 +3041,15 @@
     const step1 = () => {
       const grp = [...new Set(o.groups.map(g => g.group))];
       dialog(`<h2>Bereich für mehrere Mitglieder freigeben</h2>
-        <p class="muted" style="margin-top:0">Schaltet einen Bereich der App für viele Mitglieder auf einmal frei – wie der Haken im Fenster „Freigaben bearbeiten“. Erst kommt eine Vorschau, geändert wird erst nach deiner Bestätigung.</p>
+        <p class="muted mt0">Schaltet einen Bereich der App für viele Mitglieder auf einmal frei – wie der Haken im Fenster „Freigaben bearbeiten“. Erst kommt eine Vorschau, geändert wird erst nach deiner Bestätigung.</p>
         <div class="frm"><label class="f">Bereich<select id="bfMod">${o.modules.map(m => `<option value="${m.id}" ${m.id === mod ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
           <label class="f">Wer?<select id="bfWho"><option value="alle" ${who === 'alle' ? 'selected' : ''}>${esc(T('Alle Mitglieder in der App ({0})', [nAll]))}</option>
             ${grp.map(gn => `<optgroup label="${esc(GRP[gn] || gn)}">${o.groups.filter(g => g.group === gn).map(g => `<option value="g:${esc(g.key)}" ${who === 'g:' + g.key ? 'selected' : ''}${/^art:/.test(g.key) ? '' : ' translate="no"'}>${esc(/^art:/.test(g.key) ? ART[g.key.slice(4)] || g.label : g.label)} (${g.n})</option>`).join('')}</optgroup>`).join('')}
             <option value="auswahl" ${who === 'auswahl' ? 'selected' : ''}>${esc(T('Eigene Auswahl …'))}</option></select></label></div>
-        ${who === 'auswahl' ? `<div class="frm" style="margin-top:12px"><label class="f">Suchen<input id="bfQ" type="search" value="${esc(q)}" autocomplete="off"></label><span class="muted s" id="bfN" style="align-self:end;line-height:40px">${esc(T('{0} ausgewählt', [sel.size]))}</span></div>
-          <div class="invlist" id="bfList" style="margin-top:10px">${listHtml()}</div>` : ''}
+        ${who === 'auswahl' ? `<div class="frm mt12"><label class="f">Suchen<input id="bfQ" type="search" value="${esc(q)}" autocomplete="off"></label><span class="muted s" id="bfN" style="align-self:end;line-height:40px">${esc(T('{0} ausgewählt', [sel.size]))}</span></div>
+          <div class="invlist mt10" id="bfList">${listHtml()}</div>` : ''}
         ${M().sensitive ? `<div class="banner a" style="margin:12px 0 0;font-weight:400"><div>${esc(T('„{0}“ schaltet etwas im Verein. Zum Freigeben brauchst du gleich das Wort FREIGEBEN und dein Passwort. Handys, die von unterwegs ohne SMS-Code gekoppelt wurden, öffnen den Bereich weiterhin erst nach dem ersten Öffnen im Vereins-WLAN.', [T(M().label)]))}</div></div>` : ''}
-        ${o.newAreas.includes(mod) ? `<p class="muted s" style="margin:12px 0 0">${esc(T('Neuer Bereich – noch niemand hat ihn.'))} <button type="button" class="btn small ghost" id="bfSeen">${esc(T('Vorerst für niemanden – Hinweis ausblenden'))}</button></p>` : ''}
+        ${o.newAreas.includes(mod) ? `<p class="muted s m-12-0-0">${esc(T('Neuer Bereich – noch niemand hat ihn.'))} <button type="button" class="btn small ghost" id="bfSeen">${esc(T('Vorerst für niemanden – Hinweis ausblenden'))}</button></p>` : ''}
         <div class="btns"><button class="btn ghost" id="bfX" type="button">Abbrechen</button><button class="btn primary" id="bfPrev" type="button" ${who === 'auswahl' && !sel.size ? 'disabled' : ''}>Vorschau</button></div>`, true);
       $('bfX').onclick = closeDialog;
       $('bfMod').onchange = () => { mod = $('bfMod').value; if (!M().nonMembers) people.forEach(x => { if (x.kind === 'nichtmitglied') sel.delete(x.id); }); step1(); };
@@ -3044,17 +3063,17 @@
     const step2 = p => {
       const n = p.add.length, sens = p.sensitive;
       dialog(`<h2>${esc(T('Vorschau: „{0}“ freigeben', [T(p.label)]))}</h2>
-        <p class="muted" style="margin-top:0">${esc(T('Auswahl: {0}', [T(p.who)]))}</p>
+        <p class="muted mt0">${esc(T('Auswahl: {0}', [T(p.who)]))}</p>
         <div class="bfsum"><div><b class="num">${n}</b><span>${esc(T('bekommen ihn neu'))}</span></div><div><b class="num">${p.have.length}</b><span>${esc(T('haben ihn schon'))}</span></div><div><b class="num">${p.skip.length}</b><span>${esc(T('nicht möglich'))}</span></div></div>
-        <p class="s" style="margin:12px 0 0">${n ? esc(n === 1 ? T('1 Mitglied bekommt „{0}“ neu.', [T(p.label)]) : T('{0} Mitglieder bekommen „{1}“ neu.', [n, T(p.label)])) : esc(T('Niemand bekommt den Bereich neu.'))}
+        <p class="s m-12-0-0">${n ? esc(n === 1 ? T('1 Mitglied bekommt „{0}“ neu.', [T(p.label)]) : T('{0} Mitglieder bekommen „{1}“ neu.', [n, T(p.label)])) : esc(T('Niemand bekommt den Bereich neu.'))}
           ${p.noDevice ? esc(T('{0} davon noch ohne Handy – es gilt, sobald sie es koppeln.', [p.noDevice])) : ''}
           ${p.away ? esc(T('{0} mit Handy von unterwegs: erst nach dem ersten Öffnen im Vereins-WLAN.', [p.away])) : ''}</p>
-        ${n ? `<details style="margin-top:10px"><summary>${esc(T('Bekommen ihn neu ({0})', [n]))}</summary>${names(p.add)}</details>` : ''}
-        ${p.have.length ? `<details style="margin-top:10px"><summary>${esc(T('Haben ihn schon ({0})', [p.have.length]))}</summary>${names(p.have)}</details>` : ''}
-        ${p.skip.length ? `<details style="margin-top:10px"><summary>${esc(T('Nicht möglich ({0})', [p.skip.length]))}</summary>${names(p.skip, true)}</details>` : ''}
-        ${n && sens ? `<div class="frm" style="margin-top:14px"><label class="f">${esc(T('Zur Bestätigung {0} eintippen', [p.word]))}<input id="bfWord" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+        ${n ? `<details class="mt10"><summary>${esc(T('Bekommen ihn neu ({0})', [n]))}</summary>${names(p.add)}</details>` : ''}
+        ${p.have.length ? `<details class="mt10"><summary>${esc(T('Haben ihn schon ({0})', [p.have.length]))}</summary>${names(p.have)}</details>` : ''}
+        ${p.skip.length ? `<details class="mt10"><summary>${esc(T('Nicht möglich ({0})', [p.skip.length]))}</summary>${names(p.skip, true)}</details>` : ''}
+        ${n && sens ? `<div class="frm mt14"><label class="f">${esc(T('Zur Bestätigung {0} eintippen', [p.word]))}<input id="bfWord" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
           <label class="f">Dein Passwort<input id="bfPw" type="password" autocomplete="current-password"></label></div>` : ''}
-        <p class="muted s" style="margin:12px 0 0">${esc(T('Die letzte Sammel-Freigabe lässt sich unter „Freigeschaltete Mitglieder“ zurücknehmen.'))}</p>
+        <p class="muted s m-12-0-0">${esc(T('Die letzte Sammel-Freigabe lässt sich unter „Freigeschaltete Mitglieder“ zurücknehmen.'))}</p>
         <div class="btns"><button class="btn ghost" id="bfBack" type="button">Zurück</button>${n ? `<button class="btn ${sens ? 'danger' : 'primary'}" id="bfGo" type="button" data-pruefbar ${sens ? 'disabled' : ''}>${esc(n === 1 ? T('1 Mitglied freigeben') : T('{0} Mitglieder freigeben', [n]))}</button>` : ''}</div>`, true);
       $('bfBack').onclick = step1;
       if (!n) return;
@@ -3083,13 +3102,13 @@
     const info = await api('app/member/' + memberId);
     if (info.kind === 'nichtmitglied') info.modules = info.modules.filter(m => m.nonMembers);   // Kein Mitglied (z. B. Trainer): nur Buchen, Türen, Beregnung
     if (!info.modules.length) { el.remove(); return; }
-    el.innerHTML = `<h3>Mitglieder-App</h3><p class="muted s" style="margin:0 0 8px">Ein QR-Code, eine PIN – das Mitglied sieht in der App nur die angehakten Bereiche. Änderungen hier gelten sofort.</p>
+    el.innerHTML = `<h3>Mitglieder-App</h3><p class="muted s m-0-0-8">Ein QR-Code, eine PIN – das Mitglied sieht in der App nur die angehakten Bereiche. Änderungen hier gelten sofort.</p>
       <div class="row" style="align-items:center;margin-bottom:8px">${devPill(info.device)}${info.device && info.device.label ? `<span class="muted s">${esc(info.device.label)}${info.device.last_used ? ' · zuletzt ' + deTime(info.device.last_used) : ''}</span>` : ''}</div>
       ${info.device && info.device.remote ? `<div class="banner a" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhy(stagedNames(info.modules)))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Bereiche im Vereins-WLAN jetzt freigeben“.'))}</div></div>` : ''}
       ${info.modules.map(m => { const a = info.access[m.id], g = (info.granted || {})[m.id]; return `<div class="row" style="align-items:center;min-height:42px"><label class="chk" style="min-width:150px"><input type="checkbox" data-am="${m.id}" ${g ? 'checked' : ''}> ${esc(m.label || m.name)}</label>
         ${m.options && m.options.profiles && g ? (() => { const pf = m.options.profiles.find(p => p.id === (a ? a.profile : m.options.defaultProfile)); return `<span class="pill" title="${esc(pf && pf.text || '')}">${esc(pf ? pf.name : '')}</span>${m.options.profilesPage && can(m.options.profilesPerm || m.perm) ? ` <a href="#" class="s" data-aplink="${esc(m.options.profilesPage)}">ändern unter ${esc(m.options.profilesLabel || m.label || m.name)}</a>` : ''}`; })() : ''}
         ${a && a.blocked && (!m.open || info.kind === 'nichtmitglied') ? '<span class="pill r">gesperrt</span>' : ''}${g && !m.away ? `<button type="button" class="pill tg${a && a.away ? ' on' : ''}" data-aw="${memberId}:${m.id}" aria-pressed="${a && a.away ? 'true' : 'false'}" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)">unterwegs</button>` : ''}${g ? flagChks(m, a, `${memberId}:${m.id}`) : ''}</div>`; }).join('')}
-      <div class="row" style="margin-top:8px"><button class="btn small primary" id="apQr">Einladen …</button>${info.device || Object.keys(info.access || {}).length ? '<button class="btn small" id="apRm">Entfernen …</button>' : ''}</div>`;
+      <div class="row mt8"><button class="btn small primary" id="apQr">Einladen …</button>${info.device || Object.keys(info.access || {}).length ? '<button class="btn small" id="apRm">Entfernen …</button>' : ''}</div>`;
     el.dataset.nodirty = '1';
     const reload = () => appBox(el, memberId).catch(fail);
     el.querySelectorAll('[data-am]').forEach(c => { c.onchange = async () => { try { const rr = await api(`app/member/${memberId}/access`, 'PUT', { module: c.dataset.am, grant: c.checked }); toast(rr.reinvite ? 'Freigeschaltet. Das Handy wurde aus Sicherheitsgründen entkoppelt – bitte einen neuen QR-Code erzeugen.' : c.checked ? 'Freigeschaltet.' : 'Freischaltung entzogen.'); reload(); } catch (e) { fail(e); c.checked = !c.checked; } }; });
@@ -3119,13 +3138,13 @@
     const byMod = [];
     for (const e of r.events) { let g = byMod.find(x => x.m === e.moduleName); if (!g) { g = { m: e.moduleName, ev: [] }; byMod.push(g); } g.ev.push(e); }
     el.innerHTML = `<h3>Benachrichtigungen</h3>
-      <p class="muted s" style="margin-top:0">Kurze Hinweise aufs Handy (Push) aus der Mitglieder-App – auf dem iPhone in der Home-Bildschirm-App ab iOS 16.4, auf Android im Browser. Hier legst du fest, welche Anlässe es im Verein gibt; jedes Mitglied schaltet Push je Handy nur ein oder aus – welche Hinweise kommen, entscheidest du hier zentral. Es werden nur Titel und ein Satz gesendet, nichts PIN-Pflichtiges.</p>
+      <p class="muted s mt0">Kurze Hinweise aufs Handy (Push) aus der Mitglieder-App – auf dem iPhone in der Home-Bildschirm-App ab iOS 16.4, auf Android im Browser. Hier legst du fest, welche Anlässe es im Verein gibt; jedes Mitglied schaltet Push je Handy nur ein oder aus – welche Hinweise kommen, entscheidest du hier zentral. Es werden nur Titel und ein Satz gesendet, nichts PIN-Pflichtiges.</p>
       <div class="row" style="gap:6px 22px;margin-bottom:6px"><span class="pill${r.subs ? ' g' : ''}">${r.subs} ${r.subs === 1 ? 'Handy' : 'Handys'} angemeldet · ${r.members} ${r.members === 1 ? 'Mitglied' : 'Mitglieder'}</span></div>
       ${byMod.map(g => `<p class="muted s" style="margin:10px 0 4px"><b>${esc(g.m)}</b></p><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:10px 24px;align-items:start">${g.ev.map(e => `<label class="chk" style="align-items:flex-start;margin:0"><input type="checkbox" data-pe="${esc(e.key)}" ${e.on ? 'checked' : ''} ${mayEdit ? '' : 'disabled'}><span>${esc(e.label)}${e.desc ? `<br><span class="muted s">${esc(e.desc)}</span>` : ''}${e.lead ? `<br><span class="muted s">${esc(e.lead.label || 'Vorlauf')}: <input type="number" min="5" max="10080" step="5" data-pl="${esc(e.key)}" value="${e.lead}" ${mayEdit ? '' : 'disabled'} style="width:90px;height:36px;margin-top:6px"> Minuten</span>` : ''}</span></label>`).join('')}</div>`).join('')}
       ${mayEdit ? `<div class="row" style="justify-content:space-between;align-items:flex-end;margin-top:14px">
         <div class="row" style="align-items:flex-end"><label class="f" style="width:260px">Testnachricht an<select id="pshWho"><option value="">– Mitglied wählen –</option>${r.subscribed.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label><button class="btn" id="pshTest" ${r.subscribed.length ? '' : 'disabled'} title="${r.subscribed.length ? '' : 'Noch kein Handy für Push angemeldet'}">Senden</button></div>
         <button class="btn primary" id="pshSave">Speichern</button></div>` : ''}
-      ${r.recent.length ? `<details style="margin-top:10px"><summary class="muted s">Zuletzt gesendet (${r.recent.length})</summary><table class="tbl s"><tr><th>Zeit</th><th>Mitglied</th><th>Anlass</th><th>Titel</th><th>Ergebnis</th></tr>${r.recent.map(x => `<tr><td class="nw">${deTime(x.ts)}</td><td>${esc(x.member ? lastFirst(x.member, x.kind) : '–')}</td><td>${esc(x.event)}</td><td>${esc(x.title || '')}</td><td>${x.ok ? '<span class="pill g">gesendet</span>' : `<span class="pill r">${esc(x.info || 'Fehler')}</span>`}</td></tr>`).join('')}</table></details>` : ''}`;
+      ${r.recent.length ? `<details class="mt10"><summary class="muted s">Zuletzt gesendet (${r.recent.length})</summary><table class="tbl s"><tr><th>Zeit</th><th>Mitglied</th><th>Anlass</th><th>Titel</th><th>Ergebnis</th></tr>${r.recent.map(x => `<tr><td class="nw">${deTime(x.ts)}</td><td>${esc(x.member ? lastFirst(x.member, x.kind) : '–')}</td><td>${esc(x.event)}</td><td>${esc(x.title || '')}</td><td>${x.ok ? '<span class="pill g">gesendet</span>' : `<span class="pill r">${esc(x.info || 'Fehler')}</span>`}</td></tr>`).join('')}</table></details>` : ''}`;
     if (!mayEdit) return;
     $('pshSave').onclick = () => busy($('pshSave'), async () => {
       const events = {};
@@ -3144,13 +3163,13 @@
     const st = x.status;
     const opts = [...new Set([x.device, ...x.candidates].filter(Boolean))];
     el.innerHTML = `<h3>Bestätigung per SMS <span class="pill ${x.ready ? 'g' : ''}" style="margin-left:6px">${x.ready ? 'an' : 'aus'}</span></h3>
-      <p class="muted s" style="margin-top:0">Zweiter Faktor für Einladungen per E-Mail oder Brief: Wer die App <b>von unterwegs</b> freischaltet, bekommt einen Code per SMS an die Handynummer aus der Mitgliederverwaltung. Dafür steckt ein LTE-USB-Stick mit SIM-Karte (ohne SIM-PIN) am Home-Assistant-Rechner – ohne Internet, ohne fremden Dienst. Ohne SMS (oder ohne Handynummer) schalten sich Türen und Beregnung erst beim ersten Öffnen im Vereins-WLAN frei.</p>
-      <div class="row" style="align-items:flex-end;gap:10px"><label class="f" style="flex:1;min-width:240px">Anschluss des Sticks<select id="smsDev"><option value="">– wählen –</option>${opts.map(d => `<option value="${esc(d)}" ${d === x.device ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></label>
+      <p class="muted s mt0">Zweiter Faktor für Einladungen per E-Mail oder Brief: Wer die App <b>von unterwegs</b> freischaltet, bekommt einen Code per SMS an die Handynummer aus der Mitgliederverwaltung. Dafür steckt ein LTE-USB-Stick mit SIM-Karte (ohne SIM-PIN) am Home-Assistant-Rechner – ohne Internet, ohne fremden Dienst. Ohne SMS (oder ohne Handynummer) schalten sich Türen und Beregnung erst beim ersten Öffnen im Vereins-WLAN frei.</p>
+      <div class="row" style="align-items:flex-end;gap:10px"><label class="f fx1-240">Anschluss des Sticks<select id="smsDev"><option value="">– wählen –</option>${opts.map(d => `<option value="${esc(d)}" ${d === x.device ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></label>
         <button class="btn" id="smsFind" type="button">Anschlüsse suchen</button><button class="btn primary" id="smsSave" type="button">Speichern</button></div>
       ${st ? `<div class="row" style="margin-top:10px;gap:6px;align-items:center">${st.ok ? '<span class="pill g">bereit</span>' : `<span class="pill r">${esc(st.error || 'nicht bereit')}</span>`}${st.model ? `<span class="pill">${esc(st.model)}</span>` : ''}${st.operator ? `<span class="pill">${esc(st.operator)}</span>` : ''}${st.signal != null ? `<span class="pill">Empfang ${st.signal} %</span>` : ''}</div>` : ''}
       <div class="row" style="align-items:center;gap:10px;margin-top:12px"><label class="chk"><input type="checkbox" id="smsOn" ${x.on ? 'checked' : ''} ${x.device ? '' : 'disabled'}> SMS-Bestätigung einschalten</label></div>
       <div class="row" style="align-items:flex-end;gap:10px;margin-top:12px"><label class="f" style="width:240px">Test an Handynummer<input id="smsNo" inputmode="tel" placeholder="0170 1234567"></label><button class="btn" id="smsTest" type="button" ${x.device ? '' : 'disabled'}>Test-SMS senden</button></div>
-      <p class="muted s" style="margin:10px 0 0">Geeignet sind LTE-Sticks mit seriellem Anschluss (AT-Befehle), nicht solche im „HiLink“-/Router-Modus. Nach dem Einstecken das Add-on einmal neu starten, dann „Anschlüsse suchen“. Je Mitglied höchstens 3 SMS am Tag.</p>`;
+      <p class="muted s m-10-0-0">Geeignet sind LTE-Sticks mit seriellem Anschluss (AT-Befehle), nicht solche im „HiLink“-/Router-Modus. Nach dem Einstecken das Add-on einmal neu starten, dann „Anschlüsse suchen“. Je Mitglied höchstens 3 SMS am Tag.</p>`;
     $('smsFind').onclick = () => busy($('smsFind'), async () => {
       try { const d = await api('app/sms/detect', 'POST', {}); const ok = d.ports.filter(p => p.answers);
         if (!d.ports.length) return toast('Kein serieller Anschluss gefunden – ist der Stick eingesteckt und das Add-on danach neu gestartet?', true);
@@ -3203,13 +3222,13 @@
         ${r.lanHint ? `<div class="banner a" id="apPortHint" style="margin:10px 0 0;font-weight:400"><div>Port fehlt – meinst du <b>${esc(r.lanHint.vorschlag)}</b>? Die App läuft auf Port ${r.port || 5001}, ohne Port landet das Handy auf Port 443 und kommt nicht durch.<div class="btns" style="margin:8px 0 0;justify-content:flex-start"><button class="btn" id="apPortTake">So übernehmen</button></div></div></div>` : ''}
         <div class="btns"><a class="btn" id="apTest" target="_blank" rel="noopener">Testen ↗</a>${mayNet ? `<button class="btn" id="apExtTest" ${can('einstellungen') && r.tunnel.url ? '' : 'disabled'}>Verbindung prüfen</button>` : ''}<button class="btn primary" id="apSave">Speichern</button></div>
         ${!r.lanUrl && !(r.tunnel && r.tunnel.on) ? `<div class="banner a" style="margin:10px 0 0;font-weight:400">Noch keine Adresse eingetragen – im QR-Code landet <b>${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}</b>. ${/\.local$/i.test(location.hostname) ? 'Adressen mit „.local“ öffnen manche Handys nicht – besser ohne „.local“ (z. B. <b>' + (r.https ? 'https' : 'http') + '://' + esc(location.hostname.replace(/\.local$/i, '')) + ':' + (r.port || 5001) + '</b>) oder mit der IP-Adresse von Home Assistant.' : ''}</div>` : ''}
-        <p class="muted s" style="margin:8px 0 0">${r.tunnel && r.tunnel.on ? `<span>Im QR-Code landet die öffentliche Adresse ${esc(r.url)} – die Adresse hier nutzt die App im Vereinsheim als lokale Route (nur mit https).</span>` : '<span>Diese Adresse landet im QR-Code.</span>'} Leer lassen = Adresse, unter der die Verwaltung gerade geöffnet ist, mit Port ${r.port || 5001}. ${r.https ? 'Mit HTTPS hier den Namen eintragen, für den das Zertifikat gilt (z. B. <code>https://dein-verein.duckdns.org:' + (r.port || 5001) + '</code>) – mit einer IP-Adresse meldet das Handy einen Zertifikatsfehler.' : `Bei Fernzugriff (z. B. Nabu Casa) oder wenn Handys „.local“-Adressen nicht öffnen, hier die Adresse im Vereins-WLAN eintragen – den Gerätenamen ohne „.local“ (z. B. <code>http://homeassistant:${r.port || 5001}</code>) oder die IP-Adresse (z. B. <code>http://192.168.178.20:${r.port || 5001}</code>).`} Mit „Testen“ prüfen.</p>
-        ${mayNet ? `<p class="muted s" style="margin:12px 0 0"><span class="pill ${r.tunnel.on ? 'g' : ''}">Von unterwegs ${r.tunnel.on ? 'an' : 'aus'}</span></p>
-        <p class="muted s" style="margin-top:0">Über einen <b>Cloudflare Tunnel</b> wird nur die Mitglieder-App aus dem Internet erreichbar – ohne offenen Port am Router. Verwaltung, Tablet und Beregnung bleiben im Vereins-WLAN, auch wenn der Tunnel falsch eingestellt ist.</p>
+        <p class="muted s m-8-0-0">${r.tunnel && r.tunnel.on ? `<span>Im QR-Code landet die öffentliche Adresse ${esc(r.url)} – die Adresse hier nutzt die App im Vereinsheim als lokale Route (nur mit https).</span>` : '<span>Diese Adresse landet im QR-Code.</span>'} Leer lassen = Adresse, unter der die Verwaltung gerade geöffnet ist, mit Port ${r.port || 5001}. ${r.https ? 'Mit HTTPS hier den Namen eintragen, für den das Zertifikat gilt (z. B. <code>https://dein-verein.duckdns.org:' + (r.port || 5001) + '</code>) – mit einer IP-Adresse meldet das Handy einen Zertifikatsfehler.' : `Bei Fernzugriff (z. B. Nabu Casa) oder wenn Handys „.local“-Adressen nicht öffnen, hier die Adresse im Vereins-WLAN eintragen – den Gerätenamen ohne „.local“ (z. B. <code>http://homeassistant:${r.port || 5001}</code>) oder die IP-Adresse (z. B. <code>http://192.168.178.20:${r.port || 5001}</code>).`} Mit „Testen“ prüfen.</p>
+        ${mayNet ? `<p class="muted s m-12-0-0"><span class="pill ${r.tunnel.on ? 'g' : ''}">Von unterwegs ${r.tunnel.on ? 'an' : 'aus'}</span></p>
+        <p class="muted s mt0">Über einen <b>Cloudflare Tunnel</b> wird nur die Mitglieder-App aus dem Internet erreichbar – ohne offenen Port am Router. Verwaltung, Tablet und Beregnung bleiben im Vereins-WLAN, auch wenn der Tunnel falsch eingestellt ist.</p>
         ${rj ? `<div class="banner a" style="margin:10px 0 0;font-weight:400">${rj.why === 'aus' ? `Zuletzt wurde eine Tunnel-Anfrage von ${esc(rj.ip)} abgelehnt (${esc(deTime(rj.at))}), weil der externe Zugang ausgeschaltet war.`
           : rj.why === 'direkt' ? `Zuletzt wurde eine direkte Anfrage aus dem Internet von ${esc(rj.ip)} abgewiesen (${esc(deTime(rj.at))}). Das deutet auf eine Portfreigabe am Router hin – bitte dort entfernen. Von unterwegs ist nur der Cloudflare Tunnel vorgesehen.`
           : `Zuletzt wurde eine Tunnel-Anfrage von ${esc(rj.ip)} abgelehnt (${esc(deTime(rj.at))}). Kommt sie vom Cloudflared-Add-on, unten unter „Tunnel-Quelle“ diese Adresse übernehmen.`}</div>` : ''}
-        <details style="margin-top:10px"><summary>So richtest du den Zugang von unterwegs ein</summary>
+        <details class="mt10"><summary>So richtest du den Zugang von unterwegs ein</summary>
         <ol class="muted s" style="margin:12px 0 0;padding-left:18px;line-height:1.6">
           <li>Kostenloses Konto bei Cloudflare, eure Domain dort verwalten lassen (z. B. <code>meinverein.de</code>).</li>
           <li>Cloudflare → Zero Trust → Networking → Tunnels → „Tunnel erstellen“ (Cloudflared, Docker) → Token kopieren.</li>
@@ -3217,10 +3236,10 @@
           <li>Im Tunnel unter „Routes“ → „Add route“ → „Published application“ anlegen: <code>app.meinverein.de</code> → Dienst-URL <code>${r.https ? 'https' : 'http'}://${/^\d+\.\d+\.\d+\.\d+$/.test(location.hostname) ? esc(location.hostname) : 'IP-Adresse-von-Home-Assistant'}:${r.port || 5001}</code>${r.https ? ', unter „TLS“ den Ursprungs-Servernamen (Name eures Zertifikats) eintragen' : ''}. <b>Nur diesen Port</b> freigeben.</li>
           <li>Hier die Adresse eintragen, einschalten, „Verbindung prüfen“ – neue QR-Codes enthalten dann die öffentliche Adresse und funktionieren im WLAN und unterwegs.</li></ol>
         </details>
-        <p class="muted s" style="margin:8px 0 0">Bereits gekoppelte Handys behalten die alte Adresse – für unterwegs bitte einen neuen QR-Code erzeugen.${oldN ? ` <b>${oldN === 1 ? '1 Handy mit alter Adresse' : `${oldN} Handys mit alter Adresse`}</b> – Filter „alte Adresse“ unten.` : ''}</p>
+        <p class="muted s m-8-0-0">Bereits gekoppelte Handys behalten die alte Adresse – für unterwegs bitte einen neuen QR-Code erzeugen.${oldN ? ` <b>${oldN === 1 ? '1 Handy mit alter Adresse' : `${oldN} Handys mit alter Adresse`}</b> – Filter „alte Adresse“ unten.` : ''}</p>
         ` : ''}</div>` : ''}
       ${r.tunnel.on && r.mayExt ? `<div class="card" id="apSrc" data-set="einstellungen"><h3>Tunnel-Quelle</h3>
-        <p class="muted s" style="margin:0 0 8px">Von welcher Adresse im Home-Assistant-Netz der Cloudflare Tunnel ankommt. Festgelegt glaubt die App die Absenderangabe des Tunnels nur noch dieser einen Adresse – auch nicht mehr dem Proxy-Add-on aus der Add-on-Konfiguration; kein anderes Add-on kann sich dann als Tunnel ausgeben. Empfohlen, sobald der Tunnel läuft. Startet das Cloudflared-Add-on später unter einer anderen Adresse, steht oben „abgelehnt“ mit der neuen Adresse – dann hier neu festlegen.</p>
+        <p class="muted s m-0-0-8">Von welcher Adresse im Home-Assistant-Netz der Cloudflare Tunnel ankommt. Festgelegt glaubt die App die Absenderangabe des Tunnels nur noch dieser einen Adresse – auch nicht mehr dem Proxy-Add-on aus der Add-on-Konfiguration; kein anderes Add-on kann sich dann als Tunnel ausgeben. Empfohlen, sobald der Tunnel läuft. Startet das Cloudflared-Add-on später unter einer anderen Adresse, steht oben „abgelehnt“ mit der neuen Adresse – dann hier neu festlegen.</p>
         <div class="row" style="align-items:center;gap:10px">${r.tunnel.src ? `<span class="pill g">Festgelegt: ${esc(r.tunnel.src)}</span><button class="btn" id="apSrcOff" type="button">Wieder jede Adresse im Add-on-Netz zulassen</button>`
           : r.tunnel.lastOk ? `<span class="pill">Zuletzt gesehen: ${esc(r.tunnel.lastOk.ip)}</span><button class="btn primary" id="apSrcSet" type="button" data-ip="${esc(r.tunnel.lastOk.ip)}">Nur diese Quelle zulassen</button>`
           : '<span class="muted s">Noch keine Anfrage über den Tunnel seit dem letzten Neustart – einmal die öffentliche Adresse aufrufen, dann diese Seite neu laden.</span>'}
@@ -3230,25 +3249,25 @@
           <label class="f" style="width:200px">QR-Code gültig<select id="apHours" ${can('einstellungen') ? '' : 'disabled'}>${[1, 24, 168].map(h => `<option value="${h}" ${r.security.inviteHours === h ? 'selected' : ''}>${hoursTxt(h)}</option>`).join('')}</select></label>
           <label class="f" style="width:200px">E-Mail/Brief gültig<select id="apDays" ${can('einstellungen') ? '' : 'disabled'}>${[2, 7, 14].map(d => `<option value="${d}" ${r.security.inviteMailDays === d ? 'selected' : ''}>${d} Tage</option>`).join('')}</select></label>
           <button class="btn primary" id="apSecSave" ${can('einstellungen') ? '' : 'disabled'}>Speichern</button></div>
-        <label class="chk" style="margin-top:12px"><input type="checkbox" id="apLink" data-nodirty ${can('einstellungen') ? '' : 'disabled'} ${r.security.allowLink ? 'checked' : ''}> QR-Code auch als Link zum Weiterschicken anbieten (weniger sicher)</label>
+        <label class="chk mt12"><input type="checkbox" id="apLink" data-nodirty ${can('einstellungen') ? '' : 'disabled'} ${r.security.allowLink ? 'checked' : ''}> QR-Code auch als Link zum Weiterschicken anbieten (weniger sicher)</label>
         <div class="row" style="margin-top:12px;gap:8px">
           <span class="pill ${r.https ? 'g' : 'a'}">${r.https ? 'HTTPS an' : 'ohne HTTPS'}</span>
           <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt, ab dem 10. Fehlversuch 30 Minuten, nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code. Wer davon erfährt, steht unter Einstellungen › Sicherheit.</span></div></div>` : ''}
-      ${can('einstellungen') ? '<div class="card" id="smsCard" data-nodirty data-set="einstellungen"><h3>Bestätigung per SMS</h3><p class="muted s" style="margin-top:0">Lade …</p></div>' : ''}
+      ${can('einstellungen') ? '<div class="card" id="smsCard" data-nodirty data-set="einstellungen"><h3>Bestätigung per SMS</h3><p class="muted s mt0">Lade …</p></div>' : ''}
       ${mayCfg && mods.length ? `<div class="card" id="apAreas" data-nodirty data-set="bereiche"><h3>Bereiche der App</h3>
-        <p class="muted s" style="margin-top:0">Welche Bereiche die App zeigt, wer sie sieht, womit sie startet und in welcher Reihenfolge sie stehen.</p>
+        <p class="muted s mt0">Welche Bereiche die App zeigt, wer sie sieht, womit sie startet und in welcher Reihenfolge sie stehen.</p>
         <div class="ds-scroll"><table class="tbl kompakt" id="apAreaTbl"><tr><th>Bereich</th><th>Für wen</th>${mayNet ? '<th>Von unterwegs</th>' : ''}<th>Beim Freischalten</th><th>Start</th><th>Reihenfolge</th></tr><tbody id="bgRows"></tbody></table></div>
-        <p class="muted s" style="margin:10px 0 0">Aus = der Bereich ist für alle weg, Freischaltungen bleiben erhalten. „Von unterwegs“: ohne Haken nur im Vereins-WLAN.${mayNet ? ` ${!r.tunnel.on ? '<span class="pill">Tunnel aus</span> Alle Bereiche gelten als im Vereinsheim genutzt.' : r.tunnel.lanHttps ? '<span class="pill g">Lokale Route eingerichtet</span>' : '<span class="pill a">Lokale Route fehlt</span> Über die öffentliche Adresse gelten diese Bereiche im Vereinsheim als „unterwegs“.'}` : ''}</p>
-        ${r.kontoOn ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="bgKonto" ${r.formeKonto ? 'checked' : ''}> „Für mich“ zeigt auch das offene Thekenkonto (noch nicht abgerechnete Buchungen)</label>` : ''}
+        <p class="muted s m-10-0-0">Aus = der Bereich ist für alle weg, Freischaltungen bleiben erhalten. „Von unterwegs“: ohne Haken nur im Vereins-WLAN.${mayNet ? ` ${!r.tunnel.on ? '<span class="pill">Tunnel aus</span> Alle Bereiche gelten als im Vereinsheim genutzt.' : r.tunnel.lanHttps ? '<span class="pill g">Lokale Route eingerichtet</span>' : '<span class="pill a">Lokale Route fehlt</span> Über die öffentliche Adresse gelten diese Bereiche im Vereinsheim als „unterwegs“.'}` : ''}</p>
+        ${r.kontoOn ? `<label class="chk mt12"><input type="checkbox" id="bgKonto" ${r.formeKonto ? 'checked' : ''}> „Für mich“ zeigt auch das offene Thekenkonto (noch nicht abgerechnete Buchungen)</label>` : ''}
         <div class="btns"><button class="btn primary" id="bgSave">Speichern</button></div></div>` : ''}
-      ${mayCfg ? `<div class="card" id="pushCard" data-nodirty data-set="push"><h3>Benachrichtigungen</h3><p class="muted s" style="margin-top:0">Lade …</p></div>` : ''}
+      ${mayCfg ? `<div class="card" id="pushCard" data-nodirty data-set="push"><h3>Benachrichtigungen</h3><p class="muted s mt0">Lade …</p></div>` : ''}
       ${mayMem ? `<div class="card" data-set="mitglieder"><h3>Mitglied freischalten</h3>
-        <div class="row"><label class="f" style="flex:1;min-width:220px">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}${m.kind === 'nichtmitglied' ? ' (Kein Mitglied)' : ''}</option>`).join('')}</select></label>
+        <div class="row"><label class="f fx1-220">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}${m.kind === 'nichtmitglied' ? ' (Kein Mitglied)' : ''}</option>`).join('')}</select></label>
           <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & einladen …</button></div>
         <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" ${m.preselect ? 'checked' : ''}> ${esc(m.label || m.name)}</label>`).join('')}</div>
-        <p class="muted s" style="margin:10px 0 0">Nur das freigeschaltete Handy funktioniert. Es ist dieselbe PIN wie im Verkauf am Tablet: Wer dort schon eine hat, gibt sie beim Freischalten ein; wer noch keine hat, legt sie in der App fest und sie gilt dann auch am Tablet.</p></div>
-      <div class="card" data-set="mitglieder"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><div class="row" style="gap:8px">${r.bulkCan ? '<button class="btn" id="apBulkAcc" type="button">Bereich freigeben …</button>' : ''}<button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div></div>
-        ${r.bulkLast ? `<p class="muted s" id="apBulkLast" style="margin:0 0 10px">${esc(T('Letzte Sammel-Freigabe: „{0}“ für {1} ({2}, {3}).', [T(r.bulkLast.label), r.bulkLast.n === 1 ? T('1 Mitglied') : T('{0} Mitglieder', [r.bulkLast.n]), deTime(r.bulkLast.at), r.bulkLast.by]))}${r.bulkLast.undo ? ` <button class="btn small" id="apBulkUndo" type="button">Zurücknehmen …</button>` : ''}</p>` : ''}
+        <p class="muted s m-10-0-0">Nur das freigeschaltete Handy funktioniert. Es ist dieselbe PIN wie im Verkauf am Tablet: Wer dort schon eine hat, gibt sie beim Freischalten ein; wer noch keine hat, legt sie in der App fest und sie gilt dann auch am Tablet.</p></div>
+      <div class="card" data-set="mitglieder"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 class="m0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><div class="row" style="gap:8px">${r.bulkCan ? '<button class="btn" id="apBulkAcc" type="button">Bereich freigeben …</button>' : ''}<button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div></div>
+        ${r.bulkLast ? `<p class="muted s m-0-0-10" id="apBulkLast">${esc(T('Letzte Sammel-Freigabe: „{0}“ für {1} ({2}, {3}).', [T(r.bulkLast.label), r.bulkLast.n === 1 ? T('1 Mitglied') : T('{0} Mitglieder', [r.bulkLast.n]), deTime(r.bulkLast.at), r.bulkLast.by]))}${r.bulkLast.undo ? ` <button class="btn small" id="apBulkUndo" type="button">Zurücknehmen …</button>` : ''}</p>` : ''}
         ${r.rows.length ? `<div class="chips" id="apFil" role="group" aria-label="Filter" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'erst im WLAN öffnen'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
           ${nWlan ? `<div class="banner a" id="apWlanHint" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhy(wlanNames))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Bereiche im Vereins-WLAN jetzt freigeben“.'))}</div></div>` : ''}
@@ -3259,19 +3278,15 @@
           <p class="empty" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
           : '<p class="empty">Noch niemand freigeschaltet.</p>'}</div>` : ''}
       <div class="card" data-set="mitglieder" id="apGuideCard"><h3>Anleitung für Mitglieder</h3>
-        <p class="muted s" style="margin-top:0">${esc(T('Zwei Seiten mit Bildern: Einladung öffnen, PIN festlegen, App auf iPhone und Android einrichten. Mit eurem Vereinsnamen, eurer Vereinsfarbe und den eingestellten Gültigkeiten – zum Ausdrucken, Aushängen oder Weitergeben. Beim Einladen per E-Mail oder Brief kann sie mitgehen.'))}</p>
+        <p class="muted s mt0">${esc(T('Zwei Seiten mit Bildern: Einladung öffnen, PIN festlegen, App auf iPhone und Android einrichten. Mit eurem Vereinsnamen, eurer Vereinsfarbe und den eingestellten Gültigkeiten – zum Ausdrucken, Aushängen oder Weitergeben. Beim Einladen per E-Mail oder Brief kann sie mitgehen.'))}</p>
         <div class="row"><button class="btn" id="apGuide" type="button">Anleitung für Mitglieder (PDF)</button></div></div>`;
     // Unterbereiche wie in den Einstellungen; Punkt am Reiter, wenn dort etwas zu tun ist
     const APP_SECS = [['mitglieder', 'Mitglieder'], ['bereiche', 'Bereiche'], ['push', 'Benachrichtigungen'], ['einstellungen', 'Einstellungen']];
-    // Bereiche, die Module beisteuern (z. B. „Meine Daten“ der Mitgliederverwaltung) – stehen hinter „Bereiche“
-    const extras = APP_EXTRA.filter(x => !x.perm || canAny(x.perm));
-    extras.forEach((x, i) => { APP_SECS.splice(2 + i, 0, [x.key, x.label]); $('main').insertAdjacentHTML('beforeend', `<div class="card" data-set="${x.key}" id="apx-${x.key}"><p class="muted" style="margin:0">Lade …</p></div>`); });
     sectionize({ secs: APP_SECS, keyOf: () => 'mitglieder', store: 'cw_appsec', label: 'Bereiche der Mitglieder-App',
       badges: { einstellungen: !mayNet ? false : rj ? (rj.why === 'direkt' ? 'Anfrage aus dem Internet abgewiesen' : 'Tunnel-Anfrage abgelehnt') : oldN ? 'Handys mit alter Adresse' : r.security.sms && r.security.sms.on && !r.security.sms.ready ? 'SMS-Stick nicht bereit' : false,
         mitglieder: r.rows.some(FIL.wlan) ? 'Handys müssen einmal im Vereins-WLAN geöffnet werden' : false } });
     watch($('apSet')); watch($('apSec'));
     $('apGuide').onclick = () => guideDownload();
-    extras.forEach(x => { const box = $('apx-' + x.key); Promise.resolve().then(() => x.render(box)).then(() => watch(box)).catch(e => { box.innerHTML = `<p class="muted" style="margin:0">${esc(e.message)}</p>`; }); });
     const setTest = () => { $('apTest').href = ($('apUrl').value.trim() || `${r.https ? 'https' : 'http'}://${location.hostname}:${r.port || 5001}`).replace(/\/+$/, '') + '/'; };
     if ($('apSet')) { $('apUrl').addEventListener('input', setTest); setTest(); }
     if ($('apPortTake')) $('apPortTake').onclick = () => busy($('apPortTake'), async () => { try { await api('settings/app', 'PUT', { url: r.lanHint.vorschlag }); toast('Gespeichert.'); RENDER.app().catch(fail); } catch (e) { fail(e); } });
@@ -3304,7 +3319,7 @@
         // „Für mich“ steht in der App immer vorn und ist ohne festen Start die Startseite
         $('bgRows').innerHTML = `<tr><td><b>Für mich</b> <span class="muted s">eigene Termine und Offenes</span></td><td class="k-weg"><span class="pill g">alle Mitglieder</span></td>${mayNet ? '<td></td>' : ''}<td></td><td><label class="chk"><input type="radio" name="bgStart" data-bgst="" aria-label="${esc(T('Start'))}" ${startId ? '' : 'checked'}><span class="ap-lbl"> Start</span></label></td><td></td></tr>`
           + AR.map((m, i) => `<tr class="${m.on ? '' : 'off'}"><td><span class="swname"><button type="button" class="switch ${m.on ? 'on' : ''}" role="switch" aria-checked="${m.on}" aria-label="${esc(m.label)} in der App zeigen" data-bgon="${i}"></button><b translate="no">${esc(m.label)}</b>${m.on ? '' : '<span class="pill">aus</span>'}</span></td>
-          <td class="k-weg">${m.open ? '<span class="pill g">alle Mitglieder</span>' : `<span class="pill">nur ausgewählte</span> <span class="muted s" style="white-space:nowrap">${m.count === 1 ? '1 Mitglied' : `${m.count} Mitglieder`}</span>`}</td>
+          <td class="k-weg">${m.open ? '<span class="pill g">alle Mitglieder</span>' : `<span class="pill">nur ausgewählte</span> <span class="muted s ws-nw">${m.count === 1 ? '1 Mitglied' : `${m.count} Mitglieder`}</span>`}</td>
           ${mayNet ? `<td><label class="chk"><input type="checkbox" data-bgaway="${i}" aria-label="${esc(T('unterwegs'))}" ${m.away ? 'checked' : ''}><span class="ap-lbl"> unterwegs</span></label></td>` : ''}
           <td><label class="chk"><input type="checkbox" data-bgpre="${i}" aria-label="${esc(T('vorwählen'))}" ${m.pre ? 'checked' : ''}><span class="ap-lbl"> vorwählen</span></label></td>
           <td><label class="chk"><input type="radio" name="bgStart" data-bgst="${esc(m.id)}" aria-label="${esc(T('Start'))}" ${startId === m.id ? 'checked' : ''}><span class="ap-lbl"> Start</span></label></td>
@@ -3369,7 +3384,7 @@
       ${fixed ? '<div class="banner g" style="margin-bottom:10px">Das Adminkonto hat immer alle Rechte. Name und Benutzername sind fest, es kann nicht gesperrt oder gelöscht werden – nur das Passwort lässt sich ändern.</div>' : ''}
       ${u ? `<div class="ugrid"><label class="f">Benutzername<input value="${esc(u.username)}" disabled></label><label class="f">Anzeigename<input id="uNm" value="${esc(u.name || '')}" ${fixed ? 'disabled' : ''}></label>
           ${fixed ? '' : `<label class="f wall">Verknüpftes Mitglied (optional)<select id="uMem" translate="no"><option value="">${esc(T('– keines –'))}</option>${free.map(m => `<option value="${m.id}" ${u.member_id === m.id ? 'selected' : ''}>${esc(lastFirst(m.name))}</option>`).join('')}</select></label>`}</div>`
-        : `<div class="seg" id="uSrc" style="margin-bottom:12px">${free.length ? '<button type="button" data-src="mem" class="on">Mitglied auswählen</button>' : ''}<button type="button" data-src="man" class="${free.length ? '' : 'on'}">Manuell anlegen</button></div>
+        : `<div class="seg mb12" id="uSrc">${free.length ? '<button type="button" data-src="mem" class="on">Mitglied auswählen</button>' : ''}<button type="button" data-src="man" class="${free.length ? '' : 'on'}">Manuell anlegen</button></div>
         <div class="ugrid">
           <label class="f wall" id="uMemL">Mitglied<select id="uMem" translate="no"><option value="">${esc(T('– Mitglied wählen –'))}</option>${free.map(m => `<option value="${m.id}" data-un="${esc(m.username)}" data-nm="${esc(m.name)}">${esc(lastFirst(m.name))}</option>`).join('')}</select></label>
           <label class="f" id="uFirstL">Vorname<input id="uFirst" autocomplete="off"></label><label class="f" id="uLastL">Nachname<input id="uLast" autocomplete="off"></label>
@@ -3380,14 +3395,14 @@
         <label class="chk ucard"><input type="radio" name="uRole" value="oberadmin" ${u && u.role === 'oberadmin' ? 'checked' : ''}> <span><b>Alle Rechte</b><br><span class="muted s">wie das Adminkonto – inkl. Benutzer, Einstellungen, Datensicherung</span></span></label></div>
       <div id="uRoleBox">
         <div class="rolegrid">${roles.map(r => `<label class="chk ucard"><input type="checkbox" data-role="${r.id}" ${myRoles.includes(r.id) ? 'checked' : ''}> <span><b>${esc(r.name)}</b>${r.dept_scope ? ' <span class="pill b">eigene Abteilung</span>' : ''}<br><span class="muted s">${esc(r.description || '')}</span></span></label>`).join('') || '<p class="empty">Noch keine Rollen – unter „Rollen“ anlegen.</p>'}</div>
-        <div id="uDeptBox" class="card soft" style="margin-top:12px"><h3 style="margin:0 0 8px">Abteilungen für „eigene Abteilung“</h3>
-          ${depts.length ? `<div class="permgrid">${depts.map(d => `<label class="chk"><input type="checkbox" data-dep="${d.id}" ${myDepts.includes(d.id) ? 'checked' : ''}> <span translate="no">${esc(d.name)}</span></label>`).join('')}</div>` : '<p class="muted" style="margin:0">Abteilungen gibt es in der Mitgliederverwaltung.</p>'}</div>
+        <div id="uDeptBox" class="card soft mt12"><h3 class="m-0-0-8">Abteilungen für „eigene Abteilung“</h3>
+          ${depts.length ? `<div class="permgrid">${depts.map(d => `<label class="chk"><input type="checkbox" data-dep="${d.id}" ${myDepts.includes(d.id) ? 'checked' : ''}> <span translate="no">${esc(d.name)}</span></label>`).join('')}</div>` : '<p class="muted m0">Abteilungen gibt es in der Mitgliederverwaltung.</p>'}</div>
         <details class="udet"${extra.length ? ' open' : ''}><summary>Zusätzliche Einzelrechte${extra.length ? ` (${extra.length})` : ''}</summary>${permList(extra, 'data-perm')}</details>
       </div>`}
       ${u ? `<div class="row" style="align-items:center;margin-top:14px">${fixed ? '' : `<label class="chk"><input type="checkbox" id="uAct" ${u.active ? 'checked' : ''}> Zugang aktiv</label>`}
         <button class="btn small" id="uReset">Neues Passwort vergeben</button>
         ${fixed || u.id === me.id ? '' : '<button class="btn small danger" id="uDel">Benutzer löschen</button>'}</div>` : ''}
-      <div class="err" id="uErr" style="text-align:left"></div>
+      <div class="err ta-l" id="uErr"></div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`);
     const sync = () => {
       if (fixed) return;
@@ -3447,10 +3462,10 @@
     dialog(`<h2>${r ? 'Rolle bearbeiten' : 'Neue Rolle'}</h2>
       <div class="ugrid"><label class="f">Name<input id="rNm" value="${esc(r ? r.name : '')}" maxlength="40" placeholder="z. B. Jugendwart"></label>
         <label class="f">Beschreibung<input id="rDs" value="${esc(r ? r.description || '' : '')}" maxlength="300"></label></div>
-      <label class="chk ucard" style="margin-top:12px"><input type="checkbox" id="rSc" ${r && r.dept_scope ? 'checked' : ''}> <span><b>Nur Mitglieder der eigenen Abteilungen</b><br><span class="muted s">Für Abteilungsleitungen: Mitglieder ihrer Abteilung sehen, Stammdaten ändern, Austritte eintragen, neue Mitglieder anlegen und Anträge mit dieser Abteilung annehmen. Welche Abteilung, steht beim Benutzer. Gilt nur für die Rechte „Mitglieder“ und „E-Mail an Mitglieder“ – andere Rechte bitte in einer eigenen Rolle vergeben.</span></span></label>
+      <label class="chk ucard mt12"><input type="checkbox" id="rSc" ${r && r.dept_scope ? 'checked' : ''}> <span><b>Nur Mitglieder der eigenen Abteilungen</b><br><span class="muted s">Für Abteilungsleitungen: Mitglieder ihrer Abteilung sehen, Stammdaten ändern, Austritte eintragen, neue Mitglieder anlegen und Anträge mit dieser Abteilung annehmen. Welche Abteilung, steht beim Benutzer. Gilt nur für die Rechte „Mitglieder“ und „E-Mail an Mitglieder“ – andere Rechte bitte in einer eigenen Rolle vergeben.</span></span></label>
       <h3 class="usec">Rechte</h3>${permList(r ? r.perms : [], 'data-rp')}
-      <div class="err" id="rErr" style="text-align:left"></div>
-      <div class="btns">${r && !r.users ? '<button class="btn danger" id="rDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="rOk">Speichern</button></div>`);
+      <div class="err ta-l" id="rErr"></div>
+      <div class="btns">${r && !r.users ? '<button class="btn danger mr-auto" id="rDel">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="rOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
     if ($('rDel')) $('rDel').onclick = async () => { if (!await ask(`Rolle „${r.name}“ löschen?`)) return; try { await api('roles/' + r.id, 'DELETE'); closeDialog(); RENDER.benutzer(); } catch (e) { fail(e); } };
     $('rOk').onclick = () => busy($('rOk'), async () => {
@@ -3475,7 +3490,7 @@
     const deptName = id => (opt.departments.find(d => d.id === id) || {}).name;
     $('main').innerHTML = `<h2 class="page">Benutzer & Rechte</h2>
       <p class="lead">Jeder meldet sich mit eigenem Benutzernamen an, so ist nachvollziehbar, wer was geändert hat. <b>Rollen</b> bündeln Rechte, z. B. für den Kassenwart.</p>
-      <div class="tabrow"><div class="tabs" id="uTab" role="tablist"><button type="button" data-t="benutzer" class="${userTab === 'benutzer' ? 'on' : ''}">Benutzer <span class="badge">${users.length}</span></button><button type="button" data-t="rollen" class="${userTab === 'rollen' ? 'on' : ''}">Rollen <span class="badge">${opt.roles.length}</span></button></div>
+      <div class="tabrow"><span id="uTab"></span>
       <div class="tabtools"><button class="btn primary" id="uNew">${userTab === 'rollen' ? '+ Neue Rolle' : '+ Neuer Benutzer'}</button></div></div>
       <div class="scroll" id="uBody"></div>`;
     if (userTab === 'rollen') {
@@ -3493,20 +3508,23 @@
           <td class="r"><button class="btn small" data-u="${u.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
       $('uBody').querySelectorAll('[data-u]').forEach(b => { b.onclick = () => userDialog(users.find(x => x.id === Number(b.dataset.u)), opt).catch(fail); });
     }
-    { const on = $('uTab').querySelector('.on'); if (on) revealTab(on); }
-    $('uTab').onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; userTab = b.dataset.t; try { sessionStorage.setItem('tab_benutzer', userTab); } catch (x) { /* ohne Speicher */ } RENDER.benutzer().catch(fail); };
+    const uBar = tabBar([['benutzer', 'Benutzer'], ['rollen', 'Rollen']], 'data-t', {
+      cur: userTab, id: 'uTab', role: true, badge: k => ` <span class="badge">${k === 'rollen' ? opt.roles.length : users.length}</span>`,
+      pick: k => { userTab = k; try { sessionStorage.setItem('tab_benutzer', userTab); } catch (x) { /* ohne Speicher */ } return RENDER.benutzer().catch(fail); },
+    });
+    $('uTab').replaceWith(uBar); revealTab(uBar.querySelector('.on'));
     $('uNew').onclick = () => (userTab === 'rollen' ? roleDialog(null, opt) : userDialog(null, opt).catch(fail));
   };
 
   /* =================== Datensicherung =================== */
   const size = b => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
-  const KIND_B = { auto: 'nächtlich', manuell: 'von Hand', 'vor-wiederherstellung': 'vor Wiederherstellung', hochgeladen: 'hochgeladen', komplett: 'aus Komplettsicherung' };
+  const KIND_B = { auto: 'nächtlich', manuell: 'von Hand', 'vor-wiederherstellung': 'vor Wiederherstellung', hochgeladen: 'hochgeladen', komplett: 'aus Komplettsicherung', 'vor-update': 'vor Update' };
   /* ---------- Tresor: Verschlüsselung der persönlichen Daten ---------- */
   const VAULT_WHAT = 'Adressen, Telefon, E-Mail, Geburtsdaten, Bankdaten, Unterschriften, Beitrittserklärungen, Dokumente, Profilfotos, Notizen, Änderungsverlauf und die Kontaktdaten in der Buchhaltung';
   /* ehrlich: was der Tresor schützt – und was bewusst lesbar bleibt (muss zu SPEC/FILE_DIRS in src/vault.js passen) */
-  const VAULT_SCOPE = `<details style="margin-top:10px"><summary>Was genau verschlüsselt wird – und was nicht</summary>
+  const VAULT_SCOPE = `<details class="mt10"><summary>Was genau verschlüsselt wird – und was nicht</summary>
     <div class="row" style="align-items:flex-start;gap:20px;margin-top:8px">
-      <div style="flex:1;min-width:240px"><b>Verschlüsselt</b><ul class="s" style="margin:6px 0 0;padding-left:18px">
+      <div class="fx1-240"><b>Verschlüsselt</b><ul class="s" style="margin:6px 0 0;padding-left:18px">
         <li>Mitglieder: Geburtsdatum, Anschrift, Telefon, Handy, E-Mail, Schlüsselnummer, Notizen, Zusatzfelder</li>
         <li>Bankdaten (Kontoinhaber, IBAN, BIC), Lastschrift-Dateien</li>
         <li>Online-Anträge, Änderungsanträge, Unterschriften, Änderungsverlauf</li>
@@ -3515,12 +3533,12 @@
         <li>Zugangsdaten: Postfach-Passwort, Dropbox, Sicherungsziele, Hydrawise, Schlüssel der Datensicherung (warten nach einem Neustart, bis der Tresor offen ist)</li>
         <li>E-Mail-Adressen der Empfänger von Rundmails</li>
         <li>Dateien: Mitglieder-Dokumente, Profilfotos, Mail-Anhänge</li></ul></div>
-      <div style="flex:1;min-width:240px"><b>Bleibt lesbar</b> (wird für den Betrieb gebraucht)<ul class="s" style="margin:6px 0 0;padding-left:18px">
+      <div class="fx1-240"><b>Bleibt lesbar</b> (wird für den Betrieb gebraucht)<ul class="s" style="margin:6px 0 0;padding-left:18px">
         <li>Namen – für Tablet, Buchungen, Suche und Sortierung</li>
         <li>Mitgliedsnummer, Status, Ein-/Austritt, Abteilungen, Beiträge, Einwilligungen</li>
         <li>Getränkekonten, Platzbuchungen, Arbeitsstunden, Spielbetrieb, Protokolle</li>
         <li>Belege der Buchhaltung, Artikelbilder, Erweiterungen</li></ul></div></div>
-    <p class="muted s" style="margin:8px 0 0">Der Tresor schützt vor dem Auslesen der Festplatte bzw. einer Sicherungskopie der Datenbank. Gegen jemanden, der in der laufenden Verwaltung angemeldet ist, schützen die Rechte der Admins.</p></details>`;
+    <p class="muted s m-8-0-0">Der Tresor schützt vor dem Auslesen der Festplatte bzw. einer Sicherungskopie der Datenbank. Gegen jemanden, der in der laufenden Verwaltung angemeldet ist, schützen die Rechte der Admins.</p></details>`;
   function vaultSheets(code) {
     const club = esc((brand && brand.clubName) || '');
     const d = new Date().toLocaleDateString('de-DE');
@@ -3542,8 +3560,8 @@
   }
   function vaultUnlockHtml(prefix) {
     return `<div class="row" style="align-items:flex-end;gap:10px;margin-top:10px">
-      <label class="f" style="flex:1;min-width:240px">Wiederherstellungscode<input id="${prefix}Code" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" style="font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:1px"></label>
-      <label class="f" style="flex:1;min-width:200px">Dein Passwort<input id="${prefix}Pw" type="password" autocomplete="current-password"></label>
+      <label class="f fx1-240">Wiederherstellungscode<input id="${prefix}Code" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" style="font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:1px"></label>
+      <label class="f fx1-200">Dein Passwort<input id="${prefix}Pw" type="password" autocomplete="current-password"></label>
       <button class="btn primary" id="${prefix}Go" type="button">Öffnen</button></div>`;
   }
   function wireUnlock(prefix, done) {
@@ -3556,8 +3574,8 @@
   function vaultLockedPage() {
     if ($('vaultLock')) return;
     $('main').innerHTML = `<div class="card" id="vaultLock" style="max-width:760px"><h3>Persönliche Daten verschlossen</h3>
-      <p class="muted" style="margin:0 0 6px">Nach einem Neustart sind Adressen, Bankdaten und Dokumente verschlüsselt, bis sich ein Admin mit Schlüssel anmeldet. Dein Konto hat noch keinen – das passiert automatisch bei der ersten Anmeldung, während die Daten offen sind. Bis dahin hier mit dem <b>Wiederherstellungscode</b> öffnen (das Blatt beim Vorsitz bzw. Kassenwart).</p>
-      <p class="muted s" style="margin:0">Tablet, Buchungen, Türen und Beregnung laufen weiter; E-Mails an Mitglieder warten und gehen nach dem Öffnen raus.</p>
+      <p class="muted m-0-0-6">Nach einem Neustart sind Adressen, Bankdaten und Dokumente verschlüsselt, bis sich ein Admin mit Schlüssel anmeldet. Dein Konto hat noch keinen – das passiert automatisch bei der ersten Anmeldung, während die Daten offen sind. Bis dahin hier mit dem <b>Wiederherstellungscode</b> öffnen (das Blatt beim Vorsitz bzw. Kassenwart).</p>
+      <p class="muted s m0">Tablet, Buchungen, Türen und Beregnung laufen weiter; E-Mails an Mitglieder warten und gehen nach dem Öffnen raus.</p>
       ${vaultUnlockHtml('vl')}</div>`;
     wireUnlock('vl', () => RENDER[page]().catch(pageFail));
   }
@@ -3570,7 +3588,7 @@
       <p class="muted s" style="margin:8px 0">Eingeschaltet werden ${VAULT_WHAT} verschlüsselt gespeichert. Namen, Getränkekonten, Buchungen, Türen und Beregnung bleiben lesbar – der Vereinsbetrieb läuft nach einem Neustart sofort weiter. Die Daten öffnen sich automatisch, sobald sich ein Admin anmeldet.</p>
       ${v.may ? '<div class="row"><button class="btn" id="vaOn" type="button">Verschlüsselung einschalten</button></div>' : '<p class="muted s">Einschalten kann, wer das Recht „Einstellungen“ hat.</p>'}${VAULT_SCOPE}`;
     else if (v.locked) body = `<div class="banner r">Verschlossen – seit dem letzten Neustart hat sich noch kein Admin mit Schlüssel angemeldet.${v.waitingMails ? ` ${v.waitingMails} ${v.waitingMails === 1 ? 'E-Mail' : 'E-Mails'} warten.` : ''}</div>
-      <p class="muted s" style="margin:8px 0 0">Dein Konto hat ${v.mine ? 'einen Schlüssel – bitte einmal ab- und wieder anmelden.' : 'noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen; danach öffnet auch deine Anmeldung die Daten.'}</p>
+      <p class="muted s m-8-0-0">Dein Konto hat ${v.mine ? 'einen Schlüssel – bitte einmal ab- und wieder anmelden.' : 'noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen; danach öffnet auch deine Anmeldung die Daten.'}</p>
       ${v.mine ? '' : vaultUnlockHtml('va')}`;
     else body = `<div class="banner g">Eingeschaltet seit ${when(v.since)} – ${VAULT_WHAT} liegen verschlüsselt auf der Platte und sind nur im Arbeitsspeicher entschlüsselt.</div>
       <p class="muted s" style="margin:8px 0">Wiederherstellungscode vom ${when(v.codeAt)}. Nach einem Neustart öffnet die erste Anmeldung eines Admins die Daten${v.mine ? ' – dein Konto hat einen Schlüssel' : ''}.</p>
@@ -3589,7 +3607,7 @@
   }
   function vaultShowCode(code, next, nextLabel = 'Weiter') {
     dialog(`<h3>Wiederherstellungscode</h3>
-      <p class="muted" style="margin:0 0 10px">Bitte jetzt <b>zwei Blätter drucken</b> – eins für den Vorsitz, eins für den Kassenwart – und verschlossen aufbewahren, nicht im Vereinsheim. Der Code wird nur dieses eine Mal angezeigt.</p>
+      <p class="muted m-0-0-10">Bitte jetzt <b>zwei Blätter drucken</b> – eins für den Vorsitz, eins für den Kassenwart – und verschlossen aufbewahren, nicht im Vereinsheim. Der Code wird nur dieses eine Mal angezeigt.</p>
       <div style="font:700 24px/1.3 ui-monospace,Menlo,Consolas,monospace;letter-spacing:2px;text-align:center;border:2px solid var(--line);border-radius:12px;padding:14px 10px;margin:4px 0 14px;word-break:break-all">${esc(code)}</div>
       <div class="btns"><button class="btn" id="vcPrint" type="button">Zwei Blätter drucken</button><button class="btn primary" id="vcNext" type="button">${esc(nextLabel)}</button></div>`);
     let printed = false;
@@ -3601,10 +3619,10 @@
     let prep; try { prep = await api('vault/prepare', 'POST', { password: pw }); } catch (e) { return fail(e); }
     vaultShowCode(prep.code, () => {
       dialog(`<h3>Probe</h3>
-        <p class="muted" style="margin:0 0 10px">Damit niemand mit einem falsch abgeschriebenen Code dasteht: Bitte vom gedruckten Blatt die Zeichen an <b>Stelle ${prep.positions.join(', ')}</b> eintippen (ohne Bindestriche gezählt).</p>
+        <p class="muted m-0-0-10">Damit niemand mit einem falsch abgeschriebenen Code dasteht: Bitte vom gedruckten Blatt die Zeichen an <b>Stelle ${prep.positions.join(', ')}</b> eintippen (ohne Bindestriche gezählt).</p>
         <label class="f">Zeichen ${prep.positions.join(' · ')}<input id="vpT" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" style="font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:4px;text-align:center;font-size:20px"></label>
-        ${v.oldPlain ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="vpDel" checked> Die ${v.oldPlain} älteren, unverschlüsselten Schnappschüsse der Datenbank auf diesem Gerät löschen (empfohlen – sie enthalten die Daten im Klartext). Die verschlüsselten Komplettsicherungen bleiben.</label>` : ''}
-        <p class="muted s" style="margin:10px 0 0">Das Verschlüsseln dauert wenige Sekunden. Vorher legt Clubwerk eine Sicherung an.</p>
+        ${v.oldPlain ? `<label class="chk mt12"><input type="checkbox" id="vpDel" checked> Die ${v.oldPlain} älteren, unverschlüsselten Schnappschüsse der Datenbank auf diesem Gerät löschen (empfohlen – sie enthalten die Daten im Klartext). Die verschlüsselten Komplettsicherungen bleiben.</label>` : ''}
+        <p class="muted s m-10-0-0">Das Verschlüsseln dauert wenige Sekunden. Vorher legt Clubwerk eine Sicherung an.</p>
         <div class="btns"><button class="btn ghost" id="vpC" type="button">Abbrechen</button><button class="btn primary" id="vpGo" type="button">Verschlüsseln</button></div>`);
       $('vpC').onclick = closeDialog;
       $('vpGo').onclick = () => busy($('vpGo'), async () => {
@@ -3633,8 +3651,8 @@
     $('main').innerHTML = `<h2 class="page">Datensicherung</h2>
       <p class="lead">Jede Nacht entsteht eine <b>verschlüsselte Komplettsicherung</b> mit allem, was Clubwerk enthält, und geht an die Sicherungsziele. Öffnen lässt sie sich nur mit dem Sicherungspasswort.</p>
       ${b.restored ? `<div class="banner g">${esc(b.restored)}</div>` : ''}
-      ${b.pending ? `<div class="banner a" style="display:block">Beim nächsten Neustart wird <b>${esc(b.pending)}</b> wiederhergestellt${/_komplett\.db$/.test(b.pending) ? ' (mit Belegen, Bildern und Erweiterungen)' : ''}. Der aktuelle Stand wird vorher automatisch beiseitegelegt.
-        <div class="row" style="margin-top:8px"><button class="btn small primary" id="bRestart">Jetzt neu starten</button><button class="btn small" id="bCancel">Abbrechen</button></div></div>` : ''}
+      ${b.pending ? `<div class="banner a db">Beim nächsten Neustart wird <b>${esc(b.pending)}</b> wiederhergestellt${/_komplett\.db$/.test(b.pending) ? ' (mit Belegen, Bildern und Erweiterungen)' : ''}. Der aktuelle Stand wird vorher automatisch beiseitegelegt.
+        <div class="row mt8"><button class="btn small primary" id="bRestart">Jetzt neu starten</button><button class="btn small" id="bCancel">Abbrechen</button></div></div>` : ''}
       ${st.warn ? `<div class="banner ${st.warnLevel || 'a'}">${esc(st.warn)}</div>` : ''}
       <div class="kpis">
         <div class="kpi ${st.last_error && !st.last_ok ? 'warn' : ''}"><div class="l">Letzte Sicherung</div><div class="v">${st.last_ok ? when(st.last_ok) : 'noch keine'}</div><div class="muted s">${esc(st.last_msg ? st.last_msg.replace(/^\d{4}-\d{2}-\d{2}: /, '') : (st.hasKey ? 'täglich ab ' + st.hour + ' Uhr' : 'Sicherungspasswort fehlt'))}</div></div>
@@ -3650,42 +3668,42 @@
 </div>
 
       <div class="card" id="bkProbeCard"><h3>Probe-Wiederherstellung ${st.probe_at ? okPill(st.probe_ok && !(st.probe || {}).hinweis, st.probe_ok ? ((st.probe || {}).hinweis ? 'Hinweis' : 'in Ordnung') : 'Fehler') : ''}</h3>
-        <p class="muted s" style="margin-top:0">Jeden Sonntag nach der Sicherung lädt Clubwerk die neueste Sicherung zurück – reihum von einem Sicherungsziel, ohne Ziel die Datei hier –, startet sich damit abgeschottet zur Probe und zählt die wichtigsten Daten. Hier wird dabei nichts verändert.</p>
-        ${st.probe_at ? `<p style="margin:0 0 6px">${st.probe_ok ? '✓' : '✗'} ${esc(when(st.probe_at))} · ${esc(st.probe_msg)}</p>
-          ${(st.probe || {}).zahlen && st.probe.zahlen.length ? `<p class="muted s" style="margin:0 0 6px">${st.probe.zahlen.map(z => `${z.n.toLocaleString('de-DE')} ${esc(z.label)}`).join(' · ')}</p>` : ''}
+        <p class="muted s mt0">Jeden Sonntag nach der Sicherung lädt Clubwerk die neueste Sicherung zurück – reihum von einem Sicherungsziel, ohne Ziel die Datei hier –, startet sich damit abgeschottet zur Probe und zählt die wichtigsten Daten. Hier wird dabei nichts verändert.</p>
+        ${st.probe_at ? `<p class="m-0-0-6">${st.probe_ok ? '✓' : '✗'} ${esc(when(st.probe_at))} · ${esc(st.probe_msg)}</p>
+          ${(st.probe || {}).zahlen && st.probe.zahlen.length ? `<p class="muted s m-0-0-6">${st.probe.zahlen.map(z => `${z.n.toLocaleString('de-DE')} ${esc(z.label)}`).join(' · ')}</p>` : ''}
           ${(st.probe || {}).hinweis ? `<div class="banner a">Sicherung wirkt unvollständig oder veraltet: ${esc(st.probe.hinweis)}</div>` : ''}
-          ${(st.probe || {}).prev && st.probe.prev.at ? `<p class="muted s" style="margin:0 0 6px">Vorherige Probe: ${esc(when(st.probe.prev.at))}${st.probe.prev.quelle ? ' · ' + esc(st.probe.prev.quelle) : ''} · ${st.probe.prev.ok ? '✓' : '✗'}</p>` : ''}` : '<p class="muted s" style="margin:0 0 6px">Noch keine Probe gelaufen.</p>'}
+          ${(st.probe || {}).prev && st.probe.prev.at ? `<p class="muted s m-0-0-6">Vorherige Probe: ${esc(when(st.probe.prev.at))}${st.probe.prev.quelle ? ' · ' + esc(st.probe.prev.quelle) : ''} · ${st.probe.prev.ok ? '✓' : '✗'}</p>` : ''}` : '<p class="muted s m-0-0-6">Noch keine Probe gelaufen.</p>'}
         <div class="row"><button class="btn" id="bkProbe" ${st.hasKey && (st.local.length || st.targetsOn) ? '' : 'disabled'}>Jetzt prüfen</button></div></div>
 
       <div class="card"><h3>Sicherungspasswort ${okPill(st.hasKey, st.hasKey ? 'festgelegt' : 'fehlt')}</h3>
-        ${st.hasKey ? `<p class="muted s" style="margin-top:0">Festgelegt am ${esc(deTime(st.pwAt))} Uhr. Wird es geändert, lassen sich ältere Sicherungen weiter mit dem damaligen Passwort öffnen.</p>`
-          : '<p class="muted s" style="margin-top:0">Mit diesem Passwort werden alle Sicherungen verschlüsselt. <b>Ohne das Passwort ist eine Sicherung wertlos</b> – deshalb danach unbedingt das Notfallblatt ausdrucken und sicher verwahren (z. B. beim Kassenwart oder im Tresor).</p>'}
+        ${st.hasKey ? `<p class="muted s mt0">Festgelegt am ${esc(deTime(st.pwAt))} Uhr. Wird es geändert, lassen sich ältere Sicherungen weiter mit dem damaligen Passwort öffnen.</p>`
+          : '<p class="muted s mt0">Mit diesem Passwort werden alle Sicherungen verschlüsselt. <b>Ohne das Passwort ist eine Sicherung wertlos</b> – deshalb danach unbedingt das Notfallblatt ausdrucken und sicher verwahren (z. B. beim Kassenwart oder im Tresor).</p>'}
         ${st.pwCheckDue && owner ? '<div class="banner a" id="bkPwDue">Seit über einem halben Jahr nicht mehr geprüft: Passt das notierte Sicherungspasswort noch? Ohne das richtige Passwort sind alle Sicherungen wertlos.</div>' : ''}
         ${owner ? (st.hasKey ? `<div class="row">${st.pwCheckDue ? '<button class="btn primary" id="bkPwTest">Passwort prüfen …</button>' : ''}<button class="btn" id="bkPwChange">Passwort ändern …</button><button class="btn" id="bkSheet">Notfallblatt drucken …</button></div>` : `<div class="row">
-          <label class="f" style="flex:1;min-width:180px">Sicherungspasswort<input type="password" id="bkPw1" autocomplete="new-password" placeholder="mind. 10 Zeichen"></label>
-          <label class="f" style="flex:1;min-width:180px">Wiederholen<input type="password" id="bkPw2" autocomplete="new-password"></label>
-          <label class="f" style="flex:1;min-width:180px">Dein Passwort<input type="password" id="bkMy" autocomplete="current-password" placeholder="zur Bestätigung"></label>
+          <label class="f fx1-180">Sicherungspasswort<input type="password" id="bkPw1" autocomplete="new-password" placeholder="mind. 10 Zeichen"></label>
+          <label class="f fx1-180">Wiederholen<input type="password" id="bkPw2" autocomplete="new-password"></label>
+          <label class="f fx1-180">Dein Passwort<input type="password" id="bkMy" autocomplete="current-password" placeholder="zur Bestätigung"></label>
           <button class="btn primary" id="bkPwSet" style="align-self:flex-end">Festlegen</button></div>`) : '<p class="muted s">Festlegen und ändern darf nur ein Benutzer mit allen Rechten.</p>'}</div>
 
       <div class="card"><h3>Zeitplan &amp; Aufbewahrung</h3><div class="row">
-        <label class="f" style="flex:1;min-width:140px">Uhrzeit<select id="bkHour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === st.hour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00 Uhr</option>`).join('')}</select></label>
-        <label class="f" style="flex:1;min-width:140px">Tägliche behalten<input id="bkDaily" class="n" value="${st.daily}" inputmode="numeric"></label>
-        <label class="f" style="flex:1;min-width:140px">Wöchentliche<input id="bkWeekly" class="n" value="${st.weekly}" inputmode="numeric"></label>
-        <label class="f" style="flex:1;min-width:140px">Monatliche<input id="bkMonthly" class="n" value="${st.monthly}" inputmode="numeric"></label>
+        <label class="f fx1-140">Uhrzeit<select id="bkHour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === st.hour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00 Uhr</option>`).join('')}</select></label>
+        <label class="f fx1-140">Tägliche behalten<input id="bkDaily" class="n" value="${st.daily}" inputmode="numeric"></label>
+        <label class="f fx1-140">Wöchentliche<input id="bkWeekly" class="n" value="${st.weekly}" inputmode="numeric"></label>
+        <label class="f fx1-140">Monatliche<input id="bkMonthly" class="n" value="${st.monthly}" inputmode="numeric"></label>
         <button class="btn primary" id="bkSave">Speichern</button></div>
-        <label class="chk" style="margin-top:12px"><input type="checkbox" id="bkReadable" data-nodirty ${st.readable ? 'checked' : ''}> Zusätzlich lesbare Auszüge der aktiven Module hochladen (Excel, unverschlüsselt – z. B. Getränke-Stand, Arbeitszeiten, Tür- und Beregnungsprotokoll)</label>
+        <label class="chk mt12"><input type="checkbox" id="bkReadable" data-nodirty ${st.readable ? 'checked' : ''}> Zusätzlich lesbare Auszüge der aktiven Module hochladen (Excel, unverschlüsselt – z. B. Getränke-Stand, Arbeitszeiten, Tür- und Beregnungsprotokoll)</label>
         <p class="muted s">Auf den Sicherungszielen bleiben die neuesten ${st.daily} Tage, dazu je Woche (${st.weekly}) und je Monat (${st.monthly}) die jüngste Sicherung – so reicht der Verlauf weit zurück, ohne dass der Speicher voll läuft. Für einzelne Ziele lässt sich das abweichend einstellen. Hier in der App bleiben die letzten 3.</p></div>
 
       <div class="card"><h3>Sicherungsziele ${st.targetsOn ? okPill(st.targetsOk === st.targetsOn, `${st.targetsOk} von ${st.targetsOn} in Ordnung`) : '<span class="pill a">keins eingerichtet</span>'}</h3>
-        <p class="muted s" style="margin-top:0">Wohin die verschlüsselte Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei Ziele an verschiedenen Orten – z. B. Google Drive oder Dropbox außer Haus und das NAS oder die FRITZ!Box im Vereinsheim.</p>
+        <p class="muted s mt0">Wohin die verschlüsselte Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei Ziele an verschiedenen Orten – z. B. Google Drive oder Dropbox außer Haus und das NAS oder die FRITZ!Box im Vereinsheim.</p>
         ${st.targets.length ? `<div class="scroll"><table class="tbl kompakt"><tr><th>Ziel</th><th>Zuletzt erfolgreich</th><th>Status</th><th class="r"></th></tr>
           ${st.targets.map(t => { const bad = tgBad(t), pill = tgPill(t, bad); return `<tr class="${t.enabled ? '' : 'off'}"><td style="min-width:220px"><b>${esc(t.name)}</b>${t.insecure ? ' <span class="pill a">unverschlüsselt</span>' : ''}<span class="k-handy"> ${pill}</span><div class="muted s k-desk">${esc(t.typeLabel)} · ${esc(t.where)}</div></td>
             <td class="k-mob muted s k-lang">${esc(t.where)}</td>
             <td>${t.last_ok ? when(t.last_ok) : '–'}</td>
             <td class="k-desk nw">${pill}</td>
-            <td class="r" style="white-space:nowrap"><button class="btn small" data-tgtest="${esc(t.id)}">Testen</button>${owner ? ` <button class="btn small" data-tgedit="${esc(t.id)}">Bearbeiten</button>` : ''}</td></tr>`; }).join('')}</table></div>
-          ${st.targets.filter(tgBad).map(t => `<div class="banner r" style="margin:10px 0 0;display:block">${esc(t.name)}: <span>${esc(t.last_error.slice(25))}</span>${owner && t.type === 'gdrive' && t.reconnect ? `<div class="row" style="margin-top:8px"><button class="btn small" data-gdre="${esc(t.id)}">Neu verbinden …</button></div>` : ''}</div>`).join('')}` : ''}
-        <div class="row" style="margin-top:12px">
+            <td class="r ws-nw"><button class="btn small" data-tgtest="${esc(t.id)}">Testen</button>${owner ? ` <button class="btn small" data-tgedit="${esc(t.id)}">Bearbeiten</button>` : ''}</td></tr>`; }).join('')}</table></div>
+          ${st.targets.filter(tgBad).map(t => `<div class="banner r" style="margin:10px 0 0;display:block">${esc(t.name)}: <span>${esc(t.last_error.slice(25))}</span>${owner && t.type === 'gdrive' && t.reconnect ? `<div class="row mt8"><button class="btn small" data-gdre="${esc(t.id)}">Neu verbinden …</button></div>` : ''}</div>`).join('')}` : ''}
+        <div class="row mt12">
           ${owner ? '<button class="btn" id="tgAdd">Ziel hinzufügen …</button>' : ''}
           ${owner || !dx.connected ? `<button class="btn" id="dxSetup">${dx.connected ? 'Dropbox neu verbinden …' : 'Dropbox verbinden …'}</button>` : ''}
         </div>
@@ -3694,23 +3712,23 @@
       </div>
 
       <div class="card"><h3>Wiederherstellen</h3>
-        <p class="muted s" style="margin-top:0">Eine Komplettsicherung ersetzt beim nächsten Neustart <b>alles</b>: Datenbank, Belege, Bilder und Erweiterungen. Der aktuelle Stand wird vorher beiseitegelegt. ${owner ? '' : 'Wiederherstellen darf nur ein Benutzer mit allen Rechten.'}</p>
+        <p class="muted s mt0">Eine Komplettsicherung ersetzt beim nächsten Neustart <b>alles</b>: Datenbank, Belege, Bilder und Erweiterungen. Der aktuelle Stand wird vorher beiseitegelegt. ${owner ? '' : 'Wiederherstellen darf nur ein Benutzer mit allen Rechten.'}</p>
         ${st.local.length ? kTable('Hier in der App', st.local.map(x => `<tr><td>${esc(fileDate(x.file))}</td><td class="r">${size(x.size)}</td>
             <td class="r"><a class="btn small" href="api/admin/backups/komplett/file/${encodeURIComponent(x.file)}">Herunterladen</a>${owner ? ` <button class="btn small danger-h" data-krestore="local" data-file="${esc(x.file)}">Wiederherstellen …</button>` : ''}</td></tr>`).join('')) : '<p class="empty">Noch keine Komplettsicherung hier in der App.</p>'}
-        ${st.targets.map(t => `<div id="tgf_${esc(t.id)}" style="margin-top:12px"></div>`).join('')}
-        ${owner ? `<div class="row" style="margin-top:12px"><label class="btn">Komplettsicherung hochladen …<input type="file" id="bkUp" accept=".cwbackup,.vhsicherung,application/octet-stream" hidden></label>
+        ${st.targets.map(t => `<div id="tgf_${esc(t.id)}" class="mt12"></div>`).join('')}
+        ${owner ? `<div class="row mt12"><label class="btn">Komplettsicherung hochladen …<input type="file" id="bkUp" accept=".cwbackup,.vhsicherung,application/octet-stream" hidden></label>
           <span class="muted s" style="align-self:center">z. B. nach einer Neuinstallation: zuerst einrichten, dann hier die Datei vom USB-Stick wählen.</span></div>` : ''}
       </div>
 
       <div class="card"><h3>Aus Sicherung übernehmen</h3>
-        <p class="muted s" style="margin-top:0">Nur einzelne Module oder Teile aus einer Komplettsicherung holen – z. B. nach einer Neuinstallation die Artikel mit Bildern. Gleicher Name → aktualisiert, sonst neu. Gelöscht und ersetzt wird nichts.</p>
+        <p class="muted s mt0">Nur einzelne Module oder Teile aus einer Komplettsicherung holen – z. B. nach einer Neuinstallation die Artikel mit Bildern. Gleicher Name → aktualisiert, sonst neu. Gelöscht und ersetzt wird nichts.</p>
         ${owner ? '<div class="row"><button class="btn" id="tlOpen">Aus Sicherung übernehmen …</button></div>' : '<p class="muted s">Übernehmen darf nur ein Benutzer mit allen Rechten.</p>'}</div>
 
       <div class="card"><h3>Datenbank-Schnappschüsse</h3>
-        <p class="muted s" style="margin-top:0">Zusätzlich sichert die App jede Nacht nur die Datenbank (die letzten 14 Nächte) – praktisch, um schnell einen Fehler der letzten Tage rückgängig zu machen.</p>
-        <div class="row" style="margin-bottom:12px"><button class="btn" id="bNow">Schnappschuss jetzt</button><label class="btn">.db-Datei einspielen …<input type="file" id="bUp" accept=".db,application/octet-stream" hidden></label></div>
-        ${b.list.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl kompakt"><tr><th>Art</th><th>Stand</th><th class="r">Größe</th><th></th></tr>
-        ${b.list.map(x => { const k = (x.file.match(/_(auto|manuell|vor-wiederherstellung|hochgeladen|komplett)\.db$/) || [])[1]; return `<tr title="${esc(x.file)}">
+        <p class="muted s mt0">Zusätzlich sichert die App jede Nacht nur die Datenbank (die letzten 14 Nächte) und vor jedem Versionswechsel – praktisch, um schnell einen Fehler der letzten Tage rückgängig zu machen. Alte Schnappschüsse räumt die App selbst auf.</p>
+        <div class="row mb12"><button class="btn" id="bNow">Schnappschuss jetzt</button><label class="btn">.db-Datei einspielen …<input type="file" id="bUp" accept=".db,application/octet-stream" hidden></label></div>
+        ${b.list.length ? `<div class="scroll"><table class="tbl kompakt"><tr><th>Art</th><th>Stand</th><th class="r">Größe</th><th></th></tr>
+        ${b.list.map(x => { const k = (x.file.match(/_(auto|manuell|vor-wiederherstellung|hochgeladen|komplett|vor-update)\.db$/) || [])[1]; return `<tr title="${esc(x.file)}">
           <td>${x.file === 'ha-snapshot.db' ? 'vor letztem HA-Backup' : esc(KIND_B[k] || 'Schnappschuss')}</td><td>${deTime(x.mtime.replace('T', ' ').slice(0, 19))}</td><td class="r">${size(x.size)}</td>
           <td class="r"><button class="btn small" data-bkdl="${esc(x.file)}">Herunterladen …</button> <button class="btn small danger-h" data-restore="${esc(x.file)}">Wiederherstellen …</button></td></tr>`; }).join('')}</table></div>` : '<p class="empty">Noch kein Schnappschuss vorhanden.</p>'}</div>`;
 
@@ -3719,11 +3737,11 @@
       const el = $('tgf_' + t.id); if (!el || !r.files.length) return;
       el.innerHTML = kTable('In ' + esc(t.name), r.files.map(x => `<tr><td>${esc(fileDate(x.file))}</td><td class="r">${size(x.size)}</td><td class="r">${owner ? `<button class="btn small danger-h" data-krestore="target" data-target="${esc(t.id)}" data-file="${esc(x.file)}">Wiederherstellen …</button>` : ''}</td></tr>`).join(''));
       bindRestore();
-    }).catch(() => { const el = $('tgf_' + t.id); if (el) el.innerHTML = `<p class="muted s" style="margin:0">${esc(t.name)}: gerade nicht erreichbar – Sicherungen dort lassen sich im Moment nicht auflisten.</p>`; });
+    }).catch(() => { const el = $('tgf_' + t.id); if (el) el.innerHTML = `<p class="muted s m0">${esc(t.name)}: gerade nicht erreichbar – Sicherungen dort lassen sich im Moment nicht auflisten.</p>`; });
     // alte, unverschlüsselte Dateien früherer Versionen in Dropbox
     if (dx.connected) api('backups/remote').then(r => {
       if ($('dxLegacy') && r.legacy) $('dxLegacy').innerHTML = `<div class="banner a" style="margin-top:12px;display:block">In Dropbox liegen noch ${r.legacy} Dateien aus früheren Versionen in <code>Datenbank</code> und <code>Excel</code> – <b>unverschlüsselt</b>.
-        ${owner ? '<div class="row" style="margin-top:8px"><button class="btn small" id="dxLegacyDel">Alte Dateien löschen …</button></div>' : ''}</div>`;
+        ${owner ? '<div class="row mt8"><button class="btn small" id="dxLegacyDel">Alte Dateien löschen …</button></div>' : ''}</div>`;
       if ($('dxLegacyDel')) $('dxLegacyDel').onclick = async () => {
         const pw = await askText(`Die ${r.legacy} alten, unverschlüsselten Dateien in Dropbox löschen?\n\nDie neuen, verschlüsselten Sicherungen bleiben erhalten. Bitte mit deinem Passwort bestätigen.`, '', { password: true, ok: 'Löschen' });
         if (pw === null) return;
@@ -3738,7 +3756,7 @@
       <h2>Wo liegen die Sicherungen?</h2>
       <ul>${st.targets.map(t => `<li>${esc(t.name)} (${esc(t.typeLabel)}): <b>${esc(t.where)}/Komplett</b></li>`).join('')}
         <li>Je Tag eine Datei, z. B. <i>2026-10-17_Clubwerk.cwbackup</i></li>
-        <li>In jedem Home-Assistant-Backup (Einstellungen → System → Backups)</li></ul>
+        <li>Jedes Home-Assistant-Backup enthält Clubwerk mit allen Daten (dort zurückspielen: Einstellungen → System → Backups)</li></ul>
       <h2>Wiederherstellen nach einem Totalausfall</h2>
       <ol><li>Home Assistant einrichten und das Add-on „Clubwerk“ installieren und starten.</li>
         <li>In der Seitenleiste „Clubwerk“ öffnen und mit einem beliebigen Passwort einrichten.</li>
@@ -3763,7 +3781,7 @@
       });
     };
     const afterSet = pw => {
-      dialog(`<h2>Sicherungspasswort festgelegt</h2><div class="banner a" style="display:block">Jetzt bitte das Notfallblatt ausdrucken und sicher verwahren. Ohne das Passwort lässt sich keine Sicherung wiederherstellen.</div>
+      dialog(`<h2>Sicherungspasswort festgelegt</h2><div class="banner a db">Jetzt bitte das Notfallblatt ausdrucken und sicher verwahren. Ohne das Passwort lässt sich keine Sicherung wiederherstellen.</div>
         <div class="btns"><button class="btn ghost" id="c">Später</button><button class="btn primary" id="ok">Notfallblatt drucken</button></div>`);
       $('c').onclick = () => { closeDialog(); RENDER.sicherung(); };
       $('ok').onclick = () => { closeDialog(); notfallblatt(pw); RENDER.sicherung(); };
@@ -3808,7 +3826,7 @@
     // Wiederherstellen aus einer Komplettsicherung
     const restoreDialog = (source, file, label, sameKey = true, target = '') => {
       dialog(`<h2>Komplettsicherung wiederherstellen?</h2>
-        <div class="banner r" style="display:block">Stand vom <b>${esc(label)}</b>. Beim nächsten Neustart werden Datenbank, Belege, Bilder und Erweiterungen ersetzt – alles seitdem Gebuchte und Eingetragene geht verloren. Der aktuelle Stand wird vorher beiseitegelegt.</div>
+        <div class="banner r db">Stand vom <b>${esc(label)}</b>. Beim nächsten Neustart werden Datenbank, Belege, Bilder und Erweiterungen ersetzt – alles seitdem Gebuchte und Eingetragene geht verloren. Der aktuelle Stand wird vorher beiseitegelegt.</div>
         <label class="f">Sicherungspasswort ${sameKey ? '<span class="muted s">(nur nötig, wenn die Sicherung mit einem anderen Passwort erstellt wurde)</span>' : ''}<input type="password" id="rsPw" autocomplete="off"></label>
         <label class="f">Dein Passwort zur Bestätigung<input type="password" id="rsMy" autocomplete="current-password"></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ok">Wiederherstellen</button></div>`);
@@ -3843,7 +3861,7 @@
       const zu = () => { if (inh) api('backups/teil/schliessen', 'POST', {}).catch(() => {}); closeDialog(); };
       const schritt1 = () => {
         dialog(`<h2>Aus Sicherung übernehmen</h2>
-          <p class="muted s" style="margin-top:0">Die Sicherung wird nur hier in Clubwerk geöffnet. Passwörter werden nicht gespeichert.</p>
+          <p class="muted s mt0">Die Sicherung wird nur hier in Clubwerk geöffnet. Passwörter werden nicht gespeichert.</p>
           <label class="f">Sicherung<select id="tlSrc">${quellen.map(q => `<option value="${esc(q.v)}">${esc(q.t)}</option>`).join('')}<option value="upload">Datei von diesem Gerät …</option></select></label>
           <label class="f ${quellen.length ? 'hidden' : ''}" id="tlFileL">Datei (.cwbackup)<input type="file" id="tlFile" accept=".cwbackup,.vhsicherung,application/octet-stream"></label>
           <label class="f">Sicherungspasswort <span class="muted s">(leer = das hier festgelegte)</span><input type="password" id="tlPw" autocomplete="off"></label>
@@ -3883,7 +3901,7 @@
       const teile = () => { const m = new Map(); for (const g of inh.gruppen) for (const t of g.teile) m.set(t.id, t); return m; };
       const schritt2 = (gewaehlt = []) => {
         dialog(`<h2>Was übernehmen?</h2>
-          <p class="muted s" style="margin-top:0">Sicherung vom ${esc(new Date(inh.created).toLocaleString('de-DE'))}${inh.app ? ' (Clubwerk ' + esc(inh.app) + ')' : ''}. Gleicher Name → aktualisiert, sonst neu. Gelöscht wird nichts.</p>
+          <p class="muted s mt0">Sicherung vom ${esc(new Date(inh.created).toLocaleString('de-DE'))}${inh.app ? ' (Clubwerk ' + esc(inh.app) + ')' : ''}. Gleicher Name → aktualisiert, sonst neu. Gelöscht wird nichts.</p>
           ${inh.tresorFalsch ? '<div class="banner a">Der Tresor der Sicherung ließ sich mit dem eingegebenen Code bzw. Passwort nicht öffnen – vertrauliche Teile bleiben gesperrt.</div>' : ''}
           <div class="tl-liste">${inh.gruppen.map(g => `<div class="tl-gruppe ${g.teile.length > 2 || g.id === 'kern' ? 'breit' : ''}"><h3>${esc(g.name)}</h3>${g.sperre ? `<p class="muted s">${esc(g.sperre)}</p>` : ''}
             <div class="tl-teile">${g.teile.map(t => `<label class="chk"><input type="checkbox" data-teil="${esc(t.id)}" ${g.sperre ? 'disabled' : ''} ${gewaehlt.includes(t.id) ? 'checked' : ''}> <span><b>${esc(t.label)}</b>${t.detail ? `<br><span class="muted s">${esc(t.detail)}</span>` : ''}<span class="muted s" data-auto-text></span></span></label>`).join('')}</div></div>`).join('')}</div>
@@ -3911,7 +3929,7 @@
       const zeilen = z => `<div class="tl-zeilen">${z.map(x => `<div class="tl-zeile"><b>${esc(x.name)}</b><span>${esc(x.text)}</span></div>`).join('')}</div>`;
       const schritt3 = v => {
         dialog(`<h2>Vorschau</h2>
-          <p class="muted s" style="margin-top:0">So sähe die Übernahme aus – noch ist nichts verändert. Vorher legt Clubwerk automatisch einen Schnappschuss des jetzigen Stands an.</p>
+          <p class="muted s mt0">So sähe die Übernahme aus – noch ist nichts verändert. Vorher legt Clubwerk automatisch einen Schnappschuss des jetzigen Stands an.</p>
           ${v.dazu.length ? v.dazu.map(d => `<p class="muted s">„${esc(d.label)}“ ist automatisch dabei – ${esc(d.warum)}.</p>`).join('') : ''}
           ${zeilen(v.zeilen)}
           <label class="f">Dein Passwort zur Bestätigung<input type="password" id="tlMy" autocomplete="current-password"></label>
@@ -3961,19 +3979,19 @@
       const v = (k, d = '') => (t && t[k] !== undefined && t[k] !== null ? t[k] : d);
       const pwPh = t && t.hasSecret ? 'placeholder="•••••• (gespeichert – leer lassen = unverändert)"' : '';
       const fieldsHtml = () => typ === 'webdav' ? `
-          <div class="row"><label class="f" style="flex:1">WebDAV-Adresse<input id="tgUrl" value="${esc(v('url'))}" placeholder="https://cloud.example.de/…"></label></div>
-          <div class="row"><label class="f" style="flex:1">Benutzer<input id="tgUser" value="${esc(v('user'))}" autocomplete="off"></label><label class="f" style="flex:1">Passwort / App-Passwort<input id="tgPw" type="password" ${pwPh} autocomplete="new-password"></label></div>`
+          <div class="row"><label class="f fx1">WebDAV-Adresse<input id="tgUrl" value="${esc(v('url'))}" placeholder="https://cloud.example.de/…"></label></div>
+          <div class="row"><label class="f fx1">Benutzer<input id="tgUser" value="${esc(v('user'))}" autocomplete="off"></label><label class="f fx1">Passwort / App-Passwort<input id="tgPw" type="password" ${pwPh} autocomplete="new-password"></label></div>`
         : typ === 'sftp' ? `
-          <div class="row"><label class="f" style="flex:1">Server<input id="tgHost" value="${esc(v('host'))}" placeholder="nas.local oder 192.168.178.20"></label><label class="f" style="flex:1">Port<input id="tgPort" class="n" value="${esc(v('port', 22))}" inputmode="numeric"></label></div>
-          <div class="row"><label class="f" style="flex:1">Benutzer<input id="tgUser" value="${esc(v('user'))}" autocomplete="off"></label><label class="f" style="flex:1">Anmeldung<select id="tgAuth"><option value="password" ${v('auth') !== 'key' ? 'selected' : ''}>Passwort</option><option value="key" ${v('auth') === 'key' ? 'selected' : ''}>Privater Schlüssel</option></select></label></div>
+          <div class="row"><label class="f fx1">Server<input id="tgHost" value="${esc(v('host'))}" placeholder="nas.local oder 192.168.178.20"></label><label class="f fx1">Port<input id="tgPort" class="n" value="${esc(v('port', 22))}" inputmode="numeric"></label></div>
+          <div class="row"><label class="f fx1">Benutzer<input id="tgUser" value="${esc(v('user'))}" autocomplete="off"></label><label class="f fx1">Anmeldung<select id="tgAuth"><option value="password" ${v('auth') !== 'key' ? 'selected' : ''}>Passwort</option><option value="key" ${v('auth') === 'key' ? 'selected' : ''}>Privater Schlüssel</option></select></label></div>
           <div id="tgSecretBox"></div>`
         : `
-          <div class="row"><label class="f" style="flex:1">Verbindung<select id="tgMode"><option value="ftps" ${v('mode', 'ftps') === 'ftps' ? 'selected' : ''}>FTPS (explizit, empfohlen)</option><option value="ftps-implicit" ${v('mode') === 'ftps-implicit' ? 'selected' : ''}>FTPS (implizit, Port 990)</option><option value="ftp" ${v('mode') === 'ftp' ? 'selected' : ''}>FTP – unverschlüsselt</option></select></label></div>
-          <div class="row"><label class="f" style="flex:1">Server<input id="tgHost" value="${esc(v('host'))}" placeholder="fritz.box"></label><label class="f" style="flex:1">Port<input id="tgPort" class="n" value="${esc(v('port', 21))}" inputmode="numeric"></label></div>
-          <div class="row"><label class="f" style="flex:1">Benutzer<input id="tgUser" value="${esc(v('user'))}" autocomplete="off"></label><label class="f" style="flex:1">Passwort<input id="tgPw" type="password" ${pwPh} autocomplete="new-password"></label></div>`;
+          <div class="row"><label class="f fx1">Verbindung<select id="tgMode"><option value="ftps" ${v('mode', 'ftps') === 'ftps' ? 'selected' : ''}>FTPS (explizit, empfohlen)</option><option value="ftps-implicit" ${v('mode') === 'ftps-implicit' ? 'selected' : ''}>FTPS (implizit, Port 990)</option><option value="ftp" ${v('mode') === 'ftp' ? 'selected' : ''}>FTP – unverschlüsselt</option></select></label></div>
+          <div class="row"><label class="f fx1">Server<input id="tgHost" value="${esc(v('host'))}" placeholder="fritz.box"></label><label class="f fx1">Port<input id="tgPort" class="n" value="${esc(v('port', 21))}" inputmode="numeric"></label></div>
+          <div class="row"><label class="f fx1">Benutzer<input id="tgUser" value="${esc(v('user'))}" autocomplete="off"></label><label class="f fx1">Passwort<input id="tgPw" type="password" ${pwPh} autocomplete="new-password"></label></div>`;
       const secretBox = () => { if (!$('tgSecretBox')) return; $('tgSecretBox').innerHTML = $('tgAuth').value === 'key'
         ? `<label class="f">Privater Schlüssel (OpenSSH, beginnt mit -----BEGIN …)<textarea id="tgKey" rows="5" style="font-family:ui-monospace,monospace;font-size:12px" ${t && t.hasSecret ? 'placeholder="(gespeichert – leer lassen = unverändert)"' : ''}></textarea></label>`
-        : `<div class="row"><label class="f" style="flex:1">Passwort<input id="tgPw" type="password" ${pwPh} autocomplete="new-password"></label></div>`; };
+        : `<div class="row"><label class="f fx1">Passwort<input id="tgPw" type="password" ${pwPh} autocomplete="new-password"></label></div>`; };
       const fpBox = (f, changed) => {
         if (!f) { $('tgFp').innerHTML = ''; return; }
         $('tgFp').innerHTML = `<div class="banner ${changed ? 'r' : 'a'}" style="margin-top:8px;display:block">${changed ? '<b>Achtung: Der Server meldet sich anders als bisher.</b> Nur bestätigen, wenn er bewusst neu eingerichtet oder das Zertifikat erneuert wurde.<br>' : ''}
@@ -3982,27 +4000,27 @@
         $('tgFpOk').onchange = () => { fp = $('tgFpOk').checked ? f : ''; };
       };
       dialog(`<h2>${isNew ? 'Sicherungsziel hinzufügen' : 'Sicherungsziel bearbeiten'}</h2>
-        <div class="row"><label class="f" style="flex:1">Art<select id="tgType" ${isNew ? '' : 'disabled'}><option value="dropbox">Dropbox (App key + App secret)</option><option value="gdrive">Google Drive (eigene Google-App)</option><option value="webdav">WebDAV (Nextcloud, NAS, Storage Box …)</option><option value="sftp">SFTP (SSH)</option><option value="ftp">FTPS / FTP (z. B. FRITZ!Box)</option></select></label>
-          <label class="f" style="flex:1">Name<input id="tgName" value="${esc(v('name'))}" placeholder="z. B. NAS Vereinsheim"></label></div>
-        <p class="muted s" id="tgHint" style="margin:0 0 8px"></p>
+        <div class="row"><label class="f fx1">Art<select id="tgType" ${isNew ? '' : 'disabled'}><option value="dropbox">Dropbox (App key + App secret)</option><option value="gdrive">Google Drive (eigene Google-App)</option><option value="webdav">WebDAV (Nextcloud, NAS, Storage Box …)</option><option value="sftp">SFTP (SSH)</option><option value="ftp">FTPS / FTP (z. B. FRITZ!Box)</option></select></label>
+          <label class="f fx1">Name<input id="tgName" value="${esc(v('name'))}" placeholder="z. B. NAS Vereinsheim"></label></div>
+        <p class="muted s m-0-0-8" id="tgHint"></p>
         <div id="tgFields"></div>
-        <div class="row"><label class="f" style="flex:1">Ordner auf dem Ziel<input id="tgFolder" value="${esc(v('folder', '/Clubwerk'))}"></label></div>
-        <label class="chk" style="margin-top:8px"><input type="checkbox" id="tgOwnRet" ${t && t.retention ? 'checked' : ''}> Eigene Aufbewahrung für dieses Ziel (sonst wie oben eingestellt)</label>
-        <div class="row ${t && t.retention ? '' : 'hidden'}" id="tgRet" style="margin-top:8px">
-          <label class="f" style="flex:1">Tägliche<input id="tgD" class="n" value="${esc(t && t.retention ? t.retention.daily : st.daily)}" inputmode="numeric"></label>
-          <label class="f" style="flex:1">Wöchentliche<input id="tgW" class="n" value="${esc(t && t.retention ? t.retention.weekly : st.weekly)}" inputmode="numeric"></label>
-          <label class="f" style="flex:1">Monatliche<input id="tgM" class="n" value="${esc(t && t.retention ? t.retention.monthly : st.monthly)}" inputmode="numeric"></label></div>
+        <div class="row"><label class="f fx1">Ordner auf dem Ziel<input id="tgFolder" value="${esc(v('folder', '/Clubwerk'))}"></label></div>
+        <label class="chk mt8"><input type="checkbox" id="tgOwnRet" ${t && t.retention ? 'checked' : ''}> Eigene Aufbewahrung für dieses Ziel (sonst wie oben eingestellt)</label>
+        <div class="row ${t && t.retention ? '' : 'hidden'} mt8" id="tgRet">
+          <label class="f fx1">Tägliche<input id="tgD" class="n" value="${esc(t && t.retention ? t.retention.daily : st.daily)}" inputmode="numeric"></label>
+          <label class="f fx1">Wöchentliche<input id="tgW" class="n" value="${esc(t && t.retention ? t.retention.weekly : st.weekly)}" inputmode="numeric"></label>
+          <label class="f fx1">Monatliche<input id="tgM" class="n" value="${esc(t && t.retention ? t.retention.monthly : st.monthly)}" inputmode="numeric"></label></div>
         <div id="tgFp"></div><div id="tgIns"></div>
-        <label class="chk" style="margin-top:8px"><input type="checkbox" id="tgOn" ${!t || t.enabled ? 'checked' : ''}> Aktiv – jede Nacht hierhin sichern</label>
-        <label class="f" style="margin-top:8px">Dein Passwort zur Bestätigung<input type="password" id="tgMy" autocomplete="current-password"></label>
-        <div class="btns">${isNew ? '' : '<button class="btn danger" id="tgDel" style="margin-right:auto">Entfernen …</button>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn" id="tgTest">Verbindung testen</button><button class="btn primary" id="ok">Speichern</button></div>`, true);
+        <label class="chk mt8"><input type="checkbox" id="tgOn" ${!t || t.enabled ? 'checked' : ''}> Aktiv – jede Nacht hierhin sichern</label>
+        <label class="f mt8">Dein Passwort zur Bestätigung<input type="password" id="tgMy" autocomplete="current-password"></label>
+        <div class="btns">${isNew ? '' : '<button class="btn danger mr-auto" id="tgDel">Entfernen …</button>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn" id="tgTest">Verbindung testen</button><button class="btn primary" id="ok">Speichern</button></div>`, true);
       if ($('tgDel')) $('tgDel').onclick = () => tgRemove(t);
       const draw = () => { $('tgType').value = typ; $('tgHint').innerHTML = HINTS[typ]; $('tgFields').innerHTML = fieldsHtml();
         if ($('tgAuth')) { secretBox(); $('tgAuth').onchange = secretBox; }
         if ($('tgMode')) $('tgMode').onchange = () => { fp = ''; fpBox(''); $('tgPort').value = $('tgMode').value === 'ftps-implicit' ? 990 : 21; insBox(); };
         fpBox(fp); insBox(); };
       const insBox = () => { const ins = (typ === 'ftp' && $('tgMode') && $('tgMode').value === 'ftp') || (typ === 'webdav' && /^http:/i.test(($('tgUrl') || {}).value || ''));
-        $('tgIns').innerHTML = ins ? '<div class="banner r" style="margin-top:8px;display:block">Unverschlüsselt: Das Passwort geht im Klartext durchs Netz. Die Sicherung selbst bleibt verschlüsselt. Nur im eigenen Netz verwenden.<label class="chk" style="margin-top:6px"><input type="checkbox" id="tgInsOk"> Verstanden, trotzdem verwenden</label></div>' : ''; };
+        $('tgIns').innerHTML = ins ? '<div class="banner r" style="margin-top:8px;display:block">Unverschlüsselt: Das Passwort geht im Klartext durchs Netz. Die Sicherung selbst bleibt verschlüsselt. Nur im eigenen Netz verwenden.<label class="chk mt6"><input type="checkbox" id="tgInsOk"> Verstanden, trotzdem verwenden</label></div>' : ''; };
       $('tgType').onchange = () => { if ($('tgType').value === 'dropbox') { closeDialog(); dropboxSetup(); return; } if ($('tgType').value === 'gdrive') { closeDialog(); gdriveSetup(null); return; } typ = $('tgType').value; fp = ''; draw(); };
       $('tgFields').addEventListener('input', e => { if (e.target.id === 'tgUrl') insBox(); if (e.target.id === 'tgHost' || e.target.id === 'tgPort') { fp = ''; fpBox(''); } });
       $('tgOwnRet').onchange = () => $('tgRet').classList.toggle('hidden', !$('tgOwnRet').checked);
@@ -4041,16 +4059,16 @@
     /* Google Drive: Bearbeiten (Name, Ordner, Aktiv, Aufbewahrung) – die Zugangsdaten kommen nur über „Bei Google anmelden“ */
     const gdriveDialog = t => {
       dialog(`<h2>Google Drive</h2><p class="muted">Verbunden${t.account ? ` mit <b>${esc(t.account)}</b>` : ''}. Clubwerk sieht in Google Drive nur die Dateien, die es selbst angelegt hat.</p>
-        <div class="row"><label class="f" style="flex:1">Name<input id="gdName" value="${esc(t.name)}"></label><label class="f" style="flex:1">Ordner in „Meine Ablage“<input id="gdFolder" value="${esc(t.folder)}"></label></div>
-        <label class="chk" style="margin-top:8px"><input type="checkbox" id="gdOwnRet" ${t.retention ? 'checked' : ''}> Eigene Aufbewahrung für dieses Ziel (sonst wie oben eingestellt)</label>
-        <div class="row ${t.retention ? '' : 'hidden'}" id="gdRet" style="margin-top:8px">
-          <label class="f" style="flex:1">Tägliche<input id="gdD" class="n" value="${esc(t.retention ? t.retention.daily : st.daily)}" inputmode="numeric"></label>
-          <label class="f" style="flex:1">Wöchentliche<input id="gdW" class="n" value="${esc(t.retention ? t.retention.weekly : st.weekly)}" inputmode="numeric"></label>
-          <label class="f" style="flex:1">Monatliche<input id="gdM" class="n" value="${esc(t.retention ? t.retention.monthly : st.monthly)}" inputmode="numeric"></label></div>
-        <label class="chk" style="margin-top:8px"><input type="checkbox" id="gdOn" ${t.enabled ? 'checked' : ''}> Aktiv – jede Nacht hierhin sichern</label>
-        <label class="f" style="margin-top:8px">Dein Passwort zur Bestätigung<input type="password" id="gdMy" autocomplete="current-password"></label>
-        <div class="row" style="margin-top:12px"><button class="btn" id="gdRe">Neu verbinden …</button></div>
-        <div class="btns"><button class="btn danger" id="gdDel" style="margin-right:auto">Entfernen …</button><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`, true);
+        <div class="row"><label class="f fx1">Name<input id="gdName" value="${esc(t.name)}"></label><label class="f fx1">Ordner in „Meine Ablage“<input id="gdFolder" value="${esc(t.folder)}"></label></div>
+        <label class="chk mt8"><input type="checkbox" id="gdOwnRet" ${t.retention ? 'checked' : ''}> Eigene Aufbewahrung für dieses Ziel (sonst wie oben eingestellt)</label>
+        <div class="row ${t.retention ? '' : 'hidden'} mt8" id="gdRet">
+          <label class="f fx1">Tägliche<input id="gdD" class="n" value="${esc(t.retention ? t.retention.daily : st.daily)}" inputmode="numeric"></label>
+          <label class="f fx1">Wöchentliche<input id="gdW" class="n" value="${esc(t.retention ? t.retention.weekly : st.weekly)}" inputmode="numeric"></label>
+          <label class="f fx1">Monatliche<input id="gdM" class="n" value="${esc(t.retention ? t.retention.monthly : st.monthly)}" inputmode="numeric"></label></div>
+        <label class="chk mt8"><input type="checkbox" id="gdOn" ${t.enabled ? 'checked' : ''}> Aktiv – jede Nacht hierhin sichern</label>
+        <label class="f mt8">Dein Passwort zur Bestätigung<input type="password" id="gdMy" autocomplete="current-password"></label>
+        <div class="row mt12"><button class="btn" id="gdRe">Neu verbinden …</button></div>
+        <div class="btns"><button class="btn danger mr-auto" id="gdDel">Entfernen …</button><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`, true);
       $('c').onclick = closeDialog;
       $('gdDel').onclick = () => tgRemove(t);
       $('gdOwnRet').onchange = () => $('gdRet').classList.toggle('hidden', !$('gdOwnRet').checked);
@@ -4074,21 +4092,21 @@
           <li><b>Google Auth Platform</b> einrichten: Nutzertyp <b>Extern</b>, unter <b>Datenzugriff</b> die Berechtigung <code>…/auth/drive.file</code> hinzufügen, unter <b>Branding</b> App-Name, Support-E-Mail, Startseite, Link zur Datenschutzerklärung und Entwickler-E-Mail eintragen (sonst ist „App veröffentlichen“ gesperrt), dann unter <b>Zielgruppe</b> „<b>App veröffentlichen</b>“. Clubwerk sieht nur Ordner, die es selbst angelegt hat; einen vorhandenen Ordner gleichen Namens legt es daneben neu an. Bleibt die App im Status „Testen“, läuft die Anmeldung nach 7 Tagen ab.</li>
           <li>Unter <b>Clients</b> einen Client vom Typ <b>Fernseher und Geräte mit begrenzter Eingabe</b> erstellen und Client-ID und Client-Secret hier eintragen. Die Anleitung (?) beschreibt jeden Schritt.</li>
         </ol>
-        <div class="row"><label class="f" style="flex:1">Client-ID<input id="gdId" autocomplete="off" spellcheck="false" placeholder="${info.clientIdHint ? esc(info.clientIdHint) + ' (gespeichert – leer lassen = unverändert)' : '…apps.googleusercontent.com'}"></label>
-          <label class="f" style="flex:1">Client-Secret<input id="gdSec" type="password" autocomplete="new-password" placeholder="${info.hasSecret ? '•••••• (gespeichert)' : 'GOCSPX-…'}"></label></div>
-        ${t ? '' : `<div class="row"><label class="f" style="flex:1">Name<input id="gdName" value="Google Drive"></label><label class="f" style="flex:1">Ordner in „Meine Ablage“<input id="gdFolder" value="/Clubwerk-Sicherung"></label></div>`}
-        <div class="row"><label class="f" style="flex:1">Dein Passwort zur Bestätigung<input id="gdMy" type="password" autocomplete="current-password"></label></div>
+        <div class="row"><label class="f fx1">Client-ID<input id="gdId" autocomplete="off" spellcheck="false" placeholder="${info.clientIdHint ? esc(info.clientIdHint) + ' (gespeichert – leer lassen = unverändert)' : '…apps.googleusercontent.com'}"></label>
+          <label class="f fx1">Client-Secret<input id="gdSec" type="password" autocomplete="new-password" placeholder="${info.hasSecret ? '•••••• (gespeichert)' : 'GOCSPX-…'}"></label></div>
+        ${t ? '' : `<div class="row"><label class="f fx1">Name<input id="gdName" value="Google Drive"></label><label class="f fx1">Ordner in „Meine Ablage“<input id="gdFolder" value="/Clubwerk-Sicherung"></label></div>`}
+        <div class="row"><label class="f fx1">Dein Passwort zur Bestätigung<input id="gdMy" type="password" autocomplete="current-password"></label></div>
         <div id="gdFlow"></div>
         <div class="btns"><button class="btn ghost" id="c">Schließen</button><button class="btn primary" id="gdGo">Bei Google anmelden</button></div>`, true);
       $('c').onclick = () => { stop(); closeDialog(); };
       const show = f => {
         const el = $('gdFlow'); if (!el) { stop(); return; }
         if (f.state === 'wartet') el.innerHTML = `<div class="card" style="margin:12px 0 0;text-align:center">
-            <p style="margin:0 0 8px">Am Handy oder Rechner <a href="${esc(f.url)}" target="_blank" rel="noopener"><b>${esc(f.url.replace(/^https:\/\/(www\.)?/, ''))}</b></a> öffnen, mit dem Google-Konto des Vereins anmelden und diesen Code eingeben:</p>
+            <p class="m-0-0-8">Am Handy oder Rechner <a href="${esc(f.url)}" target="_blank" rel="noopener"><b>${esc(f.url.replace(/^https:\/\/(www\.)?/, ''))}</b></a> öffnen, mit dem Google-Konto des Vereins anmelden und diesen Code eingeben:</p>
             <div style="font:700 28px/1.3 ui-monospace,Menlo,Consolas,monospace;letter-spacing:3px;border:2px solid var(--line);border-radius:12px;padding:12px 10px;margin:0 0 10px;word-break:break-all" id="gdCode">${esc(f.userCode)}</div>
             <div class="row" style="justify-content:center"><button class="btn small" id="gdCopy">Code kopieren</button></div>
-            <p class="muted s" style="margin:10px 0 0">Wartet auf die Bestätigung bei Google … Der Code gilt bis ${esc(new Date(f.expiresAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }))} Uhr.</p></div>`;
-        else if (f.state === 'prueft') el.innerHTML = '<div class="banner a" style="margin-top:12px">Bestätigt – Clubwerk schreibt, liest und löscht jetzt eine Testdatei in Google Drive …</div>';
+            <p class="muted s m-10-0-0">Wartet auf die Bestätigung bei Google … Der Code gilt bis ${esc(new Date(f.expiresAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }))} Uhr.</p></div>`;
+        else if (f.state === 'prueft') el.innerHTML = '<div class="banner a mt12">Bestätigt – Clubwerk schreibt, liest und löscht jetzt eine Testdatei in Google Drive …</div>';
         else if (f.state === 'fertig') { flowId = null; closeDialog(); toast(`Google Drive verbunden${f.account ? ' (' + f.account + ')' : ''} – Testdatei geschrieben, gelesen und gelöscht.`); RENDER.sicherung(); return; }
         else { flowId = null; el.innerHTML = `<div class="banner r" style="margin-top:12px;display:block">${esc(f.error || 'Abgebrochen.')}</div>`; $('gdGo').disabled = false; $('gdGo').textContent = 'Noch einmal anmelden'; return; }
         if ($('gdCopy')) $('gdCopy').onclick = () => copyText(f.userCode, 'Code kopiert.');
@@ -4106,9 +4124,9 @@
     };
     const dropboxDialog = () => {
       dialog(`<h2>Dropbox</h2><p class="muted">Verbunden mit <b>${esc(dx.account || 'Dropbox-App')}</b>. Alles liegt unter <code>Dropbox/Apps/&lt;App-Name&gt;/…</code>.</p>
-        <div class="row"><label class="f" style="flex:1">Ordner in Dropbox<input id="dxFolder" value="${esc(dx.folder)}"></label></div>
-        <label class="chk" style="margin-top:8px"><input type="checkbox" id="dxOn" ${dx.enabled ? 'checked' : ''}> Aktiv – jede Nacht hierhin sichern</label>
-        <div class="row" style="margin-top:12px"><button class="btn" id="dxRekey">App key / Secret ändern, neu verbinden …</button></div>
+        <div class="row"><label class="f fx1">Ordner in Dropbox<input id="dxFolder" value="${esc(dx.folder)}"></label></div>
+        <label class="chk mt8"><input type="checkbox" id="dxOn" ${dx.enabled ? 'checked' : ''}> Aktiv – jede Nacht hierhin sichern</label>
+        <div class="row mt12"><button class="btn" id="dxRekey">App key / Secret ändern, neu verbinden …</button></div>
         <div class="btns"><button class="btn danger" id="dxOff">Verbindung trennen</button><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`);
       $('c').onclick = closeDialog;
       $('dxRekey').onclick = () => { closeDialog(); dropboxSetup(); };
@@ -4124,14 +4142,14 @@
           <li>Reiter <b>Permissions</b>: <code>files.metadata.read</code>, <code>files.content.write</code>, <code>files.content.read</code> und <code>account_info.read</code> anhaken → <b>Submit</b>. Häkchen später geändert? Dann hier neu verbinden – erst dann gelten sie.</li>
           <li>Reiter <b>Settings</b>: <b>App key</b> und <b>App secret</b> hier eintragen und speichern.</li>
         </ol>
-        <div class="row"><label class="f" style="flex:1">App key<input id="dxKey" value="${esc(d.appKey)}" autocomplete="off"></label>
-          <label class="f" style="flex:1">App secret<input id="dxSecret" type="password" placeholder="${d.hasSecret ? '•••••• (gespeichert)' : ''}" autocomplete="new-password"></label></div>
-        <div class="row"><label class="f" style="flex:1">Dein Passwort (zur Bestätigung)<input id="dxMy" type="password" autocomplete="current-password"></label></div>
+        <div class="row"><label class="f fx1">App key<input id="dxKey" value="${esc(d.appKey)}" autocomplete="off"></label>
+          <label class="f fx1">App secret<input id="dxSecret" type="password" placeholder="${d.hasSecret ? '•••••• (gespeichert)' : ''}" autocomplete="new-password"></label></div>
+        <div class="row"><label class="f fx1">Dein Passwort (zur Bestätigung)<input id="dxMy" type="password" autocomplete="current-password"></label></div>
         <div class="btns" style="justify-content:flex-start;margin-top:12px"><button class="btn primary" id="dxSaveKeys">Speichern</button></div>
-        ${d.authUrl && d.hasSecret ? `<ol class="steps" start="4" style="margin-top:14px">
+        ${d.authUrl && d.hasSecret ? `<ol class="steps mt14" start="4">
           <li><a class="btn small primary" href="${esc(d.authUrl)}" target="_blank" rel="noopener">Bei Dropbox freigeben ↗</a> – im neuen Fenster <b>Zulassen</b> klicken.</li>
           <li>Den angezeigten Code kopieren und hier einfügen:</li></ol>
-          <div class="row"><label class="f" style="flex:1">Code von Dropbox<input id="dxCode" autocomplete="off"></label></div>` : ''}
+          <div class="row"><label class="f fx1">Code von Dropbox<input id="dxCode" autocomplete="off"></label></div>` : ''}
         <div class="btns"><button class="btn ghost" id="c">Schließen</button>${d.authUrl && d.hasSecret ? '<button class="btn primary" id="dxConnect">Verbinden</button>' : ''}</div>`, true);
       $('c').onclick = closeDialog;
       $('dxSaveKeys').onclick = async () => { try { await api('dropbox', 'PUT', { appKey: $('dxKey').value, appSecret: $('dxSecret').value || undefined, myPassword: $('dxMy').value }); toast('Gespeichert – jetzt bei Dropbox freigeben.'); dropboxSetup(); } catch (e) { fail(e); } };
@@ -4188,7 +4206,7 @@
     const rows = await api('audit');
     $('main').innerHTML = `<h2 class="page">Protokoll</h2>
       <p class="lead">Wer hat wann was geändert? Die letzten 500 Einträge – Anmeldungen, Stornos, Übertragungen, Abschlüsse, Preisänderungen, Lieferungen, Sicherungen.</p>
-      <div class="row" style="margin-bottom:12px"><label class="f" style="min-width:260px">Filtern<input id="aq" placeholder="Name oder Aktion"></label></div>
+      <div class="row mb12"><label class="f" style="min-width:260px">Filtern<input id="aq" placeholder="Name oder Aktion"></label></div>
       <div class="scroll"><table class="tbl kompakt" id="at"></table></div>`;
     const draw = () => {
       const q = $('aq').value.trim().toLowerCase();
@@ -4288,7 +4306,7 @@
     try { u = await api(`extensions/${id}/usage`); } catch (e) { return fail(e); }
     const fmt = b => `${new Date(b.at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })} · ${b.size < 1048576 ? Math.max(1, Math.round(b.size / 1024)) + ' KB' : (b.size / 1048576).toFixed(1).replace('.', ',') + ' MB'}`;
     dialog(`<h2>„${esc(name)}“ installieren</h2>
-      <p class="muted" style="margin-top:0">Mit welchen Daten?</p>
+      <p class="muted mt0">Mit welchen Daten?</p>
       <div class="instopts">
         ${u.backups.map((b, i) => `<label class="chk"><input type="radio" name="instSrc" value="${esc(b.file)}" ${i ? '' : 'checked'}> Sicherung vom ${esc(fmt(b))}</label>`).join('')}
         <label class="chk"><input type="radio" name="instSrc" value="upload" ${u.backups.length ? '' : 'checked'}> Sicherung aus Datei …</label>
@@ -4328,14 +4346,14 @@
     const bar = p => `<div class="lbar" title="${p} %"><i style="width:${Math.max(0, Math.min(100, p))}%"></i></div><span class="lpct">${String(p).replace('.', ',')} %</span>`;
     const opt = (sel, first) => (first ? `<option value="">${esc(first)}</option>` : '') + d.languages.map(l => `<option value="${esc(l.code)}" ${l.code === sel ? 'selected' : ''} translate="no">${esc(l.name)}</option>`).join('');
     box.innerHTML = `
-      <table class="tbl ltbl kompakt" style="margin-top:16px"><tr><th>Sprache</th><th>Code</th><th class="hide-md">Herkunft</th><th>Vollständig</th>${d.canEdit ? '<th class="r"></th>' : ''}</tr>
+      <table class="tbl ltbl kompakt mt16"><tr><th>Sprache</th><th>Code</th><th class="hide-md">Herkunft</th><th>Vollständig</th>${d.canEdit ? '<th class="r"></th>' : ''}</tr>
         ${d.languages.map(l => `<tr><td class="lname"><b translate="no">${esc(l.name)}</b>${l.code === d.club ? ' <span class="pill g">Verein</span>' : ''}</td><td translate="no" class="lcode"><code>${esc(l.code)}</code></td><td class="hide-md">${esc(src(l))}</td><td class="lcov">${bar(l.coverage)}</td>
           ${d.canEdit ? `<td class="r"><div class="lact"><a class="btn small" href="api/admin/sprachen/${encodeURIComponent(l.code)}/download">JSON</a><a class="btn small" href="api/admin/sprachen/${encodeURIComponent(l.code)}/download?format=xlsx">Excel</a>${l.custom ? `<button class="btn small danger" data-lrm="${esc(l.code)}" data-lb="${l.builtin || l.plugin ? 1 : 0}">${l.builtin || l.plugin ? 'Zurücksetzen' : 'Löschen'}</button>` : '<span></span>'}</div></td>` : ''}</tr>`).join('')}
       </table>
       ${d.canEdit ? `<h4 class="lh">Sprache hinzufügen oder Übersetzung verbessern</h4>
       <ol class="lsteps">
         <li><b>Herunterladen:</b> eine leere Vorlage für eine neue Sprache – oder oben eine vorhandene Sprache, um sie zu verbessern bzw. Begriffe anzupassen (z. B. „Spieler“ statt „Mitglieder“ im Deutschen).
-          <div class="row" style="margin-top:8px"><a class="btn small" href="api/admin/sprachen/vorlage/download">Vorlage als JSON (für KI)</a><a class="btn small" href="api/admin/sprachen/vorlage/download?format=xlsx">Vorlage als Excel (für Übersetzer)</a></div></li>
+          <div class="row mt8"><a class="btn small" href="api/admin/sprachen/vorlage/download">Vorlage als JSON (für KI)</a><a class="btn small" href="api/admin/sprachen/vorlage/download?format=xlsx">Vorlage als Excel (für Übersetzer)</a></div></li>
         <li><b>Übersetzen:</b> die JSON-Datei einer KI (z. B. Claude oder ChatGPT) geben – mit diesem Auftrag:
           <div class="lprompt"><span id="lgPrompt">${esc(LANG_PROMPT)}</span><button class="btn small" id="lgCopy">Kopieren</button></div>
           Die Excel-Datei füllt man in Spalte D aus. Große Dateien dürfen in Teilen übersetzt und nacheinander importiert werden – jeder Import ergänzt die Sprache.</li>
@@ -4345,7 +4363,7 @@
           <div id="lgRep"></div></li>
       </ol>` : ''}`;
     if ($('clubLangBody')) $('clubLangBody').innerHTML = `<label class="f" style="max-width:360px">Sprache<select id="lgClub" ${d.canEdit ? '' : 'disabled'}>${opt(d.club)}</select></label>
-      <p class="muted s" style="margin:8px 0 0">Für Tablet, Mitglieder-App, E-Mails, Excel- und PDF-Dateien – und als Vorgabe für alle. Wirkt sofort; Tablets übernehmen sie beim nächsten Neuladen.</p>`;
+      <p class="muted s m-8-0-0">Für Tablet, Mitglieder-App, E-Mails, Excel- und PDF-Dateien – und als Vorgabe für alle. Wirkt sofort; Tablets übernehmen sie beim nächsten Neuladen.</p>`;
     if (d.canEdit) {
       if ($('lgClub')) $('lgClub').onchange = async e => {
         try { await api('sprachen/verein', 'PUT', { code: e.target.value }); toast('Vereinssprache geändert. Tablets übernehmen sie beim nächsten Neuladen.'); if (L && !L.chosen()) setTimeout(() => location.reload(), 900); else renderLanguages(); }
@@ -4367,7 +4385,7 @@
           if (!r.ok) throw new Error(j.error || 'Import fehlgeschlagen.');
           const p = j.report;
           await renderLanguages();
-          $('lgRep').innerHTML = `<div class="banner g" style="display:block"><b translate="no">${esc(p.name)} (${esc(p.code)})</b>: ${p.taken} Texte übernommen${p.empty ? `, ${p.empty} noch leer` : ''}${p.unknown ? `, ${p.unknown} gehören nicht zu dieser Version` : ''}${p.same ? `, ${p.same} unverändert deutsch` : ''}.
+          $('lgRep').innerHTML = `<div class="banner g db"><b translate="no">${esc(p.name)} (${esc(p.code)})</b>: ${p.taken} Texte übernommen${p.empty ? `, ${p.empty} noch leer` : ''}${p.unknown ? `, ${p.unknown} gehören nicht zu dieser Version` : ''}${p.same ? `, ${p.same} unverändert deutsch` : ''}.
             ${p.rejected.length ? `<br>Nicht übernommen (Platzhalter verändert): <ul class="lrej">${p.rejected.slice(0, 10).map(x => `<li translate="no">${esc(x.text)}</li>`).join('')}</ul>` : ''}</div>`;
         } catch (err) { $('lgRep').innerHTML = `<div class="banner r">${esc(err.message)}</div>`; }
       };
@@ -4387,7 +4405,7 @@
       <div class="card"><h3>Anzeige in diesem Browser</h3><div class="row">
         ${L ? `<label class="f" style="min-width:240px">Meine Sprache<select id="lgMine">${[['', T('Wie der Verein ({0})', [club])], ...L.langs.map(x => [x.code, x.name])].map(([c, n]) => `<option value="${esc(c)}" ${c === cur ? 'selected' : ''}${c ? ' translate="no"' : ''}>${esc(n)}</option>`).join('')}</select></label>` : ''}
         <label class="f" style="min-width:200px">Darstellung<select id="themeSel">${[['auto', 'Wie das Gerät'], ['light', 'Hell'], ['dark', 'Dunkel'], ['hc', 'Hoher Kontrast']].map(([k, l]) => `<option value="${k}" ${theme() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
-      <p class="muted s" style="margin:8px 0 0">Wirkt sofort und nur in diesem Browser. Tablet, E-Mails und die Vorgabe für alle legt die Vereinssprache fest (Einstellungen › Verein).</p></div>
+      <p class="muted s m-8-0-0">Wirkt sofort und nur in diesem Browser. Tablet, E-Mails und die Vorgabe für alle legt die Vereinssprache fest (Einstellungen › Verein).</p></div>
       ${can('email') ? '<div id="mailMeBox"></div>' : ''}`;
     $('savePw').onclick = async () => { try { await api('password', 'POST', { current: $('pwCur').value, next: $('pwNew').value }); toast('Passwort geändert.'); $('pwCur').value = $('pwNew').value = ''; } catch (e) { fail(e); } };
     if ($('lgMine')) $('lgMine').onchange = e => L.setLang(e.target.value);
@@ -4399,33 +4417,33 @@
   async function renderUpdate() {
     const el = $('updBody'); if (!el) return;
     const u = await api('update/status');
-    const nodeOld = u.nodeOld ? '<div class="banner a" style="display:block">Die Node.js-Version enthält noch nicht die Sicherheitskorrekturen vom Oktober 2026. Clubwerk lehnt komprimierte Anfragen deshalb ab. In Home Assistant beim Add-on Clubwerk „Neu bauen“ klicken, das holt die neueste Node.js-Version.</div>' : '';
+    const nodeOld = u.nodeOld ? '<div class="banner a db">Die Node.js-Version enthält noch nicht die Sicherheitskorrekturen vom Oktober 2026. Clubwerk lehnt komprimierte Anfragen deshalb ab. In Home Assistant beim Add-on Clubwerk „Neu bauen“ klicken, das holt die neueste Node.js-Version.</div>' : '';
     if (!u.addonDir) {
       el.innerHTML = `<p>Installiert: <b>${esc(u.current)}</b> · Node.js <b translate="no">${esc(u.node || '–')}</b></p>${nodeOld}` + (u.origin === 'repository'
         ? '<p class="muted s">Diese Installation kommt aus einem Add-on-Repository (z. B. GitHub). Neue Versionen zeigt Home Assistant unter <b>Einstellungen → Add-ons</b> mit „Aktualisieren“ an.</p>'
-        : `<div class="banner a" style="display:block"><b>Das Hochladen ist noch nicht freigeschaltet.</b> Home Assistant hat die neuen Rechte des Add-ons (Zugriff auf den Ordner „addons“) noch nicht übernommen – „Neu bauen“ reicht dafür nicht. So geht es einmalig:
+        : `<div class="banner a db"><b>Das Hochladen ist noch nicht freigeschaltet.</b> Home Assistant hat die neuen Rechte des Add-ons (Zugriff auf den Ordner „addons“) noch nicht übernommen – „Neu bauen“ reicht dafür nicht. So geht es einmalig:
           <ol style="margin:8px 0 0 18px;padding:0;font-weight:500"><li>Einstellungen → Add-ons → <b>Add-on-Store</b> → oben rechts <b>⋮ → Nach Updates suchen</b>.</li>
           <li>Zurück zum Add-on „Clubwerk“ → <b>Aktualisieren</b> klicken (nicht „Neu bauen“). Erscheint kein „Aktualisieren“, liegt im Ordner „addons“ noch die gleiche Version wie installiert – dann zuerst das neue Paket per Samba hineinkopieren.</li>
           <li>Danach diese Seite neu laden.</li></ol></div>${u.supervisorError ? `<p class="muted s">Hinweis von Home Assistant: ${esc(u.supervisorError)}</p>` : ''}`);
       return;
     }
-    const res = u.reserves.length ? `<div class="scroll" style="margin-top:14px"><table class="tbl" style="table-layout:fixed"><tr><th>Frühere Version (Reserve)</th><th style="width:170px">gesichert am</th><th class="r" style="width:220px"></th></tr>
+    const res = u.reserves.length ? `<div class="scroll mt14"><table class="tbl" style="table-layout:fixed"><tr><th>Frühere Version (Reserve)</th><th style="width:170px">gesichert am</th><th class="r" style="width:220px"></th></tr>
       ${u.reserves.map(r => `<tr><td><b>${esc(r.version)}</b></td><td>${esc(new Date(r.at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}</td>
         <td class="r">${u.viaIngress ? `<button class="btn small" data-rb="${esc(r.name)}" data-rv="${esc(r.version)}">Zurück auf ${esc(r.version)} …</button>` : ''}</td></tr>`).join('')}</table></div>` : '';
-    el.innerHTML = `<div class="kpis" style="margin-bottom:12px"><div class="kpi"><div class="l">Installiert</div><div class="v">${esc(u.current)}</div></div>
+    el.innerHTML = `<div class="kpis mb12"><div class="kpi"><div class="l">Installiert</div><div class="v">${esc(u.current)}</div></div>
         <div class="kpi"><div class="l">Neues Paket</div><div class="v">${u.staged ? esc(u.staged.version) : '–'}</div></div>
         <div class="kpi"><div class="l">Letztes Update</div><div class="v">${u.lastOk ? esc(new Date(u.lastOk).toLocaleDateString('de-DE')) : '–'}</div></div>
         <div class="kpi"><div class="l">Node.js</div><div class="v" translate="no">${esc(u.node || '–')}</div></div></div>
       ${nodeOld}
-      ${u.lastError ? `<div class="banner r" style="display:block">Home Assistant hat das Update nicht automatisch gestartet (${esc(u.lastError)}). Die neuen Dateien liegen schon bereit: <b>Einstellungen → Add-ons → Clubwerk → Aktualisieren</b> (oder „Neu bauen“).</div>` : ''}
-      ${!u.viaIngress ? '<div class="banner a" style="display:block">Updates gehen aus Sicherheitsgründen nur, wenn die Verwaltung über die <b>Home-Assistant-Seitenleiste</b> geöffnet ist.</div>' : `
-      <p class="muted s" style="margin-top:0">Das Gesamtpaket (ZIP) hier hochladen – genau die Datei, die sonst per Samba kopiert wird. Clubwerk prüft das Paket, legt vorher automatisch eine Sicherung an, ersetzt den Ordner und lässt Home Assistant die neue Version bauen. Der bisherige Stand bleibt als Reserve erhalten.</p>
+      ${u.lastError ? `<div class="banner r db">Home Assistant hat das Update nicht automatisch gestartet (${esc(u.lastError)}). Die neuen Dateien liegen schon bereit: <b>Einstellungen → Add-ons → Clubwerk → Aktualisieren</b> (oder „Neu bauen“).</div>` : ''}
+      ${!u.viaIngress ? '<div class="banner a db">Updates gehen aus Sicherheitsgründen nur, wenn die Verwaltung über die <b>Home-Assistant-Seitenleiste</b> geöffnet ist.</div>' : `
+      <p class="muted s mt0">Das Gesamtpaket (ZIP) hier hochladen – genau die Datei, die sonst per Samba kopiert wird. Clubwerk prüft das Paket, legt vorher automatisch eine Sicherung an, ersetzt den Ordner und lässt Home Assistant die neue Version bauen. Der bisherige Stand bleibt als Reserve erhalten.</p>
       <div class="row"><label class="btn primary">ZIP-Paket hochladen …<input type="file" id="updFile" accept=".zip,application/zip" hidden></label></div>
       <div id="updStage"></div>`}
       ${res}`;
     if ($('updFile')) $('updFile').onchange = async e => {
       const f = e.target.files[0]; if (!f) return;
-      $('updStage').innerHTML = '<p class="muted" style="margin-top:12px">Wird hochgeladen und geprüft …</p>';
+      $('updStage').innerHTML = '<p class="muted mt12">Wird hochgeladen und geprüft …</p>';
       try {
         const r = await fetch('api/admin/update/upload', { method: 'POST', body: f, headers: { 'Content-Type': 'application/zip', 'X-Clubwerk': '1' } });
         const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Fehler');
@@ -4446,8 +4464,8 @@
     $('updStage').innerHTML = `<div class="banner g" style="margin-top:12px;display:block"><b>Paket geprüft:</b> Version ${esc(j.current)} → <b>${esc(j.version)}</b> · ${j.files} Dateien · ${(j.size / 1048576).toFixed(1).replace('.', ',')} MB
         ${j.depsChanged ? '<br>Diese Version bringt neue Bibliotheken mit – das Neubauen dauert etwas länger und braucht Internet.' : ''}
         ${j.shaShort ? `<br>Prüfsumme <code translate="no" style="user-select:all">${esc(j.shaShort)}</code> – zum Gegenprüfen steht dieselbe Zahl im GitHub-Repository in „PRUEFSUMMEN.md“ bei Version ${esc(j.version)}. Weicht sie ab, das Paket nicht übernehmen.` : ''}</div>
-      ${j.changelog ? `<details style="margin-top:8px"><summary>Was ist neu?</summary><div class="muted s" style="margin-top:6px;line-height:1.5">${mdLite(j.changelog)}</div></details>` : ''}
-      <div class="row" style="margin-top:12px"><label class="f" style="flex:1;max-width:340px">Dein Passwort zur Bestätigung<input type="password" id="updPw" autocomplete="current-password"></label>
+      ${j.changelog ? `<details class="mt8"><summary>Was ist neu?</summary><div class="muted s" style="margin-top:6px;line-height:1.5">${mdLite(j.changelog)}</div></details>` : ''}
+      <div class="row mt12"><label class="f" style="flex:1;max-width:340px">Dein Passwort zur Bestätigung<input type="password" id="updPw" autocomplete="current-password"></label>
         <button class="btn primary" id="updGo">Update auf ${esc(j.version)} einspielen</button></div>`;
     $('updGo').onclick = async () => {
       $('updGo').disabled = true; $('updGo').textContent = 'Sichert und ersetzt …';
@@ -4554,14 +4572,18 @@
       return;
     }
     // gleiche Reiter wie in den Arbeitsbereichen (Verkauf, Beregnung …) – ein Navigationsmuster für die ganze Verwaltung
-    wrap.innerHTML = `<div class="tabs" role="tablist" aria-label="${esc(o.label || 'Bereiche der Einstellungen')}">${secs.map(([k, l]) => `<button type="button" data-sec="${k}">${esc(l)}${dot(k)}</button>`).join('')}</div><div class="secbody"></div>`;
+    wrap.innerHTML = '<div class="secbody"></div>';
     const body = wrap.querySelector('.secbody');
     secs.forEach(([k]) => by[k].forEach(c => { c.dataset.secof = k; body.appendChild(c); }));
     const head = root.querySelector(':scope > h2.page');
     if (head) fixLead(head).after(wrap); else root.prepend(wrap);
-    const show = k => { cur = k; sset(store, k); wrap.querySelectorAll('[data-sec]').forEach(b => { b.classList.toggle('on', b.dataset.sec === k); if (b.dataset.sec === k) revealTab(b); }); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); };
-    wrap.querySelectorAll('[data-sec]').forEach(b => { b.onclick = () => show(b.dataset.sec); });
-    show(cur);
+    // die Karten bleiben beim Wechsel erhalten (nur ausgeblendet): nichts geht verloren, darum keine Rückfrage (leave: false)
+    const bar = tabBar(secs, 'data-sec', {
+      role: true, label: o.label || 'Bereiche der Einstellungen', leave: false, badge: dot,
+      pick: k => { sset(store, k); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); },
+    });
+    wrap.prepend(bar);
+    bar.show(cur);
   }
 
   /* ---------- Sicherheitswarnungen (src/security.js): offene Warnungen mit „Erledigt“, Empfänger, Testwarnung, zusätzliche Adressen ---------- */
@@ -4574,9 +4596,9 @@
         <div style="flex:1 1 240px;min-width:0"><b><span>${esc(a.label)}</span>${a.n > 1 ? ` <span translate="no">(${a.n} ×)</span>` : ''}</b> <span class="pill ${a.level === 'i' ? '' : a.level}">${a.level === 'r' ? 'Sofort gemeldet' : a.level === 'a' ? 'Tagesmail' : 'Nur hier'}</span>
           <div class="muted s"><span translate="no">${esc(deTime(a.last_at))}</span>${a.done_at ? ` · <span>${esc(T('Erledigt von {0}', [a.done_by || '–']))}</span>` : ''}</div><div class="s">${esc(a.text)}</div></div>
         ${a.done_at ? '' : `<button type="button" class="btn small" data-swdone="${a.id}">Erledigt</button>`}</div>`;
-    box.innerHTML = `<p class="muted s" style="margin-top:0">Was Clubwerk Auffälliges bemerkt hat – Anmeldungen, Sperren, Rechte, Sicherung, Türen, Beregnung. Rote Warnungen kommen sofort per Push und E-Mail, gelbe in der Tagesmail um 7 Uhr. „Erledigt“ gilt für alle Empfänger.</p>
+    box.innerHTML = `<p class="muted s mt0">Was Clubwerk Auffälliges bemerkt hat – Anmeldungen, Sperren, Rechte, Sicherung, Türen, Beregnung. Rote Warnungen kommen sofort per Push und E-Mail, gelbe in der Tagesmail um 7 Uhr. „Erledigt“ gilt für alle Empfänger.</p>
       ${r.list.length ? r.list.map(row).join('') : `<p class="empty">${swAll ? 'Noch keine Warnungen.' : 'Keine offenen Warnungen.'}</p>`}
-      <label class="chk" style="margin-top:12px"><input type="checkbox" id="swAll" data-nodirty ${swAll ? 'checked' : ''}> Auch erledigte zeigen</label>
+      <label class="chk mt12"><input type="checkbox" id="swAll" data-nodirty ${swAll ? 'checked' : ''}> Auch erledigte zeigen</label>
       <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px">${open.length > 1 ? '<button class="btn" id="swDoneAll">Alle erledigt</button>' : ''}<button class="btn" id="swTest">Testwarnung senden</button></div>`;
     box.querySelectorAll('[data-swdone]').forEach(b => { b.onclick = () => busy(b, async () => { try { await api(`security/alerts/${b.dataset.swdone}/done`, 'POST', {}); await renderSecurity(); } catch (e) { fail(e); } }); });
     $('swAll').onchange = () => { swAll = $('swAll').checked; renderSecurity().catch(fail); };
@@ -4584,12 +4606,12 @@
     $('swTest').onclick = () => busy($('swTest'), async () => { try { await api('security/test', 'POST', {}); await renderSecurity(); toast('Testwarnung gesendet.'); } catch (e) { fail(e); } });
     if (!who) return;
     const people = r.recipients.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'de'));
-    who.innerHTML = `<p class="muted s" style="margin-top:0">Alle Benutzer mit dem Recht „Sicherheitswarnungen“ (bei „alle Rechte“ automatisch). Push bekommt, wessen Benutzer mit einem Mitglied verknüpft ist und auf dessen Handy Benachrichtigungen an sind; die E-Mail geht an die Adresse dieses Mitglieds.</p>
+    who.innerHTML = `<p class="muted s mt0">Alle Benutzer mit dem Recht „Sicherheitswarnungen“ (bei „alle Rechte“ automatisch). Push bekommt, wessen Benutzer mit einem Mitglied verknüpft ist und auf dessen Handy Benachrichtigungen an sind; die E-Mail geht an die Adresse dieses Mitglieds.</p>
       ${!r.pushOn ? '<div class="banner a">Der Anlass „Sicherheitswarnung“ ist unter Mitglieder-App › Benachrichtigungen nicht freigegeben – es kommt kein Push.</div>' : ''}
       ${!r.mailReady ? '<div class="banner a">Das Postfach ist noch nicht eingerichtet – es geht keine E-Mail raus.</div>' : ''}
       ${people.length ? people.map(p => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 0;border-top:1px solid var(--line-soft)"><b style="flex:1 1 160px;min-width:0">${esc(p.name)}</b>
         <span class="pill ${p.push ? 'g' : ''}">${p.push ? 'Push' : p.linked ? 'kein Push am Handy' : 'kein Mitglied verknüpft'}</span><span class="pill ${p.mail ? 'g' : ''}">${p.mail ? 'E-Mail' : 'keine E-Mail'}</span></div>`).join('') : '<p class="empty">Niemand hat das Recht „Sicherheitswarnungen“.</p>'}
-      ${r.mayEdit ? `<div class="row" style="align-items:flex-end;margin-top:12px"><label class="f" style="flex:1;min-width:240px">Zusätzliche Adressen (mehrere mit Komma)<input id="swExtra" type="email" multiple value="${esc(r.extra || '')}" placeholder="vorstand@verein.de"></label>
+      ${r.mayEdit ? `<div class="row" style="align-items:flex-end;margin-top:12px"><label class="f fx1-240">Zusätzliche Adressen (mehrere mit Komma)<input id="swExtra" type="email" multiple value="${esc(r.extra || '')}" placeholder="vorstand@verein.de"></label>
         <button class="btn primary" id="swSave">Speichern</button></div>` : ''}`;
     if ($('swSave')) $('swSave').onclick = () => busy($('swSave'), async () => { try { await api('security/settings', 'PUT', { extra: $('swExtra').value }); toast('Gespeichert.'); await renderSecurity(); } catch (e) { fail(e); } });
   }
@@ -4600,7 +4622,7 @@
     r = r || await api('datenqualitaet');
     const box = $('dqBody'); if (!box) return;
     const hits = r.list.filter(c => c.count > 0).sort((a, b) => (a.level === b.level ? 0 : a.level === 'r' ? -1 : 1)), okN = r.list.length - hits.length;
-    box.innerHTML = `<p class="muted s" style="margin-top:0">Clubwerk prüft jede Nacht, ob die Daten zueinander passen. Die Knöpfe führen zur Stelle, an der du es behebst – Geld wird nie von selbst korrigiert.</p>
+    box.innerHTML = `<p class="muted s mt0">Clubwerk prüft jede Nacht, ob die Daten zueinander passen. Die Knöpfe führen zur Stelle, an der du es behebst – Geld wird nie von selbst korrigiert.</p>
       ${!r.at ? '<p class="empty">Noch nicht geprüft.</p>' : `${hits.map((c, i) => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 0;border-top:1px solid var(--line-soft)">
           <div style="flex:1 1 240px;min-width:0"><b><span translate="no">${c.count} ×</span> <span>${esc(c.title)}</span></b> <span class="pill ${c.level}">${c.level === 'r' ? 'Fehler' : 'Hinweis'}</span>${c.module ? ` <span class="muted s">${esc(c.module)}</span>` : ''}
             <div class="muted s">${esc(c.why)}${c.detail ? ` (${esc(c.detail)})` : ''}</div>${c.names.length ? `<div class="muted s">${c.names.map(n => esc(window.CWNames ? CWNames.lastFirst(n) : n)).join(' · ')}${c.count > c.names.length ? ' …' : ''}</div>` : ''}</div>
@@ -4623,7 +4645,7 @@
     const r = await api('gobd'), c = r.cfg, jb = $('gbJournal'), kb = $('gbKonten'), eb = $('gbErl'), xb = $('gbExport');
     if (!jb) return;
     const sphOpts = v => `<option value="" ${v ? '' : 'selected'}>– ohne –</option>${Object.entries(r.spheres).map(([k, l]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}`;
-    jb.innerHTML = `<p class="muted s" style="margin-top:0">Clubwerk hält jede neue, geänderte oder gelöschte Zeile mit Geld oder Belegen fest: wann, wer, vorher und nachher. Jeder Eintrag ist mit seinem Vorgänger verkettet – fehlt einer oder wurde etwas verändert, fällt es beim Nachrechnen auf. Das Journal bleibt mindestens 10 Jahre, auch nach dem Anonymisieren eines Mitglieds.</p>
+    jb.innerHTML = `<p class="muted s mt0">Clubwerk hält jede neue, geänderte oder gelöschte Zeile mit Geld oder Belegen fest: wann, wer, vorher und nachher. Jeder Eintrag ist mit seinem Vorgänger verkettet – fehlt einer oder wurde etwas verändert, fällt es beim Nachrechnen auf. Das Journal bleibt mindestens 10 Jahre, auch nach dem Anonymisieren eines Mitglieds.</p>
       <div class="kpis"><div class="kpi"><div class="l">Einträge</div><div class="v" translate="no">${r.journal.count.toLocaleString('de-DE')}</div></div>
         <div class="kpi"><div class="l">Seit</div><div class="v">${r.journal.first ? esc(deDate(r.journal.first.slice(0, 10))) : '–'}</div></div>
         <div class="kpi"><div class="l">Prüfkette</div><div class="v" id="gbChain">–</div></div></div>
@@ -4638,7 +4660,7 @@
       } catch (e) { fail(e); }
     });
     $('gbCheck').onclick = () => check(true); check(false);
-    kb.innerHTML = `<p class="muted s" style="margin-top:0">Für den DATEV-Export: die Nummern vom Steuerberater, das Geschäftsjahr (Wirtschaftsjahr – gilt auch für Kündigungen und Jahresauswertungen, dasselbe Feld wie bei den Mitgliedern) und je Zahlweg ein Geldkonto. Lastschriften und Überweisungen am besten auf ein Geldtransitkonto, wenn euer Steuerberater die Bankumsätze selbst einliest – dann löst der Stapel den Sammeleinzug in Erlösarten auf, ohne doppelt zu buchen.</p>
+    kb.innerHTML = `<p class="muted s mt0">Für den DATEV-Export: die Nummern vom Steuerberater, das Geschäftsjahr (Wirtschaftsjahr – gilt auch für Kündigungen und Jahresauswertungen, dasselbe Feld wie bei den Mitgliedern) und je Zahlweg ein Geldkonto. Lastschriften und Überweisungen am besten auf ein Geldtransitkonto, wenn euer Steuerberater die Bankumsätze selbst einliest – dann löst der Stapel den Sammeleinzug in Erlösarten auf, ohne doppelt zu buchen.</p>
       <div class="frm">
         <label class="f w1">Beraternummer<input id="gbB" value="${esc(c.berater)}" inputmode="numeric" maxlength="7" autocomplete="off"></label>
         <label class="f w1">Mandantennummer<input id="gbM" value="${esc(c.mandant)}" inputmode="numeric" maxlength="5" autocomplete="off"></label>
@@ -4649,7 +4671,7 @@
         ${Object.entries(r.vias).map(([k, l]) => `<label class="f w1">${esc(T(l))}<input data-gbg="${k}" aria-label="${esc(T('Geldkonto'))} ${esc(T(l))}" value="${esc(c.gegen[k] || '')}" inputmode="numeric" maxlength="8" autocomplete="off"></label>`).join('')}
       </div>
       <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-gbsave>Speichern</button></div>`;
-    eb.innerHTML = `<p class="muted s" style="margin-top:0">Je Erlösart ein Konto und die Sphäre: ideeller Bereich, Vermögensverwaltung, Zweckbetrieb oder wirtschaftlicher Geschäftsbetrieb. Clubwerk schlägt Sphären vor – Zuordnung und Kontenrahmen (für Vereine z. B. SKR 42 oder SKR 49) stimmt ihr mit eurem Steuerberater ab.</p>
+    eb.innerHTML = `<p class="muted s mt0">Je Erlösart ein Konto und die Sphäre: ideeller Bereich, Vermögensverwaltung, Zweckbetrieb oder wirtschaftlicher Geschäftsbetrieb. Clubwerk schlägt Sphären vor – Zuordnung und Kontenrahmen (für Vereine z. B. SKR 42 oder SKR 49) stimmt ihr mit eurem Steuerberater ab.</p>
       ${r.keys.length ? [r.keys.filter(k => k.art === 'einnahme' || !k.art), r.keys.filter(k => k.art === 'ausgabe' || k.art === 'neutral')].map((list, i) => (list.length ? `${i ? `<p class="muted s" style="margin:16px 0 4px"><b>${esc(T('Ausgaben und Kasse'))}</b></p>` : ''}<div>${list.map(k => `<div class="gbrow">
           <div><b>${esc(k.label)}</b><div class="muted s">${esc(k.module)}</div></div>
           <label class="f">Konto<input data-gbk="${esc(k.key)}" value="${esc(k.konto)}" inputmode="numeric" maxlength="8" autocomplete="off"></label>
@@ -4665,21 +4687,23 @@
     const now = new Date(), y = now.getFullYear(), m = now.getMonth(), iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const pFrom = iso(new Date(y, m - 1, 1)), pTo = iso(new Date(y, m, 0));
     const wm = Number(c.wj_month) || 1, gy = m + 1 >= wm ? y : y - 1;   // laufendes Geschäftsjahr (Startjahr)
-    xb.innerHTML = `<p class="muted s" style="margin-top:0">Alle Zahlungen, die durch Clubwerk laufen (Beiträge und Forderungen, Rechnungen, Verkauf bar und mit Karte, Nenngeld, mit der Buchhaltung auch Ausgaben und Kassenbewegungen) – je Erlös- bzw. Ausgabeart, Rücklastschriften und Stornos als Gegenbuchung. Bankumsätze außerhalb von Clubwerk bucht der Steuerberater wie bisher. Den ersten Export stimmt ihr mit ihm ab.</p>
+    xb.innerHTML = `<p class="muted s mt0">Alle Zahlungen, die durch Clubwerk laufen (Beiträge und Forderungen, Rechnungen, Verkauf bar und mit Karte, Nenngeld, mit der Buchhaltung auch Ausgaben und Kassenbewegungen) – je Erlös- bzw. Ausgabeart, Rücklastschriften und Stornos als Gegenbuchung. Bankumsätze außerhalb von Clubwerk bucht der Steuerberater wie bisher. Den ersten Export stimmt ihr mit ihm ab.</p>
       <div class="frm"><label class="f w1">Von<input type="date" id="gbF" value="${pFrom}"></label><label class="f w1">Bis<input type="date" id="gbT" value="${pTo}"></label>
         <div class="row" style="gap:8px;justify-content:flex-end"><button class="btn" id="gbPrev">Vorschau</button><button class="btn primary" id="gbDatev">Herunterladen</button></div></div>
       <div id="gbPrevBody"></div>`;
-    $('gbZipBody').innerHTML = `<p class="muted s" style="margin-top:0">Ein ZIP im Beschreibungsstandard der Finanzverwaltung (index.xml mit CSV-Dateien): alle Tabellen mit Geld und Belegen, das Änderungsjournal und die Zahlungseingänge eines Jahres.</p>
+    $('gbZipBody').innerHTML = `<p class="muted s mt0">Ein ZIP im Beschreibungsstandard der Finanzverwaltung (index.xml mit CSV-Dateien): alle Tabellen mit Geld und Belegen, das Änderungsjournal und die Zahlungseingänge eines Jahres.</p>
       <div class="frm"><label class="f w1">${esc(T(wm === 1 ? 'Jahr' : 'Geschäftsjahr'))}<select id="gbY">${Array.from({ length: 11 }, (_, i) => gy - i).map(v => `<option value="${v}" ${v === gy ? 'selected' : ''}>${esc(gjLabel(v, wm))}</option>`).join('')}</select></label>
         <div class="row w3" style="justify-content:flex-end"><button class="btn primary" id="gbZip">Herunterladen</button></div></div>`;
     $('gbList').innerHTML = r.exports.length ? `<table class="tbl kompakt"><tr><th>Erstellt</th><th>Art</th><th>Zeitraum</th><th class="r">Buchungen</th><th class="r">Summe</th></tr>
-        ${r.exports.map(e => `<tr><td>${esc(deTime(e.at))}<div class="muted s">${esc(e.by || '')}</div></td><td>${esc(T(e.kind === 'datev' ? 'DATEV' : 'Prüfer'))}</td><td>${esc(deDate(e.from))} – ${esc(deDate(e.to))}${e.changed ? ` <span class="pill a" title="${esc(T('Seit diesem Export wurde im Zeitraum etwas nachgetragen, storniert oder zurückgenommen – bitte den Steuerberater informieren.'))}">${esc(T('seitdem geändert'))}</span>` : ''}</td><td class="r" translate="no">${e.count}</td><td class="r" translate="no">${euro(e.cents)}</td></tr>`).join('')}</table>
+        ${r.exports.map(e => { const art = esc(T(e.kind === 'datev' ? 'DATEV' : 'Prüfer')), pill = e.changed ? `<span class="pill a" title="${esc(T('Seit diesem Export wurde im Zeitraum etwas nachgetragen, storniert oder zurückgenommen – bitte den Steuerberater informieren.'))}">${esc(T('seitdem geändert'))}</span>` : '';
+          // Handy/Tablet (kompakte Liste): Schild beim Datum, Anzahl nur ab Tablet – sonst bricht die kleine Zeile am Handy um
+          return `<tr><td>${esc(deTime(e.at))}${pill ? `<span class="k-handy"> ${pill}</span>` : ''}<div class="muted s">${esc(e.by || '')}</div></td><td>${art}</td><td>${esc(deDate(e.from))} – ${esc(deDate(e.to))}${pill ? `<span class="k-desk"> ${pill}</span>` : ''}</td><td class="r k-weg" translate="no">${e.count}</td><td class="r" translate="no">${euro(e.cents)}</td></tr>`; }).join('')}</table>
         <p class="muted s">„seitdem geändert“: Im Zeitraum wurde nachträglich etwas erfasst, storniert oder zurückgenommen. Dann den Zeitraum neu exportieren und den Steuerberater informieren.</p>` : '<p class="empty">Noch kein Export.</p>';
     const per = () => `from=${encodeURIComponent($('gbF').value)}&to=${encodeURIComponent($('gbT').value)}`;
     $('gbPrev').onclick = () => busy($('gbPrev'), async () => {
       try {
         const p = await api('gobd/buchungen?' + per()), lim = { zweck: 45000, wgb: 50000 };
-        $('gbPrevBody').innerHTML = `<div class="kpis" style="margin-top:14px">${Object.entries(r.spheres).map(([k, l]) => `<div class="kpi"><div class="l">${esc(l)}</div><div class="v" translate="no">${euro(p.spheres[k] || 0)}</div></div>`).join('')}</div>
+        $('gbPrevBody').innerHTML = `<div class="kpis mt14">${Object.entries(r.spheres).map(([k, l]) => `<div class="kpi"><div class="l">${esc(l)}</div><div class="v" translate="no">${euro(p.spheres[k] || 0)}</div></div>`).join('')}</div>
           ${p.spheres[''] ? `<p class="muted s">${esc(T('Ohne Sphäre'))}: <span translate="no">${euro(p.spheres[''])}</span></p>` : ''}
           ${Object.values(p.expenses || {}).some(Boolean) ? `<p class="muted s">${esc(T('Ausgaben'))}: ${Object.entries(p.expenses).filter(([, v]) => v).map(([k, v]) => `${esc(T(r.spheres[k] || 'ohne Sphäre'))} <span translate="no">${euro(v)}</span>`).join(' · ')}</p>` : ''}
           ${Object.entries(lim).filter(([k, v]) => (p.spheres[k] || 0) > v * 100).map(([k, v]) => `<div class="banner a">${esc(T('Mehr als {0} € im Bereich „{1}“ – bitte mit dem Steuerberater klären, ob Steuern anfallen (Grenze gilt für das ganze Jahr, einschließlich Umsatzsteuer).').replace('{0}', v.toLocaleString('de-DE')).replace('{1}', T(r.spheres[k])))}</div>`).join('')}
@@ -4701,7 +4725,7 @@
     const field = x => `<span style="display:inline-flex;gap:8px;align-items:center"><label class="f" style="width:96px;flex:none">${x.choices ? `<select data-ds="${esc(x.key)}" aria-label="${esc(x.label)}">${x.choices.map(n => `<option value="${n}" ${n === x.value ? 'selected' : ''}>${n}</option>`).join('')}</select>`
       : `<input data-ds="${esc(x.key)}" value="${x.value}" inputmode="numeric" aria-label="${esc(x.label)}">`}</label><span class="muted" style="min-width:58px">${unit(x, 2)}</span></span>`;
     const b = r.backups, keepM = Math.max(b.monthly, Math.ceil(b.weekly / 4), 1);
-    box.innerHTML = `<p class="muted s" style="margin-top:0">Was älter ist, löscht Clubwerk einmal am Tag von selbst. Ins Protokoll kommt nur, wie viel gelöscht wurde – nie, was. Die Fristen sind Vorschläge; im Zweifel stimmt der Verein sie mit seinem Datenschutzbeauftragten oder dem Landesverband ab. Geld (Verkauf, Beiträge, Buchhaltung) und Arbeitszeiten löscht Clubwerk nie von selbst – dafür gelten gesetzliche Aufbewahrungsfristen.</p>
+    box.innerHTML = `<p class="muted s mt0">Was älter ist, löscht Clubwerk einmal am Tag von selbst. Ins Protokoll kommt nur, wie viel gelöscht wurde – nie, was. Die Fristen sind Vorschläge; im Zweifel stimmt der Verein sie mit seinem Datenschutzbeauftragten oder dem Landesverband ab. Geld (Verkauf, Beiträge, Buchhaltung) und Arbeitszeiten löscht Clubwerk nie von selbst – dafür gelten gesetzliche Aufbewahrungsfristen.</p>
       <div>${r.rows.map(x => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 0;border-top:1px solid var(--line-soft)">
           <div style="flex:1 1 240px;min-width:0"><b>${esc(x.label)}</b><div class="muted s">${esc(x.text)}</div></div>
           ${field(x)}<span class="muted s" style="min-width:76px;text-align:right">Fällig: <b>${x.due == null ? '–' : x.due}</b></span></div>`).join('')}</div>
@@ -4719,7 +4743,7 @@
     // Datenschutzhinweis der Mitglieder-App
     const nb = $('dsNotice');
     if (nb) {
-      nb.innerHTML = `<p class="muted s" style="margin-top:0">Mitglieder sehen den Text einmal beim nächsten Öffnen der App (und nach jeder Änderung) und jederzeit unter „Mein Konto › Datenschutz“. Leer = kein Hinweis.</p>
+      nb.innerHTML = `<p class="muted s mt0">Mitglieder sehen den Text einmal beim nächsten Öffnen der App (und nach jeder Änderung) und jederzeit unter „Mein Konto › Datenschutz“. Leer = kein Hinweis.</p>
         <label class="f">Text<textarea id="dsText" rows="12" maxlength="8000" placeholder="Wer ist verantwortlich, welche Daten, wofür, wie lange, welche Rechte …">${esc(r.notice.text)}</textarea></label>
         <div class="row" style="justify-content:space-between;align-items:center;margin-top:12px"><span class="muted s">${r.notice.at ? `Zuletzt geändert: ${esc(deTime(r.notice.at))}` : 'Noch kein Hinweis.'}</span>
           <span class="row" style="gap:8px"><button class="btn" id="dsTpl">Vorlage einsetzen</button><button class="btn primary" id="dsNSave">Speichern</button></span></div>`;
@@ -4759,7 +4783,7 @@
     const r = await api('bank-accounts');
     const box = $('bankBody'); if (!box) return;
     const dn = id => (r.departments.find(d => d.id === id) || {}).name || '?';
-    box.innerHTML = `<p class="muted s" style="margin-top:0">Gilt für alle Module: Rechnungen der Buchhaltung, Lastschriften der Mitgliederverwaltung. Ein Konto ist das Standardkonto; Konten mit Abteilung werden für deren Rechnungen verwendet.</p>
+    box.innerHTML = `<p class="muted s mt0">Gilt für alle Module: Rechnungen der Buchhaltung, Lastschriften der Mitgliederverwaltung. Ein Konto ist das Standardkonto; Konten mit Abteilung werden für deren Rechnungen verwendet.</p>
       ${r.rows.length ? `<table class="tbl kompakt"><tr><th>Bezeichnung</th><th>IBAN</th><th>Kreditinstitut</th><th>Abteilungen</th><th></th></tr>
         ${r.rows.map(a => `<tr class="${a.active ? '' : 'off'}"><td><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}${a.active ? '' : ' <span class="pill">inaktiv</span>'}</td>
           <td class="nw">${esc(fmtIbanC(a.iban))}</td><td class="k-weg">${esc(a.bank || '')}</td><td class="k-weg">${a.departments.length ? esc(a.departments.map(dn).join(', ')) : '<span class="muted s">alle</span>'}</td>
@@ -4775,10 +4799,10 @@
       <div class="ugrid"><label class="f">Bezeichnung<input id="bkN" value="${v('name')}" placeholder="z. B. Vereinskonto, Padel"></label><label class="f">Kontoinhaber<input id="bkH" value="${v('holder')}" placeholder="${esc(cache.settings.clubName || '')}"></label>
         <label class="f">IBAN<input id="bkI" value="${esc(fmtIbanC(a && a.iban))}" spellcheck="false" autocomplete="off"></label><label class="f">BIC<input id="bkB" value="${v('bic')}" spellcheck="false"></label>
         <label class="f">Kreditinstitut<input id="bkK" value="${v('bank')}"></label><label class="f"><span>&nbsp;</span><label class="chk" style="min-height:40px"><input type="checkbox" id="bkD" ${!a || a.is_default ? 'checked' : ''}> Standardkonto</label></label></div>
-      ${r.departments.length ? `<h3 style="margin:16px 0 4px">Abteilungen (optional)</h3><p class="muted s" style="margin:0 0 8px">Rechnungen dieser Abteilungen nennen dieses Konto. Ohne Auswahl gilt das Konto für den ganzen Verein.</p>
+      ${r.departments.length ? `<h3 style="margin:16px 0 4px">Abteilungen (optional)</h3><p class="muted s m-0-0-8">Rechnungen dieser Abteilungen nennen dieses Konto. Ohne Auswahl gilt das Konto für den ganzen Verein.</p>
         <div class="permgrid">${r.departments.filter(d => d.active !== 0).map(d => `<label class="chk"><input type="checkbox" data-bkd="${d.id}" ${a && a.departments.includes(d.id) ? 'checked' : ''}> ${esc(d.name)}</label>`).join('')}</div>` : ''}
-      ${a ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="bkA" ${a.active ? 'checked' : ''}> Aktiv</label>` : ''}
-      <div class="btns">${a ? '<button class="btn ghost danger" id="bkDel">Löschen</button><span style="flex:1"></span>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bkOk">Speichern</button></div>`);
+      ${a ? `<label class="chk mt12"><input type="checkbox" id="bkA" ${a.active ? 'checked' : ''}> Aktiv</label>` : ''}
+      <div class="btns">${a ? '<button class="btn ghost danger" id="bkDel">Löschen</button><span class="fx1"></span>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bkOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
     $('bkOk').onclick = () => busy($('bkOk'), async () => {
       const body = { name: $('bkN').value, holder: $('bkH').value, iban: $('bkI').value, bic: $('bkB').value, bank: $('bkK').value, is_default: $('bkD').checked,
@@ -4803,9 +4827,9 @@
       ${can('einstellungen') ? `<div class="card"><h3>Verein</h3>
         <div class="frm"><label class="f">Vereinsname<input id="club" required value="${esc(s.clubNameSet === false ? '' : s.clubName)}" placeholder="z. B. TC Grün-Weiß Musterstadt"></label>
         <label class="f w1">Vereinsfarbe<span class="row" style="gap:6px;flex-wrap:nowrap;min-width:0"><input type="color" id="clubColorPick" value="${esc(s.clubColor)}" style="width:52px;flex:none;padding:2px">
-          <input id="clubColor" value="${esc(s.clubColor)}" style="flex:1;min-width:0" maxlength="7"></span></label>
+          <input id="clubColor" value="${esc(s.clubColor)}" class="fx1-0" maxlength="7"></span></label>
         <label class="f w1">Zweitfarbe (freiwillig)<span class="row" style="gap:6px;flex-wrap:nowrap;min-width:0"><input type="color" id="clubColor2Pick" value="${esc(s.clubColor2 || '#c0262d')}" style="width:52px;flex:none;padding:2px">
-          <input id="clubColor2" value="${esc(s.clubColor2 || '')}" style="flex:1;min-width:0" maxlength="7" placeholder="keine"></span></label>
+          <input id="clubColor2" value="${esc(s.clubColor2 || '')}" class="fx1-0" maxlength="7" placeholder="keine"></span></label>
         <div class="clubprev wall" id="clubPrev"></div>
         <label class="f">Straße und Hausnummer<input id="clubStreet" maxlength="80" value="${esc(s.clubStreet)}" placeholder="z. B. Vereinsweg 1" autocomplete="off"></label>
         <label class="f">PLZ und Ort<input id="clubCity" maxlength="80" value="${esc(s.clubCity)}" placeholder="z. B. 12345 Musterstadt" autocomplete="off"></label>
@@ -4816,28 +4840,28 @@
       <div class="card" id="tmCard"><h3>Tablet im Vereinsheim</h3>
         <div class="ugrid"><label class="chk ucard"><input type="radio" name="tmOn" value="1" ${s.tablet ? 'checked' : ''}> <span><b>Mit Tablet im Vereinsheim</b><br><span class="muted s">Verkauf, Plätze, Dienste und mehr am Tablet – geschützt mit dem Passwort für das Tablet</span></span></label>
           <label class="chk ucard"><input type="radio" name="tmOn" value="0" ${s.tablet ? '' : 'checked'}> <span><b>Ohne Tablet</b><br><span class="muted s">Nur Verwaltung und Mitglieder-App – keine Tablet-Seiten, kein Tablet-Passwort</span></span></label></div>
-        <div class="row ${!s.tablet || s.tabletPw.on ? 'hidden' : ''}" id="tmPwRow" style="margin-top:12px">
-          <label class="f" style="flex:1;min-width:200px">Passwort für das Tablet (mind. 8 Zeichen)<input type="password" id="tmPw1" autocomplete="new-password"></label>
-          <label class="f" style="flex:1;min-width:200px">Passwort wiederholen<input type="password" id="tmPw2" autocomplete="new-password"></label></div>
+        <div class="row ${!s.tablet || s.tabletPw.on ? 'hidden' : ''} mt12" id="tmPwRow">
+          <label class="f fx1-200">Passwort für das Tablet (mind. 8 Zeichen)<input type="password" id="tmPw1" autocomplete="new-password"></label>
+          <label class="f fx1-200">Passwort wiederholen<input type="password" id="tmPw2" autocomplete="new-password"></label></div>
         <p class="muted s">Ohne Tablet führt die Tablet-Adresse direkt zur Anmeldung der Verwaltung. Später einschalten geht jederzeit – dann wird zuerst das Passwort für das Tablet festgelegt, bevor eine Tablet-Seite erreichbar ist. Ausschalten meldet alle Tablets ab.</p>
         <div class="btns"><button class="btn primary" id="tmSave">Speichern</button></div></div>
       ${s.tablet && s.tabletPw.on ? `<div class="card" id="tpCard"><h3>Passwort für das Tablet</h3>
         ${s.tabletPw.on ? `<div class="banner g">Vergeben${s.tabletPw.since ? ' seit ' + deTime(s.tabletPw.since) + ' Uhr' : ''} – jedes Gerät braucht einmal das Passwort und bleibt dann freigeschaltet.</div>`
           : '<div class="banner r">Noch kein Passwort vergeben – das Tablet ist gesperrt, bis hier eins festgelegt ist.</div>'}
         <div class="row">
-          <label class="f" style="flex:1;min-width:200px">${s.tabletPw.on ? 'Neues Passwort' : 'Passwort'} (mind. 8 Zeichen)<input type="password" id="tpPw1" autocomplete="new-password"></label>
-          <label class="f" style="flex:1;min-width:200px">Passwort wiederholen<input type="password" id="tpPw2" autocomplete="new-password"></label>
+          <label class="f fx1-200">${s.tabletPw.on ? 'Neues Passwort' : 'Passwort'} (mind. 8 Zeichen)<input type="password" id="tpPw1" autocomplete="new-password"></label>
+          <label class="f fx1-200">Passwort wiederholen<input type="password" id="tpPw2" autocomplete="new-password"></label>
         </div>
         <p class="muted s">Pflicht zum Schutz der Mitgliederdaten: Ohne Passwort könnte jedes Gerät im WLAN die Namen und Konten am Tablet sehen. Das Tablet im Vereinsheim wird einmal mit dem Passwort freigeschaltet (bis zu 400 Tage, danach einmal neu eingeben). Ein neues Passwort oder „Alle Geräte abmelden“ sperrt alle bisher freigeschalteten Geräte – praktisch, wenn das Passwort die Runde gemacht hat. Angemeldete Admins und die Home-Assistant-Seitenleiste kommen immer auf die Buchungsseite. Die PINs der Mitglieder gelten unabhängig davon.</p>
         <div class="btns"><button class="btn primary" id="tpSave">${s.tabletPw.on ? 'Passwort ändern' : 'Passwort festlegen'}</button></div>
-        ${s.tabletPw.on ? '<div class="btns" style="margin-top:6px"><button class="btn danger" id="tpOut">Alle Geräte abmelden …</button></div>' : ''}</div>` : ''}
+        ${s.tabletPw.on ? '<div class="btns mt6"><button class="btn danger" id="tpOut">Alle Geräte abmelden …</button></div>' : ''}</div>` : ''}
       ${net ? `<div class="card" id="apNet"><h3>Vereinsnetz</h3>
-        <p class="muted s" style="margin:0 0 8px">Welche Adressen als Vereinsnetz gelten – für Mitglieder-App (Beregnung, Türen), Verwaltung, Tablet und Beregnungs-Webapp. Leer = jede private Adresse (192.168.…, 10.…). Empfohlen: euer Netz eintragen, dann kommen Gast-WLAN oder VPN nicht mehr an Verwaltung und Tablet. Die Home-Assistant-Seitenleiste funktioniert immer.</p>
+        <p class="muted s m-0-0-8">Welche Adressen als Vereinsnetz gelten – für Mitglieder-App (Beregnung, Türen), Verwaltung, Tablet und Beregnungs-Webapp. Leer = jede private Adresse (192.168.…, 10.…). Empfohlen: euer Netz eintragen, dann kommen Gast-WLAN oder VPN nicht mehr an Verwaltung und Tablet. Die Home-Assistant-Seitenleiste funktioniert immer.</p>
         ${net.wlanNets ? '' : '<div class="banner a" style="margin:0 0 8px;font-weight:400">Noch kein Vereinsnetz eingetragen – jedes private Netz gilt als Vereinsheim.</div>'}
-        <div class="row" style="align-items:flex-end;gap:10px"><label class="f" style="flex:1;min-width:220px">Netze (mit Komma)<input id="apNets" value="${esc(net.wlanNets || '')}" placeholder="z. B. 192.168.10.0/24"></label>
+        <div class="row" style="align-items:flex-end;gap:10px"><label class="f fx1-220">Netze (mit Komma)<input id="apNets" value="${esc(net.wlanNets || '')}" placeholder="z. B. 192.168.10.0/24"></label>
           ${/^\d+\.\d+\.\d+\.\d+$/.test(net.myIp || '') && !/^(127\.|172\.30\.3[23]\.)/.test(net.myIp) ? `<button class="btn" id="apNetMine" type="button">Mein Netz übernehmen (${esc(net.myIp.replace(/\.\d+$/, '.0'))}/24)</button>` : ''}
           ${(net.hostNets || []).filter(n => n !== (/^\d+\.\d+\.\d+\.\d+$/.test(net.myIp || '') ? net.myIp.replace(/\.\d+$/, '.0') + '/24' : '')).map(n => `<button class="btn" type="button" data-hnet="${esc(n)}">Netz von Home Assistant übernehmen (${esc(n)})</button>`).join('')}</div>
-        <label class="chk" style="margin-top:12px"><input type="checkbox" id="apDirect" ${net.directPublic ? 'checked' : ''}> Direkte Verbindungen aus dem Internet zur Mitglieder-App erlauben (ohne Tunnel – nicht empfohlen; wirkt sofort)</label>
+        <label class="chk mt12"><input type="checkbox" id="apDirect" ${net.directPublic ? 'checked' : ''}> Direkte Verbindungen aus dem Internet zur Mitglieder-App erlauben (ohne Tunnel – nicht empfohlen; wirkt sofort)</label>
         <div class="btns"><button class="btn primary" id="apNetSave" type="button">Speichern</button></div></div>` : ''}
       ${s.allowedHosts !== undefined ? `<div class="card"><h3>Weitere Adressen</h3><div class="row">
         <label class="f" style="flex:1;min-width:260px">Namen, unter denen die Verwaltung erreichbar ist (mit Komma getrennt)<input id="hostList" value="${esc(s.allowedHosts)}" placeholder="verein.duckdns.org"></label>
@@ -4847,19 +4871,20 @@
       ${mayCfg ? `<div class="card"><h3>Verschlüsselung und Zugang von außen</h3>
         <div class="row" style="align-items:center;gap:8px"><span class="pill ${SCHEME === 'https' ? 'g' : 'a'}">${SCHEME === 'https' ? 'HTTPS an' : 'ohne HTTPS'}</span>
           <span class="muted s">${SCHEME === 'https' ? 'Verwaltung, Tablet und Mitglieder-App sind verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten.'}</span></div>
-        <p class="muted s" style="margin:10px 0 0">Die öffentliche Adresse der Mitglieder-App (Cloudflare Tunnel) richtest du bei <a href="#app" id="goApSet">Mitglieder-App › Einstellungen</a> ein.</p></div>` : ''}
+        ${SCHEME === 'https' ? '' : '<div class="banner a m-10-0-0">Ohne HTTPS kann jeder im WLAN Passwörter, PINs und Geräteschlüssel der Mitglieder-App mitlesen. Bitte einschalten – die Installationsanleitung (Abschnitt 9c) zeigt, wie.</div>'}
+        <p class="muted s m-10-0-0">Die öffentliche Adresse der Mitglieder-App (Cloudflare Tunnel) richtest du bei <a href="#app" id="goApSet">Mitglieder-App › Einstellungen</a> ein.</p></div>` : ''}
       <div class="card"><h3>Vereinslogo</h3><div class="row" style="align-items:center">
         <div class="logoprev" id="logoPrev">${s.logo ? `<img src="${esc(s.logo)}" alt="Vereinslogo">` : '<span class="muted s">kein Logo</span>'}</div>
         <div style="display:flex;flex-direction:column;gap:8px">
           <label class="btn" style="cursor:pointer">Logo hochladen …<input type="file" id="logoFile" accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp" class="hidden"></label>
           ${s.logoCustom ? '<button class="btn ghost" id="logoDel">Logo entfernen</button>' : ''}
         </div></div>
-        <div id="logoColors" class="hidden" style="margin-top:12px"><div class="muted s" style="margin-bottom:6px">Farben im Logo – antippen, um sie als Vereinsfarbe zu übernehmen:</div><div class="row" id="swatches" style="gap:8px"></div></div>
+        <div id="logoColors" class="hidden mt12"><div class="muted s" style="margin-bottom:6px">Farben im Logo – antippen, um sie als Vereinsfarbe zu übernehmen:</div><div class="row" id="swatches" style="gap:8px"></div></div>
         <p class="muted s">SVG, PNG, JPG oder WebP, max. 2 MB. Das Logo erscheint auf dem Tablet, in der Verwaltung und auf der Anmeldeseite und ist in jeder Datensicherung enthalten. Beim Hochladen wird das Grün aus dem Logo automatisch als Vereinsfarbe übernommen.</p></div>` : ''}
       ${can('einstellungen') ? '<div class="card" data-set="verein"><h3>Vereinssprache</h3><div id="clubLangBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       ${ml ? `<div class="card" id="mailCard"><h3>Postfach</h3>
-        <p class="muted s" style="margin-top:0">Ein Postfach für alle Module: Bestellungen an den Lieferanten, Monatsnachweis der Zeiterfassung und Erweiterungen. Wohin die Mails gehen, legt jedes Modul selbst fest.</p>
-        ${ml.ready ? `<div class="banner g" style="margin:0 0 12px">Eingerichtet – Absender ${esc(ml.from)}</div>` : '<div class="banner a" style="margin:0 0 12px">Noch nicht eingerichtet – ohne Postfach können Bestellung und Monatsnachweis nicht verschickt werden.</div>'}
+        <p class="muted s mt0">Ein Postfach für alle Module: Bestellungen an den Lieferanten, Monatsnachweis der Zeiterfassung und Erweiterungen. Wohin die Mails gehen, legt jedes Modul selbst fest.</p>
+        ${ml.ready ? `<div class="banner g m-0-0-12">Eingerichtet – Absender ${esc(ml.from)}</div>` : '<div class="banner a m-0-0-12">Noch nicht eingerichtet – ohne Postfach können Bestellung und Monatsnachweis nicht verschickt werden.</div>'}
         <div class="mailgrid">
           <label class="f">Server (SMTP)<input id="mlH" value="${esc(ml.host)}" placeholder="z. B. mail.gmx.net" autocomplete="off"></label>
           <label class="f">Port<input id="mlP" value="${esc(ml.port)}" inputmode="numeric"></label>
@@ -4869,8 +4894,8 @@
           <label class="f">Höchstens … Mails je Verbindung<input id="mlC" value="${esc(ml.perConn)}" inputmode="numeric" autocomplete="off"></label>
           <label class="f">Höchstens … Mails je Stunde<input id="mlS" value="${esc(ml.perHour)}" inputmode="numeric" placeholder="leer = unbegrenzt" autocomplete="off"></label>
         </div>
-        <p class="muted s" style="margin:8px 0 0">Manche Anbieter begrenzen, wie viele Mails sie je Verbindung oder je Stunde annehmen, und lehnen den Rest ab („451 … limit exceeded“). Standard: 20 je Verbindung, keine Stundengrenze. Abgelehnte Mails gehen nicht verloren: Clubwerk versucht es von selbst noch einmal (nach 1, 5, 15 und dann alle 60 Minuten, höchstens 24 Stunden). Meldet der Anbieter ein Limit, senkt Clubwerk die Zahl für diese Rundmail selbst.</p>
-        ${ml.queued && ml.queued.n ? `<div class="banner a" style="margin:12px 0 0">${ml.queued.n} ${ml.queued.n === 1 ? 'Mail wartet' : 'Mails warten'} auf Zustellung (nächster Versuch ${new Date(ml.queued.next).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}).</div>` : ''}
+        <p class="muted s m-8-0-0">Manche Anbieter begrenzen, wie viele Mails sie je Verbindung oder je Stunde annehmen, und lehnen den Rest ab („451 … limit exceeded“). Standard: 20 je Verbindung, keine Stundengrenze. Abgelehnte Mails gehen nicht verloren: Clubwerk versucht es von selbst noch einmal (nach 1, 5, 15 und dann alle 60 Minuten, höchstens 24 Stunden). Meldet der Anbieter ein Limit, senkt Clubwerk die Zahl für diese Rundmail selbst.</p>
+        ${ml.queued && ml.queued.n ? `<div class="banner a m-12-0-0">${ml.queued.n} ${ml.queued.n === 1 ? 'Mail wartet' : 'Mails warten'} auf Zustellung (nächster Versuch ${new Date(ml.queued.next).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}).</div>` : ''}
         <div class="row" style="justify-content:space-between;align-items:flex-end;margin-top:12px">
           <div class="row" style="align-items:flex-end"><label class="f" style="width:260px">Testmail an<input id="mlT" type="email" placeholder="deine@adresse.de" autocomplete="email"></label>
             <button class="btn" id="mlTest" ${ml.ready ? '' : 'disabled'} title="${ml.ready ? '' : 'Erst das Postfach speichern'}">Testmail senden</button></div>
@@ -4880,7 +4905,7 @@
         <div class="card" data-set="sicherheit"><h3>Wer bekommt Warnungen?</h3><div id="swWho"></div></div>` : ''}
       ${can('einstellungen') ? `<div class="card" data-set="datenschutz"><h3>Löschfristen</h3><div id="dsBody"><p class="muted">Wird geladen …</p></div></div>
         <div class="card" data-set="datenschutz"><h3>Datenschutzhinweis in der Mitglieder-App</h3><div id="dsNotice"></div></div>
-        <div class="card" data-set="datenschutz"><h3>Verzeichnis von Verarbeitungstätigkeiten</h3><p class="muted s" style="margin-top:0">Eine Vorlage aus allen eingeschalteten Modulen: Zweck, Daten, betroffene Personen, wer Zugriff hat und die Löschfristen. Der Verein ergänzt Verantwortliche, Datenschutzbeauftragte und genutzte Dienste (z. B. Mail-Anbieter) und bewahrt das Verzeichnis auf.</p>
+        <div class="card" data-set="datenschutz"><h3>Verzeichnis von Verarbeitungstätigkeiten</h3><p class="muted s mt0">Eine Vorlage aus allen eingeschalteten Modulen: Zweck, Daten, betroffene Personen, wer Zugriff hat und die Löschfristen. Der Verein ergänzt Verantwortliche, Datenschutzbeauftragte und genutzte Dienste (z. B. Mail-Anbieter) und bewahrt das Verzeichnis auf.</p>
           <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="dsReg">Verzeichnis drucken</button></div></div>
         <div class="card" data-set="daten"><h3>Datenqualität</h3><div id="dqBody"><p class="muted">Wird geladen …</p></div></div>
         <div class="card" data-set="buchfuehrung"><h3>Änderungsjournal</h3><div id="gbJournal"><p class="muted">Wird geladen …</p></div></div>
@@ -4914,23 +4939,23 @@
                 <button type="button" class="dots" data-menu="${esc(x.id)}" aria-label="Weitere Aktionen für ${esc(x.name)}" style="${items ? '' : 'visibility:hidden'}">${icon('punkte', 18)}</button></span>
               ${items ? `<div class="menu hidden" data-menufor="${esc(x.id)}">${items}</div>` : ''}</div>`;
           }).join('')}</div>` : '<p class="empty">Keine Module vorhanden.</p>'}
-        <p class="muted s" style="margin:12px 0 0">Schalter aus = ausgeblendet, Daten bleiben. Einstellungen exportieren und importieren geht ohne PINs und Schlüssel; über <b>⋯</b> lässt sich ein Modul deinstallieren (mit Pflicht-Sicherung). Mitglieder und Konten bleiben immer erhalten.</p>
+        <p class="muted s m-12-0-0">Schalter aus = ausgeblendet, Daten bleiben. Einstellungen exportieren und importieren geht ohne PINs und Schlüssel; über <b>⋯</b> lässt sich ein Modul deinstallieren (mit Pflicht-Sicherung). Mitglieder und Konten bleiben immer erhalten.</p>
         ${me.role === 'oberadmin' ? `<div class="row" style="margin-top:10px;align-items:center"><label class="btn primary" style="cursor:pointer">Erweiterung einspielen (ZIP) …<input type="file" id="extZip" accept=".zip,application/zip" class="hidden"></label>
           <button class="btn hidden" id="extRestart">Jetzt neu starten</button></div>
         <p class="muted s">Eine Erweiterung ist eine ZIP-Datei mit <code>erweiterung.json</code>. Eine neuere Version einer hochgeladenen Erweiterung ersetzt die alte. Wirksam nach einem Neustart. Alternativ per Samba in <code>share/clubwerk/erweiterungen</code> kopieren.</p>` : ''}</div>` : ''}
       ${mayCfg ? `<div class="card fold" id="nvCard"><h3><button type="button" class="foldbtn" id="nvFold" aria-expanded="false" aria-controls="nvBody"><span>Seitenleiste</span>${icon('pfeil', 16).replace('<svg', '<svg class="chev"')}</button></h3>
-        <div id="nvBody" hidden><p class="muted s" style="margin-top:0">So ist die Leiste der Verwaltung geordnet – für alle, die sich anmelden. Du kannst die Bereiche umbenennen, ordnen und Einträge in einen anderen Bereich legen. Neue Module erscheinen von selbst am Ende ihres Bereichs. Was jemand sehen darf, bestimmen weiter seine Rechte.</p>
+        <div id="nvBody" hidden><p class="muted s mt0">So ist die Leiste der Verwaltung geordnet – für alle, die sich anmelden. Du kannst die Bereiche umbenennen, ordnen und Einträge in einen anderen Bereich legen. Neue Module erscheinen von selbst am Ende ihres Bereichs. Was jemand sehen darf, bestimmen weiter seine Rechte.</p>
         <div id="nvRows" class="nvrows"><p class="muted">Lade …</p></div>
         <div class="btns"><button class="btn ghost" id="nvReset">Standard wiederherstellen</button><button class="btn primary" id="nvSave">Speichern</button></div></div></div>` : ''}
       ${mayCfg && s.tablet ? `<div class="card"><h3>Leiste am Tablet</h3>
-        <p class="muted s" style="margin-top:0">So stehen die Module und Links in der Leiste oben am Tablet – von links nach rechts. Der Schalter „am Tablet zeigen“ wirkt sofort, Reihenfolge und <b>Start-Reiter</b> (erscheint beim Aufruf der Adresse, z. B. <code>…:3100</code>, und nach 30 Sekunden ohne Eingabe) gelten nach „Speichern“.</p>
+        <p class="muted s mt0">So stehen die Module und Links in der Leiste oben am Tablet – von links nach rechts. Der Schalter „am Tablet zeigen“ wirkt sofort, Reihenfolge und <b>Start-Reiter</b> (erscheint beim Aufruf der Adresse, z. B. <code>…:3100</code>, und nach 30 Sekunden ohne Eingabe) gelten nach „Speichern“.</p>
         <div id="toRows" class="torows"><p class="muted">Lade …</p></div>
         <div class="btns"><button class="btn primary" id="toSave">Speichern</button></div></div>` : ''}
       ${mayCfg && s.tablet ? `<div class="card"><h3>Darstellung am Tablet</h3><div class="row">
         <label class="f" style="min-width:240px">Darstellung<select id="tkTheme">${[['auto', 'Wie das Gerät'], ['light', 'Hell'], ['dark', 'Dunkel'], ['hc', 'Hoher Kontrast']].map(([k, l]) => `<option value="${k}" ${s.tabletTheme === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
         <p class="muted s">Gilt für alle Tablets des Vereins. „Hoher Kontrast“ hilft an der Theke bei Sonnenlicht: kräftige Ränder, keine Schatten, stärkere Schrift. „Wie das Gerät“ folgt der Einstellung des Tablets (hell, dunkel, mehr Kontrast).</p></div>` : ''}
       ${ext && mayCfg && s.tablet ? `      <div class="card"><h3>Links in der Kopfzeile</h3>
-        <p class="muted s" style="margin-top:0">Erscheinen am Tablet oben neben „Verwaltung“ – z. B. Platzbuchung, Vereinsverwaltung, Beregnung. Die Seite läuft eingebettet unter der Kopfzeile, die Kopfzeile bleibt sichtbar. Manche Seiten verbieten das Einbetten – dann bleibt der Bereich leer. Höchstens 8.</p>
+        <p class="muted s mt0">Erscheinen am Tablet oben neben „Verwaltung“ – z. B. Platzbuchung, Vereinsverwaltung, Beregnung. Die Seite läuft eingebettet unter der Kopfzeile, die Kopfzeile bleibt sichtbar. Manche Seiten verbieten das Einbetten – dann bleibt der Bereich leer. Höchstens 8.</p>
         <div id="lnRows"></div>
         <div class="btns"><button class="btn ghost" id="lnAdd">+ Link hinzufügen</button><button class="btn primary" id="lnSave">Links speichern</button></div></div>` : ''}
       ${s.tablet ? `<div class="card"><h3>Tablet & Home Assistant</h3>
@@ -5026,7 +5051,7 @@
       const rowsHtml = () => {
         $('lnRows').innerHTML = links.map((l, i) => `<div class="row" style="flex-wrap:nowrap;margin-top:${i ? 10 : 0}px">
           <label class="f" style="width:220px">Beschriftung<input data-ll="${i}" value="${esc(l.label)}" maxlength="30" placeholder="z. B. Platzbuchung"></label>
-          <label class="f" style="flex:1;min-width:0">Adresse<input data-lu="${i}" value="${esc(l.url)}" placeholder="https://…"></label>
+          <label class="f fx1-0">Adresse<input data-lu="${i}" value="${esc(l.url)}" placeholder="https://…"></label>
           <button class="btn ghost" data-lx="${i}">Entfernen</button></div>`).join('') || '<p class="empty">Noch keine Links.</p>';
         $('lnRows').querySelectorAll('[data-ll]').forEach(x => x.oninput = () => { links[+x.dataset.ll].label = x.value; });
         $('lnRows').querySelectorAll('[data-lu]').forEach(x => x.oninput = () => { links[+x.dataset.lu].url = x.value; });

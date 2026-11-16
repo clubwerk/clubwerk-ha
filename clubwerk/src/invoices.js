@@ -393,4 +393,4 @@ async function readUpload(db, file, mime) {
 
 function removeFile(f) { try { fs.unlinkSync(f); } catch (e) { /* schon weg */ } }
 
-module.exports = { readUpload, parseInvoiceText, parseLidlText, parseGenericText, pdfToText, imageToText, removeFile };
+module.exports = { readUpload, parseInvoiceText, removeFile };

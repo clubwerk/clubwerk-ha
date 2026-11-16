@@ -5,11 +5,12 @@
  * eingeschaltet sind: Datenbank (alle Module, Benutzer, Einstellungen, Logo), Belege, Artikelbilder und die
  * freigegebenen bzw. hochgeladenen Erweiterungen.
  *
- * Dateiformat .cwbackup (Sicherungen der Vorgängerversion: .vhsicherung mit "VHSICH01"):
+ * Dateiformat .cwbackup:
  *   "CWSICH01" | Länge des Kopfes (4 Byte) | Kopf (JSON: Schlüsselableitung, IV, Schlüssel-Kennung, Datum)
  *   | verschlüsseltes tar.gz (AES-256-GCM) | Prüfwert (16 Byte)
  * Der Schlüssel wird mit scrypt aus dem Sicherungspasswort abgeleitet. Ohne dieses Passwort lässt sich die Datei
- * nicht lesen – und jede Veränderung fällt beim Entschlüsseln auf.
+ * nicht lesen – und jede Veränderung fällt beim Entschlüsseln auf. Ab Kopf-Version 2 gehören Kennung, Länge und Kopf
+ * mit zum Prüfwert (AAD): auch ein geändertes Datum oder eine geänderte Version im Kopf fällt auf. Version 1 bleibt lesbar.
  */
 const fs = require('fs');
 const path = require('path');
@@ -18,30 +19,32 @@ const { spawn } = require('child_process');
 const { pipeline } = require('stream/promises');
 
 const MAGIC = Buffer.from('CWSICH01');
-const MAGIC_ALT = [Buffer.from('VHSICH01')];   // Sicherungen der Vorgängerversion („Vereinsheim“) lassen sich weiter einspielen
 const EXT = '.cwbackup';
-const KDF = { N: 32768, r: 8, p: 1 };
+/* scrypt für neu festgelegte Sicherungspasswörter: N = 2^16 (64 MiB, vorher 2^15). 2^17 bräuchte 128 MiB auf einmal – auf einem
+   Raspberry Pi (armv7) mit 1 GB neben Home Assistant zu knapp, und jede Wiederherstellung muss auch dort gehen (planung/haertung-2026-11.md). */
+const KDF = { N: 65536, r: 8, p: 1 };
+const MAXMEM = 256 * 1024 * 1024;
 const DIRS = ['belege', 'artikelbilder', 'erweiterungen', 'erweiterungen-freigegeben', 'mitglieder-dokumente', 'fotos', 'mail-anhaenge'];   // Ordner unter DATA_DIR
 const NAME_RE = /^(\d{4}-\d{2}-\d{2})(?:_(\d{6}))?_Clubwerk\.cwbackup$/;
-const LEGACY_RE = /^(\d{4}-\d{2}-\d{2})(?:_(\d{6}))?_Vereinsheim\.vhsicherung$/;
-const DB_NAME = 'clubwerk.db', DB_ALT = 'vereinsheim.db';
+const DB_NAME = 'clubwerk.db';
 
-function deriveKey(password, kdf) {
+/** Schlüssel aus dem Passwort (asynchron: scrypt rechnet im Hintergrund, der Server bleibt währenddessen bedienbar) */
+async function deriveKey(password, kdf) {
   // Werte stammen aus dem (unverschlüsselten) Kopf der Datei – nur übliche scrypt-Werte zulassen, sonst könnte eine präparierte Datei Rechenzeit/Speicher binden
   const k = kdf || {}, N = Number(k.N), r = Number(k.r), p = Number(k.p), salt = Buffer.from(String(k.salt || ''), 'base64');
   if (!(Number.isInteger(N) && N >= 1024 && N <= 1048576 && (N & (N - 1)) === 0 && Number.isInteger(r) && r >= 1 && r <= 16 && Number.isInteger(p) && p >= 1 && p <= 4 && salt.length >= 8 && salt.length <= 64 && 128 * N * r <= 128 * 1024 * 1024))
     throw new Error('Die Sicherungsdatei hat ungültige Angaben im Kopf.');
-  return crypto.scryptSync(String(password), Buffer.from(kdf.salt, 'base64'), 32, { N: kdf.N, r: kdf.r, p: kdf.p, maxmem: 128 * 1024 * 1024 });
+  return new Promise((res, rej) => crypto.scrypt(String(password), salt, 32, { N, r, p, maxmem: MAXMEM }, (e, key) => (e ? rej(e) : res(key))));
 }
 const keyId = key => crypto.createHash('sha256').update(key).digest('hex').slice(0, 16);
 const sha256File = file => new Promise((res, rej) => { const h = crypto.createHash('sha256'); fs.createReadStream(file).on('data', d => h.update(d)).on('end', () => res(h.digest('hex'))).on('error', rej); });
 
 /** Neues Sicherungspasswort → { kdf, key } (der Schlüssel wird gespeichert, das Passwort nie) */
-function newKey(password) {
+async function newKey(password) {
   const pw = String(password || '');
   if (pw.length < 10 || pw.length > 200) throw new Error('Das Sicherungspasswort braucht mindestens 10 Zeichen.');
   const kdf = { ...KDF, salt: crypto.randomBytes(16).toString('base64') };
-  const key = deriveKey(pw, kdf);
+  const key = await deriveKey(pw, kdf);
   return { kdf, key: key.toString('hex'), kid: keyId(key) };
 }
 
@@ -51,7 +54,7 @@ function readHeader(file) {
     const st = fs.fstatSync(fd);
     const pre = Buffer.alloc(12); fs.readSync(fd, pre, 0, 12, 0);
     const mg = pre.subarray(0, 8);
-    if (!mg.equals(MAGIC) && !MAGIC_ALT.some(m => mg.equals(m))) throw new Error('Das ist keine Komplettsicherung von Clubwerk (.cwbackup).');
+    if (!mg.equals(MAGIC)) throw new Error('Das ist keine Komplettsicherung von Clubwerk (.cwbackup).');
     const len = pre.readUInt32BE(8);
     if (len < 10 || len > 8192) throw new Error('Die Sicherungsdatei ist beschädigt.');
     const hb = Buffer.alloc(len); fs.readSync(fd, hb, 0, len, 12);
@@ -59,8 +62,8 @@ function readHeader(file) {
     const dataStart = 12 + len, dataEnd = st.size - 16;
     if (dataEnd <= dataStart) throw new Error('Die Sicherungsdatei ist unvollständig.');
     const tag = Buffer.alloc(16); fs.readSync(fd, tag, 0, 16, dataEnd);
-    if (!head.kdf || !head.iv || head.v !== 1) throw new Error('Die Sicherungsdatei hat ein unbekanntes Format.');
-    return { head, dataStart, dataEnd, tag, size: st.size };
+    if (!head.kdf || !head.iv || (head.v !== 1 && head.v !== 2)) throw new Error('Die Sicherungsdatei hat ein unbekanntes Format.');
+    return { head, dataStart, dataEnd, tag, size: st.size, aad: head.v === 2 ? Buffer.concat([pre, hb]) : null };   // Angaben im Kopf sind erst nach extract() geprüft
   } finally { fs.closeSync(fd); }
 }
 
@@ -88,11 +91,12 @@ async function create(o) {
     fs.writeFileSync(path.join(stage, 'manifest.json'), JSON.stringify(manifest, null, 1));
 
     const iv = crypto.randomBytes(12);
-    const head = Buffer.from(JSON.stringify({ v: 1, alg: 'aes-256-gcm', kdf: o.kdf, iv: iv.toString('base64'), kid: keyId(key), created: manifest.created, app: manifest.app }));
+    const head = Buffer.from(JSON.stringify({ v: 2, alg: 'aes-256-gcm', kdf: o.kdf, iv: iv.toString('base64'), kid: keyId(key), created: manifest.created, app: manifest.app }));
     const pre = Buffer.alloc(12); MAGIC.copy(pre); pre.writeUInt32BE(head.length, 8);
     out = fs.createWriteStream(part, { mode: 0o600 });
     out.write(Buffer.concat([pre, head]));
     const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    cipher.setAAD(Buffer.concat([pre, head]));   // Kopf gehört zum Prüfwert
     const args = ['-czf', '-', '-C', stage, DB_NAME, 'manifest.json'];
     for (const x of dirs) args.push('-C', o.dataDir, x);
     const tar = spawn('tar', args, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -108,7 +112,7 @@ async function create(o) {
     return { file: name, path: dest, size: fs.statSync(dest).size, manifest };
   } catch (e) {
     if (out) out.destroy();   // Datei-Handle nicht offen lassen (z. B. wenn tar fehlschlägt)
-    try { fs.unlinkSync(part); } catch (x) { /* egal */ }
+    try { fs.unlinkSync(part); } catch (x) { /* schon gelöscht */ }
     throw e;
   } finally {
     fs.rmSync(stage, { recursive: true, force: true });
@@ -128,7 +132,7 @@ const MAX_ENTRIES = 500000, MAX_BYTES = 50 * 1024 ** 3;
  * werden ausgewertet. Wirft bei allem anderen (Verknüpfungen, Geräte, Pfade nach oben, absolute Pfade, zu viele/zu große Einträge).
  */
 function checkArchive(tgz) {
-  const roots = new Set([DB_NAME, DB_ALT, 'manifest.json', ...DIRS]);
+  const roots = new Set([DB_NAME, 'manifest.json', ...DIRS]);
   return new Promise((resolve, reject) => {
     let buf = Buffer.alloc(0), skip = 0, n = 0, bytes = 0, bad = null, ended = false;
     let longName = null, paxName = null, meta = null;   // meta: { kind: 'L'|'x', left, chunks }
@@ -169,7 +173,7 @@ function checkArchive(tgz) {
       else { // pax: „<len> key=value\n“
         let o = 0; while (o < data.length) { const sp = data.indexOf(32, o); if (sp < 0) { fail('unlesbarer Zusatzkopf'); break; } const len = parseInt(data.subarray(o, sp).toString(), 10); if (!(len > 0)) { fail('unlesbarer Zusatzkopf'); break; }
           const kv = data.subarray(sp + 1, o + len - 1).toString('utf8'); const eq = kv.indexOf('='); const k = kv.slice(0, eq), v = kv.slice(eq + 1);
-          if (k === 'path') paxName = v; else if (k === 'linkpath') fail('Verknüpfung'); else if (k === 'size' && !/^\d+$/.test(v)) fail('unlesbarer Zusatzkopf'); else if (k === 'size' && Number(v) > MAX_BYTES) fail('zu groß');
+          if (k === 'path') paxName = v; else if (k === 'linkpath') fail('Verknüpfung'); else if (k === 'size') fail('Größe im Zusatzkopf');   // GNU tar nähme diese Größe, der Prüfer die aus dem Kopf – Clubwerk erzeugt so etwas nie
           o += len; }
       }
       meta = null;
@@ -203,9 +207,9 @@ function checkArchive(tgz) {
   });
 }
 async function extract(file, o) {
-  const { head, dataStart, dataEnd, tag } = readHeader(file);
+  const { head, dataStart, dataEnd, tag, aad } = readHeader(file);
   let key = null;
-  if (o.password) key = deriveKey(o.password, head.kdf);
+  if (o.password) key = await deriveKey(o.password, head.kdf);
   else if (o.key) key = Buffer.from(o.key, 'hex');
   if (!key) throw Object.assign(new Error('Bitte das Sicherungspasswort eingeben.'), { needPassword: true });
   if (head.kid && head.kid !== keyId(key)) throw Object.assign(new Error(o.password ? 'Das Sicherungspasswort stimmt nicht.' : 'Diese Sicherung wurde mit einem anderen Sicherungspasswort erstellt – bitte das damalige Passwort eingeben.'), { needPassword: true });
@@ -213,28 +217,27 @@ async function extract(file, o) {
   if (fs.readdirSync(o.outDir).length) throw new Error('Wiederherstellung nur in einen leeren Ordner.');   // nie bestehende Daten überschreiben
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(head.iv, 'base64'));
   decipher.setAuthTag(tag);
+  if (aad) decipher.setAAD(aad);
   // Erst vollständig entschlüsseln und den Prüfwert (GCM-Tag) bestätigen – erst danach sieht tar überhaupt ein Byte.
   const payload = path.join(path.dirname(path.resolve(o.outDir)), `.inhalt-${crypto.randomBytes(6).toString('hex')}.tgz`);   // neben dem Zielordner, nicht darin
   try {
     await pipeline(fs.createReadStream(file, { start: dataStart, end: dataEnd - 1 }), decipher, fs.createWriteStream(payload, { mode: 0o600 }));
   } catch (e) {
-    try { fs.unlinkSync(payload); } catch (x) { /* */ }
+    try { fs.unlinkSync(payload); } catch (x) { /* schon gelöscht */ }
     if (/auth|unable to authenticate/i.test(e.message)) throw new Error('Die Sicherungsdatei wurde verändert oder ist beschädigt.');
     throw new Error('Entschlüsseln fehlgeschlagen: ' + e.message);
   }
   // Inhalt vor dem Entpacken prüfen: nur normale Dateien und Ordner, nur bekannte Namen, keine Pfade nach oben, Größe begrenzt
-  try { await checkArchive(payload); } catch (e) { try { fs.unlinkSync(payload); } catch (x) { /* */ } throw e; }
+  try { await checkArchive(payload); } catch (e) { try { fs.unlinkSync(payload); } catch (x) { /* schon gelöscht */ } throw e; }
   const tar = spawn('tar', ['-xzf', payload, '-C', o.outDir, '--no-same-owner', '--no-same-permissions'], { stdio: ['ignore', 'ignore', 'pipe'] });
   let err = ''; tar.stderr.on('data', c => { err += c; });
   const exited = new Promise((res, rej) => { tar.on('close', res); tar.on('error', e => rej(new Error('tar nicht verfügbar: ' + e.message))); });
   let code;
-  try { code = await exited; } finally { try { fs.unlinkSync(payload); } catch (x) { /* */ } }
+  try { code = await exited; } finally { try { fs.unlinkSync(payload); } catch (x) { /* schon gelöscht */ } }
   if (code !== 0) throw new Error('Entpacken fehlgeschlagen: ' + String(err).slice(0, 200));
   let manifest;
   try { manifest = JSON.parse(fs.readFileSync(path.join(o.outDir, 'manifest.json'), 'utf8')); } catch (e) { throw new Error('In der Sicherung fehlt das Inhaltsverzeichnis.'); }
-  if (manifest.format === 'vereinsheim-komplett' && !fs.existsSync(path.join(o.outDir, DB_NAME)) && fs.existsSync(path.join(o.outDir, DB_ALT))) {
-    fs.renameSync(path.join(o.outDir, DB_ALT), path.join(o.outDir, DB_NAME));   // Sicherung der Vorgängerversion
-  } else if (manifest.format !== 'clubwerk-komplett') throw new Error('Unbekannter Inhalt der Sicherung.');
+  if (manifest.format !== 'clubwerk-komplett') throw new Error('Unbekannter Inhalt der Sicherung.');
   if (!fs.existsSync(path.join(o.outDir, DB_NAME)) || await sha256File(path.join(o.outDir, DB_NAME)) !== manifest.db) throw new Error('Die Datenbank in der Sicherung ist unvollständig.');
   // keine Verknüpfungen o. Ä. übernehmen
   for (const e of fs.readdirSync(o.outDir, { recursive: true, withFileTypes: true })) if (e.isSymbolicLink()) throw new Error('Die Sicherung enthält ungültige Einträge.');
@@ -257,6 +260,6 @@ function list(dir) {
       .sort((a, b) => (a.file < b.file ? 1 : -1));
   } catch (e) { return []; }
 }
-const validName = f => NAME_RE.test(String(f || '')) || LEGACY_RE.test(String(f || ''));
+const validName = f => NAME_RE.test(String(f || ''));
 
-module.exports = { checkArchive, MAGIC, EXT, DB_NAME, DIRS, NAME_RE, newKey, deriveKey, keyId, readHeader, create, extract, generations, list, validName, sha256File };
+module.exports = { checkArchive, MAGIC, EXT, DB_NAME, DIRS, newKey, deriveKey, keyId, readHeader, create, extract, generations, list, validName, sha256File };

@@ -11,7 +11,7 @@ Die Module (Verkauf, Plätze, Mängel …) schaltet ihr unter Einstellungen › 
 
 1. **Erster Start:** Öffnet Clubwerk in der Home-Assistant-Seitenleiste. Ihr seht „Willkommen bei Clubwerk“. Wählt die Sprache und tippt „Einrichtung starten“. (Mit „Demo ausprobieren“ lernt ihr Clubwerk vorher mit erfundenen Daten kennen.)
 2. **Admin-Konto anlegen:** Name, Benutzername und Passwort (mindestens 8 Zeichen). Dieses Konto hat alle Rechte.
-3. **Assistent durcharbeiten:** Er führt durch Verein, Tablet, Module, Sicherheit, Postfach und Sicherungen (siehe „Einrichtung“ unten). Jeder Punkt lässt sich überspringen und später nachholen.
+3. **Assistent durcharbeiten:** Er führt durch Verein, Tablet, Module, Sicherheit, Postfach, HTTPS und Sicherungen (siehe „Einrichtung“ unten). Jeder Punkt lässt sich überspringen und später nachholen.
 4. **Weitere Benutzer anlegen:** Unter Benutzer & Rechte bekommt jeder ein eigenes Konto mit den Rechten, die er braucht.
 
 > Zwei Dinge sollten sofort erledigt sein: ein **Sicherungspasswort** festlegen (Datensicherung) und das **Notfallblatt** ausdrucken. Ohne sie ist eine Sicherung wertlos.
@@ -353,7 +353,7 @@ Jede Nacht entsteht eine **verschlüsselte Komplettsicherung** mit allem, was Cl
 
 Der **Tresor** speichert Adressen, Bankdaten, Geburtsdaten, Dokumente, Fotos und ähnliches nur verschlüsselt – dazu die Zugangsdaten, mit denen Clubwerk bei anderen Diensten anklopft (Postfach-Passwort, Dropbox und die anderen Sicherungsziele, Hydrawise, Schlüssel der Datensicherung). Namen, Konten und Buchungen bleiben lesbar, damit der Betrieb nach einem Neustart sofort läuft. Aufklappbar steht, was genau geschützt wird.
 - **Verschlüsselung einschalten:** Passwort eingeben, dann zeigt Clubwerk einmalig den **Wiederherstellungscode**. Druckt **zwei Blätter** (eins für den Vorsitz, eins für den Kassenwart), bewahrt sie verschlossen und nicht im Vereinsheim auf. Zur Probe tippt ihr danach einige Zeichen des Codes ab.
-- **Nach einem Neustart** sind die Daten verschlossen, bis sich ein Admin anmeldet. Ist das nicht möglich, öffnet der Wiederherstellungscode mit eurem Passwort sie. Bis dahin laufen Tablet, Buchungen und Türen weiter. **E-Mails, die Datensicherung und die Beregnung über Hydrawise warten** – die Übersicht zeigt dann „Tresor gesperrt – Sicherung und E-Mails warten, bitte anmelden.“ Sobald sich ein Admin mit Schlüssel anmeldet, gehen die E-Mails raus und die Sicherung des Tages läuft sofort nach. Ist bis zur Uhrzeit der Sicherung niemand angemeldet, kommt einmal am Tag die Sicherheitswarnung „Tresor gesperrt – Sicherung wartet“.
+- **Nach einem Neustart** sind die Daten verschlossen, bis sich ein Admin anmeldet. Ist das nicht möglich, öffnet der Wiederherstellungscode mit eurem Passwort sie. Bis dahin laufen Tablet, Buchungen und Türen weiter. **E-Mails, die Datensicherung und die Beregnung über Hydrawise warten** – die Übersicht zeigt dann „Tresor gesperrt – Sicherung und E-Mails warten, bitte anmelden.“ Sobald sich ein Admin mit Schlüssel anmeldet, gehen die E-Mails raus und die Sicherung des Tages läuft sofort nach. Ist der Tresor über zwei Stunden gesperrt oder bis zur Uhrzeit der Sicherung niemand angemeldet, kommt einmal am Tag die Sicherheitswarnung „Tresor gesperrt – Sicherung wartet“ (auch per Push), mit der Dauer und dem, was wartet.
 - **Neuen Wiederherstellungscode erzeugen** (zum Beispiel beim Vorstandswechsel; der alte gilt dann nicht mehr) und **Verschlüsselung ausschalten** brauchen euer Passwort.
 
 #### Jetzt
@@ -435,6 +435,8 @@ Große Sicherungen lädt Clubwerk in Stücken hoch und macht nach einem Abbruch 
 
 Eine Komplettsicherung ersetzt beim nächsten Neustart **alles**. Der aktuelle Stand wird vorher beiseitegelegt. Wählt die Sicherung in der Liste (hier oder auf einem Ziel) und tippt **Wiederherstellen …**, oder ladet eine Datei mit **Komplettsicherung hochladen …**, zum Beispiel nach einer Neuinstallation. Danach „Jetzt neu starten“. Nur ein Benutzer mit allen Rechten darf das.
 
+**PINs nach einer Wiederherstellung auf einem neuen Gerät:** PINs (Mitglieder, Mannschaften, Zeiterfassung, Beregnung) sind mit einem geheimen Schlüssel gespeichert, der nur auf dem Gerät liegt und nicht in der Sicherung steht. Ist der Tresor eingeschaltet, holt Clubwerk ihn nach der ersten Anmeldung eines Admins von selbst zurück; bis dahin meldet das Tablet „Die PINs sind nach einer Wiederherstellung noch gesperrt“. Ohne Tresor gelten die alten PINs nicht mehr: Eine Sicherheitswarnung sagt Bescheid, Mitglieder-PINs setzt ihr unter „Mitglieder & Konten“ mit **PIN zurücksetzen** zurück, für die Mitglieder-App gibt es einen neuen QR-Code, PINs von Mannschaften, Zeiterfassung und Beregnung vergebt ihr neu.
+
 #### Aus Sicherung übernehmen
 
 ![Fenster „Aus Sicherung übernehmen“: Sicherung wählen und Passwort eingeben.](bild: seite=sicherung; klick=#tlOpen; ziel=dialog)
@@ -451,6 +453,12 @@ Gleicher Name → aktualisiert, sonst neu. **Gelöscht wird nichts.** Wer zweima
 #### Datenbank-Schnappschüsse
 
 Zusätzlich sichert Clubwerk jede Nacht nur die Datenbank (die letzten 14 Nächte), praktisch, um einen Fehler der letzten Tage schnell rückgängig zu machen. **Schnappschuss jetzt** legt einen an, **.db-Datei einspielen …** lädt einen hoch, jeder Eintrag lässt sich herunterladen oder wiederherstellen. Zum Herunterladen fragt Clubwerk nach eurem Passwort, denn der Schnappschuss enthält auch die Schlüssel der Datensicherung.
+
+Bei jedem Wechsel der Version (Update, auch über Home Assistant, oder zurück) legt Clubwerk beim Start einen Schnappschuss „vor-update“ an, bevor die neue Version die Datenbank anfasst. Alte Schnappschüsse räumt Clubwerk selbst auf: es bleiben die letzten 14 nächtlichen, 10 von Hand angelegte und je 3 der übrigen Arten (vor einem Update, vor einer Wiederherstellung, hochgeladen); von den Komplettsicherungen hier die letzten 3. So läuft der Speicher nicht voll. Ein Home-Assistant-Backup enthält Clubwerk mit allen Daten, aber ohne diese Schnappschüsse und Komplettsicherungen, damit es klein bleibt.
+
+#### Notfallmodus
+
+Einmal pro Woche prüft Clubwerk nachts die ganze Datenbank auf Schäden, nach einem Stromausfall oder Absturz zusätzlich kurz beim Start. Ist die Datenbank beim Start beschädigt oder der Speicher voll, startet Clubwerk im **Notfallmodus**: Tablet, Verwaltung und App zeigen nur eine Hinweisseite. Öffnet dann Clubwerk in der **Seitenleiste von Home Assistant** (das dürfen nur Admins von Home Assistant). Bei einer beschädigten Datenbank steht dort **Letzten Schnappschuss übernehmen**: Clubwerk spielt den neuesten intakten Schnappschuss ein und startet neu; die beschädigte Datei bleibt als „vor-wiederherstellung“ aufgehoben. Bei vollem Speicher schafft ihr in Home Assistant Platz (zum Beispiel alte Backups löschen) und tippt dann **Erneut starten**.
 
 ### Reiter „Protokoll“ (Seite „System“) {#protokoll}
 
@@ -531,11 +539,13 @@ Ein Postfach für alle Module: Server (SMTP), Port (meist 587, manchmal 465), Ab
 
 ![Karte „Sicherheitswarnungen“: offene Warnungen mit Zeit, Art und Knopf „Erledigt“.](bild: seite=einstellungen; klick=[data-sec="sicherheit"]; ziel=.card:has(#swBody))
 
-Clubwerk bemerkt Auffälliges und sagt dem Vorstand Bescheid – ganz ohne Internetdienst, alles läuft auf eurem Home Assistant. Dazu gehören zum Beispiel viele falsche Passwörter oder PINs, ein gesperrtes Handy, eine Anmeldung von einem neuen Gerät, geänderte Benutzer und Rechte, eine hochgeladene Erweiterung, der Tresor mit Wiederherstellungscode, geänderte Sicherungsziele, eine fehlgeschlagene Sicherung, knapper Speicher, neue Fehler in den Daten, aber auch Betriebsgefahren: eine Beregnung, die sich nicht stoppen lässt, eine Tür, die sich nicht abschließt, oder Licht, das sich nicht schalten lässt.
+Clubwerk bemerkt Auffälliges und sagt dem Vorstand Bescheid – ganz ohne Internetdienst, alles läuft auf eurem Home Assistant. Dazu gehören zum Beispiel viele falsche Passwörter oder PINs, ein gesperrtes Handy, eine Anmeldung von einem neuen Gerät, geänderte Benutzer und Rechte, eine hochgeladene Erweiterung, der Tresor mit Wiederherstellungscode, geänderte Sicherungsziele, eine fehlgeschlagene Sicherung, knapper Speicher, neue Fehler in den Daten, Schäden in der Datenbank, häufige Abstürze, eine falsche Uhrzeit, aber auch Betriebsgefahren: eine Beregnung, die sich nicht stoppen lässt, eine Tür, die sich nicht abschließt, oder Licht, das sich nicht schalten lässt.
 
 - **Rot** kommt sofort per Push und E-Mail, auch nachts. Dieselbe Warnung kommt höchstens einmal in der Stunde, und an einem Tag höchstens zehn Sofortmeldungen; danach kommt ein letzter Hinweis, der Rest steht hier.
 - **Gelb** kommt gesammelt in der **Tagesmail um 7 Uhr**, nur an Tagen mit neuen Warnungen.
 - **Nur hier** (grau) steht nur in dieser Liste und im Protokoll, zum Beispiel ein eingespieltes Update.
+
+**Uhrzeit stimmt nicht:** Liegt die Uhr beim Start vor dem neuesten gespeicherten Eintrag (etwa weil das Gerät nach einem Stromausfall keine Zeit aus dem Internet bekommen hat), steht das rot in der Übersicht. Bis die Uhr stimmt, sind Abrechnung, Beitragslauf, SEPA-Einzug, Jahresrechnungen, Türzeiten nach Zeitprofil (außer „rund um die Uhr“) und die Flutlicht-Automatik gesperrt. Stellt die Uhrzeit von Home Assistant richtig; stimmt sie schon, markiert die Warnung als **Erledigt**, dann ist alles wieder frei.
 
 Gleiche Warnungen werden zusammengefasst, die Zahl in Klammern zeigt, wie oft es war. **Erledigt** nimmt eine Warnung aus der Liste und aus der Übersicht – für alle Empfänger; im Protokoll steht, wer es war. **Alle erledigt** räumt die ganze Liste ab, **Auch erledigte zeigen** blendet sie wieder ein. **Testwarnung senden** schickt eine rote Probe über alle Wege. Warnungen löscht Clubwerk nach der Frist „Anmeldungen und Sicherheitsmeldungen“ (Einstellungen › Datenschutz).
 
@@ -602,7 +612,7 @@ Die Tabelle zeigt alle Sprachen mit Code, Herkunft und Vollständigkeit. Deutsch
 
 ![Karte „Update von Clubwerk“.](bild: seite=einstellungen; klick=[data-sec="update"]; ziel=#updCard)
 
-Nur mit allen Rechten. Die Karte zeigt die installierte Version, ein bereitliegendes Paket, das letzte Update und die Node.js-Version (mit Hinweis, wenn „Neu bauen“ in Home Assistant nötig ist). **ZIP-Paket hochladen …**: Clubwerk prüft das Paket und zeigt die Prüfsumme zum Vergleich mit `PRUEFSUMMEN.md`. Mit dem eigenen Passwort startet „Update auf … einspielen“, davor legt Clubwerk automatisch eine Sicherung an. Home Assistant baut danach die neue Version (2 bis 10 Minuten). Die alte Version bleibt als **Reserve**; **Zurück auf …** geht zurück, die Daten bleiben. Updates gehen nur, wenn die Verwaltung über die Home-Assistant-Seitenleiste offen ist.
+Nur mit allen Rechten. Die Karte zeigt die installierte Version, ein bereitliegendes Paket, das letzte Update und die Node.js-Version (mit Hinweis, wenn „Neu bauen“ in Home Assistant nötig ist). **ZIP-Paket hochladen …**: Clubwerk prüft das Paket und zeigt die Prüfsumme zum Vergleich mit `PRUEFSUMMEN.md`. Mit dem eigenen Passwort startet „Update auf … einspielen“, davor legt Clubwerk automatisch eine Sicherung an. Home Assistant baut danach die neue Version (2 bis 10 Minuten). Die alte Version bleibt als **Reserve**; **Zurück auf …** geht zurück, die Daten bleiben. Läuft danach eine ältere Version als zuletzt, warnt Clubwerk rot „Die Datenbank ist neuer“: Ältere Versionen kennen nicht alles, was neuere angelegt haben. Fehlt dann etwas, wieder aktualisieren oder den Schnappschuss „vor-update“ aus der Zeit vor dem Update zurückspielen. Ist zu wenig Speicher frei, bricht das Update ab, bevor etwas verändert ist. Updates gehen nur, wenn die Verwaltung über die Home-Assistant-Seitenleiste offen ist.
 
 ### Seite „Mein Konto“ {#konto}
 

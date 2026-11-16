@@ -41,7 +41,7 @@ The card shows from when light is possible today (**Dark from**), when **lights-
 
 #### Lights
 
-Each light is a tile. When it is on, the tile is highlighted and shows until when (“On until 20:30 · 42 min left”) and why (“Booking Becker, Anna”, “Club booking”, “App: …”). When it is off, it shows when automatic switching will turn it on next.
+Each light is a tile. When it is on, the tile is highlighted and shows until when (“On until 20:30 · 42 min left”) and why (“Booking Becker, Anna”, “Club booking”, “App: …”). When it is off, it shows when automatic switching will turn it on next. If the Clubwerk clock is wrong after a restart (red warning in the overview), automatic switching turns nothing on until the clock is right; switching off and lights-out keep working.
 
 - **Turn on:** opens a window where you choose how long (30 minutes to 8 hours). From the admin area this also works before dark, after lights-out and without a light fee.
 - **+30 min:** extends the light (you set the number of minutes in the settings).
@@ -87,7 +87,7 @@ Clubwerk calculates sunset itself from the **latitude and longitude** of your co
 
 ![“Lights-out” card: time for each day of the week.](bild: seite=flutlicht-zeiten; ziel=.card:has(#flQ1))
 
-For each day of the week the time at which everything switched on by members, the tablet and automatic switching goes off (between 17:00 and 24:00; default 22:00). It then stays off until 6 in the morning. If a light is switched on in Home Assistant during this time, Clubwerk switches it off again. Only the admin area may switch on after lights-out, for a fixed time.
+For each day of the week the time at which everything switched on by members, the tablet and automatic switching goes off (between 17:00 and 24:00; default 22:00). It then stays off until 6 in the morning. If a light is switched on in Home Assistant during this time, Clubwerk switches it off again. Only the admin area may switch on after lights-out, for a fixed time. If Home Assistant does not report the state of a light (device or connection faulty), Clubwerk still switches it off once at lights-out. As a fallback in case Clubwerk itself fails, we recommend an automation in Home Assistant that switches the floodlights off at lights-out.
 
 #### Season
 

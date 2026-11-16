@@ -14,7 +14,7 @@ const pdf = require('./lib/pdf');
 let C, db;
 const VATS = [0, 7, 19];
 const konfigio = require('../../src/konfigio');   // gemeinsame Regeln für Funktionsexport/-import
-const { pad, today, isDate, addDays, deD, euro } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
+const { pad, today, isDate, addDays, deD, euro, addColumns } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const txt = (v, max = 200) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f<>]/g, '').replace(/[ \t]+/g, ' ').trim().slice(0, max);
 const one = (v, max) => txt(v, max).replace(/[\r\n]+/g, ' ');
 const mailOk = v => !v || /^[^\s@<>,;]+@[^\s@<>,;]+\.[a-z]{2,}$/i.test(String(v));
@@ -42,20 +42,17 @@ CREATE TABLE IF NOT EXISTS bh_donation (
   date TEXT NOT NULL, cents INTEGER NOT NULL, item TEXT, sach_origin TEXT, sach_docs INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'aktiv', sent_at TEXT, cancel_reason TEXT, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );`);
-  const cols = t => db.prepare(`PRAGMA table_info(${t})`).all().map(c => c.name);
-  if (!cols('bh_partner').includes('department_id')) db.exec('ALTER TABLE bh_partner ADD COLUMN department_id INTEGER');
-  const ic = cols('bh_invoice');
-  if (!ic.includes('department_id')) db.exec('ALTER TABLE bh_invoice ADD COLUMN department_id INTEGER');
-  if (!ic.includes('account_id')) db.exec('ALTER TABLE bh_invoice ADD COLUMN account_id INTEGER');
-  if (!ic.includes('bank')) db.exec('ALTER TABLE bh_invoice ADD COLUMN bank TEXT');
-  // GoBD: das ausgegebene PDF bleibt genau so erhalten (Datei unter belege/buchhaltung, Prüfsumme hier) – auch wenn sich Anschrift, Steuernummer o. Ä. später ändern
-  for (const c of ['pdf_file', 'pdf_sha', 'storno_file', 'storno_sha']) if (!ic.includes(c)) db.exec(`ALTER TABLE bh_invoice ADD COLUMN ${c} TEXT`);
-  const dc = cols('bh_donation');
-  for (const c of ['pdf_file', 'pdf_sha']) if (!dc.includes(c)) db.exec(`ALTER TABLE bh_donation ADD COLUMN ${c} TEXT`);   // Bankverbindung zum Zeitpunkt der Rechnung (bleibt so, auch wenn das Konto später geändert wird)
+  addColumns(db, 'bh_partner', { department_id: 'INTEGER' });
+  addColumns(db, 'bh_invoice', {
+    department_id: 'INTEGER', account_id: 'INTEGER',
+    bank: 'TEXT',   // Bankverbindung zum Zeitpunkt der Rechnung (bleibt so, auch wenn das Konto später geändert wird)
+    // GoBD: das ausgegebene PDF bleibt genau so erhalten (Datei unter belege/buchhaltung, Prüfsumme hier) – auch wenn sich Anschrift, Steuernummer o. Ä. später ändern
+    pdf_file: 'TEXT', pdf_sha: 'TEXT', storno_file: 'TEXT', storno_sha: 'TEXT' });
+  addColumns(db, 'bh_donation', { pdf_file: 'TEXT', pdf_sha: 'TEXT' });
 }
 
 /* ---------------------------------------------------------------- Einstellungen */
-const DEF = { street: '', city: '', tax_no: '', vat_id: '', phone: '', email: '', vat_default: '19', small_business: '0', inv_prefix: 'R-', due_days: '14',
+const DEF = { tax_no: '', vat_id: '', vat_default: '19', small_business: '0', inv_prefix: 'R-', due_days: '14',
   footer: '', intro: '', don_prefix: 'SQ-', finanzamt: '', fa_tax_no: '', bescheid_type: 'freistellung', bescheid_date: '', veranlagungszeitraum: '',
   zwecke: 'des Sports (§ 52 Abs. 2 Satz 1 Nr. 21 AO)', signer: '', signer_role: 'Vorsitzende/r', place: '', aus_prefix: 'A-', vorsteuer: '0', cash_map: '{}' };
 const S = k => C.setting(k, DEF[k] != null ? DEF[k] : '');
@@ -63,20 +60,18 @@ const mvSync = (name, ...a) => { const x = C.callHooksSync(name, ...a).find(y =>
 function settings() {
   const o = Object.fromEntries(Object.keys(DEF).map(k => [k, S(k)]));
   o.small_business = o.small_business === '1'; o.vat_default = Number(o.vat_default) || 0; o.due_days = Number(o.due_days) || 14;
-  const ci = mvSync('clubInfo') || {};
-  o.fallback = { street: ci.street || '', city: ci.city || '' };   // Vorgabe aus den Mitgliedern
   o.address = C.clubAddress();   // Anschrift und Kontakt zentral (Einstellungen › Verein), in der Buchhaltung nur angezeigt
   return o;
 }
 /** Bankverbindung als Momentaufnahme für eine Rechnung */
 const snap = a => (a ? { id: a.id, name: a.name, holder: a.holder || '', iban: a.iban, bic: a.bic || '', bank: a.bank || '' } : null);
 function club(acc) {
-  const s = settings(), f = s.fallback, ad = s.address;
+  const s = settings(), ad = s.address;
   const a = acc || snap(C.bank.def()) || {};
-  return { name: C.getSetting('club_name', 'Verein'), street: ad.street || s.street || f.street, city: ad.city || s.city || f.city, iban: a.iban || '', bic: a.bic || '', bank: a.bank || '', holder: a.holder || '',
-    tax_no: s.tax_no, vat_id: s.vat_id, phone: ad.phone || s.phone, email: ad.email || s.email, footer: s.footer,
+  return { name: C.getSetting('club_name', 'Verein'), street: ad.street, city: ad.city, iban: a.iban || '', bic: a.bic || '', bank: a.bank || '', holder: a.holder || '',
+    tax_no: s.tax_no, vat_id: s.vat_id, phone: ad.phone, email: ad.email, footer: s.footer,
     finanzamt: s.finanzamt, fa_tax_no: s.fa_tax_no, bescheid_type: s.bescheid_type, bescheid_date: s.bescheid_date, veranlagungszeitraum: s.veranlagungszeitraum, zwecke: s.zwecke,
-    signer: s.signer, signer_role: s.signer_role, place: s.place || String(ad.city || s.city || f.city || '').replace(/^\d{4,5}\s*/, '') };
+    signer: s.signer, signer_role: s.signer_role, place: s.place || String(ad.city || '').replace(/^\d{4,5}\s*/, '') };
 }
 
 /* ---------------------------------------------------------------- Helfer */
@@ -184,7 +179,7 @@ function activate(ctx) {
   const P = need('buchhaltung');
   const admin = ctx.admin;
   const ar = fn => ctx.asyncRoute(fn);
-  const uname = req => req.user.name || req.user.username;
+  const uname = ctx.userName;
   const VIA_KA = 'kontoauszug';   // per Kontoauszug bezahlt (Zuordnung im Kontoauszug)
 
   /* ---------- Ausgaben, Kassenbuch, EÜR (lib/kasse.js) ---------- */
@@ -218,9 +213,8 @@ function activate(ctx) {
   admin.get('/settings', P, (req, res) => res.json(settings()));
   /** Einstellungen prüfen und speichern (Verwaltung und Funktionsimport gleich) – Fehler landen in err */
   function applySettings(b, err) {
-    for (const k of ['street', 'city', 'tax_no', 'vat_id', 'phone', 'finanzamt', 'fa_tax_no', 'veranlagungszeitraum', 'signer', 'signer_role', 'place']) if (b[k] !== undefined) C.setSetting2(k, one(b[k], 120));
+    for (const k of ['tax_no', 'vat_id', 'finanzamt', 'fa_tax_no', 'veranlagungszeitraum', 'signer', 'signer_role', 'place']) if (b[k] !== undefined) C.setSetting2(k, one(b[k], 120));
     for (const k of ['footer', 'intro', 'zwecke']) if (b[k] !== undefined) C.setSetting2(k, txt(b[k], 600));
-    if (b.email !== undefined) { if (!mailOk(one(b.email, 120))) err.push('Die E-Mail-Adresse ist ungültig.'); else C.setSetting2('email', one(b.email, 120)); }
     if (b.vat_default !== undefined) C.setSetting2('vat_default', String(VATS.includes(Number(b.vat_default)) ? Number(b.vat_default) : 19));
     if (b.small_business !== undefined) C.setSetting2('small_business', b.small_business ? '1' : '0');
     if (b.due_days !== undefined) C.setSetting2('due_days', String(Math.max(0, Math.min(120, int(b.due_days)))));
@@ -424,6 +418,7 @@ function activate(ctx) {
     }).filter(r => r.items.length) });
   });
   admin.post('/yearly', P, ar(async (req, res) => {
+    if (!ctx.uhrOk()) return bad(res, ctx.uhrMsg, 409);   // falsche Uhrzeit nach dem Start: keine Jahresrechnungen mit falschem Datum
     const b = req.body || {};
     const year = int(b.year) || Number(today().slice(0, 4));
     const ids = new Set((Array.isArray(b.partner_ids) ? b.partner_ids : []).map(Number));
@@ -434,7 +429,7 @@ function activate(ctx) {
       if (db.prepare("SELECT 1 FROM bh_invoice WHERE partner_id = ? AND yearly = ? AND status != 'storniert'").get(p.id, year)) { skipped.push(p.name); continue; }
       try {
         const r = await createInvoice({ kind: 'partner', partner_id: p.id, items, date: b.date, due_date: b.due_date, period: one(b.period, 80) || `${year}` }, uname(req), { yearly: year });
-        let sent = false; if (b.send && p.email && ctx.mail.ready()) { try { await sendInvoice(r.id, req); sent = true; } catch (e) { /* bleibt unversendet */ } }
+        let sent = false; if (b.send && p.email && ctx.mail.ready()) { try { await sendInvoice(r.id, req); sent = true; } catch (e) { console.error('Buchhaltung: Rechnung angelegt, aber nicht versendet:', e.message); } }
         out.push({ ...r, name: p.name, sent });
       } catch (e) { skipped.push(`${p.name} (${e.message})`); }
     }

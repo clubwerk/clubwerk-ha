@@ -12,7 +12,7 @@
 const http = require('http');
 const https = require('https');
 const webpush = require('web-push');
-const { db, getSetting, setSetting, audit } = require('./db');
+const { db, getSetting, getJsonSetting, isObj, setSetting, audit } = require('./db');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS push_subs (
@@ -74,7 +74,7 @@ function catalog() {
   }
   return out;
 }
-const adminCfg = () => { try { const v = JSON.parse(getSetting('push_events', '') || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } };
+const adminCfg = () => getJsonSetting('push_events', {}, isObj);
 /** Anlässe mit Vorstandsentscheidung: on (freigegeben) und lead (Vorlauf in Minuten, falls der Anlass einen hat) */
 function events() {
   const c = adminCfg();
@@ -171,6 +171,7 @@ async function send(memberIds, key, { title, body, url, tag } = {}, opts = {}) {
   if (require('./db').getSetting('demo_mode', '') === '1') return { sent: 0, skipped: 'Demo' };   // erfundene Mitglieder: keine Nachrichten
   const payload = JSON.stringify({ title: String(title).slice(0, 80), body: String(body || '').slice(0, 200), url: url ? String(url).slice(0, 200) : '', tag: tag ? String(tag).slice(0, 60) : key });
   let sent = 0;
+  const down = new Set();   // Hosts, die in diesem Versand nicht erreichbar waren: die übrigen Abos dort warten nicht je 10 Sekunden
   for (const mid of ids) {
     const m = db.prepare('SELECT active, deleted FROM members WHERE id = ?').get(mid);
     if (!m || !m.active || m.deleted) { db.prepare('DELETE FROM push_subs WHERE member_id = ?').run(mid); continue; }
@@ -178,13 +179,17 @@ async function send(memberIds, key, { title, body, url, tag } = {}, opts = {}) {
       .filter(r => r.endpoint !== opts.except);   // except: das Handy, auf dem es gerade passiert ist
     for (const r of rows) {
       // Welche Anlässe es gibt, legt der Vorstand zentral fest (push_events, oben geprüft) – das Mitglied wählt keine einzelnen
+      const host = new URL(r.endpoint).hostname;
+      if (down.has(host)) { log(mid, key, title, false, 'Push-Dienst nicht erreichbar (übersprungen)'); continue; }
       const res = await deliver(r, payload);
       if (res.status >= 200 && res.status < 300) { sent++; db.prepare("UPDATE push_subs SET last_ok = datetime('now','localtime'), fails = 0 WHERE id = ?").run(r.id); log(mid, key, title, true, null); }
       else if (res.status === 404 || res.status === 410) { db.prepare('DELETE FROM push_subs WHERE id = ?').run(r.id); log(mid, key, title, false, `Abo erloschen (${res.status})`); }
-      else { db.prepare('UPDATE push_subs SET fails = fails + 1 WHERE id = ?').run(r.id); log(mid, key, title, false, `${res.status || 'Fehler'}: ${String(res.text || '').slice(0, 120)}`); }
+      else if (!res.status) { down.add(host); log(mid, key, title, false, `Push-Dienst nicht erreichbar: ${String(res.text || '').slice(0, 120)}`); }   // Netzfehler: kein Fehlschlag des Abos, es bleibt
+      else if (res.status >= 500 || res.status === 429) log(mid, key, title, false, `${res.status}: Push-Dienst gerade überlastet`);   // vorübergehend, zählt nicht
+      else { db.prepare('UPDATE push_subs SET fails = fails + 1 WHERE id = ?').run(r.id); log(mid, key, title, false, `${res.status}: ${String(res.text || '').slice(0, 120)}`); }
     }
   }
-  // Abos mit vielen Fehlschlägen in Folge aufgeben (Push-Dienst antwortet dauerhaft nicht)
+  // Abos aufgeben, die der Push-Dienst dauerhaft ablehnt (4xx); Netzfehler und Ausfälle des Dienstes zählen nicht
   db.prepare('DELETE FROM push_subs WHERE fails >= 20').run();
   return { sent };
 }

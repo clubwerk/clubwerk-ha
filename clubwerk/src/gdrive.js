@@ -16,14 +16,12 @@ const { pipeline } = require('stream/promises');
 
 const OAUTH = process.env.GDRIVE_OAUTH || 'https://oauth2.googleapis.com';
 const API = process.env.GDRIVE_API || 'https://www.googleapis.com';
-const UPLOAD = process.env.GDRIVE_UPLOAD || API;
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const BACKOFF = Math.max(1, Number(process.env.GDRIVE_BACKOFF_MS) || 1000);
 const CHUNK = Math.max(1024, Number(process.env.GDRIVE_CHUNK) || 8 * 1024 * 1024);   // Google verlangt ein Vielfaches von 256 KiB (8 MiB); kleiner nur im Test
 const TRIES = 6;
 const MIN_INTERVAL = Math.max(1, Number(process.env.GDRIVE_MIN_INTERVAL) || 5);   // Sekunden zwischen zwei Nachfragen beim Geräte-Ablauf (Google: 5)
-const DEFAULT_FOLDER = '/Clubwerk-Sicherung';
 const CLIENT_ID_RE = /^[\w.-]{6,150}\.apps\.googleusercontent\.com$/;
 const SECRET_RE = /^[\w-]{10,100}$/;
 
@@ -92,7 +90,7 @@ function failure(r, data, what, cfg) {
 /** Nur echte Google-Adressen (bzw. im Test die eingestellten Basis-Adressen) für Weiterleitungen und Upload-Sitzungen */
 function googleHost(u) {
   let x; try { x = new URL(String(u || '')); } catch (e) { return false; }
-  if ([API, UPLOAD].some(b => { try { return new URL(b).origin === x.origin; } catch (e) { return false; } })) return true;
+  try { if (new URL(API).origin === x.origin) return true; } catch (e) { /* GDRIVE_API ungültig: nur echte Google-Adressen */ }
   return x.protocol === 'https:' && /(^|\.)(googleapis\.com|googleusercontent\.com)$/i.test(x.hostname);
 }
 async function readJson(r) { const text = await r.text(); try { return JSON.parse(text); } catch (e) { return { raw: text.slice(0, 300) }; } }
@@ -210,7 +208,7 @@ function rangeOf(r) { const m = String(r.headers.get('range') || '').match(/byte
 
 async function uploadOnce(cfg, parent, name, src, size, label) {
   const t = await accessToken(cfg);
-  const start = await call(`${UPLOAD}/upload/drive/v3/files?uploadType=resumable&fields=id,name,size,md5Checksum`, { method: 'POST',
+  const start = await call(`${API}/upload/drive/v3/files?uploadType=resumable&fields=id,name,size,md5Checksum`, { method: 'POST',
     headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/octet-stream', 'X-Upload-Content-Length': String(size) },
     body: JSON.stringify({ name, parents: [parent] }) }, label, cfg, { raw: true });
   const session = start.headers.get('location');
@@ -278,7 +276,7 @@ async function account(cfg) {
 }
 /** Widerruf: Achtung, Google entzieht damit dem ganzen Projekt den Zugriff dieses Kontos */
 async function revoke(cfg) {
-  try { await fetch(`${OAUTH}/revoke`, { ...form({ token: cfg.refresh }), signal: AbortSignal.timeout(15000) }); } catch (e) { /* egal */ }
+  try { await fetch(`${OAUTH}/revoke`, { ...form({ token: cfg.refresh }), signal: AbortSignal.timeout(15000) }); } catch (e) { /* Abmelden beim Anbieter ist freiwillig */ }
   tokens.delete(tkey(cfg));
 }
 
@@ -303,4 +301,4 @@ async function probe(cfg, folder, memo = new Map()) {
 function parseSecret(s) { try { const o = JSON.parse(s || '{}'); return o && typeof o === 'object' ? { clientId: String(o.clientId || ''), clientSecret: String(o.clientSecret || ''), refresh: String(o.refresh || ''), connectedAt: String(o.connectedAt || '') } : {}; } catch (e) { return {}; } }
 const makeSecret = o => JSON.stringify({ clientId: o.clientId, clientSecret: o.clientSecret, refresh: o.refresh, connectedAt: o.connectedAt || new Date().toISOString() });
 
-module.exports = { MIN_INTERVAL, SCOPE, DEFAULT_FOLDER, scrub, explain, checkClient, deviceStart, devicePoll, accessToken, folderId, listIn, upload, download, removeId, account, revoke, probe, parseSecret, makeSecret, md5File };
+module.exports = { MIN_INTERVAL, SCOPE, scrub, explain, checkClient, deviceStart, devicePoll, accessToken, folderId, listIn, upload, download, removeId, account, revoke, probe, parseSecret, makeSecret };

@@ -24,7 +24,7 @@ function register(sh) {
 
   const payerName = id => (db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || '?';
   const personOf = id => db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(id) || {};
-  const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street: S('club_street'), city: S('club_city'), iban: store.account().iban, bic: store.account().bic, bank: store.account().bank, holder: store.account().holder,
+  const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), ...C.clubAddress(), iban: store.account().iban, bic: store.account().bic, bank: store.account().bank, holder: store.account().holder,
     ci: S('creditor_id'), invoiceText: S('invoice_text'), logo: null });
 
   /* ======================================================= Beitragslauf */
@@ -218,6 +218,7 @@ function register(sh) {
     return { run: runId, count: created, cents, skipped: skippedTotal };
   }
   admin.post('/runs', PF, ar(async (req, res) => {
+    if (!C.uhrOk()) return bad(res, C.uhrMsg, 409);   // falsche Uhrzeit nach dem Start: kein Lauf mit falschem Datum
     const b = body(req);
     const pv = await preview(b);
     const skip = new Set(Array.isArray(b.skip) ? b.skip.map(String) : []);
@@ -276,6 +277,13 @@ function register(sh) {
     const rows = db.prepare(`SELECT c.*, m.name AS payer_name, f.name AS for_name, p.payment, p.member_no, p.debit_blocked FROM mv_charge c JOIN members m ON m.id = c.member_id LEFT JOIN members f ON f.id = c.for_member_id
       LEFT JOIN mv_person p ON p.member_id = c.member_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY c.due_date DESC, name_key(m.name, m.kind), c.id LIMIT 2000`).all(...args);
     res.json({ rows, sum: rows.reduce((s, r) => s + r.cents, 0) });
+  });
+  /** Ein Posten mit denselben Feldern wie in der Liste (für Klicks, ohne die ganze Liste zu laden) */
+  admin.get('/charges/:id', PF, (req, res) => {
+    const row = db.prepare(`SELECT c.*, m.name AS payer_name, f.name AS for_name, p.payment, p.member_no, p.debit_blocked FROM mv_charge c JOIN members m ON m.id = c.member_id LEFT JOIN members f ON f.id = c.for_member_id
+      LEFT JOIN mv_person p ON p.member_id = c.member_id WHERE c.id = ?`).get(int(req.params.id));
+    if (!row) return bad(res, 'Nicht gefunden.', 404);
+    res.json(row);
   });
   admin.post('/charges', PF, (req, res) => {
     const b = req.body || {};
@@ -429,6 +437,7 @@ function register(sh) {
     return null;
   }
   admin.post('/collections', PF, (req, res) => {
+    if (!C.uhrOk()) return bad(res, C.uhrMsg, 409);
     const b = req.body || {};
     const plan = collectionPlan(b.date);
     const blocked = collectionBlocked(plan, b.force);
@@ -475,6 +484,7 @@ function register(sh) {
   }
   admin.post('/drinks-collection/preview', PF, ar(async (req, res) => { const { pv, ...plan } = await drinksPlan((req.body || {}).date); res.json(plan); }));
   admin.post('/drinks-collection', PF, ar(async (req, res) => {
+    if (!C.uhrOk()) return bad(res, C.uhrMsg, 409);
     const b = req.body || {};
     const plan = await drinksPlan(b.date);
     const blocked = collectionBlocked(plan, b.force);

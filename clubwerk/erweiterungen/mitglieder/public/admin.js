@@ -88,7 +88,7 @@
       .mv-lockinfo { margin-bottom: 16px; } .mv-locked { opacity: .5; } .mv-locked input, .mv-locked select, .mv-locked textarea { background: var(--hover); }
       .mv-depchk { display: flex; flex-wrap: wrap; gap: 4px 14px; } .mv-depchk label.chk { font-size: 13.5px; white-space: nowrap; }
       .mv-sub { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
-      .mv-cons-ed { display: grid; grid-template-columns: 200px minmax(0, 1fr) auto auto; gap: 12px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cons-ed .f { margin: 0; } .mv-cons-ed textarea { width: 100%; min-height: 58px; resize: vertical; } .mv-cons-ed .chk { min-height: 40px; }
+      .mv-cons-ed { display: grid; grid-template-columns: 210px minmax(0, 1fr) auto auto; gap: 12px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cons-ed .f { margin: 0; } .mv-cons-ed textarea { width: 100%; min-height: 58px; resize: vertical; } .mv-cons-ed .chk { min-height: 40px; }
       @media (max-width: 700px) { .mv-cons-ed { grid-template-columns: minmax(0, 1fr); } }
       .mv-cg-ed { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1.3fr) 112px; gap: 12px; align-items: end; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cg-ed .f { margin: 0; } .mv-cg-ed .btn { height: 40px; } .mv-cg-days { border-top: 0; margin-top: 4px; }   /* Erinnerung im selben Raster wie die Regeln darüber */
       #eCg { container-type: inline-size; }   /* Karte „Gratulationen“: Raster der Regeln nach Kartenbreite */
@@ -106,12 +106,12 @@
       .mv-split .mdetail .facts dd { overflow-wrap: anywhere; }
       .mv-split .mdetail .mv-khw { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); } .mv-khr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }   /* Hinweise in der Karte oben unter dem Kopf, nicht am Ende */
       #mvTbl .mv-hw { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }   /* Hinweise als Schild unter dem Namen – bei jeder Breite, mit und ohne Karte (in 2026.11.30 fehlten sie neben der Karte, Fund 09.11.2026) */
-      @media (min-width: 701px) and (max-width: 1279px) {   /* Tablet-Liste (im Tablet-Rahmen bis 1399 px, theme-init.js): Zeile 1 Name samt Hinweis-Schild und Status nebeneinander, Zeile 2 die Werte – jede Zeile gleich hoch */
-        #mvTbl td.k-1z .who > span:last-child { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
-        #mvTbl td.k-1z .mv-hw, #mvTbl td.k-1z .muted.s { margin-top: 0; }
-        #mvTbl td.mv-pay::before { content: none !important; }
-        #mvTbl td.mv-pay .pill { min-height: 0; height: 16px; line-height: 16px; padding: 0 7px; font-size: 11px; margin-left: 4px; vertical-align: top; }   /* „zahlt für 3“ macht die Zeile nicht höher */
-        #mvTbl td.k-lbl::before { margin-right: 3px; }
+      @media (min-width: 701px) {   /* Tablet-Liste (html.cw-liste, theme-init.js): Zeile 1 Name samt Hinweis-Schild und Status nebeneinander, Zeile 2 die Werte – jede Zeile gleich hoch */
+        :where(html.cw-liste) #mvTbl td.k-1z .who > span:last-child { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
+        :where(html.cw-liste) #mvTbl td.k-1z .mv-hw, :where(html.cw-liste) #mvTbl td.k-1z .muted.s { margin-top: 0; }
+        :where(html.cw-liste) #mvTbl td.mv-pay::before { content: none !important; }
+        :where(html.cw-liste) #mvTbl td.mv-pay .pill { min-height: 0; height: 16px; line-height: 16px; padding: 0 7px; font-size: 11px; margin-left: 4px; vertical-align: top; }   /* „zahlt für 3“ macht die Zeile nicht höher */
+        :where(html.cw-liste) #mvTbl td.k-lbl::before { margin-right: 3px; }
       }
       #mvTbl.ez td.k-1z { min-width: 210px; } #mvTbl.ez td.mv-nw { white-space: nowrap; } #mvTbl.ez .mv-hw { white-space: nowrap; }   /* Namen haben Platz (nur sehr lange brechen um), Beitrag und Zahlung einzeilig – die Zeilen bleiben gleich hoch; nur solange die Tabelle damit hineinpasst (einzeilig() unten), sonst bricht es um statt seitlich zu scrollen */
       @media (max-width: 1499px) { .mv-split { grid-template-columns: minmax(0, 1fr); } .mv-split > .mcol { display: none; } }   /* Liste und Mitglied nebeneinander erst ab 1400 px, darunter öffnet ein Klick das Mitglied wie bisher */
@@ -1721,7 +1721,7 @@
     $('cxOk').onclick = () => GK.busy($('cxOk'), async () => { try { await api(`charges/${c.id}/cancel`, 'POST', { reason: val('cxR'), rebill: $('cxRe') ? $('cxRe').checked : false, refund: (document.querySelector('[name="cxRf"]:checked') || {}).value, fees: [...document.querySelectorAll('[data-cxf]:checked')].map(x => +x.dataset.cxf) }); closeDialog(); toast('Storniert.'); again(); } catch (e) { fail(e); } });
   }
   function bindCharges(el, again) {
-    const get = async id => (await api('charges?status=alle')).rows.find(c => c.id === id);
+    const get = id => api('charges/' + id);
     el.querySelectorAll('[data-cpay]').forEach(b => { b.onclick = async () => {
       const c = await get(+b.dataset.cpay);
       dialog(`<h2>Zahlung erfassen</h2><p class="muted" style="margin-top:0">${esc(GK.lastFirst(c.payer_name))}: ${esc(c.text)} – ${euro(c.cents)}</p>
@@ -2021,7 +2021,7 @@
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Bestandserhebung (Landessportbund)</h3><a class="btn" href="${BASE}stats/lsb.xlsx?day=${s.day.slice(0, 4)}-01-01">Excel zum 01.01.${s.day.slice(0, 4)}</a></div>
         <table class="tbl kompakt mv-lsb"><tr><th>Altersgruppe</th><th>Männlich</th><th>Weiblich</th><th>Ohne Angabe</th><th>Gesamt</th></tr>
           ${s.lsb.groups.map((g, i) => { const t = s.lsb.total[i], c = (n, l, hide) => `<td class="k-lbl${hide && !n ? ' k-weg' : ''}" data-label="${l}">${n}</td>`; return `<tr><td>${esc(g)}</td>${c(t.m, 'Männlich')}${c(t.w, 'Weiblich')}${c(t.x, 'Ohne Angabe', 1)}<td class="k-lbl" data-label="Gesamt"><b>${sum(t)}</b></td></tr>`; }).join('')}</table>
-        ${s.lsb.noBirth ? `<div class="banner a"><span>${s.lsb.noBirth} ${s.lsb.noBirth === 1 ? 'Mitglied ohne Geburtsdatum ist' : 'Mitglieder ohne Geburtsdatum sind'} nicht enthalten${s.lsb.noBirthNames.length ? ': ' + s.lsb.noBirthNames.map(n => `<a href="#" data-open="${n.id}">${esc(GK.lastFirst(n.name))}</a>`).join(', ') + (s.lsb.noBirth > s.lsb.noBirthNames.length ? ' …' : '') : ''}.</span><button class="btn small" id="rpNoBirth" type="button">In der Liste anzeigen</button></div>` : ''}</div>
+        ${s.lsb.noBirth ? `<div class="banner a"><span>${esc(GK.T(s.lsb.noBirth === 1 ? '{0} Mitglied ohne Geburtsdatum ist nicht enthalten' : '{0} Mitglieder ohne Geburtsdatum sind nicht enthalten', [s.lsb.noBirth]))}${s.lsb.noBirthNames.length ? ': ' + s.lsb.noBirthNames.map(n => `<a href="#" data-open="${n.id}">${esc(GK.lastFirst(n.name))}</a>`).join(', ') + (s.lsb.noBirth > s.lsb.noBirthNames.length ? ' …' : '') : ''}.</span><button class="btn small" id="rpNoBirth" type="button">In der Liste anzeigen</button></div>` : ''}</div>
       <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Datum</th><th>Anlass</th><th class="r">Jahre</th></tr>${s.events.map(e => `<tr><td><b translate="no">${esc(GK.lastFirst(e.name))}</b></td><td class="num nw">${deDate(e.date)}</td><td>${esc(e.kind)}</td><td class="r nw">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="empty">Keine runden Geburtstage oder Jubiläen.</p>'}</div>`;
     $('rpDay').onchange = () => { st.day = val('rpDay'); showReports(el).catch(fail); };
     if ($('rpNoBirth')) $('rpNoBirth').onclick = () => { try { sessionStorage.setItem('mv_liste_filter', 'geburt'); } catch (e) { /* ohne Speicher */ } st.fromDetail = false; GK.go('mitglieder'); };
@@ -2237,11 +2237,11 @@
         <label class="f w2">Verkaufs-Einzug üblich am (TT.MM.)<input id="eDrinks" value="${esc(s.drinks_due ? s.drinks_due.split('-').reverse().join('.') : '')}" placeholder="z. B. 01.12."></label>
         <label class="f">Gebühr Rücklastschrift<input id="eRet" value="${centsToInput(s.return_fee_cents)}" inputmode="decimal"></label>
         <label class="f" style="grid-column:1/-1">Verwendungszweck der Lastschrift<input id="eZweck" value="${esc(s.sepa_purpose || '')}" maxlength="140" spellcheck="false">
-          <span class="muted s">Platzhalter: {Jahr} {Posten} {Nr} {Name} {Verein} – leer = „${esc(s.sepa_purpose_default)}“, z. B. „Mitgliedsbeitrag 2026: Erwachsene, Tennis · Mitgl.-Nr. 1041“. Gilt, wenn ein Beitrag dabei ist; der Verkaufs-Einzug nennt nur die Posten.</span></label></div>
+          <span class="muted s">${GK.T('Platzhalter: {Jahr} {Posten} {Nr} {Name} {Verein} – leer = „{0}“, z. B. „Mitgliedsbeitrag 2026: Erwachsene, Tennis · Mitgl.-Nr. 1041“. Gilt, wenn ein Beitrag dabei ist; der Verkaufs-Einzug nennt nur die Posten.', [`<span translate="no">${esc(s.sepa_purpose_default)}</span>`])}</span></label></div>
         <p class="muted s" style="margin:12px 0 0">Die Gläubiger-ID bekommt der Verein von der Bundesbank. Die Mandatsreferenz jedes Mitglieds besteht aus dem Kürzel und seiner Mitgliedsnummer.</p>
         ${s.club_iban && !s.club_bic ? `<div class="banner g" style="margin-top:12px"><span>${BIC_HINT}</span></div>` : ''}${foot('eSaveSepa')}</div>
       <div class="card" data-set="rechnung"><h3>Rechnungen</h3><div class="mv-grid" style="--c:2">
-        <label class="f wall">Zusatz auf Rechnungen und Mahnungen (optional)<input id="eInv" value="${esc(s.invoice_text)}" placeholder="z. B. Steuernummer, Vereinsregister"></label></div>${foot('eSaveInv')}</div>
+        <label class="f wall">Zusatz auf Rechnungen und Mahnungen (optional)<input id="eInv" value="${esc(s.invoice_text)}" placeholder="z. B. Steuernummer, VR-Nummer"></label></div>${foot('eSaveInv')}</div>
       <div class="card" data-set="mahnung"><h3>Mahnungen</h3><p class="muted s" style="margin-top:0">Die erste Stufe kommt so viele Tage nach der Fälligkeit, jede weitere so viele Tage nach der vorigen. Die Gebühr fällt einmal je Schreiben an. Im Text ersetzt Clubwerk {name}, {betrag} (offen gesamt) und {frist}.</p>
         <div class="mv-grid" style="--c:4;margin-bottom:18px"><label class="f w2">Zahlungsfrist in den Schreiben (Tage)<input id="eDunDl" value="${esc(String(s.dunning_deadline_days))}" inputmode="numeric"></label></div>
         <div id="eLv"></div>

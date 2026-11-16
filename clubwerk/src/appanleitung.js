@@ -18,8 +18,9 @@ const DIR = path.join(__dirname, '..', 'anleitungen', 'app');
 const PW = 595.28, PH = 841.89, M = 45, W = PW - 2 * M, GAP = 14, PAD = 16;
 const INK = '#17201a', MUTED = '#3d4a41', SOFT = '#5b6a5f', LINE = '#d5ddd7', TINT = '#eef2ef';
 const SUBJECT = 'Dein Zugang zur Mitglieder-App – bitte am Handy öffnen';   // Betreff der Einladungs-Mail (src/memberapp.js)
-const mix = (hex, t) => '#' + [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).map(v => Math.round(v + (255 - v) * t).toString(16).padStart(2, '0')).join('');
-const isImg = b => Buffer.isBuffer(b) && b.length > 100 && ((b[0] === 0x89 && b[1] === 0x50) || (b[0] === 0xff && b[1] === 0xd8));
+const { mixColor, imageType } = require('./util');
+const mix = (hex, t) => mixColor(hex, 'white', t);
+const isImg = b => Buffer.isBuffer(b) && b.length > 100 && ['png', 'jpg'].includes(imageType(b));
 
 /** Vereinsfarbe und Logo (wie die anderen PDFs) */
 function brand() {

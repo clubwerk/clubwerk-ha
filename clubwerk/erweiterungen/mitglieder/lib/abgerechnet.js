@@ -134,26 +134,21 @@ function register(sh) {
   admin.get('/booked/preview.xlsx', PF, ar(async (req, res) => {
     const q = req.query, list = v => String(v || '').split(',').filter(Boolean);
     let p; try { p = await plan({ date: q.date, back: q.back === '1', fees: list(q.fees), depts: list(q.depts) }); } catch (e) { if (answer(res, e)) return; throw e; }
-    const ExcelJS = C.require('exceljs');
-    const wb = new ExcelJS.Workbook();
+    const wb = C.xlsx.book(), safe = C.xlsx.safe;
     const { lastFirst } = C.require('./db');
-    const safe = v => (typeof v === 'string' && /^[=+\-@]/.test(v) ? "'" + v : v);
-    const ws = wb.addWorksheet('Ändert sich');
-    ws.columns = [{ header: 'Mitglied', width: 28 }, { header: 'Beitrag', width: 30 }, { header: 'Abteilung', width: 16 }, { header: 'bisher abgerechnet bis', width: 22 }, { header: 'neu', width: 12 }, { header: 'nicht mehr berechnet (€)', width: 24 }, { header: 'Hinweis', width: 40 }];
-    for (const c of p.changes) ws.addRow([safe(lastFirst(c.name, 'mitglied')), safe(c.fee), safe(c.dept || ''), c.old ? deD(c.old) : 'noch nichts', deD(c.new), c.effect / 100, safe(c.note || '')]);
+    const ws = C.xlsx.sheet(wb, 'Ändert sich', [{ header: 'Mitglied', width: 28 }, { header: 'Beitrag', width: 30 }, { header: 'Abteilung', width: 16 }, { header: 'bisher abgerechnet bis', width: 22 }, { header: 'neu', width: 12 }, { header: 'nicht mehr berechnet (€)', width: 24 }, { header: 'Hinweis', width: 40 }],
+      p.changes.map(c => [safe(lastFirst(c.name, 'mitglied')), safe(c.fee), safe(c.dept || ''), c.old ? deD(c.old) : 'noch nichts', deD(c.new), c.effect / 100, safe(c.note || '')]), { freeze: true });
     ws.getColumn(6).numFmt = '#,##0.00';
-    const ws2 = wb.addWorksheet('Übersprungen');
-    ws2.columns = [{ header: 'Mitglied', width: 28 }, { header: 'Beitrag', width: 30 }, { header: 'Abteilung', width: 16 }, { header: 'abgerechnet bis', width: 16 }, { header: 'Grund', width: 50 }];
-    for (const x of p.skipped) ws2.addRow([safe(lastFirst(x.name, 'mitglied')), safe(x.fee || ''), safe(x.dept || ''), x.old ? deD(x.old) : '', safe(x.reason)]);
-    for (const w of [ws, ws2]) { w.getRow(1).font = { bold: true }; w.views = [{ state: 'frozen', ySplit: 1 }]; }
-    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Abgerechnet-bis_${p.date}.xlsx"` }).send(Buffer.from(await wb.xlsx.writeBuffer()));
+    C.xlsx.sheet(wb, 'Übersprungen', [{ header: 'Mitglied', width: 28 }, { header: 'Beitrag', width: 30 }, { header: 'Abteilung', width: 16 }, { header: 'abgerechnet bis', width: 16 }, { header: 'Grund', width: 50 }],
+      p.skipped.map(x => [safe(lastFirst(x.name, 'mitglied')), safe(x.fee || ''), safe(x.dept || ''), x.old ? deD(x.old) : '', safe(x.reason)]), { freeze: true });
+    await C.xlsx.send(res, `Abgerechnet-bis_${p.date}.xlsx`, wb);
   }));
 
   /** Ausführen: Wort SETZEN, eigenes Passwort, Prüfwert der Vorschau */
   admin.post('/booked', PF, ar(async (req, res) => {
     const b = req.body || {};
     if (String(b.confirm || '').trim().toUpperCase() !== 'SETZEN') return bad(res, 'Bitte zur Bestätigung das Wort SETZEN eintippen.');
-    const pw = G.bestaetigt(req, res, C.ownPwOk); if (!pw) return;
+    const pw = await G.bestaetigt(req, res, C.ownPwOk); if (!pw) return;
     if (!pw.confirmed) return res.status(428).json({ error: 'Bitte mit deinem Passwort bestätigen.', needPassword: true });
     let p; try { p = await plan(b); } catch (e) { if (answer(res, e)) return; throw e; }
     if (!p.changes.length) return bad(res, 'Es gibt nichts zu ändern.');
@@ -196,12 +191,12 @@ function register(sh) {
     sets: db.prepare('SELECT * FROM mv_booked_set ORDER BY id DESC LIMIT 20').all().map(s => { const f = JSON.parse(s.filters || '{}');
       return { id: s.id, date: s.date, back: Boolean(s.back), count: s.count, members: s.members, effect: s.effect_cents, by_user: s.by_user, created_at: s.created_at,
         undone_at: s.undone_at, undone_by: s.undone_by, undo_kept: s.undo_kept, fees: (f.names || {}).fees || [], depts: (f.names || {}).depts || [], ...undoState(s) }; }) }));
-  admin.post('/booked/:id/undo', PF, (req, res) => {
+  admin.post('/booked/:id/undo', PF, async (req, res) => {
     const s = db.prepare('SELECT * FROM mv_booked_set WHERE id = ?').get(int(req.params.id));
     if (!s) return bad(res, 'Nicht gefunden.', 404);
     const u = undoState(s);
     if (!u.undo) return bad(res, s.undone_at ? 'Diese Änderung ist schon zurückgenommen.' : u.why);
-    const pw = G.bestaetigt(req, res, C.ownPwOk); if (!pw) return;
+    const pw = await G.bestaetigt(req, res, C.ownPwOk); if (!pw) return;
     if (!pw.confirmed) return res.status(428).json({ error: 'Bitte mit deinem Passwort bestätigen.', needPassword: true });
     const user = uname(req);
     let back = 0, kept = 0;

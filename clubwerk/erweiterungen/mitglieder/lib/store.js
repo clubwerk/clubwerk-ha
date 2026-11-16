@@ -7,10 +7,10 @@ const crypto = require('crypto');
 const fees = require('./fees');
 const sepa = require('./sepa');
 
-let db, getSetting, setSetting;
+let db, getSetting, setSetting, bank;
 const S = (k, d = '') => getSetting('ext_mitglieder_' + k, d);
 const SET = (k, v) => setSetting('ext_mitglieder_' + k, v == null ? '' : String(v));
-const { today, nowTs } = require('../../../src/util');
+const { today, nowTs, addColumns } = require('../../../src/util');
 const { splitPersonName } = require('../../../src/db');   // Namenszerlegung: eine Quelle für Sortierung, Kern und Module
 
 function createTables() {
@@ -121,8 +121,7 @@ CREATE TABLE IF NOT EXISTS mv_change (
 
 /** spätere Spalten (3.1.1): Zusatzbeiträge der Abteilungen */
 function migrate() {
-  const has = (t, c) => db.prepare(`PRAGMA table_info(${t})`).all().some(r => r.name === c);
-  const add = (t, c, def) => { if (!has(t, c)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${def}`); };
+  const add = (t, c, def) => addColumns(db, t, { [c]: def });
   add('mv_fee', 'kind', "TEXT NOT NULL DEFAULT 'grund'");            // grund = Hauptverein | zusatz = Zusatzbeitrag der Abteilung (je Person, nach Alter)
   add('mv_member_department', 'booked_until', 'TEXT');                // Zusatzbeitrag abgerechnet bis
   add('mv_member_department', 'fee_id', 'INTEGER');                   // fest gewählter Zusatzbeitrag (sonst nach Alter)
@@ -132,10 +131,7 @@ function migrate() {
   add('mv_change', 'created_by', 'TEXT');               // Meldungen von Abteilungsleitungen (Eintritt, Austritt, Rückkehr)
   add('mv_application', 'pre_by', 'TEXT'); add('mv_application', 'pre_at', 'TEXT');   // von der Abteilungsleitung befürwortet
   // Verkauf bei Angehörigen: payer = über den Hauptzahler (nicht in der Tablet-Liste) · own_payer = eigener Eintrag, zahlt der Hauptzahler · own = eigener Eintrag, zahlt selbst
-  if (!has('mv_person', 'sales_mode')) {
-    db.exec("ALTER TABLE mv_person ADD COLUMN sales_mode TEXT NOT NULL DEFAULT 'payer'");
-    db.prepare("UPDATE mv_person SET sales_mode = 'own' WHERE drinks_to_payer = 0").run();   // wer bisher selbst zahlte, bleibt dabei
-  }
+  if (addColumns(db, 'mv_person', { sales_mode: "TEXT NOT NULL DEFAULT 'payer'" }).length) db.prepare("UPDATE mv_person SET sales_mode = 'own' WHERE drinks_to_payer = 0").run();   // wer bisher selbst zahlte, bleibt dabei
   flattenPayers();
   // Familienmitgliedschaft (3.16): eigene Zuordnung neben dem Zahler – zeigt auf das Familienoberhaupt (dessen Familienbeitrag deckt die Person ab)
   add('mv_person', 'family_of', 'INTEGER');   // → members(id), Oberhaupt
@@ -400,10 +396,8 @@ function mailOwners(day = today(), extra = null) {
 function mailOwnerFor(cand, day = today()) { const o = mailOwners(day, { id: -1, ...cand }).get(-1); return o && o.owner !== -1 ? o.owner : null; }
 const fullName = p => [p.first_name, p.last_name].filter(Boolean).join(' ');
 /** Konto für Lastschriften: aus den zentralen Bankkonten (Einstellungen → Bankkonten), sonst die früher hier eingetragenen Werte */
-let bank = null;
 function account() {
-  if (bank === null) { try { bank = require('../../../src/bank'); } catch (e) { bank = false; } }
-  const a = bank ? bank.pick({ id: Number(S('sepa_account')) || null }) : null;
+  const a = bank.pick({ id: Number(S('sepa_account')) || null });
   return a ? { id: a.id, name: a.name, holder: a.holder || '', iban: a.iban, bic: a.bic || '', bank: a.bank || '', central: true } : { id: null, name: '', holder: '', iban: S('club_iban'), bic: S('club_bic'), bank: S('club_bank'), central: false };
 }
 
@@ -411,7 +405,7 @@ function account() {
 
 module.exports = {
   init(o) {
-    ({ db, getSetting, setSetting } = o); createTables(); migrate();
+    ({ db, getSetting, setSetting, bank } = o); createTables(); migrate();
     noteMemberNo(db.prepare("SELECT MAX(CAST(member_no AS INTEGER)) n FROM mv_person WHERE member_no GLOB '[0-9]*'").get().n);   // Bestand: höchste Nummer gilt als vergeben
   },
   S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, fillNames, splitName, syncCore, nextMemberNo, noteMemberNo, mandateRefFor, hist,
