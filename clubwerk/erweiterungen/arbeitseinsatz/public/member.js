@@ -44,8 +44,8 @@
         const pct = d.target ? Math.min(100, Math.round(d.done / d.target * 100)) : 100;
         const miss = Math.max(0, d.target - d.done);
         // Solange Stunden fehlen, steht das Offene im Vordergrund; danach kein Zielstrich („Geschafft“), nur Dank – die Dienste rücken nach oben
-        const met = Boolean(d.target) && !miss;
-        const hours = `<div class="vh-card"><h3>Arbeitsstunden ${esc(d.year)}${d.family ? '<span class="vh-chip">Familie</span>' : ''}</h3>
+        const met = Boolean(d.target) && !miss;   // d.hours === false: Verein nutzt keine Arbeitsstunden – kein Kasten, kein Soll
+        const hours = d.hours === false ? '' : `<div class="vh-card"><h3>Arbeitsstunden ${esc(d.year)}${d.family ? '<span class="vh-chip">Familie</span>' : ''}</h3>
             ${!d.target ? `<p class="vh-lead">Für dich ist kein Soll hinterlegt${d.mine && d.mine.why ? ` (${esc(d.mine.why)})` : ''}. Mithelfen ist trotzdem willkommen!</p>`
               : miss ? `<div class="vh-big"><b>${hh(miss)}</b><span>noch offen</span></div><div class="vh-prog"><i style="width:${pct}%"></i></div>
               <p class="vh-lead">${d.rate_cents ? T('{0} von {1} geleistet – bitte bis {2}, danach {3} je fehlender Stunde.', [hh(d.done), hh(d.target), deD(d.to), euro(d.rate_cents)]) : T('{0} von {1} geleistet – bitte bis {2}.', [hh(d.done), hh(d.target), deD(d.to)])}${d.open ? ' ' + T('{0} werden noch geprüft.', [hh(d.open)]) : ''}</p>`
@@ -59,7 +59,7 @@
         const tabs = [['dienste', 'Dienste'], ...(d.termine.length || kal.length ? [['termine', `Termine${openT ? ` (${openT})` : ''}`]] : []), ...(tasks.length ? [['aufgaben', `Aufgaben${openA ? ` (${openA})` : ''}`]] : [])];
         const seg = tabs.length > 1 ? `<div class="vh-seg">${tabs.map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : '';
         el.innerHTML = tab === 'aufgaben' ? seg + tasks.map(taskHtml).join('') : tab === 'termine' ? seg + d.termine.map(termHtml).join('') + kalHtml(kal) : `${seg}${met ? duties + hours : hours + duties}
-          <div class="vh-card"><h3>Meine Stunden${d.report ? '<button id="dsRep">Stunden melden</button>' : ''}</h3><div class="vh-rows">${d.entries.length ? d.entries.map(x => `<div><span><span translate="no">${esc(x.text || '')}</span><small>${deD(x.date)}${d.family ? ' · ' + esc(x.name) : ''}<span class="vh-chip ${(ST[x.status] || [''])[0]}">${esc((ST[x.status] || ['', x.status])[1])}</span>${x.reason ? ' ' + esc(x.reason) : ''}</small></span><b class="num">${x.minutes ? hh(x.minutes) : '–'}</b></div>`).join('') : '<p class="vh-none">Noch keine Stunden in diesem Jahr.</p>'}</div></div>`;
+          ${d.hours === false ? '' : `<div class="vh-card"><h3>Meine Stunden${d.report ? '<button id="dsRep">Stunden melden</button>' : ''}</h3><div class="vh-rows">${d.entries.length ? d.entries.map(x => `<div><span><span translate="no">${esc(x.text || '')}</span><small>${deD(x.date)}${d.family ? ' · ' + esc(x.name) : ''}<span class="vh-chip ${(ST[x.status] || [''])[0]}">${esc((ST[x.status] || ['', x.status])[1])}</span>${x.reason ? ' ' + esc(x.reason) : ''}</small></span><b class="num">${x.minutes ? hh(x.minutes) : '–'}</b></div>`).join('') : '<p class="vh-none">Noch keine Stunden in diesem Jahr.</p>'}</div></div>`}`;
         el.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { tab = b.dataset.tab; load(); }; });
         el.querySelectorAll('[data-ans]').forEach(b => { b.onclick = () => answer(d.termine.find(x => x.id === +b.dataset.t), b.dataset.ans); });
         el.querySelectorAll('[data-tk-done]').forEach(b => { b.onclick = () => taskDone(tasks.find(x => x.id === +b.dataset.tkDone), false); });

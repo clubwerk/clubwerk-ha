@@ -631,9 +631,9 @@ Alles, was nur für euch gilt. Ihr erreicht die Seite über euren Namen unten im
 
 ![Die Startseite „Für mich“ in der Mitglieder-App.](bild: app=start)
 
-**Mitglieder-App:** Mit dem QR-Code und der PIN am Handy öffnet sich die App. Das Symbol oben (Profilbild) und „Mehr“ unten öffnen „Mein Konto“: Profilbild, Benachrichtigungen, Sprache, Darstellung, **PIN ändern** (mit der bisherigen PIN; sie gilt auch am Tablet) und **Abmelden** (entkoppelt nur dieses Handy; danach braucht es eine neue Einladung). Die App bleibt immer in sich und öffnet nie ein neues Fenster. Ohne Netz (oder wenn der Verein gerade nicht antwortet) zeigt sie statt einer Fehlerseite des Browsers **„Keine Verbindung“** mit **Erneut versuchen**; kommt das Netz zurück, lädt sie von selbst neu. Gespeichert ist dafür nur diese Hinweisseite, keine Daten. Die Rubrik **Nachrichten** zeigt die Mitteilungen des Vereins: neueste zuerst, Ungelesenes fett, Angeheftetes oben.
+**Mitglieder-App:** Mit dem QR-Code und der PIN am Handy öffnet sich die App. Das Symbol oben (Profilbild oder Initialen) öffnet „Mein Konto“; „Mehr“ unten zeigt die übrigen Bereiche, „App installieren“ (solange die App nicht installiert ist) und eine Zeile „Mein Konto ›“, die dasselbe Blatt öffnet („Zurück“ führt dann wieder zu „Mehr“). Es enthält: Profilbild, Benachrichtigungen, Sprache, Darstellung, **PIN ändern** (mit der bisherigen PIN; sie gilt auch am Tablet) und **Abmelden** (entkoppelt nur dieses Handy; danach braucht es eine neue Einladung). Die App bleibt immer in sich und öffnet nie ein neues Fenster. Ohne Netz (oder wenn der Verein gerade nicht antwortet) zeigt sie statt einer Fehlerseite des Browsers **„Keine Verbindung“** mit **Erneut versuchen**; kommt das Netz zurück, lädt sie von selbst neu. Gespeichert ist dafür nur diese Hinweisseite, keine Daten. Die Rubrik **Nachrichten** zeigt die Mitteilungen des Vereins: neueste zuerst, Ungelesenes fett, Angeheftetes oben.
 
-![Das Blatt „Mein Konto“ in der App.](bild: app=mehr)
+![Das Blatt „Mein Konto“ in der App.](bild: app=mehr; klick=#accKonto)
 
 ![Nachrichten in der Mitglieder-App.](bild: app=nachrichten)
 

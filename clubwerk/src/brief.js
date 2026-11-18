@@ -11,13 +11,13 @@ const PW = 595.28, PH = 841.89;
 const L = 56.7, R = PW - 56.7, W = R - L;          // 20 mm links und rechts
 const TOP = 40, BOTTOM = PH - 64, FOOT = PH - 38;  // Inhalt endet über der Fußzeile
 const INK = '#1b1f24', MUTED = '#6b7280', SOFT = '#9aa1ab', LINE = '#d5d9df', FAINT = '#f3f4f6';
-const DEFAULT_COLOR = /^#[0-9a-f]{6}$/i.test(process.env.CLUB_COLOR || '') ? process.env.CLUB_COLOR : '#1f6b3a';
+const DEFAULT_COLOR = '#1f6b3a';
 
-const { euroText: euro } = require('./util');   // Cent → „1.234,56 €“ (im PDF immer deutsches Format)
+const { euroText: euro, imageType } = require('./util');   // Cent → „1.234,56 €“ (im PDF immer deutsches Format)
 const fmtIban = v => String(v || '').replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
 const mix = (hex, t) => '#' + [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).map(v => Math.round(v + (255 - v) * t).toString(16).padStart(2, '0')).join('');
 const imgFromData = d => { const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(String(d || '')); return m ? Buffer.from(m[1], 'base64') : null; };
-const isImg = b => Buffer.isBuffer(b) && b.length > 100 && ((b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) || (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff));
+const isImg = b => Buffer.isBuffer(b) && b.length > 100 && ['png', 'jpg'].includes(imageType(b));
 
 /** Dokument fertig schreiben lassen: Promise mit dem ganzen PDF (vor doc.end() aufrufen) */
 function collect(doc) {

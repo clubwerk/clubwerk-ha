@@ -631,9 +631,9 @@ Everything that applies only to you. You reach the page through your name at the
 
 ![The “For me” start page in the member app.](bild: app=start)
 
-**Member app:** With the QR code and PIN the app opens on the phone. The icon at the top (profile picture) and “More” at the bottom open “My account”: profile picture, notifications, language, appearance, **Change PIN** (with the old PIN; it also applies on the tablet) and **Log out** (only unpairs this phone; it then needs a new invitation). The app always stays inside itself and never opens a new window. Without a connection (or when the club is not responding) it shows **“No connection”** with **Try again** instead of a browser error page; when the connection is back, it reloads by itself. Only this notice page is stored for that, no data. The **Messages** section shows the club's messages: newest first, unread in bold, pinned at the top.
+**Member app:** With the QR code and PIN the app opens on the phone. The icon at the top (profile picture or initials) opens “My account”; “More” at the bottom shows the remaining areas, “Install app” (as long as the app is not installed) and a “My account ›” row that opens the same sheet (“Back” then returns to “More”). It contains: profile picture, notifications, language, appearance, **Change PIN** (with the old PIN; it also applies on the tablet) and **Log out** (only unpairs this phone; it then needs a new invitation). The app always stays inside itself and never opens a new window. Without a connection (or when the club is not responding) it shows **“No connection”** with **Try again** instead of a browser error page; when the connection is back, it reloads by itself. Only this notice page is stored for that, no data. The **Messages** section shows the club's messages: newest first, unread in bold, pinned at the top.
 
-![The “My account” sheet in the app.](bild: app=mehr)
+![The “My account” sheet in the app.](bild: app=mehr; klick=#accKonto)
 
 ![Messages in the member app.](bild: app=nachrichten)
 

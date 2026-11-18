@@ -19,6 +19,8 @@ The module works on its own. Without the Members module the same target applies 
 
 The admin area has six tabs at the top: **Overview**, **Duty rosters**, **Shifts**, **Tasks**, **Hours** and **Settings**. The number of hour reports you still have to confirm is shown on the “Hours” tab and in the menu.
 
+If you switch working hours off (Settings › Working hours), only four tabs remain: “Overview” and “Hours” disappear.
+
 ### “Overview” tab {#arbeitseinsatz}
 
 ![The overview: key figures at the top, below them the list of all members with target, completed and missing hours.](bild: seite=arbeitseinsatz)
@@ -218,7 +220,13 @@ The “Add hours …” button books hours for several members at once: **Date**
 
 ### “Settings” tab {#aw-einstellungen}
 
-The page consists of six cards. Each card has its own “Save”, which writes only its own fields.
+The page consists of seven cards. Each card has its own “Save”, which writes only its own fields.
+
+#### Working hours
+
+![The “Working hours” card.](bild: seite=aw-einstellungen; ziel=[data-set="stunden"])
+
+- **Use working hours:** on by default. Without the tick the club uses only duties, dates and tasks. Target, hours and billing then disappear: in the administration the “Overview” and “Hours” tabs and the cards “Target”, “Billing”, “Tablet & app” and “Exempt members” are hidden; the member app has no “My hours” box and no “Report hours”; clocking in at the tablet is gone; the fee run gets no “Working hours” item, and there is no reminder about missing hours. Hours already recorded are kept and reappear as soon as you tick the box again. Switching it is recorded in the log.
 
 #### Target
 

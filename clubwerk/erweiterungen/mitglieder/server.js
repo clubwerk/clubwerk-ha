@@ -453,7 +453,8 @@ function activate(ctx) {
         : { applications: ctx.db.prepare("SELECT COUNT(*) n FROM mv_application WHERE status IN ('eingegangen','unterschrift')").get().n, changes: ctx.db.prepare("SELECT COUNT(*) n FROM mv_change WHERE status = 'offen'").get().n },
       ages: ctx.db.prepare("SELECT COUNT(*) n FROM mv_age_notice WHERE status = 'offen'").get().n,
       scope: req.mvScope ? ctx.db.prepare(`SELECT id, name FROM mv_department WHERE id IN (${req.mvScope.map(() => '?').join(',')})`).all(...req.mvScope) : null,
-      drinks: ctx.drinks.active(), arbeit: ctx.isModuleActive('arbeitseinsatz'), today: today(), nextNo: store.nextMemberNo(), club: ctx.clubAddress() });
+      drinks: ctx.drinks.active(), arbeit: ctx.isModuleActive('arbeitseinsatz') && ctx.callHooksSync('arbeitsstundenAktiv').every(x => x.result !== false),   // Arbeitsstunden abgeschaltet: keine Spalte, kein Häkchen im Beitragslauf
+       today: today(), nextNo: store.nextMemberNo(), club: ctx.clubAddress() });
   });
   admin.get('/list', P, (req, res) => res.json(listRows(req.query)));
   admin.get('/member/:id', P, (req, res) => {

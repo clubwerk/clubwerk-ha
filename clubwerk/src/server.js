@@ -394,7 +394,7 @@ app.use('/api/tablet', (req, res, next) => {
 // Pfad normalisiert prüfen (Groß-/Kleinschreibung, Schrägstrich am Ende) – Express nimmt beide Schreibweisen an
 const normPath = p => String(p || '').toLowerCase().replace(/\/+$/, '').replace(/\/{2,}/g, '/');
 
-const { addGuest, closeTab, eventOpen, eventOpenAll, guestOpen, OPEN_GUEST, topDays, topN } = require('./tablet-api')({
+const { addGuest, closeTab, eventOpen, eventOpenAll, guestOpen, nurAnschreiben, NUR_ANSCHREIBEN_MSG, OPEN_GUEST, topDays, topN } = require('./tablet-api')({
   app, bad, cleanName, int, logoUrl, memberBalance, normPath, rateLimit, UNDO_WINDOW_MIN
 });
 
@@ -738,7 +738,7 @@ admin.get('/settings', (req, res) => {
   res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), clubNameSet: require('./vereinsname').isSet(), lastSettlement: lastSettlement(),
     order: p.includes('bestellung') || p.includes('einstellungen') ? orderSettings() : undefined, clubColor: clubColor(), clubColor2: clubColor2(), tabletTheme: tabletTheme(), logo: logoUrl(), logoCustom: Boolean((logoInfo() || {}).custom),
     clubStreet: getSetting('club_street', ''), clubCity: getSetting('club_city', ''), clubEmail: getSetting('club_email', ''), clubPhone: getSetting('club_phone', ''), fiscalMonth: require('./geschaeftsjahr').month(),
-    topN: topN(), topDays: topDays(), tabletPw: p.includes('einstellungen') ? { on: gateOn(), since: getSetting('tablet_pw_at') } : undefined, tablet: tabletOn(), tabletChosen: getSetting('tablet_enabled', null) !== null,
+    topN: topN(), topDays: topDays(), nurAnschreiben: nurAnschreiben(), tabletPw: p.includes('einstellungen') ? { on: gateOn(), since: getSetting('tablet_pw_at') } : undefined, tablet: tabletOn(), tabletChosen: getSetting('tablet_enabled', null) !== null,
     allowedHosts: p.includes('einstellungen') ? getSetting('allowed_hosts', '') : undefined });
 });
 /* Weitere Adressen (Namen), unter denen die Verwaltung erreichbar sein soll – z. B. verein.duckdns.org */
@@ -899,11 +899,11 @@ admin.delete('/logo', need('einstellungen'), (req, res) => {
   audit(req.user, 'Vereinslogo entfernt');
   res.json({ ok: true, logo: logoUrl() });
 });
-const SETTINGS_LABELS = { club_name: 'Vereinsname', club_color: 'Vereinsfarbe', club_color2: 'Zweitfarbe', tablet_theme: 'Darstellung am Tablet' };
+const SETTINGS_LABELS = { club_name: 'Vereinsname', club_color: 'Vereinsfarbe', club_color2: 'Zweitfarbe', tablet_theme: 'Darstellung am Tablet', nur_anschreiben: ['Nur anschreiben (ohne Bar- und Kartenwege)', 'bool'] };
 const TABLET_THEME_TXT = { auto: 'wie das Gerät', light: 'hell', dark: 'dunkel', hc: 'Hoher Kontrast' };
 admin.put('/settings', need('einstellungen'), (req, res) => {
   const b = req.body || {};
-  const look = () => ({ club_name: getSetting('club_name', ''), club_color: clubColor(), club_color2: clubColor2() || '', tablet_theme: TABLET_THEME_TXT[tabletTheme()] });
+  const look = () => ({ club_name: getSetting('club_name', ''), club_color: clubColor(), club_color2: clubColor2() || '', tablet_theme: TABLET_THEME_TXT[tabletTheme()], nur_anschreiben: nurAnschreiben() });
   const before = look();
   const name = cleanName(b.clubName);
   const color = String(b.clubColor || '').trim();
@@ -915,6 +915,7 @@ admin.put('/settings', need('einstellungen'), (req, res) => {
   if (color) setSetting('club_color', color.toLowerCase());
   if (color2 !== undefined) setSetting('club_color2', color2.toLowerCase());
   if (b.tabletTheme !== undefined) setSetting('tablet_theme', b.tabletTheme);
+  if (b.nurAnschreiben !== undefined) setSetting('nur_anschreiben', b.nurAnschreiben === true || b.nurAnschreiben === '1' ? '1' : '0');
   const addr = [];
   for (const [k, key, max] of [['clubStreet', 'club_street', 80], ['clubCity', 'club_city', 80], ['clubPhone', 'club_phone', 40], ['clubEmail', 'club_email', 120]]) {
     if (b[k] === undefined) continue;
@@ -1234,7 +1235,7 @@ admin.get('/members/import-vorlage.xlsx', need('konten'), asyncRoute(async (req,
 }));
 
 const { belegFiles, buildExport, cleanupUploads, drinks, TRASH_DIR } = require('./verkauf')({
-  addGuest, admin, asyncRoute, bad, cleanName, closeTab, CUT, defaultRange, eventOpenAll, guestOpen, int, isTs, maxBookingId, need, OPEN_GUEST,
+  addGuest, admin, asyncRoute, bad, cleanName, closeTab, CUT, defaultRange, eventOpenAll, guestOpen, int, isTs, maxBookingId, need, nurAnschreiben, NUR_ANSCHREIBEN_MSG, OPEN_GUEST,
   OPEN_KONTO, orderSettings, topDays, topN
 });
 
@@ -1449,7 +1450,9 @@ admin.get('/anleitung/:id/seiten', (req, res) => {
 admin.get('/extensions', (req, res) => {
   const all = plugins.list();
   // Jeder Admin bekommt die aktiven Erweiterungen mit Verwaltungsseite (zum Einblenden im Menü); die volle Liste nur mit „Einstellungen“
-  res.json({ navLayout: navLayout(), modules: plugins.activeIds(), appModules: require('./memberapp').activeModules().map(([id]) => id), ui: all.filter(p => p.active && p.adminScript).map(p => ({ id: p.id, name: p.name, version: p.version, verwaltung: p.verwaltung, scripts: p.scripts })),
+  const hidden = [];   // Seiten und Funktionen, die ein Modul gerade ausblendet (z. B. Arbeitsstunden abgeschaltet)
+  for (const p of plugins.withHook('adminHidden')) { try { hidden.push(...(p.hooks.adminHidden() || [])); } catch (e) { console.error(`Modul ${p.meta.id}: ausgeblendete Seiten nicht lesbar:`, e.message); } }
+  res.json({ navLayout: navLayout(), nurAnschreiben: nurAnschreiben(), hidden, modules: plugins.activeIds(), appModules: require('./memberapp').activeModules().map(([id]) => id), ui: all.filter(p => p.active && p.adminScript).map(p => ({ id: p.id, name: p.name, version: p.version, verwaltung: p.verwaltung, scripts: p.scripts })),
     all: req.user.perms.includes('einstellungen') || req.user.perms.includes('deinstallieren') ? all.map(p => ({ ...p, demo: !DEMO_KOPIE && demo.withData().includes(p.id) || undefined, anleitung: Boolean(anleitungDatei(p.id, 'de', 'pdf')) || undefined })) : undefined, links: navLinks() });
 });
 /* Übersicht: Kennzahlen und Warnungen der aktiven Module (Hook „overview“) – je Modul höchstens OVERVIEW_TIMEOUT_MS */

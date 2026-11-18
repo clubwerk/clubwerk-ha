@@ -19,6 +19,8 @@ Das Modul läuft allein. Ohne die Mitgliederverwaltung gilt dieselbe Vorgabe fü
 
 Die Verwaltung hat oben sechs Reiter: **Übersicht**, **Dienstpläne**, **Einsätze**, **Aufgaben**, **Stunden** und **Einstellungen**. Die Zahl der Stundenmeldungen, die ihr noch bestätigen müsst, steht am Reiter „Stunden“ und im Menü.
 
+Wer die Arbeitsstunden abschaltet (Einstellungen › Arbeitsstunden), sieht nur vier Reiter: „Übersicht“ und „Stunden“ entfallen.
+
 ### Reiter „Übersicht“ {#arbeitseinsatz}
 
 ![Die Übersicht: Kennzahlen oben, darunter die Liste aller Mitglieder mit Soll, geleisteten und fehlenden Stunden.](bild: seite=arbeitseinsatz)
@@ -218,7 +220,13 @@ Der Knopf „Stunden nachtragen …“ bucht Stunden für mehrere Mitglieder auf
 
 ### Reiter „Einstellungen“ {#aw-einstellungen}
 
-Die Seite besteht aus sechs Karten. Jede Karte hat ein eigenes „Speichern“, das nur ihre Felder schreibt.
+Die Seite besteht aus sieben Karten. Jede Karte hat ein eigenes „Speichern“, das nur ihre Felder schreibt.
+
+#### Arbeitsstunden
+
+![Karte „Arbeitsstunden“.](bild: seite=aw-einstellungen; ziel=[data-set="stunden"])
+
+- **Arbeitsstunden nutzen:** Standard ist „an“. Ohne Häkchen nutzt der Verein nur Dienste, Termine und Aufgaben. Dann entfallen Soll, Stunden und Abrechnung: In der Verwaltung verschwinden die Reiter „Übersicht“ und „Stunden“ sowie die Karten „Soll“, „Abrechnung“, „Tablet & App“ und „Befreite Mitglieder“; in der Mitglieder-App gibt es keinen Kasten „Meine Stunden“ und kein „Stunden melden“; am Tablet entfällt das Stempeln; der Beitragslauf bekommt keinen Posten „Arbeitsstunden“, und es gibt keine Erinnerung an fehlende Stunden. Bereits erfasste Stunden bleiben erhalten und erscheinen wieder, sobald ihr das Häkchen setzt. Das Umschalten steht im Protokoll.
 
 #### Soll
 

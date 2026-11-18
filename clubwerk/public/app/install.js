@@ -15,8 +15,8 @@
   const rowC = (i, t, sub) => `<details class="vh-fm vh-fm-step"><summary><span class="vh-fm-ico">${i}</span><span class="vh-tx"><strong>${t}</strong></span><span class="vh-fm-wie">Wie?</span></summary><p>${sub}</p></details>`;   // weitere Schritte: eine Zeile, die Erklärung klappt im selben Blatt auf (Punkt 10)
   const row = (i, t, sub) => `<div class="vh-fm"><span class="vh-fm-ico">${i}</span><span class="vh-tx"><strong>${t}</strong>${sub ? `<small>${sub}</small>` : ''}</span></div>`;
   function html(kind, e) {
-    const lt = '<button type="button" class="vh-btn sec" data-pushlater data-installlater>Später</button>', done = '<button type="button" class="vh-btn sec" data-installdone>Habe ich schon installiert</button>';
-    const card = (h, rows, b) => `<div class="vh-card vh-fm-news" data-pushcard="${kind}"><h3>${h}</h3><div class="vh-rows">${rows}</div><div class="vh-pushact">${b.join('')}</div></div>`;
+    const lt = '<button type="button" class="vh-btn sec" data-pushlater data-installlater>In 14 Tagen erinnern</button>', done = '<button type="button" class="vh-btn sec" data-installdone>Habe ich schon installiert</button>';
+    const card = (h, rows, b) => `<div class="vh-card vh-fm-news" data-pushcard="${kind}"><h3>${h}</h3><div class="vh-rows">${rows}</div><div class="vh-pushact">${b.join('')}</div>${b.some(x => x.includes('data-installlater')) ? '<p class="vh-small" style="margin:10px 0 0">Jederzeit unter Mehr › App installieren.</p>' : ''}</div>`;
     const R3 = (a, b, c) => row(...a) + rowC(ADDHOME, ...b) + rowC(OPEN, ...c);
     if (kind === 'install') return card('App installieren', e.android ? row(ADDHOME, 'Die App aufs Handy legen', 'Ein Antippen genügt – danach startest du sie direkt vom Startbildschirm, ohne dich neu freizuschalten.')
       : row(ADDHOME, 'Die App auf diesem Rechner installieren', 'Ein Klick genügt – danach öffnet sie sich in einem eigenen Fenster, ohne dich neu freizuschalten.'), [lt, '<button type="button" class="vh-btn" data-installgo>App installieren</button>']);
@@ -39,6 +39,16 @@
   window.cwInstallUi = {
     html,
     owns: k => KINDS.includes(k),
+    /* Blatt „Mehr › App installieren“: die Karte ohne „Später“ und „Habe ich schon installiert“ (o.card liefert sie aus app.js, o.wire verdrahtet sie) */
+    sheet(o) {
+      const sh = o.el, card = o.card();
+      sh.innerHTML = `<div class="vh-box"><h2>App installieren</h2>${card || '<p class="vh-lead">Dieser Browser bietet keine Installation an. Öffne die Adresse in Chrome (Android, Rechner) oder Safari (iPhone, Mac).</p>'}
+        <div class="vh-row" style="margin-top:10px"><button class="no" id="insNo" style="flex:1">Schließen</button></div></div>`;
+      sh.querySelectorAll('[data-pushlater],[data-installlater],[data-installdone]').forEach(b => b.remove());
+      sh.querySelector('#insNo').onclick = () => sh.classList.remove('show');
+      o.wire(sh);
+      sh.classList.add('show');
+    },
     init(c) {
       ctx = c;
     },

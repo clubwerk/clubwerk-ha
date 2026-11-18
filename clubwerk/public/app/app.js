@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.50';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.51';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -156,7 +156,7 @@
     const s = me.sections.find(x => x.id === id);
     if (!s) { el.innerHTML = ''; return; }
     if (!s.ok && s.wlanOnly && embedWorked && me.lanUrl && !me.wlan) { el.innerHTML = ''; call('handover', 'POST', {}).then(r => { if (current === id) embedLocal(el, id, r); }).catch(() => { embedWorked = false; show(id); }); return; }
-    if (!s.ok && s.wlanOnly) { el.innerHTML = `<div class="vh-wlan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg><b>${esc(WLAN_T)}</b><span>${esc(s.title)} funktioniert nur, wenn dein Handy im WLAN des Vereinsheims ist. Dort einfach die App öffnen – alles andere geht auch unterwegs.</span>${me.lanUrl && !me.wlan ? `<button class="vh-btn" id="lanGo">Im Vereinsheim lokal öffnen</button><small class="vh-wlan-diag">Bist du gerade im Vereinsheim? Dann öffnet dieser Knopf die App über die lokale Adresse – mit deiner PIN. Lokale Adresse ${esc(me.lanUrl)}: ${lanProbe ? (lanProbe.ok ? 'erreichbar' : esc(lanProbe.why)) : 'wird geprüft …'}</small>` : ''}</div>`;
+    if (!s.ok && s.wlanOnly) { el.innerHTML = `<div class="vh-wlan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg><b>${esc(WLAN_T)}</b><span>${esc(s.title)} funktioniert nur, wenn dein Handy im WLAN des Vereinsheims ist. Dort einfach die App öffnen – alles andere geht auch unterwegs.</span>${me.lanUrl && !me.wlan ? `<button class="vh-btn" id="lanGo">Im Vereinsheim lokal öffnen</button><small class="vh-wlan-diag">Bist du gerade im Vereinsheim? Dann öffnet dieser Knopf die App über die lokale Adresse – mit deiner PIN. ${lanProbe ? (lanProbe.ok ? 'Das Vereins-WLAN ist gerade erreichbar.' : 'Das Vereins-WLAN ist gerade nicht erreichbar.') : 'Vereins-WLAN wird gesucht …'}</small>` : ''}</div>`;
       wlanRetry(id);
       const g = $('lanGo'); if (g) g.onclick = async () => { g.disabled = true; try { const r = await call('handover', 'POST', {}); embedLocal(el, id, r); } catch (e) { toast(e.message, true); g.disabled = false; } };
       return; }
@@ -202,12 +202,13 @@
   }
   window.cwInstallPlan = (e, s) => { const k = installPlan(e, s); return k === 'wait' ? '' : k; };
   const instWaited = () => { if (performance.now() >= 2500) return true; if (!instWaited.t) instWaited.t = setTimeout(() => { if (pushReload) pushReload(); }, 2600 - performance.now()); return false; };
+  let installAfter = null;   // Blatt „Mehr › App installieren“, wartet auf install.js
   let installUi = null, installState = '';   // '' | laedt | fehler
   function loadInstallUi() {   // install.js (Karten für Android und Rechner) erst laden, wenn sie gebraucht werden – in der installierten App nie
     installState = 'laedt';
     const sc = document.createElement('script'); sc.src = 'install.js?v=' + APP_VER;
-    sc.onload = () => { installUi = window.cwInstallUi; installUi.init({ ls: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* egal */ } }, ev: () => installEv, takeEv: () => { const v = installEv; installEv = null; return v; }, isDone: () => installDone, setDone: () => { installDone = true; }, flag, standalone, toast, copyAddress, reload: () => { if (pushReload) pushReload(); } }); if (pushReload) pushReload(); };
-    sc.onerror = () => { installState = 'fehler'; if (pushReload) pushReload(); };   // ohne die Datei: nur die Benachrichtigungs-Karten
+    sc.onload = () => { installUi = window.cwInstallUi; installUi.init({ ls: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* egal */ } }, ev: () => installEv, takeEv: () => { const v = installEv; installEv = null; return v; }, isDone: () => installDone, setDone: () => { installDone = true; }, flag, standalone, toast, copyAddress, reload: () => { if (pushReload) pushReload(); } }); if (installAfter) { const f = installAfter; installAfter = null; f(); } if (pushReload) pushReload(); };
+    sc.onerror = () => { installState = 'fehler'; if (installAfter) { installAfter = null; toast('Das hat nicht geklappt.', true); } if (pushReload) pushReload(); };   // ohne die Datei: nur die Benachrichtigungs-Karten
     document.head.appendChild(sc);
   }
   let installEv = null, installDone = false;   // installDone: im Dialog angenommen – bis die App neu startet keine Anleitung mehr
@@ -276,31 +277,32 @@
   let pushWartet = false;
   const pushMark = (k, html) => { pushWartet = true; document.documentElement.dataset.pushkarte = k; return html; };
   function pushCard(p) { pushWartet = false; const html = pushCardHtml(p); if (!pushWartet) document.documentElement.dataset.pushkarte = html ? (/data-pushcard="([^"]*)"/.exec(html) || [])[1] || 'karte' : 'keine'; return html; }
-  function pushCardHtml(p) {
+  function pushCardHtml(p, force) {   // force: Blatt „Mehr › App installieren“ – die Installationsanleitung, egal ob „Später“ oder „schon installiert“ gedrückt wurde
     const e = platformEnv();
     /* Zuerst installieren, in eingebetteten Android-Browsern „Im Browser öffnen“, erst danach Benachrichtigungen – immer nur eine Karte. */
     let ip = null;
     if (!e.ios && !e.standalone) {   // Android und Rechner
-      const k = installPlan(e, { event: Boolean(installEv), marked: flag('cw-installiert'), done: haveDone(), later: Date.now() < Number(localStorage.getItem('cw-install-spaeter')), waited: instWaited, installDone, secure: window.isSecureContext !== false });
+      let k = installPlan(e, { event: Boolean(installEv), marked: flag('cw-installiert'), done: force ? false : haveDone(), later: force ? false : Date.now() < Number(localStorage.getItem('cw-install-spaeter')), waited: force ? () => true : instWaited, installDone: force ? false : installDone, secure: window.isSecureContext !== false });
+      if (force && !k && e.android) k = 'android-howto';   // Handy ohne erkennbare Installationsmöglichkeit: allgemeine Schritte statt nichts
       if (k === 'wait') return pushMark('warten', '');
       if (k) { if (!installUi && installState !== 'fehler') { if (installState !== 'laedt') loadInstallUi(); return pushMark('warten', ''); } if (installUi) ip = { kind: k, html: installUi.html(k, e) }; }
     }
-    let kind = ip ? ip.kind : pushPlan(p, e, pushLater());
+    let kind = ip ? ip.kind : force ? (e.ios ? (e.embedded ? 'ios-embedded' : 'ios-share') : '') : pushPlan(p, e, pushLater());
     if (!ip && kind === 'android-embedded') kind = '';   // „Später“ gilt auch hier
-    if (kind === 'ios-share' && haveDone()) kind = '';   // „Habe ich schon installiert“ – iPhone-Safari kann es nicht selbst erkennen
-    if ((kind === 'ios-share' || kind === 'ios-embedded') && hintOpen()) return '';   // der Kasten „Auf den Home-Bildschirm“ oben sagt dasselbe – nie zwei Karten
+    if (!force && kind === 'ios-share' && haveDone()) kind = '';   // „Habe ich schon installiert“ – iPhone-Safari kann es nicht selbst erkennen
+    if (!force && (kind === 'ios-share' || kind === 'ios-embedded') && hintOpen()) return '';   // der Kasten „Auf den Home-Bildschirm“ oben sagt dasselbe – nie zwei Karten
     if (!kind) return '';
     if (ip) return ip.html;
     const row = (ico, title, sub, c) => `<${c ? 'details class="vh-fm vh-fm-step"><summary' : 'div class="vh-fm"'}><span class="vh-fm-ico">${ico}</span><span class="vh-tx"><strong>${title}</strong>${sub && !c ? `<small>${sub}</small>` : ''}</span>${c ? `<span class="vh-fm-wie">Wie?</span></summary><p>${sub}</p></details>` : '</div>'}`;
-    const act = (...b) => `<div class="vh-pushact">${b.join('')}</div>`, later = '<button type="button" class="vh-btn sec" data-pushlater>Später</button>', copy = '<button type="button" class="vh-btn" data-pushcopy>Adresse kopieren</button>';
-    const card = (h, rows, buttons) => `<div class="vh-card vh-fm-news" data-pushcard="${kind}"><h3>${h}</h3><div class="vh-rows">${rows}</div>${act(...buttons)}</div>`;
+    const act = (...b) => `<div class="vh-pushact">${b.join('')}</div>`, later = '<button type="button" class="vh-btn sec" data-pushlater>Später</button>', laterI = '<button type="button" class="vh-btn sec" data-pushlater>In 14 Tagen erinnern</button>', copy = '<button type="button" class="vh-btn" data-pushcopy>Adresse kopieren</button>';
+    const card = (h, rows, buttons) => `<div class="vh-card vh-fm-news" data-pushcard="${kind}"><h3>${h}</h3><div class="vh-rows">${rows}</div>${act(...buttons)}${/^ios-(share|embedded)$/.test(kind) && !force ? '<p class="vh-small" style="margin:10px 0 0">Jederzeit unter Mehr › App installieren.</p>' : ''}</div>`;
     const MENU = 'Je nach Einstellung oben in der Adressleiste, unten oder im Menü „…“.';
     const done = '<button type="button" class="vh-btn sec" data-installdone>Habe ich schon installiert</button>';
     if (kind === 'ask') return card('Benachrichtigungen einschalten', row(BELL, 'Nichts verpassen', pushWhat(p && p.words)), [later, '<button type="button" class="vh-btn" data-pushon>Einschalten</button>']);
     if (kind === 'denied') return card('Benachrichtigungen sind gesperrt', row(BELL_OFF, 'Im Handy erlauben', e.ios ? 'Einstellungen › Mitteilungen › diese App › „Mitteilungen erlauben“.' : 'Einstellungen › Apps › diese App bzw. dein Browser › Benachrichtigungen › erlauben.'), [later]);
     if (kind === 'ios-old') return card('Benachrichtigungen gehen hier nicht', row(BELL_OFF, 'iOS 16.4 oder neuer nötig', 'Einstellungen › Allgemein › Softwareupdate. Auf diesem iPhone sind keine Benachrichtigungen möglich.'), [later]);
-    if (kind === 'ios-embedded') return card('Zuerst in Safari öffnen', row(OPEN, 'Diese Seite läuft in einer anderen App', 'Tippe auf „…“ oder das Teilen-Symbol und dann auf „In Safari öffnen“.') + row(SHARE, 'Geht das nicht?', 'Kopiere die Adresse und öffne sie in Safari. Dort „Übernahme-Code eingeben“ antippen.'), [later, copy]);
-    return card('Zuerst auf den Home-Bildschirm', row(SHARE, '1. Teilen-Symbol antippen', `Quadrat mit Pfeil nach oben. ${MENU}`) + row(ADDHOME, '2. „Zum Home-Bildschirm“', 'Dann „Hinzufügen“ antippen.', 1) + row(OPEN, '3. Vom Home-Bildschirm öffnen', 'PIN eingeben, dann hier „Einschalten“ antippen.', 1), [later, done]);
+    if (kind === 'ios-embedded') return card('Zuerst in Safari öffnen', row(OPEN, 'Diese Seite läuft in einer anderen App', 'Tippe auf „…“ oder das Teilen-Symbol und dann auf „In Safari öffnen“.') + row(SHARE, 'Geht das nicht?', 'Kopiere die Adresse und öffne sie in Safari. Dort „Übernahme-Code eingeben“ antippen.'), [force ? copy : laterI, ...(force ? [] : [copy])]);
+    return card('Zuerst auf den Home-Bildschirm', row(SHARE, '1. Teilen-Symbol antippen', `Quadrat mit Pfeil nach oben. ${MENU}`) + row(ADDHOME, '2. „Zum Home-Bildschirm“', 'Dann „Hinzufügen“ antippen.', 1) + row(OPEN, '3. Vom Home-Bildschirm öffnen', 'PIN eingeben, dann hier „Einschalten“ antippen.', 1), force ? [] : [laterI, done]);
   }
   function wirePushCard(el) {
     const c = el.querySelector('[data-pushcard]'); if (!c) return;
@@ -492,39 +494,59 @@
   async function initPhoto() {
     const b = $('ava'); if (!b) return;
     let p; try { p = await call('photo'); } catch (e) { return; }
-    const paint = () => { b.innerHTML = p.has ? `<img data-auth-src="api/photo/img?v=${esc(p.v || '')}" alt="">` : esc(initials(me.member)); b.classList.remove('hidden'); };
+    const paint = () => { avaHtml = p.has ? `<img data-auth-src="api/photo/img?v=${esc(p.v || '')}" alt="">` : esc(initials(me.member)); b.innerHTML = p.has ? `<img data-auth-src="api/photo/img?v=${esc(p.v || '')}" alt="">` : esc(initials(me.member)); b.classList.remove('hidden'); };
     paint();
     openPhoto = () => photoSheet(p, x => { p = x; paint(); });
-    b.onclick = moreSheet;
+    b.onclick = () => kontoSheet(false);   // Profil-Kästchen oben: gleich „Mein Konto“
+  }
+  /* „Mehr › App installieren“: dieselbe Karte wie in „Für mich“, aber immer – unabhängig von „Später“ (14 Tage) und „schon installiert“; Blatt in install.js */
+  function installSheet() {
+    installAfter = () => installUi.sheet({ card: () => pushCardHtml(null, true), wire: wirePushCard, el: sheetEl('instSheet', 'vh-sheet') });
+    if (installUi) { installAfter(); installAfter = null; } else if (installState !== 'laedt') loadInstallUi();
   }
   /* ---------- „Mehr“-Blatt: übrige Bereiche (ab 6 Bereichen) und Mein Konto – auch hinter dem Profilbild oben ---------- */
-  let openPhoto = null, openLang = null, langName = '';
+  let openPhoto = null, openLang = null, langName = '', avaHtml = '';
+  /* „Mehr“: nur die Bereiche und eine Zeile „Mein Konto ›“; „Mein Konto“ ist ein eigener Inhalt im selben Blatt (Zurück führt zu „Mehr“, wenn man von dort kam) */
   function moreSheet() {
     const sh = sheetEl('accSheet', 'vh-sheet');
     const rest = me.sections.length > 4 ? me.sections.slice(3) : [];
     const close = () => sh.classList.remove('show');
     sh.innerHTML = `<div class="vh-box">
-      ${rest.length ? `<h2>Weitere Bereiche</h2><div class="vh-menu">${rest.map(s => `<button type="button" data-s="${esc(s.id)}"${s.wlanOnly ? ` class="wlan" title="${esc(WLAN_T)}"` : ''}>${esc(s.title)}</button>`).join('')}</div>` : ''}
-      <h2${rest.length ? ' style="margin-top:18px"' : ''}>Mein Konto</h2><p class="vh-small" style="margin:0 0 4px">${esc(me.member)}</p>
+      ${rest.length ? `<h2>Weitere Bereiche</h2>` : ''}<div class="vh-menu">${rest.map(s => `<button type="button" data-s="${esc(s.id)}"${s.wlanOnly ? ` class="wlan" title="${esc(WLAN_T)}"` : ''}>${esc(s.title)}</button>`).join('')}
+        ${standalone() || installDone ? '' : '<button type="button" id="accInst">App installieren</button>'}
+        <button type="button" class="konto" id="accKonto"><span class="vh-ava" aria-hidden="true">${avaHtml || esc(initials(me.member))}</span><span class="nm"><b>Mein Konto</b><small translate="no">${esc(me.member)}</small></span><span class="chev" aria-hidden="true">›</span></button></div>
+      <div class="vh-row" style="margin-top:10px"><button class="no" id="accNo" style="flex:1">Schließen</button></div></div>`;
+    sh.querySelector('#accNo').onclick = close;
+    sh.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { close(); wlanTries = 0; show(b.dataset.s); });
+    sh.querySelector('#accKonto').onclick = () => kontoSheet(true);
+    const inst = sh.querySelector('#accInst'); if (inst) inst.onclick = () => { close(); installSheet(); };
+    sh.classList.add('show');
+  }
+  function kontoSheet(vonMehr) {
+    const sh = sheetEl('accSheet', 'vh-sheet');
+    const close = () => sh.classList.remove('show'), keinMehr = me.sections.length <= 4;   // ohne Knopf „Mehr“ unten wäre „App installieren“ sonst nirgends erreichbar
+    sh.innerHTML = `<div class="vh-box">
+      <h2>Mein Konto</h2><p class="vh-small" style="margin:0 0 4px">${esc(me.member)}</p>
       <div class="vh-menu" id="accMenu">
         ${openPhoto ? '<button type="button" id="accPhoto">Profilbild</button>' : ''}
         <button type="button" id="accPush">Benachrichtigungen</button>
         ${openLang ? `<button type="button" id="accLang">Sprache: <span translate="no">${esc(langName)}</span></button>` : ''}
         ${window.CWTheme ? `<button type="button" id="accLook">Darstellung: <span>${esc(LOOKS.find(x => x[0] === CWTheme.choice())[1])}</span></button>` : ''}
+        ${keinMehr && !standalone() && !installDone ? '<button type="button" id="accInst">App installieren</button>' : ''}
         <button type="button" id="accCal">Kalender abonnieren</button>
         <button type="button" id="accPin">PIN ändern</button>
       </div>
       <button type="button" class="vh-danger" id="accOut" style="margin:14px 0 0">Abmelden</button>
       <p class="vh-small" style="margin:10px 0 0">Clubwerk ${esc(APP_VER)}${me.version && me.version !== APP_VER ? ' · Server ' + esc(me.version) : ''}</p>
-      <div class="vh-row" style="margin-top:10px"><button class="no" id="accNo" style="flex:1">Schließen</button></div></div>`;
-    sh.querySelector('#accNo').onclick = close;
-    sh.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { close(); wlanTries = 0; show(b.dataset.s); });
+      <div class="vh-row" style="margin-top:10px"><button class="no" id="accNo" style="flex:1">${vonMehr ? 'Zurück' : 'Schließen'}</button></div></div>`;
+    sh.querySelector('#accNo').onclick = vonMehr ? moreSheet : close;
     const on = (id, fn) => { const e = sh.querySelector(id); if (e) e.onclick = () => { close(); fn(); }; };
     on('#accPhoto', () => openPhoto && openPhoto());
     on('#accPush', () => notifSheet().catch(e => toast(e.message, true)));
     on('#accLang', () => openLang && openLang());
     on('#accLook', lookSheet);
     on('#accPin', pinChangeSheet);
+    on('#accInst', installSheet);
     on('#accCal', () => calSheet().catch(e => toast(e.message, true)));
     // Abmelden: Rückfrage im selben Blatt, mit der Folge
     sh.querySelector('#accOut').onclick = () => {

@@ -76,6 +76,7 @@
   const onChips = (id, fn) => { $(id).onclick = e => { const b = e.target.closest('[data-f]'); if (b) fn(b.dataset.f); }; };
   /** Zahl „zu bestätigen“ am Reiter „Stunden“ und im Menü nach jeder Änderung neu holen */
   function refreshPending() { if (GK.refreshBadges) GK.refreshBadges(); }
+  const noH = () => Boolean(st.meta && st.meta.cfg && st.meta.cfg.hours === false);   // „Arbeitsstunden nutzen“ aus: alles zu Stunden ausblenden
   const metaNow = async () => { st.meta = await api('meta'); st.year = st.year || st.meta.year; return st.meta; };
 
   /* ---------------------------------------------------------------- Übersicht */
@@ -193,7 +194,7 @@
             : [e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place, e.slots ? `${e.signups.length} von ${e.slots} Plätzen` : `${e.signups.length} eingetragen`, e.hours.n ? `${h(e.hours.min)} erfasst` : '']).filter(Boolean).map(esc).join(' · ')}</div>
           ${e.kind === 'termin' ? `<div class="aw-people">${pill(['g', `${e.yes_n} ${e.yes_n === 1 ? 'Zusage' : 'Zusagen'} · ${e.persons} ${e.persons === 1 ? 'Person' : 'Personen'}`])}${pill(['', `${e.no_n} ${e.no_n === 1 ? 'Absage' : 'Absagen'}`])}${e.open_n ? pill(['a', `${e.open_n} ohne Antwort`]) : ''}</div>`
           : !e.permanent && e.signups.length ? `<div class="aw-people">${e.signups.map(s => `<span class="pill g">${esc(GK.lastFirst(s.name))}</span>`).join('')}</div>` : ''}</div>
-        <div class="acts">${!e.permanent && e.kind !== 'termin' && e.date <= st.meta.today ? `<button class="btn small" data-evc="${e.id}">Stunden gutschreiben</button>` : ''}${e.permanent ? '' : e.kind === 'termin' ? `<button class="btn small" data-eva2="${e.id}">Antworten</button>` : `<button class="btn small" data-evp="${e.id}">Helfer</button>`}<button class="btn small aw-tog" data-eva="${e.id}" data-on="${e.cancelled ? 1 : 0}">${e.cancelled ? 'Aktivieren' : 'Deaktivieren'}</button><button class="btn small" data-eve="${e.id}">Bearbeiten</button></div></div>`;
+        <div class="acts">${!noH() && !e.permanent && e.kind !== 'termin' && e.date <= st.meta.today ? `<button class="btn small" data-evc="${e.id}">Stunden gutschreiben</button>` : ''}${e.permanent ? '' : e.kind === 'termin' ? `<button class="btn small" data-eva2="${e.id}">Antworten</button>` : `<button class="btn small" data-evp="${e.id}">Helfer</button>`}<button class="btn small aw-tog" data-eva="${e.id}" data-on="${e.cancelled ? 1 : 0}">${e.cancelled ? 'Aktivieren' : 'Deaktivieren'}</button><button class="btn small" data-eve="${e.id}">Bearbeiten</button></div></div>`;
     head('Einsätze', 'Arbeitseinsätze, Thekendienste und Vereinstermine mit Zu- und Absage. Mitglieder tragen sich in der App unter „Dienste“ ein.');
     $('main').insertAdjacentHTML('beforeend', `<div class="toolbar"><button class="btn primary" id="evNew">+ Neuer Einsatz</button></div>
       ${chips('evSeg', [['kommend', 'Kommende', coming.filter(e => !e.permanent).length], ['vergangen', 'Vergangene', gone.length]], st.past ? 'vergangen' : 'kommend', true)}
@@ -342,7 +343,7 @@
     const list = st.ppast ? gone : coming;
     const card = p => `<div class="aw-ev aw-pl" data-pl="${p.id}">
         <div class="aw-date"><span>${new Date(p.from_date + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' })}</span><b>${p.from_date.slice(8, 10)}.${p.from_date.slice(5, 7)}.</b></div>
-        <div style="min-width:0"><h4><span translate="no">${esc(p.title)}</span>${p.published ? '' : ' ' + pill(['a', 'Entwurf'])}${p.counts ? '' : ' ' + pill(['', 'zählt nicht als Arbeitsstunden'])}${p.sales ? ' ' + pill(['b', 'im Verkauf']) : ''}</h4>
+        <div style="min-width:0"><h4><span translate="no">${esc(p.title)}</span>${p.published ? '' : ' ' + pill(['a', 'Entwurf'])}${p.counts || noH() ? '' : ' ' + pill(['', 'zählt nicht als Arbeitsstunden'])}${p.sales ? ' ' + pill(['b', 'im Verkauf']) : ''}</h4>
           <div class="muted">${[rangeTxt(p), p.place, `${p.shifts} ${p.shifts === 1 ? 'Schicht' : 'Schichten'}`, p.need ? `${p.filled} von ${p.need} Helfern` : `${p.helpers} Helfer`].filter(Boolean).map(esc).join('\u00a0· ')}</div>
           ${p.need ? `<div class="aw-prog"><span class="aw-bar"><i style="width:${Math.round(p.filled / p.need * 100)}%;background:var(--brand)"></i></span><span class="muted s">${p.open ? `${p.open} ${p.open === 1 ? 'Schicht' : 'Schichten'} noch nicht voll` : 'alle Schichten voll'}</span></div>` : ''}</div>
         <div class="acts"><button class="btn small" data-po="${p.id}">Öffnen</button></div></div>`;
@@ -360,7 +361,7 @@
       <label class="f w2">Veranstaltung<input id="pT" value="${esc(p ? p.title : '')}" placeholder="z. B. Kirmes 2026"></label><label class="f">Erster Tag<input id="pF" type="date" value="${esc(p ? p.from_date : st.meta.today)}"></label><label class="f">Letzter Tag<input id="pU" type="date" value="${esc(p ? p.to_date : st.meta.today)}"></label>
       <label class="f wall">Ort<input id="pP" value="${esc(p ? p.place || '' : '')}" placeholder="z. B. Festzelt am Vereinsheim"></label>
       <label class="f wall">Infos für alle Helfer<textarea id="pN" rows="3" placeholder="z. B. Bitte ein paar Minuten vor Schichtbeginn da sein. Nach Ende wird gemeinsam aufgeräumt.">${esc(p ? p.note || '' : '')}</textarea></label>
-      <label class="chk w2"><input type="checkbox" id="pC" ${!p || p.counts ? 'checked' : ''}> Zählt zu den Arbeitsstunden</label>
+      <label class="chk w2"${noH() ? ' style="display:none"' : ''}><input type="checkbox" id="pC" ${!p || p.counts ? 'checked' : ''}> Zählt zu den Arbeitsstunden</label>
       <label class="chk w2"><input type="checkbox" id="pV" ${!p || p.published ? 'checked' : ''}> Veröffentlicht – in der Mitglieder-App sichtbar</label></div>
       ${p ? '' : '<p class="muted s" style="margin:10px 0 0">Schichten mit Uhrzeit und Aufgabe (Theke, Küche, Kasse …) legst du nach dem Speichern je Tag an – auch mehrere zur selben Zeit.</p>'}
       ${p ? '<div class="row" style="margin-top:18px"><button class="btn danger" id="pDel">Dienstplan löschen …</button></div>' : ''}
@@ -395,12 +396,12 @@
     const p = d.plan, days = []; for (let x = p.from_date; x <= p.to_date; x = addDays(x, 1)) days.push(x);
     const row = e => `<div class="aw-sh${e.cancelled ? ' off' : ''}">
         <div class="aw-when"><b>${esc(when(e))}</b></div>
-        <div style="min-width:0"><div class="aw-what"><b translate="no">${esc(e.title)}</b>${pill(fill(e))}${e.counts ? '' : ' ' + pill(['', 'zählt nicht'])}${e.hours.n ? ' ' + pill(['g', `${h(e.hours.min)} gutgeschrieben`]) : ''}</div>
+        <div style="min-width:0"><div class="aw-what"><b translate="no">${esc(e.title)}</b>${pill(fill(e))}${e.counts || noH() ? '' : ' ' + pill(['', 'zählt nicht'])}${e.hours.n && !noH() ? ' ' + pill(['g', `${h(e.hours.min)} gutgeschrieben`]) : ''}</div>
           ${e.note ? `<div class="muted s">${esc(e.note)}</div>` : ''}
           <div class="aw-people">${e.helpers.length ? e.helpers.map(x => `<span class="pill ${x.extern ? '' : 'g'}${x.ph ? ' aw-ph' : ''}" translate="no">${x.ph ? `<img src="api/admin/photo/${x.member_id}?v=${esc(x.ph)}" alt="" loading="lazy" decoding="async">` : ''}${esc(x.ln)}${x.extern ? ' · Gast' : ''}</span>`).join('') : '<span class="muted s">noch niemand</span>'}${e.slots && e.taken < e.slots ? Array.from({ length: Math.min(8, e.slots - e.taken) }, () => '<span class="pill aw-free">frei</span>').join('') : ''}</div></div>
-        <div class="acts">${e.date <= st.meta.today && e.counts && e.helpers.some(x => !x.extern) ? `<button class="btn small" data-sc="${e.id}">Stunden gutschreiben</button>` : ''}<button class="btn small" data-sh="${e.id}">Helfer</button><button class="btn small" data-se="${e.id}">Bearbeiten</button></div></div>`;
+        <div class="acts">${!noH() && e.date <= st.meta.today && e.counts && e.helpers.some(x => !x.extern) ? `<button class="btn small" data-sc="${e.id}">Stunden gutschreiben</button>` : ''}<button class="btn small" data-sh="${e.id}">Helfer</button><button class="btn small" data-se="${e.id}">Bearbeiten</button></div></div>`;
     el.innerHTML = `${p.note ? `<div class="card aw-note"><b>Infos für alle Helfer</b><div>${esc(p.note)}</div></div>` : ''}
-      <div class="aw-people" style="margin-bottom:12px">${p.published ? pill(['g', 'veröffentlicht']) : pill(['a', 'Entwurf – in der App noch nicht sichtbar'])}${p.counts ? pill(['b', 'zählt zu den Arbeitsstunden']) : pill(['', 'zählt nicht als Arbeitsstunden'])}${p.sales ? pill(['b', `im Verkauf: ${p.sales.name}`]) : ''}</div>
+      <div class="aw-people" style="margin-bottom:12px">${p.published ? pill(['g', 'veröffentlicht']) : pill(['a', 'Entwurf – in der App noch nicht sichtbar'])}${noH() ? '' : p.counts ? pill(['b', 'zählt zu den Arbeitsstunden']) : pill(['', 'zählt nicht als Arbeitsstunden'])}${p.sales ? pill(['b', `im Verkauf: ${p.sales.name}`]) : ''}</div>
       ${days.map(day => { const sh = d.shifts.filter(e => e.date === day);
         return `<div class="card"><div class="aw-dh"><h3>${esc(dayLong(day))}</h3><button class="btn small" data-add="${day}">+ Schicht</button></div>${sh.length ? sh.map(row).join('') : '<p class="empty">Noch keine Schicht – mit „+ Schicht“ Uhrzeit und Aufgabe anlegen.</p>'}</div>`; }).join('')}`;
     GK.tabTools(`<button class="btn" id="plEd">Bearbeiten</button><button class="btn" id="plPrint">Drucken</button><a class="btn" href="${BASE}plans/${p.id}/xlsx">Excel</a>${p.published ? '' : '<button class="btn primary" id="plPub">Veröffentlichen</button>'}`, el);
@@ -433,7 +434,7 @@
       <label class="f w2">Was<input id="shT" value="${esc(e ? e.title : '')}" placeholder="z. B. Theke, Sektbar, Kasse, Zeltaufbau" list="shTL"><datalist id="shTL">${['Theke', 'Sektbar', 'Kasse', 'Grill', 'Kuchentheke', 'Aufbau', 'Abbau', 'Zeltaufbau', 'Aufräumen', 'Einlass'].map(x => `<option value="${x}">`).join('')}</datalist></label>
       <label class="f w2">Helfer gesucht (leer = beliebig viele)<input id="shN" inputmode="numeric" value="${e && e.slots ? e.slots : ''}" placeholder="z. B. 8"></label>
       <label class="f wall">Infos zur Schicht<input id="shX" value="${esc(e ? e.note || '' : '')}" placeholder="z. B. Bitte ein paar Minuten vorher einfinden"></label>
-      <label class="chk w2"><input type="checkbox" id="shC" ${(e ? e.counts : p.counts) ? 'checked' : ''}> Zählt zu den Arbeitsstunden</label>
+      <label class="chk w2"${noH() ? ' style="display:none"' : ''}><input type="checkbox" id="shC" ${(e ? e.counts : p.counts) ? 'checked' : ''}> Zählt zu den Arbeitsstunden</label>
       ${e ? `<label class="chk w2"><input type="checkbox" id="shA" ${e.cancelled ? '' : 'checked'}> Aktiv (sonst ausgeblendet)</label>` : ''}</div>
       <p class="muted s" style="margin:10px 0 0">Ohne Ende erscheint „ab 16 Uhr“. Ein Ende vor dem Beginn gilt als nach Mitternacht (z. B. 23:30–02:00).</p>
       ${e ? '<div class="row" style="margin-top:18px"><button class="btn danger" id="shDel">Schicht löschen …</button></div>' : ''}
@@ -534,7 +535,10 @@
     const dateTxt = c.remind_date ? c.remind_date.split('-').reverse().join('.') : '';
     const foot = id => `<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="${id}">Speichern</button></div>`;
     head('Einstellungen', 'Soll, Abrechnung, Tablet und Erinnerungen der Dienste & Termine.');
-    $('main').insertAdjacentHTML('beforeend', `<div class="card" data-set="soll"><h3>Soll</h3><div class="aw-grid" style="--c:3">
+    $('main').insertAdjacentHTML('beforeend', `<div class="card" data-set="stunden"><h3>Arbeitsstunden</h3>
+        <label class="chk"><input type="checkbox" id="sHrs" ${c.hours ? 'checked' : ''}> Arbeitsstunden nutzen (Soll, Stundenmeldung, Abrechnung)</label>
+        <p class="muted s">Ohne Häkchen nutzt der Verein nur Dienste, Termine und Aufgaben: Soll, Stunden und Abrechnung verschwinden in Verwaltung, Mitglieder-App und Tablet, der Beitragslauf bekommt keinen Posten „Arbeitsstunden“. Bereits erfasste Stunden bleiben erhalten.</p>${foot('sSaveHrs')}</div>
+      <div class="card" data-set="soll"><h3>Soll</h3><div class="aw-grid" style="--c:3">
         <label class="f">Stunden je Mitglied und Jahr<input id="sDef" inputmode="decimal" value="${String(c.default_minutes / 60).replace('.', ',')}"></label>
         <label class="f">Ab Alter (0 = alle)<input id="sMin" inputmode="numeric" value="${c.min_age}"></label><label class="f">Bis Alter (0 = ohne Grenze)<input id="sMax" inputmode="numeric" value="${c.max_age}"></label></div>
         <div class="aw-grid" style="--c:3;margin-top:14px">   <!-- drei Spalten wie die Felder darüber: Häkchen fluchten mit ihnen (02.11.2026) -->
@@ -569,22 +573,32 @@
         <div id="icSt" class="muted s" style="margin-top:10px"></div>
         <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px"><button class="btn" id="icNow">Jetzt abrufen</button><button class="btn primary" id="icSave">Speichern</button></div></div>
       <div id="sFunc"></div>`);
+    if (!c.hours) {   // Arbeitsstunden aus: Karten zu Soll, Abrechnung, Tablet-Stempeln und Befreiung sowie die Erinnerung an fehlende Stunden entfallen
+      for (const k of ['soll', 'abrechnung', 'tablet', 'befreit']) { const k2 = $('main').querySelector(`[data-set="${k}"]`); if (k2) k2.remove(); }
+      if ($('sRem')) $('sRem').closest('label').remove();
+      { const l = $('sEvR').closest('label'); l.classList.add('wall'); l.style.alignSelf = 'start'; }   // Häkchen allein in der Zeile, darunter Absagen und Kontakt nebeneinander
+    }
     GK.watch($('main'));
     // jede Karte schreibt nur ihre eigenen Felder; danach neu zeichnen
     const save = (btn, body) => { $(btn).onclick = () => GK.busy($(btn), async () => {
       try { await api('settings', 'PUT', body()); GK.clean(); toast('Gespeichert.'); renderEinstellungen().catch(fail); } catch (e) { fail(e); }
     }); };
+    $('sSaveHrs').onclick = () => GK.busy($('sSaveHrs'), async () => {   // Menü und Seiten ändern sich: nach dem Speichern neu laden
+      try { await api('settings', 'PUT', { hours: $('sHrs').checked }); GK.clean(); toast('Gespeichert.'); setTimeout(() => location.reload(), 500); } catch (e) { fail(e); }
+    });
+    if (c.hours) {
     save('sSaveSoll', () => ({ default_minutes: toMin(val('sDef')), min_age: +val('sMin') || 0, max_age: +val('sMax') || 0, pool_family: $('sPool').checked, exempt_passive: $('sPass').checked, prorate: $('sPro').checked }));
     save('sSaveAbr', () => ({ rate_cents: toCents(val('sRate') || '0'), year_mode: val('sYear'), start_year: +val('sStart') || undefined }));
     save('sSaveTab', () => ({ round: +val('sRound') || 1, tablet_auto: $('sTab').checked, app_report: $('sApp').checked }));
-    save('sSaveBen', () => { const rm = /^(\d{1,2})\.(\d{1,2})\.?$/.exec(val('sRem')); return { remind_date: rm ? `${rm[2].padStart(2, '0')}-${rm[1].padStart(2, '0')}` : '', remind_events: $('sEvR').checked, notify: val('sNot'), contact: val('sCon'), text: val('sText') }; });
+    }
+    save('sSaveBen', () => { const rm = c.hours ? /^(\d{1,2})\.(\d{1,2})\.?$/.exec(val('sRem')) : null; return { ...(c.hours ? { remind_date: rm ? `${rm[2].padStart(2, '0')}-${rm[1].padStart(2, '0')}` : '' } : {}), remind_events: $('sEvR').checked, notify: val('sNot'), contact: val('sCon'), text: val('sText') }; });
     const exLoad = async () => {
       const l = await api('exempt');
       $('exList').innerHTML = l.length ? `<table class="tbl kompakt">${l.map(x => `<tr><td class="k-1z"><b>${esc(GK.lastFirst(x.name))}</b></td><td>${esc(x.note || '')}</td><td class="nw">${x.until_date ? 'bis ' + deDate(x.until_date) : 'dauerhaft'}</td><td class="r"><button class="btn small" data-exd="${x.member_id}">Aufheben</button></td></tr>`).join('')}</table>` : '<p class="empty">Niemand befreit – oben ein Mitglied wählen und „Befreien“.</p>';
       $('exList').querySelectorAll('[data-exd]').forEach(b => { b.onclick = async () => { try { await api('exempt/' + b.dataset.exd, 'DELETE'); toast('Befreiung aufgehoben.'); exLoad(); } catch (e) { fail(e); } }; });
     };
-    $('exAdd').onclick = async () => { try { await api('exempt', 'PUT', { member_id: +val('exM'), note: val('exN'), until: val('exU') }); $('exM').value = ''; $('exN').value = ''; $('exU').value = ''; toast('Befreit.'); exLoad(); } catch (e) { fail(e); } };
-    exLoad().catch(fail);
+    if (c.hours) $('exAdd').onclick = async () => { try { await api('exempt', 'PUT', { member_id: +val('exM'), note: val('exN'), until: val('exU') }); $('exM').value = ''; $('exN').value = ''; $('exU').value = ''; toast('Befreit.'); exLoad(); } catch (e) { fail(e); } };
+    if (c.hours) exLoad().catch(fail);
     // Kalender der Homepage: Stand (zuletzt abgerufen, Zahl der Termine, Fehler) und die nächsten Termine
     const icShow = s => {
       $('icNow').disabled = !s.url || s.sample;
@@ -621,10 +635,11 @@
     { label: 'Dienstplan in den Verkauf übernehmen', page: 'aw-plaene', kind: 'aktion', words: 'Veranstaltung Verkauf Getränke' },
     { label: 'Pflichtstunden einzelner Mitglieder', page: 'arbeitseinsatz', btn: 'Pflichtstunden', kind: 'aktion', words: 'Soll befreien Ausnahme Arbeitsstunden' },
     { label: 'Arbeitsstunden als Excel', page: 'arbeitseinsatz', btn: 'Excel', kind: 'aktion', words: 'Export Liste' },
-    { label: 'Soll der Arbeitsstunden', page: 'aw-einstellungen', card: 'Soll', words: 'Stunden je Mitglied Alter Familien gemeinsam Passive Ehrenmitglieder anteilig Eintritt Austritt' },
-    { label: 'Abrechnung der Arbeitsstunden', page: 'aw-einstellungen', card: 'Abrechnung', words: 'Stundensatz fehlende Stunden Abrechnungsjahr Beitragsjahr Beitragslauf' },
-    { label: 'Stunden am Tablet und in der App', page: 'aw-einstellungen', card: 'Tablet & App', words: 'runden Minuten sofort bestätigt melden Stempeln' },
-    { label: 'Befreite Mitglieder (Dienste & Termine)', page: 'aw-einstellungen', card: 'Befreite Mitglieder', words: 'befreien Ausnahme Vorstand' },
+    { label: 'Arbeitsstunden nutzen oder abschalten', page: 'aw-einstellungen', card: 'Arbeitsstunden', words: 'Stunden ausschalten Soll Abrechnung nur Dienste und Termine' },
+    { label: 'Soll der Arbeitsstunden', page: 'aw-einstellungen', card: 'Soll', feature: 'aw-stunden', words: 'Stunden je Mitglied Alter Familien gemeinsam Passive Ehrenmitglieder anteilig Eintritt Austritt' },
+    { label: 'Abrechnung der Arbeitsstunden', page: 'aw-einstellungen', card: 'Abrechnung', feature: 'aw-stunden', words: 'Stundensatz fehlende Stunden Abrechnungsjahr Beitragsjahr Beitragslauf' },
+    { label: 'Stunden am Tablet und in der App', page: 'aw-einstellungen', card: 'Tablet & App', feature: 'aw-stunden', words: 'runden Minuten sofort bestätigt melden Stempeln' },
+    { label: 'Befreite Mitglieder (Dienste & Termine)', page: 'aw-einstellungen', card: 'Befreite Mitglieder', feature: 'aw-stunden', words: 'befreien Ausnahme Vorstand' },
     { label: 'Erinnerungen und Absagen der Dienste & Termine', page: 'aw-einstellungen', card: 'Benachrichtigungen & Kontakt', words: 'Erinnerung E-Mail Vortag Absagen Kontakt Hinweis fehlende Stunden' },
     { label: 'Kalender der Homepage (Abo-Link)', page: 'aw-einstellungen', card: 'Kalender der Homepage', words: 'webcal iCal ics Abo Homepage Kalender Termine Vereinskalender' },
     { label: 'Einstellungen der Dienste & Termine übertragen', page: 'aw-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },

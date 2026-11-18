@@ -384,8 +384,10 @@
     const r = await api('extensions');
     cache.extLinks = r.links || [];
     cache.modules = r.modules || [];
+    cache.nurAnschreiben = Boolean(r.nurAnschreiben);
     cache.appModules = r.appModules || [];
     cache.navLayout = r.navLayout || null;
+    cache.hidden = new Set(r.hidden || []);
     const url = (x, f) => `x/${x.id}/${f}?v=${encodeURIComponent(x.version)}`;
     // alle Skripte gleichzeitig anfordern (vorher eins nach dem anderen: am Handy ein Netz-Umlauf je Modul, Lighthouse 10.11.2026) –
     // ausgeführt werden sie unten weiter der Reihe nach, damit registerPage jedes Skript seinem Modul zuordnet
@@ -573,7 +575,8 @@
   const canFull = p => can(p) && !((me && me.deptOnly) || []).includes(p);
   const can1 = p => (String(p).startsWith('!') ? canFull(String(p).slice(1)) : can(p));
   const canAny = r => !r || (Array.isArray(r) ? r.some(can1) : can1(r));
-  const allowed = p => { const x = PAGES.find(y => y[0] === p); return x && canAny(x[2]); };
+  const hid = k => Boolean(cache.hidden && cache.hidden.has(k));   // vom Modul ausgeblendet (Hook adminHidden)
+  const allowed = p => { const x = PAGES.find(y => y[0] === p); return x && canAny(x[2]) && !hid(x[0]); };
   let page = location.hash.slice(1) || 'uebersicht';
   let cache = { articles: [], members: [], settings: {} };
 
@@ -622,7 +625,7 @@
   const TAB_LABEL = { lieferungen: 'Lieferungen', bestand: 'Bestand', abrechnung: 'Abrechnung', veranstaltungen: 'Veranstaltungen & Deckel', konten: 'Mitglieder' };
   /* alte Adressen (Lesezeichen, Suche, Hinweise) führen an den neuen Ort */
   const OLD_PAGE = { deckel: 'veranstaltungen', abgleich: 'bestand' };
-  const GPAGES = g => PAGES.filter(x => x[3] === g && canAny(x[2]));
+  const GPAGES = g => PAGES.filter(x => x[3] === g && canAny(x[2]) && !hid(x[0]));
   const DRINKS = () => [...GPAGES('getraenke'), ...GPAGES('lager')];   // alle Seiten des Moduls Verkauf (auch „Lager“)
   const groupOf = p => { const x = PAGES.find(y => y[0] === p); return x && MODG[x[3]] ? x[3] : null; };
   const GROUP_LABEL = new Proxy({ module: 'Module', verein: 'Verein', konto: 'Mein Konto' }, { get: (o, k) => (MODG[k] ? MODG[k].label : o[k]) });
@@ -636,7 +639,7 @@
   function navItems() {
     return [
       ...Object.entries(MODG).filter(([g]) => GPAGES(g).length).map(([g, m]) => ({ k: g, order: m.order || 50, p: '__' + g, label: m.label, ic: m.icon || 'modul', badge: g })),
-      ...PAGES.filter(x => x[3] === 'module' && canAny(x[2])).map(([k, l]) => ({ k, order: PAGE_ORDER[k] || 50, p: k, label: l, ic: PAGE_ICON[k] || 'modul', badge: k })),
+      ...PAGES.filter(x => x[3] === 'module' && canAny(x[2]) && !hid(x[0])).map(([k, l]) => ({ k, order: PAGE_ORDER[k] || 50, p: k, label: l, ic: PAGE_ICON[k] || 'modul', badge: k })),
       ...PAGES.filter(x => x[3] === 'verein' && canAny(x[2]) && (x[0] !== 'app' || (cache.appModules || []).length))
         .map(([k, l], i) => ({ k, order: 100 + i, p: k, label: TAB_LABEL[k] && k === 'konten' ? TAB_LABEL.konten : l, ic: PAGE_ICON[k] || 'modul', badge: k === 'konten' ? k : '' })),
     ];
@@ -748,9 +751,9 @@
   function searchIndex() {
     const pathOf = (k, extra) => { const pg = PAGES.find(x => x[0] === k); if (!pg) return []; const g = groupOf(k);
       return [g ? MODG[g].label : pg[3] === 'module' ? pg[1] : GROUP_LABEL[pg[3]] || '', g ? TAB_LABEL[k] || pg[1] : pg[3] === 'module' ? '' : pg[1], extra || ''].filter(Boolean); };
-    const pages = PAGES.filter(x => canAny(x[2]) && RENDER[x[0]] && (x[0] !== 'app' || (cache.appModules || []).length))
+    const pages = PAGES.filter(x => canAny(x[2]) && !hid(x[0]) && RENDER[x[0]] && (x[0] !== 'app' || (cache.appModules || []).length))
       .map(([k, l, , g]) => ({ label: groupOf(k) ? TAB_LABEL[k] || l : l, page: k, kind: groupOf(k) ? 'reiter' : 'seite', words: groupOf(k) ? `${l} ${MODG[g].label}` : '', path: pathOf(k).slice(0, -1) }));
-    const reg = SEARCH.filter(e => allowed(e.page) && canAny(e.perm)).map(e => ({ ...e, path: pathOf(e.page, e.in) }));
+    const reg = SEARCH.filter(e => allowed(e.page) && !hid(e.feature) && canAny(e.perm)).map(e => ({ ...e, path: pathOf(e.page, e.in) }));
     return [...pages, ...reg].map(e => {
       const lab = snorm(e.label + ' ' + T(e.label)), words = snorm([e.words, e.words ? T(e.words) : ''].join(' ')), path = snorm(e.path.map(x => x + ' ' + T(x)).join(' ') + ' ' + (berLabel(bereichOf(navKey(e.page))) || ''));
       return { ...e, _l: lab, _lw: lab.split(' '), _lc: lab.replace(/ /g, ''), _w: words, _p: path };
@@ -1311,6 +1314,7 @@
     { label: 'Artikel als Excel herunterladen', page: 'artikel', btn: 'Excel', words: 'Export Artikel Preise', kind: 'aktion' },
     { label: 'Reihenfolge der Kategorien', page: 'vkeinst', card: 'Reihenfolge der Kategorien', words: 'Kategorie Sortierung Artikel Tablet', perm: 'artikel', in: 'Grundregeln' },
     { label: 'Gemerkte Zuordnungen von Lieferanten-Artikeln', page: 'vkeinst', card: 'Gemerkte Zuordnungen', words: 'Lieferant Artikel Lieferung Beleg vergessen', perm: 'lieferungen', in: 'Grundregeln' },
+    { label: 'Kassenpflicht und „Nur anschreiben“ (ohne Bar- und Kartenwege)', page: 'vkeinst', card: 'Kassenpflicht und „Nur anschreiben“', field: 'nurAn', words: 'Kasse TSE Kassenpflicht Bar Karte anschreiben Verkauf Tablet', perm: 'einstellungen', in: 'Tablet' },
     { label: 'Startseite am Tablet („Gerade oft hier“)', page: 'vkeinst', card: 'Gerade oft hier', field: 'topN', words: 'Verkauf Startseite Namen Tablet häufig', perm: 'einstellungen', in: 'Tablet' },
     { label: 'Einstellungen des Verkaufs exportieren oder importieren', page: 'vkeinst', card: 'Einstellungen übertragen', words: 'Export Import Einstellungen übertragen Verkauf', perm: 'einstellungen', kind: 'aktion', in: 'Einstellungen übertragen' },
     { label: 'Abgleich Lieferungen und Buchungen', page: 'bestand', card: 'Abgleich', words: 'Schwund geliefert gebucht offen Inventur Differenz', in: 'Lager' },
@@ -2180,7 +2184,7 @@
         ${r.open.length ? `<table class="tbl kompakt"><tr><th>Deckel</th><th>Angeschrieben</th><th>geöffnet</th><th class="r">offen</th><th></th></tr>
         ${r.open.map(t => `<tr><td><b>${esc(t.name)}</b>${age(t) >= 1 ? ` <span class="pill r">seit ${age(t)} ${age(t) === 1 ? 'Tag' : 'Tagen'}</span>` : ''}</td>
           <td class="k-weg muted s">${items(t) || 'noch nichts angeschrieben'}</td><td>${deTime(t.created_at)}</td><td class="r"><b>${euro(t.open_cents)}</b></td>
-          <td class="r">${mayPay || mayClose ? `<button class="btn small" data-tx="${t.id}">Abrechnen …</button>` : ''}</td></tr>`).join('')}</table>`
+          <td class="r">${(mayPay && !r.nurAnschreiben) || mayClose ? `<button class="btn small" data-tx="${t.id}">Abrechnen …</button>` : ''}</td></tr>`).join('')}</table>`
           : '<p class="empty">Keine offenen Deckel.</p>'}</div>
       <div class="card mt16"><h3>Geschlossen (letzte ${r.days} Tage)</h3>
         ${r.closed.length ? `<table class="tbl kompakt"><tr><th>Deckel</th><th>Angeschrieben</th><th>geschlossen</th><th>Status</th><th class="r">Betrag</th><th>von</th><th></th></tr>
@@ -2195,7 +2199,7 @@
       const t = find(b.dataset.tx);
       dialog(`<h2>Deckel „${esc(t.name)}“ abrechnen</h2>
         <p class="muted">${euro(t.open_cents)} offen${items(t) ? ` – ${items(t)}` : ''}.</p>
-        <div class="btns" style="justify-content:flex-start">${mayPay ? '<button class="btn" data-m="bar">Bar bezahlt</button><button class="btn" data-m="karte">Karte bezahlt</button>' : ''}${mayClose ? '<button class="btn" id="txT">Auf ein Konto übernehmen …</button>' : ''}</div>
+        <div class="btns" style="justify-content:flex-start">${mayPay && !r.nurAnschreiben ? '<button class="btn" data-m="bar">Bar bezahlt</button><button class="btn" data-m="karte">Karte bezahlt</button>' : ''}${mayClose ? '<button class="btn" id="txT">Auf ein Konto übernehmen …</button>' : ''}</div>
         ${mayClose ? '<div class="dz"><button class="btn ghost danger" id="txW">Abschreiben …</button></div>' : ''}
         <div class="btns"><button class="btn ghost" id="c">Schließen</button></div>`);
       $('c').onclick = closeDialog;
@@ -2358,7 +2362,7 @@
     $('main').querySelectorAll('[data-gx]').forEach(b => b.onclick = () => {
       const ev = list.find(x => x.id === Number(b.dataset.ev)); const g = ev.guests.find(x => x.id === Number(b.dataset.gx));
       dialog(`<h2>„${esc(g.name)}“ abrechnen</h2><p class="muted">${euro(g.open_cents)} offen bei „${esc(ev.name)}“.</p>
-        <div class="btns" style="justify-content:flex-start">${canEv ? `<button class="btn" data-pay="bar" data-ev="${ev.id}" data-g="${g.id}">Bar bezahlt</button><button class="btn" data-pay="karte" data-ev="${ev.id}" data-g="${g.id}">Karte bezahlt</button>` : ''}
+        <div class="btns" style="justify-content:flex-start">${canEv && !cache.nurAnschreiben ? `<button class="btn" data-pay="bar" data-ev="${ev.id}" data-g="${g.id}">Bar bezahlt</button><button class="btn" data-pay="karte" data-ev="${ev.id}" data-g="${g.id}">Karte bezahlt</button>` : ''}
           ${!g.member_id ? `<button class="btn" data-link="${g.id}" data-ev="${ev.id}">Mitglied zuordnen …</button>` : ''}</div>
         <div class="btns"><button class="btn ghost" id="c">Schließen</button></div>`);
       $('c').onclick = closeDialog;
@@ -2603,6 +2607,11 @@
           <label class="f fx1-200">Zeitraum (Tage)<input id="topDays" class="n" value="${st.topDays}" inputmode="numeric"></label></div>
         <p class="muted s">Oben auf der Startseite stehen die Mitglieder mit den meisten Buchungen im Zeitraum – alphabetisch, damit niemand eine Rangliste sieht. Tablets übernehmen die Änderung innerhalb einer Minute.</p>
         <div class="btns"><button class="btn primary" id="saveTop">Speichern</button></div></div>` : ''}
+      ${mayTop ? `<div class="card" id="vkKasse"><h3>Kassenpflicht und „Nur anschreiben“</h3>
+        <div class="banner a" style="display:block;text-align:left">Wer Bar- oder Kartenzahlungen elektronisch erfasst, betreibt nach heutigem Stand sehr wahrscheinlich ein Kassensystem im Sinne von § 146a AO. Dafür sind eine zertifizierte technische Sicherheitseinrichtung (TSE), Belege und eine Meldung beim Finanzamt nötig – Clubwerk bringt keine TSE mit. Wer das nicht möchte, schaltet „Nur anschreiben“ ein und kassiert bar über eine offene Ladenkasse. Bitte mit dem Steuerberater klären, was für euren Verein gilt; das ist keine Rechtsberatung.</div>
+        <label class="chk" style="margin-top:12px"><input type="checkbox" id="nurAn" ${st.nurAnschreiben ? 'checked' : ''}> Nur anschreiben (ohne Bar- und Kartenwege)</label>
+        <p class="muted s">Eingeschaltet gibt es am Tablet keinen Barverkauf, keine Gast-Zahlung, keine Bar- oder Kartenzahlung für Deckel und Veranstaltungslisten – auch die Verwaltung lehnt sie ab. Angeschriebenes wird weiter über die Konten abgerechnet. Standard: aus.</p>
+        <div class="btns"><button class="btn primary" id="saveKasse">Speichern</button></div></div>` : ''}
       ${mayTop ? '<div id="vkFunc"></div>' : ''}`;
     if (mayCat) {
       const el = $('vkCat'); let list = cats.map(c => ({ name: c.category, n: c.n, act: c.act }));
@@ -2637,6 +2646,9 @@
       $('saveTop').onclick = async () => {
         try { await api('settings', 'PUT', { topN: $('topN').value, topDays: $('topDays').value }); toast('Gespeichert.'); } catch (e) { fail(e); }
       };
+      $('saveKasse').onclick = () => busy($('saveKasse'), async () => {
+        try { await api('settings', 'PUT', { nurAnschreiben: $('nurAn').checked }); cache.nurAnschreiben = $('nurAn').checked; toast('Gespeichert – Tablets übernehmen die Änderung innerhalb einer Minute.'); } catch (e) { fail(e); }
+      });
       funcBox($('vkFunc'), 'getraenke', 'Verkauf', () => RENDER.vkeinst().catch(fail));
     }
   };

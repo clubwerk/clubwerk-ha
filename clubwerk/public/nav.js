@@ -154,14 +154,23 @@
   }
   window.addEventListener('resize', () => { clearTimeout(fit.t); fit.t = setTimeout(fit, 120); });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  let firstNav = null;   // Antwort der ersten Abfrage – null, solange sie nicht lesbar war (gesperrt, kein Netz)
+  const navDone = new Promise(res => { firstNav = res; });
   function load() {
-    fetch(base + 'api/tablet/nav').then(r => (r.ok ? r.json() : { items: [] })).then(d => { keep.set('cw_nav', { items: d.items || [], start: d.start }); render(d.items || [], d.start); }).catch(() => {});
+    fetch(base + 'api/tablet/nav').then(r => (r.ok ? r.json() : null)).then(d => {
+      firstNav(d && d.items ? d.items : null);
+      const x = d || { items: [] };
+      keep.set('cw_nav', { items: x.items || [], start: x.start }); render(x.items || [], x.start);
+    }).catch(() => { firstNav(null); });
   }
+  /* Ist diese Erweiterung am Tablet eingeschaltet? Tablet-Seiten fragen ihre Schnittstelle nur dann ab – sonst antwortet sie 404 (Fehlermeldung in der
+     Konsole). Ist die Leiste nicht lesbar, gilt „ja“ (die Seite meldet dann selbst, was nicht geht). */
+  const imTablet = id => { const l = keep.get('cw_nav'); return l && (l.items || []).some(x => x.id === id) ? Promise.resolve(true) : navDone.then(items => !items || items.some(x => x.id === id)); };
   { const last = keep.get('cw_nav'); render((last && last.items) || [], last && last.start); }
   load();
   setInterval(load, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
-  window.GKNav = { reload: load };
+  window.GKNav = { reload: load, imTablet };
   // Sperrbildschirm weg (Tablet-Passwort eingegeben): die Leiste war vorher nicht abrufbar – jetzt sofort nachladen
   /* Letzter Datenstand einer Tablet-Seite im Tab (sessionStorage endet mit dem Tab): Beim Zurückkehren von einem anderen Reiter steht die Seite sofort
      mit Inhalt da, danach kommen die frischen Daten (Seiten der Module: Plätze, Licht, Stempeln, Dienste; die Startseite hat eigenen Speicher).

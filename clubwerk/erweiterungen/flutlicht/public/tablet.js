@@ -65,7 +65,11 @@
     else toast(pending.action === 'off' ? (d.still ? `Bleibt an bis ${d.still.slice(11, 16)} Uhr – noch gebucht.` : 'Ausgeschaltet') : `An bis ${d.until.slice(11, 16)} Uhr`);
     setTimeout(refresh, 800);
   };
-  fetch(API + 'members').then(r => r.json()).then(j => { members = j.members || []; }).catch(() => {});
-  { const last = GKMerk.holen('flutlicht'); if (last && last.lights) { v = last; zeige(); } }   // letzter Stand sofort, danach frisch (nav.js, GKMerk)
-  refresh();
+  // nur abfragen, wenn das Licht am Tablet eingeschaltet ist (sonst antwortet die Schnittstelle 404)
+  (window.GKNav ? GKNav.imTablet('flutlicht') : Promise.resolve(true)).then(an => {
+    if (!an) { $('dot').className = 'vh-dot err'; $('st').textContent = 'Am Tablet nicht eingeschaltet'; return; }
+    fetch(API + 'members').then(r => r.json()).then(j => { members = j.members || []; }).catch(() => {});
+    { const last = GKMerk.holen('flutlicht'); if (last && last.lights) { v = last; zeige(); } }   // letzter Stand sofort, danach frisch (nav.js, GKMerk)
+    refresh();
+  });
 })();

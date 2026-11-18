@@ -417,10 +417,10 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   const VERSION = require('../package.json').version;
   const versioned = req => typeof req.query.v === 'string' && req.query.v.split('-')[0] === VERSION && !req.query.vorschau;
   const IMMUTABLE = 'public, max-age=31536000, immutable';
-  const relay = (p, t) => async (req, res) => {
+  const relay = (p, t, leer = false) => async (req, res) => {
     try {
       const r = await fetch(`${INTERNAL()}${p}`, { signal: AbortSignal.timeout(5000) });
-      if (!r.ok) return res.status(404).end();
+      if (!r.ok) return res.status(leer && r.status === 404 ? 204 : 404).end();   // leer: „gibt es nicht“ ohne Fehlermeldung in der Browser-Konsole (Vereinslogo)
       const ct = r.headers.get('content-type') || t;
       if (/^image\//.test(ct)) res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:");   // Bilder (auch SVG-Logo) nie als Seite mit Skripten
       res.set({ 'Content-Type': ct, 'Cache-Control': /\.(woff2|png)$/.test(p) ? 'public, max-age=604800' : versioned(req) ? IMMUTABLE : 'no-cache' }).send(Buffer.from(await r.arrayBuffer()));   // Schriften/Icons eine Woche, Rest per ETag
@@ -430,7 +430,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   app.get('/theme.css', (req, res) => relay('/theme.css' + themePreview(req), 'text/css')(req, res));
   // Sprache: direkt aus dem gemeinsamen Zwischenspeicher (gleicher Prozess) – nicht per HTTP über den Hauptserver: unter Last gab das Relais nach 5 s auf, die App blieb deutsch
   app.get('/i18n.js', (req, res) => require('./i18n').sendPage(req, res));
-  app.get('/logo', relay('/vereinslogo', 'image/png'));
+  app.get('/logo', relay('/vereinslogo', 'image/png', true));
   app.get('/icon.png', relay('/vereinsicon.png', 'image/png'));
   app.get('/icon-maskable.png', relay('/vereinsicon-maskable.png', 'image/png'));
   app.get('/manifest.json', (req, res) => {
@@ -1160,7 +1160,7 @@ function adminSammelfreigabe({ admin, bad, grantOne, ownPwOk }) {
     res.json({ ok: true, removed: back, kept });
   });
   /** Hinweis „Neuer Bereich: für wen freigeben?“ (Übersicht) */
-  admin.get('/app/new-areas', bulkGuard, (req, res) => res.json(newAreas(req)));
+  admin.get('/app/new-areas', (req, res) => bulkModules(req).length ? res.json(newAreas(req)) : req.user.perms.length ? res.json([]) : bad(res, 'Dafür fehlt dir die Berechtigung.', 403));   // ohne Sammel-Freigaben: leere Liste statt 403 (die Übersicht fragt immer), ganz ohne Rechte weiter 403
   admin.post('/app/new-areas/seen', bulkGuard, (req, res) => {
     const id = String((req.body || {}).module || '');
     if (!bulkModules(req).some(([x]) => x === id)) return bad(res, 'Unbekannter Bereich.');

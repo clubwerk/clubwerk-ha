@@ -17,7 +17,7 @@ const { buildWorkbook } = require('./export');
 const i18n = require('./i18n');
 module.exports = function verkaufRouten(h) {
   const {
-    addGuest, admin, asyncRoute, bad, cleanName, closeTab, CUT, defaultRange, eventOpenAll, guestOpen, int, isTs, maxBookingId, need, OPEN_GUEST,
+    addGuest, admin, asyncRoute, bad, cleanName, closeTab, CUT, defaultRange, eventOpenAll, guestOpen, int, isTs, maxBookingId, need, nurAnschreiben, NUR_ANSCHREIBEN_MSG, OPEN_GUEST,
     OPEN_KONTO, orderSettings, topDays, topN
   } = h;
   /* ---------- Artikel ---------- */
@@ -906,7 +906,7 @@ module.exports = function verkaufRouten(h) {
     const closed = tabRows("t.status <> 'offen' AND date(t.closed_at) >= date('now','localtime', ?) ORDER BY t.closed_at DESC", `-${days} days`);
     const today = db.prepare(`SELECT method, COALESCE(SUM(cents),0) c, COUNT(*) n FROM guest_tabs
     WHERE status = 'bezahlt' AND date(closed_at) = date('now','localtime') GROUP BY method`).all();
-    res.json({ open, closed, days, today: Object.fromEntries(today.map(r => [r.method, r])) });
+    res.json({ open, closed, days, nurAnschreiben: nurAnschreiben(), today: Object.fromEntries(today.map(r => [r.method, r])) });
   });
   const getTab = id => db.prepare('SELECT * FROM guest_tabs WHERE id = ?').get(int(id));
   admin.post('/tabs/:id/pay', need('veranstaltungen', 'uebernahme'), (req, res) => {
@@ -914,6 +914,7 @@ module.exports = function verkaufRouten(h) {
     if (!t || t.status !== 'offen') return bad(res, 'Der Deckel ist nicht mehr offen.');
     const method = (req.body || {}).method;
     if (!['bar', 'karte'].includes(method)) return bad(res, 'Bitte bar oder Karte wählen.');
+    if (nurAnschreiben()) return bad(res, NUR_ANSCHREIBEN_MSG, 403);
     res.json({ ok: true, cents: closeTab(t, { status: 'bezahlt', method, by: req.user.username }) });
   });
   admin.post('/tabs/:id/transfer', need('uebernahme'), (req, res) => {
@@ -1137,6 +1138,7 @@ module.exports = function verkaufRouten(h) {
     if (!g) return bad(res, 'Nicht gefunden.', 404);
     const method = (req.body || {}).method;
     if (!['bar', 'karte'].includes(method)) return bad(res, 'Bitte bar oder Karte wählen.');
+    if (nurAnschreiben()) return bad(res, NUR_ANSCHREIBEN_MSG, 403);
     let cents = 0;
     db.transaction(() => {
       cents = guestOpen(g.id);

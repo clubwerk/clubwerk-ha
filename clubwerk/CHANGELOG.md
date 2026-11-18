@@ -1,5 +1,18 @@
 # Änderungen
 
+## 2026.11.51
+
+### Neu
+- Einstellung „Nur anschreiben (ohne Bar- und Kartenwege)“ (Verkauf › Einstellungen). Eingeschaltet gibt es am Tablet keinen Barverkauf, keine Gast-Zahlung und kein Bezahlen von Deckeln oder Veranstaltungslisten mit Bargeld oder Karte; auch die Verwaltung lehnt diese Wege ab. Standard: aus, bestehende Installationen verhalten sich wie bisher. Das Umschalten steht im Protokoll.
+- Hinweis zur Kassenpflicht (§ 146a AO, mit dem Steuerberater klären) in Einstellungen › Verkauf, im Einrichtungs-Assistenten (neuer Schritt „Kassenpflicht“) und in der Anleitung Verkauf.
+- Dienste & Termine: Der Schalter „Arbeitsstunden nutzen“ (Einstellungen, oberste Karte, Standard: an) lässt Vereine, die nur Dienste, Termine und Aufgaben brauchen, alles zu Stunden abschalten. Dann entfallen Soll, Stunden und Abrechnung in Verwaltung, Mitglieder-App („Meine Stunden“, „Stunden melden“, „Für mich“) und am Tablet; der Beitragslauf bekommt keinen Posten „Arbeitsstunden“ und es gibt keine Erinnerung an fehlende Stunden. Erfasste Stunden bleiben erhalten; das Umschalten steht im Protokoll.
+
+### Verbessert
+- Mitglieder-App: Bereiche, die nur im Vereins-WLAN gehen, zeigen statt der technischen Adresse und Fehlermeldung nur noch, ob das Vereins-WLAN gerade erreichbar ist.
+- Tablet-Seiten von Zugang, Beregnung und Flutlicht fragen ihre Schnittstelle nur ab, wenn sie am Tablet eingeschaltet sind; Verwaltung und Mitglieder-App erzeugen keine überflüssigen Fehlermeldungen mehr (Sammel-Freigaben, Vereinslogo).
+- Mitglieder-App: „Mehr“ ist kürzer. Es zeigt nur noch die übrigen Bereiche, „App installieren“ und eine Zeile „Mein Konto ›“ mit Profilbild und Name. Profilbild, Benachrichtigungen, Sprache, Darstellung, Kalender, PIN, Abmelden und Version stehen im Blatt „Mein Konto“; das Profil-Symbol oben öffnet es direkt, „Zurück“ führt zu „Mehr“.
+- Mitglieder-App: Die Installationskarte in „Für mich“ nennt ihren Knopf jetzt „In 14 Tagen erinnern“ und weist darauf hin, dass sich die App jederzeit unter Mehr › App installieren installieren lässt. Dieser Eintrag erscheint unter „Mehr“, solange die App nicht installiert ist, und zeigt dieselbe Anleitung (auch auf iPhone und iPad), unabhängig davon, ob die Karte gerade ausgeblendet ist.
+
 ## 2026.11.50
 
 ### Neu

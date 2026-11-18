@@ -263,6 +263,14 @@ Clubwerk remembers which item on the receipt belongs to which item on the tablet
 
 At the top of the tablet’s start page are the members with the most bookings in the period. You set **how many names** (0 hides this) and **for what period in days**. The names are in alphabetical order so nobody sees a ranking, and without a visit count. Tablets pick up the change within a minute. Permission: “Settings”.
 
+#### Cash register duty and “Charge to account only”
+
+![Card “Cash register duty and Charge to account only”.](bild: seite=vkeinst; ziel=#vkKasse)
+
+Anyone who records cash or card payments electronically is, as things stand, very likely operating a cash register system within the meaning of section 146a of the German Fiscal Code. That calls for a certified technical security system (TSE), receipts and a notification to the tax office; Clubwerk does not include a TSE. This is not legal advice: **please check with your tax adviser what applies to your club.**
+
+If you do not want to operate a cash register, switch on **Charge to account only (no cash or card payments)**. The tablet then has no cash sale without a name, no “Guest · pay cash” and no paying of tabs or event lists in cash or by card; those buttons are hidden. The tablet interface and the administration also refuse these routes. Anything charged is settled through the accounts as before, and tabs can be transferred to an account or written off. Cash is then handled through an open till with a cash report outside Clubwerk. The setting is **off by default**, so existing installations behave as before. Every change is recorded in the log. Permission: “Settings”.
+
 #### Transfer settings
 
 ![Card “Transfer settings”.](bild: seite=vkeinst; ziel=#vkFunc)
@@ -400,6 +408,8 @@ Sales runs on the tablet in the clubhouse, not in the member app. In the app mem
 ![The start page of Sales at the tablet.](bild: tablet=start)
 
 At the top are the members who have been here often lately (“Frequently here”, in alphabetical order). Below that you find all members from A to Z, with a search field and letter bar. At the very bottom are teams, **Club · free of charge**, **Guest · pay cash** and **Guest tabs**. Anyone new taps **I’m new** and enters their name; the board confirms it later.
+
+> Tip: If **Charge to account only** is switched on (Sales › Settings › Cash register duty), “Guest · pay cash”, the cash sale without a name and all buttons for paying in cash or by card are missing.
 
 1. **Tap your name.** The tablet then asks for the PIN. If you do not have one yet, you set one the first time (4 to 6 digits, entered twice; easy-to-guess ones like 1234 are refused). “Later” is possible, and booking carries on.
 2. **Tap items.** Each tap is one piece, and the number is shown on the tile. On the right is the basket with **+** and **−**; “Clear selection” starts again.

@@ -263,6 +263,14 @@ Clubwerk merkt sich, welcher Artikel auf dem Beleg zu welchem Artikel am Tablet 
 
 Oben auf der Startseite des Tablets stehen die Mitglieder mit den meisten Buchungen im Zeitraum. Du stellst ein, **wie viele Namen** (0 blendet das aus) und für **welchen Zeitraum in Tagen**. Die Namen stehen alphabetisch, damit niemand eine Rangliste sieht, und ohne Besuchszahl. Tablets übernehmen die Änderung innerhalb einer Minute. Recht: „Einstellungen“.
 
+#### Kassenpflicht und „Nur anschreiben“
+
+![Karte „Kassenpflicht und Nur anschreiben“.](bild: seite=vkeinst; ziel=#vkKasse)
+
+Wer Bar- oder Kartenzahlungen elektronisch erfasst, betreibt nach heutigem Stand sehr wahrscheinlich ein Kassensystem im Sinne von § 146a der Abgabenordnung. Dafür sind eine zertifizierte technische Sicherheitseinrichtung (TSE), Belege und eine Meldung beim Finanzamt nötig; Clubwerk bringt keine TSE mit. Das ist keine Rechtsberatung: **Klärt mit eurem Steuerberater, was für euren Verein gilt.**
+
+Wer keine Kasse betreiben will, schaltet **Nur anschreiben (ohne Bar- und Kartenwege)** ein. Dann gibt es am Tablet keinen Barverkauf ohne Namen, kein „Gast · bar zahlen“ und kein Bezahlen von Deckeln oder Veranstaltungslisten mit Bargeld oder Karte; die Knöpfe sind ausgeblendet. Auch Tablet-Schnittstelle und Verwaltung lehnen diese Wege ab. Angeschriebenes rechnet ihr wie bisher über die Konten ab, Deckel lassen sich auf ein Konto übernehmen oder abschreiben. Bargeld läuft dann über eine offene Ladenkasse mit Kassenbericht außerhalb von Clubwerk. Die Einstellung ist **standardmäßig aus**, bestehende Installationen verhalten sich also wie bisher. Jedes Umschalten steht im Protokoll. Recht: „Einstellungen“.
+
 #### Einstellungen übertragen
 
 ![Karte „Einstellungen übertragen“.](bild: seite=vkeinst; ziel=#vkFunc)
@@ -400,6 +408,8 @@ Der Verkauf läuft am Tablet im Vereinsheim, nicht in der Mitglieder-App. In der
 ![Die Startseite des Verkaufs am Tablet.](bild: tablet=start)
 
 Oben stehen die Mitglieder, die in letzter Zeit oft hier waren („Gerade oft hier“, alphabetisch). Darunter findest du alle Mitglieder von A bis Z, mit Suchfeld und Buchstabenleiste. Ganz unten stehen Mannschaften, **Verein · kostenfrei**, **Gast · bar zahlen** und **Gäste-Deckel**. Wer neu ist, tippt **Ich bin neu** und trägt seinen Namen ein, der Vorstand bestätigt das später.
+
+> Tipp: Ist **Nur anschreiben** eingeschaltet (Verkauf › Einstellungen › Kassenpflicht), fehlen „Gast · bar zahlen“, der Barverkauf ohne Namen und alle Knöpfe zum Bezahlen mit Bargeld oder Karte.
 
 1. **Namen antippen.** Dann fragt das Tablet nach der PIN. Wer noch keine hat, legt beim ersten Mal eine fest (4 bis 6 Ziffern, zweimal eingeben, leicht zu erratende wie 1234 gehen nicht). „Später“ ist möglich, buchen geht dann weiter.
 2. **Artikel antippen.** Jeder Tipp ist ein Stück, die Zahl steht auf der Kachel. Rechts steht der Warenkorb mit **+** und **−**, „Auswahl leeren“ beginnt von vorn.

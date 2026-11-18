@@ -18,6 +18,10 @@ module.exports = function tabletApi(h) {
   /* „Ich bin öfter hier“: Anzahl und Zeitraum stellt ein Admin mit allen Rechten ein */
   const topN = () => Math.max(0, Math.min(60, int(getSetting('top_n', '15'), 15)));
   const topDays = () => Math.max(1, Math.min(365, int(getSetting('top_days', '30'), 30)));
+  /* „Nur anschreiben“: ohne Bar- und Kartenwege (Standard aus). Wer keine Kasse im Sinne der Kassenpflicht betreiben will, schaltet sie hier ab –
+     am Tablet ausgeblendet, hier und in der Verwaltung abgelehnt */
+  const nurAnschreiben = () => getSetting('nur_anschreiben', '0') === '1';
+  const NUR_ANSCHREIBEN_MSG = 'Dieser Verein hat „Nur anschreiben“ eingeschaltet – Bar- und Kartenzahlung gibt es hier nicht.';
 
   function activeEvent(withGuests = false) {
     const ev = db.prepare('SELECT id, name, date FROM events WHERE active = 1 AND closed_at IS NULL LIMIT 1').get();
@@ -131,7 +135,7 @@ module.exports = function tabletApi(h) {
     res.json({
       clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'),
       members, articles, top: topN() ? topMembers().filter(id => !hidden.has(id)) : [], topDays: topDays(), event: activeEvent(true), color: clubColor(), logo: logoUrl(),
-      tabs: openTabs(),
+      tabs: openTabs(), nurAnschreiben: nurAnschreiben(),
     });
   });
 
@@ -165,6 +169,7 @@ module.exports = function tabletApi(h) {
     if (eventId) {
       const ev = activeEvent();
       if (!ev || ev.id !== int(eventId)) return bad(res, 'Diese Veranstaltung ist nicht aktiv.');
+      if (nurAnschreiben()) return bad(res, NUR_ANSCHREIBEN_MSG, 403);
       return res.json({ token: auth.issueTabletToken('event:' + ev.id), event: { id: ev.id, name: ev.name } });
     }
     const m = db.prepare('SELECT * FROM members WHERE id = ? AND active = 1').get(int(memberId));
@@ -257,6 +262,7 @@ module.exports = function tabletApi(h) {
     if (!['bar', 'karte'].includes(method)) return bad(res, 'Bitte bar oder Karte wählen.');
     const t = db.prepare("SELECT * FROM guest_tabs WHERE id = ? AND status = 'offen'").get(int(who.slice(4)));
     if (!t) return bad(res, 'Dieser Deckel ist schon geschlossen.');
+    if (nurAnschreiben() && tabOpen(t.id)) return bad(res, NUR_ANSCHREIBEN_MSG, 403);   // ein leerer Deckel darf geschlossen werden
     const cents = closeTab(t, { status: 'bezahlt', method, by: 'tablet' });
     auth.dropTabletToken(token);
     res.json({ ok: true, cents, method, name: t.name });
@@ -328,6 +334,7 @@ module.exports = function tabletApi(h) {
       kind = 'gast'; paidCash = 0;                          // angeschrieben, bezahlt wird am Ende
     } else if (typeof who === 'string' && who.startsWith('event:')) {
       if (!ev || ev.id !== int(who.slice(6))) return bad(res, 'Die Veranstaltung ist beendet.');
+      if (nurAnschreiben()) return bad(res, NUR_ANSCHREIBEN_MSG, 403);
       kind = 'event'; paidCash = 1;                         // Barverkauf ohne Namen
     } else if (typeof who === 'string' && who.startsWith('guest:')) {
       guest = db.prepare('SELECT * FROM event_guests WHERE id = ?').get(int(who.slice(6)));
@@ -337,6 +344,7 @@ module.exports = function tabletApi(h) {
       member = db.prepare('SELECT * FROM members WHERE id = ? AND active = 1').get(who);
       if (!member) return bad(res, 'Konto nicht gefunden.');
       kind = { mitglied: 'konto', nichtmitglied: 'konto', mannschaft: 'konto', verein: 'verein', gast: 'gast' }[member.kind];
+      if (kind === 'gast' && nurAnschreiben()) return bad(res, NUR_ANSCHREIBEN_MSG, 403);
       if (ev && (kind === 'verein' || kind === 'gast')) return bad(res, 'Während der Veranstaltung wird nur auf die Veranstaltungsliste gebucht – für Gäste „Barverkauf ohne Namen“.');
       if (ev && kind === 'konto') {                         // während einer Veranstaltung immer auf deren Liste
         guest = addGuest(ev, { memberId: member.id }, 'tablet');
@@ -491,5 +499,5 @@ module.exports = function tabletApi(h) {
     auth.dropTabletToken((req.body || {}).token);
     res.json({ ok: true });
   });
-  return { addGuest, closeTab, eventOpen, eventOpenAll, guestOpen, OPEN_GUEST, topDays, topN };
+  return { addGuest, closeTab, eventOpen, eventOpenAll, guestOpen, nurAnschreiben, NUR_ANSCHREIBEN_MSG, OPEN_GUEST, topDays, topN };
 };

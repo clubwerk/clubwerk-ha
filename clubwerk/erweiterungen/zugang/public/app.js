@@ -49,6 +49,10 @@
     if (!r.ok) toast(d.error || 'Fehler', true); else toast('Wird ausgeführt …');
     setTimeout(refresh, 1200);
   };
-  fetch(API + 'members').then(r => r.json()).then(j => { members = j.members || []; }).catch(() => {});
-  refresh();
+  // nur abfragen, wenn Zugang am Tablet eingeschaltet ist (sonst antwortet die Schnittstelle 404)
+  (window.GKNav ? GKNav.imTablet('zugang') : Promise.resolve(true)).then(an => {
+    if (!an) { $('dot').className = 'vh-dot err'; $('st').textContent = 'Am Tablet nicht eingeschaltet'; return; }
+    fetch(API + 'members').then(r => r.json()).then(j => { members = j.members || []; }).catch(() => {});
+    refresh();
+  });
 })();

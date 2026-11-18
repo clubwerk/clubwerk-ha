@@ -37,6 +37,8 @@ const CORE = c => [
   // Verkauf ist ins Programm eingebaut (kein eigener Hook) – sein Schritt steht wie ein Modul-Schritt bei den Modulen
   { id: 'getraenke.artikel', title: 'Artikel und Preise', text: 'Was am Tablet verkauft wird – Getränke, Speisen, Vereinsartikel – mit Preisen. Eine Grundliste ist schon angelegt: anpassen, ergänzen, löschen.',
     page: 'artikel', card: [], module: 'getraenke', moduleName: 'Verkauf', when: () => plugins.isActive('getraenke') },
+  { id: 'getraenke.kasse', title: 'Kassenpflicht', text: 'Wer Bar- oder Kartenzahlungen am Tablet erfasst, braucht nach heutigem Stand sehr wahrscheinlich eine zertifizierte Sicherheitseinrichtung (TSE, § 146a AO). Wer das nicht will, schaltet „Nur anschreiben“ ein. Bitte mit dem Steuerberater klären, was für euren Verein gilt.',
+    page: 'vkeinst', card: ['Kassenpflicht und „Nur anschreiben“'], module: 'getraenke', moduleName: 'Verkauf', when: () => plugins.isActive('getraenke') },
   { id: 'app', title: 'Mitglieder-App', text: 'Unter welcher Adresse die Mitglieder die App im Vereins-WLAN erreichen – und, wenn ihr wollt, von unterwegs über einen Tunnel.',
     page: 'app', sec: ['cw_appsec', 'einstellungen'], card: ['Adresse & Aussehen'], done: () => Boolean(getSetting('app_url', '')), when: () => c.appModules() },
   { id: 'netz', title: 'Vereinsnetz', text: 'Welche Netze als Vereinsheim gelten. Dann kommen Gast-WLAN oder VPN nicht an Verwaltung und Tablet, und Türen oder Beregnung bleiben im Verein.',

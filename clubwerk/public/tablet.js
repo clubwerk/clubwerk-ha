@@ -178,7 +178,12 @@
     $('evBox').classList.toggle('hidden', !ev);
     $('normalBox').classList.toggle('hidden', Boolean(ev));
     $('special').classList.toggle('hidden', Boolean(ev));   // während der Veranstaltung nur deren Liste
-    if (ev) { $('eventName').textContent = ev.name; renderEventList(); }
+    if (ev) {
+      $('eventName').textContent = ev.name;
+      $('eventNote').textContent = state.nurAnschreiben ? 'Namen antippen und anschreiben' : 'Namen antippen und anschreiben – bezahlt wird am Ende bar oder mit Karte';
+      $('eventBtn').classList.toggle('hidden', Boolean(state.nurAnschreiben));   // „Nur anschreiben“: kein Barverkauf ohne Namen
+      renderEventList();
+    }
 
     const P = peopleOf();
     const topIds = new Set(state.top || []);
@@ -225,7 +230,7 @@
     const teams = state.members.filter(m => m.kind === 'mannschaft' && (!q || m.name.toLocaleLowerCase('de').includes(q)));
     setHtml($('teams'), teams.map(m => `<button data-id="${m.id}"><i class="av">${initials(m.name)}</i><span class="nm"><b>${esc(m.name)}</b><span>Mannschaft</span></span></button>`).join(''));
     $('teamBox').classList.toggle('hidden', !teams.length);
-    const special = state.members.filter(m => m.kind === 'verein' || m.kind === 'gast');
+    const special = state.members.filter(m => m.kind === 'verein' || (m.kind === 'gast' && !state.nurAnschreiben));
     const nTabs = (state.tabs || []).length;
     setHtml($('special'), special.map(m => `<button class="${m.kind}" data-id="${m.id}">${m.kind === 'verein' ? 'Verein · kostenfrei' : 'Gast · bar zahlen'}</button>`).join('') +
       (ev ? '' : `<button class="deckel" data-tabnew="1">Gäste-Deckel${nTabs ? `<span class="cnt">${nTabs}</span>` : ''}</button>`));
@@ -256,7 +261,7 @@
   function newTabDialog() {
     const open = state.tabs || [];
     openDialog(`<h2>Neuer Gäste-Deckel</h2>
-      <div class="muted">Für Gäste und die gegnerische Mannschaft: den Tag über anschreiben, vor der Heimfahrt bar oder mit Karte bezahlen.</div>
+      <div class="muted">${state.nurAnschreiben ? 'Für Gäste und die gegnerische Mannschaft: den Tag über anschreiben.' : 'Für Gäste und die gegnerische Mannschaft: den Tag über anschreiben, vor der Heimfahrt bar oder mit Karte bezahlen.'}</div>
       <input class="big" id="tName" placeholder="z. B. Jan Müller" autocomplete="off" autocapitalize="words" maxlength="60">
       <div class="sugg" id="tSugg"></div>
       <div class="err" id="tErr"></div>
@@ -471,7 +476,7 @@
     if (isGuest) $('accBtn').classList.add('hidden');      // Liste steht direkt rechts
     $('tabBox').classList.toggle('hidden', !isGuest && !isTab);
     $('tabHead').textContent = isTab ? 'Bisher auf dem Deckel' : 'Bisher auf der Liste';
-    $('payBtn').classList.toggle('hidden', !isTab);
+    $('payBtn').classList.toggle('hidden', !isTab || Boolean(state.nurAnschreiben && s.open));   // „Nur anschreiben“: kein Bezahlen am Tablet, leeren Deckel nur schließen
     if (isGuest || isTab) loadTab();
     $('pinBtn').classList.toggle('hidden', s.mode !== 'mitglied');
     $('pinBtn').textContent = s.member && s.member.hasPin ? 'PIN ändern' : 'PIN festlegen';
@@ -491,7 +496,7 @@
       $('tabList').innerHTML = r.rows.map(x => `<li class="${x.payment_id || x.transferred_at ? 'paid' : ''}"><span class="q">${x.qty}×</span><span>${esc(x.name)}${st(x) ? ` <small>(${st(x)})</small>` : ''}</span><span class="t">${euro(x.total_cents)}</span></li>`).join('')
         || '<li class="empty" style="display:block">Noch nichts angeschrieben.</li>';
       $('tabSum').textContent = euro(r.open_cents);
-      if (session && session.mode === 'tab') { session.open = r.open_cents; $('payBtn').textContent = r.open_cents ? `Bezahlen: ${euro(r.open_cents)}` : 'Deckel schließen'; }
+      if (session && session.mode === 'tab') { session.open = r.open_cents; $('payBtn').textContent = r.open_cents ? `Bezahlen: ${euro(r.open_cents)}` : 'Deckel schließen'; $('payBtn').classList.toggle('hidden', Boolean(state.nurAnschreiben && r.open_cents)); }
     } catch (e) { $('tabBox').classList.add('hidden'); }
   }
 
@@ -798,7 +803,7 @@
     const listTotal = r.bookings.reduce((s, b) => s + b.list_cents, 0);
     let hint = '';
     if (r.tab) hint = `<div class="freehint" style="background:var(--amber-soft);color:var(--amber)">Auf den Deckel „${esc(r.tab.name)}“ angeschrieben – jetzt offen: ${euro(r.open_cents || 0)}<br><span style="font-weight:400">Bezahlt wird vor der Heimfahrt – dann den Deckel antippen und „Bezahlen“.</span></div>`;
-    else if (r.kind === 'event' && r.paid_cash === 0) hint = `<div class="freehint" style="background:var(--amber-soft);color:var(--amber)">Angeschrieben auf der Liste „${esc(r.event || '')}“${r.private ? ` – jetzt offen: ${euro(r.open_cents || 0)}` : ''}<br><span style="font-weight:400">Bezahlt wird am Ende bar oder mit Karte.</span></div>`;
+    else if (r.kind === 'event' && r.paid_cash === 0) hint = `<div class="freehint" style="background:var(--amber-soft);color:var(--amber)">Angeschrieben auf der Liste „${esc(r.event || '')}“${r.private ? ` – jetzt offen: ${euro(r.open_cents || 0)}` : ''}${state.nurAnschreiben ? '' : '<br><span style="font-weight:400">Bezahlt wird am Ende bar oder mit Karte.</span>'}</div>`;
     else if (r.kind === 'gast' || r.kind === 'event') hint = `<div class="cashhint">Bitte ${euro(r.total_cents)} bar in die Kasse</div>`;
     else if (r.kind === 'verein') hint = `<div class="freehint">Kostenfrei gebucht (Wert ${euro(listTotal)})</div>`;
     else hint = r.private ? `<div class="muted">Neuer offener Betrag: <b>${euro(r.balance.cents)}</b></div>` : '<div class="muted">Auf dein Konto gebucht.</div>';

@@ -128,6 +128,8 @@
   }
 
   window.addEventListener('load', async () => {
+    // am Tablet nur abfragen, wenn die Beregnung dort eingeschaltet ist (sonst antwortet die Schnittstelle 404)
+    if (embedded && window.GKNav && !(await GKNav.imTablet('beregnung'))) { $('dot').className = 'vh-dot err'; $('st').textContent = 'Am Tablet nicht eingeschaltet'; return; }
     try { await loadInfo(); } catch (e) { $('dot').className = 'vh-dot err'; $('st').textContent = 'Keine Verbindung zum Server'; setTimeout(() => location.reload(), 15000); return; }
     if (info.mode === 'app') { lock(); return; }
     if (info.mode === 'login' && !info.user) { $('loginSheet').classList.add('show'); return; }
