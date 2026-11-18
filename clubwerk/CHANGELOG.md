@@ -1,5 +1,11 @@
 # Änderungen
 
+## 2026.11.52
+
+### Behoben
+- Verwaltung: Die Zahlen an Reitern und im Menü (z. B. „Anträge“) gehen nach dem Bestätigen oder Ablehnen sofort zurück, nicht erst nach dem Neuladen der Seite. Das gilt für alle Seiten.
+- Verwaltung › Mitglieder-App: Im Fenster eines Mitglieds steht der Inhalt ohne doppelten Rahmen; der Hinweis zu „unterwegs freigeschaltet“ stößt im dunklen Modus nicht mehr an den Rand.
+
 ## 2026.11.51
 
 ### Neu

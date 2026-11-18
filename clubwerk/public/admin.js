@@ -30,6 +30,8 @@
     if (r.status === 401 && !data.pwWrong && !url.startsWith('login') && !url.startsWith('setup')) { showLogin(); throw new Error(data.error || 'Bitte anmelden.'); }
     if (r.status === 423 && data.vaultLocked) throw Object.assign(new Error(data.error), { status: 423, vaultLocked: true });
     if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status, odd: data.odd, links: data.links, needPassword: Boolean(data.needPassword) });
+    // Jede Änderung frischt die Zähler an Reitern und Menü auf (zentral statt an jeder Stelle eines Moduls; gebündelt, falls mehrere Aufrufe kurz nacheinander kommen)
+    if (method !== 'GET' && !/^(login|logout|setup)/.test(url)) { clearTimeout(api.zaehler); api.zaehler = setTimeout(() => refreshBadges().catch(() => { /* Zähler sind nur Anzeige */ }), 300); }
     return data;
   }
 
@@ -3215,7 +3217,7 @@
     const apSumTitle = x => { const on = apMods(x).filter(m => (x.granted || {})[m.id]); return on.map(m => apName(m) + (x.access[m.id] && x.access[m.id].away && !m.away ? ' (' + T('auch unterwegs') + ')' : '')).join(', '); };
     const openAppDlg = id => {
       const x = r.rows.find(y => y.member_id === id); if (!x) return;
-      dialog(`<h2>${pName(x)}</h2><div class="card" id="apDlg" style="box-shadow:none;padding:0"></div><div class="btns"><button class="btn" id="apDlgX">Schließen</button></div>`);
+      dialog(`<h2>${pName(x)}</h2><div class="card" id="apDlg" style="box-shadow:none;padding:0;border:0;background:none"></div><div class="btns"><button class="btn" id="apDlgX">Schließen</button></div>`);
       appBox($('apDlg'), id).catch(fail);
       $('apDlgX').onclick = () => { closeDialog(); RENDER.app().catch(fail); };
     };
