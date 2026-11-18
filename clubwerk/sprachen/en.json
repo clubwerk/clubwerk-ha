@@ -14709,6 +14709,8 @@
   "Das Vereins-WLAN ist gerade erreichbar.": "The club Wi-Fi is reachable right now.",
   "Das Vereins-WLAN ist gerade nicht erreichbar.": "The club Wi-Fi is not reachable right now.",
   "Vereins-WLAN wird gesucht …": "Looking for the club Wi-Fi …",
-  "Bist du gerade im Vereinsheim? Dann öffnet dieser Knopf die App über die lokale Adresse – mit deiner PIN. {0}": "At the clubhouse right now? This button opens the app via the local address – with your PIN. {0}"
+  "Bist du gerade im Vereinsheim? Dann öffnet dieser Knopf die App über die lokale Adresse – mit deiner PIN. {0}": "At the clubhouse right now? This button opens the app via the local address – with your PIN. {0}",
+  "Beitrittserklärungen": "Membership applications",
+  "zurückgezogen": "withdrawn"
  }
 }

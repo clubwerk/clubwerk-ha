@@ -262,6 +262,7 @@ function load({ app, admin, helpers }) {
       if (p.meta.mitgliederApp) memberapp.register(id, { name: p.meta.name, label: p.meta.mitgliederApp.label || p.meta.name, kopf: p.meta.mitgliederApp.kopf, order: p.meta.mitgliederApp.order,
         dir: p.dir, router: member, hooks: p.hooks, isActive: () => isActive(id), perm: p.meta.verwaltung ? p.meta.verwaltung.recht : null, scripts: sharedScripts(p.meta),
         open: p.meta.mitgliederApp.alle === true, away: p.meta.mitgliederApp.unterwegs !== false,
+        konto: p.meta.mitgliederApp.imKonto === true,   // steht in der App unter „Mein Konto“ statt in Leiste und „Mehr“ (z. B. Meine Daten)
         nonMembers: p.meta.mitgliederApp.keinMitglied === true,   // auch für Konten „Kein Mitglied“ (z. B. Trainer) – nur mit eigener Freischaltung
           // schaltet etwas im Verein (Türen, Beregnung): nach einer Kopplung von unterwegs ohne zweiten Faktor erst nach dem ersten Besuch im Vereins-WLAN
           sensitive: p.meta.mitgliederApp.vertraulich === true || p.meta.mitgliederApp.unterwegs === false });   // alle = für jedes gekoppelte Handy ohne eigene Freischaltung

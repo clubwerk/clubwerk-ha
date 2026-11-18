@@ -205,7 +205,7 @@
   .tabbox .sum span:last-child { font-family: var(--num); font-size: 22px; font-weight: 600; color: var(--ink); }
 
   /* Fenster */
-  .overlay { position: fixed; inset: 0; background: rgba(13,19,16,.55); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .overlay { position: fixed; inset: env(safe-area-inset-top, 0px) 0 0; background: rgba(13,19,16,.55); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
   .dialog { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 24px; width: min(560px, 100%); max-height: 92vh; overflow: auto; box-shadow: var(--shadow-pop); }
   .dialog h2 { margin: 0 0 6px; font-size: 22px; }
   .pin-dots { display: flex; justify-content: center; gap: 14px; margin: 18px 0; }

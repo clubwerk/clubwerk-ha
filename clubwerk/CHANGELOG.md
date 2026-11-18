@@ -1,5 +1,14 @@
 # Änderungen
 
+## 2026.11.53
+
+### Verbessert
+- Mitglieder-App: „Meine Daten“ steht jetzt unter „Mein Konto“ (Profil-Knopf oben rechts). Unter „Mehr“ und in der Leiste unten stehen nur noch die übrigen Bereiche.
+
+### Behoben
+- Mitglieder › Anträge: Das Archiv zeigt neben den Beitrittserklärungen auch erledigte Änderungen und Meldungen (übernommen, abgelehnt oder zurückgezogen), mit Datum und wer sie bearbeitet hat.
+- Mitglieder-App, Tablet und Verwaltung am iPhone: Beim Öffnen und Schließen von Fenstern flackert der Streifen mit Uhrzeit und Akku nicht mehr; das Abdunkeln beginnt darunter.
+
 ## 2026.11.52
 
 ### Behoben

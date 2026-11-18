@@ -612,7 +612,7 @@ As on the “Settings” tab under “Members”: save the settings as a file or
 
 ![The “Join” tab on the tablet.](bild: tablet=Join; hoehe=430)
 
-**In the app** (“My data”) every member sees their membership with fees and departments, the family, their payments with status (open, being debited, paid), address, contact and bank details. What is visible and what may be changed is set under “Settings”. The member can:
+**In the app** (“My data”, top right via the profile button under “My account”) every member sees their membership with fees and departments, the family, their payments with status (open, being debited, paid), address, contact and bank details. What is visible and what may be changed is set under “Settings”. The member can:
 
 - **Change contact details.** The board confirms the change. A new email address is confirmed by the member with their PIN.
 - **Give new bank details** on the phone with a signature as a new SEPA mandate. The board applies it.

@@ -612,7 +612,7 @@ Wie im Reiter „Einstellungen“ unter „Mitglieder“: die Einstellungen als 
 
 ![Der Reiter „Mitglied werden“ am Tablet.](bild: tablet=Mitglied werden; hoehe=430)
 
-**In der App** („Meine Daten“) sieht jedes Mitglied seine Mitgliedschaft mit Beiträgen und Abteilungen, die Familie, seine Zahlungen mit Stand (offen, wird abgebucht, bezahlt), Anschrift, Kontakt und Bankverbindung. Was sichtbar ist und was geändert werden darf, legt ihr unter „Einstellungen“ fest. Das Mitglied kann:
+**In der App** („Meine Daten“, oben rechts über den Profil-Knopf unter „Mein Konto“) sieht jedes Mitglied seine Mitgliedschaft mit Beiträgen und Abteilungen, die Familie, seine Zahlungen mit Stand (offen, wird abgebucht, bezahlt), Anschrift, Kontakt und Bankverbindung. Was sichtbar ist und was geändert werden darf, legt ihr unter „Einstellungen“ fest. Das Mitglied kann:
 
 - **Kontaktdaten ändern.** Der Vorstand bestätigt die Änderung. Eine neue E-Mail-Adresse bestätigt das Mitglied mit seiner PIN.
 - **Eine neue Bankverbindung** auf dem Handy per Unterschrift als neues SEPA-Mandat erteilen. Der Vorstand übernimmt es.

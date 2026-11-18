@@ -954,6 +954,17 @@
     row.append(t); row.insertAdjacentHTML('beforeend', '<div class="tabtools" id="tabTools"></div>');
     after.after(row);
     const on = t.querySelector('.on'); if (on) revealTab(on); else tabFade(t);
+    badgeTabs();
+  }
+  /* Zähler an den Reitern an Ort und Stelle setzen (nicht die Reiterzeile neu bauen: Knöpfe daneben und offene Fenster bleiben, wie sie sind); vorgelesen als „Anträge, 3 offen“ */
+  function badgeTabs() {
+    document.querySelectorAll('.drinktabs [data-tab]').forEach(b => {
+      const n = badges[b.dataset.tab] || 0; let z = b.querySelector('.badge');
+      if (!n) { if (z) z.remove(); b.removeAttribute('aria-label'); return; }
+      if (!z) { z = document.createElement('span'); z.className = 'badge'; b.append(z); }
+      z.textContent = n; z.setAttribute('aria-hidden', 'true');
+      b.setAttribute('aria-label', T('{0}, {1} offen', [T(b.firstChild.textContent.trim()), n]));
+    });
   }
 
   /* Einleitung über Reitern immer gleich hoch (2 Zeilen), damit die Reiter beim Wechsel nicht springen – längere Texte per „mehr“ aufklappen */
@@ -1086,7 +1097,7 @@
     PAGES.filter(x => x[3] === 'module').forEach(([k]) => setB(k, badges[k] || 0, 'a'));
     setB('konten', groupOf('konten') ? 0 : badges.konten || 0);
     navDots(); navA11y();
-    if (groupOf(page)) setChrome(page);
+    badgeTabs();
   }
   const BADGE_HOOKS = [];
 
