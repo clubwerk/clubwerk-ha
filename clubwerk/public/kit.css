@@ -102,8 +102,8 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 .vh-pill { font-family: var(--num); font-size: 17px; }   /* Restzeit, „Start in …“, „ab 14:30 Uhr“ in der Zahlenschrift */
 
 /* Dialog (PIN, Einladung, Hinweise) */
-/* Abdunkeln erst unter Uhrzeit/Akku: das iPhone färbt diesen Streifen ohne Übergang nach – sonst flackert er beim Öffnen und Schließen */
-.vh-sheet { position: fixed; inset: env(safe-area-inset-top, 0px) 0 0; background: rgba(13,19,16,.55); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
+/* Abdunkeln erst unter Uhrzeit/Akku und nie an der Oberkante: das iPhone färbt den Streifen nach dem, was oben liegt, ohne Übergang nach – sonst flackert er beim Öffnen und Schließen (App vom Home-Bildschirm: Abstand oben 0, darum mindestens 4 px) */
+.vh-sheet { position: fixed; inset: max(env(safe-area-inset-top, 0px), 4px) 0 0; background: rgba(13,19,16,.55); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
 .vh-sheet.show { display: flex; }
 /* Blätter blenden weich ein (wie die Fenster); Ausblenden: Abdunklung klingt nach, theme-init.js */
 @media (prefers-reduced-motion: no-preference) {

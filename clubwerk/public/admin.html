@@ -281,7 +281,7 @@
      Video „Abteilung zuordnen › Abbrechen“). Ausblenden: theme-init.js lässt die Abdunklung kurz nachklingen – das Fenster selbst ist sofort zu. */
   @media (prefers-reduced-motion: no-preference) { .overlay:not(.hidden) { animation: cw-fenster-ein .16s ease-out; } }
   @keyframes cw-fenster-ein { from { opacity: 0; } }
-  .overlay { position: fixed; inset: env(safe-area-inset-top, 0px) 0 0; background: rgba(13,19,16,.5); z-index: 20; display: flex; align-items: flex-start; justify-content: center; padding: 4vh 16px; overflow: auto; scroll-padding-bottom: 96px; }   /* scroll-padding: ein Feld, das den Fokus bekommt, rollt über die klebende Fußleiste, nicht dahinter */
+  .overlay { position: fixed; inset: max(env(safe-area-inset-top, 0px), 4px) 0 0; background: rgba(13,19,16,.5); z-index: 20; display: flex; align-items: flex-start; justify-content: center; padding: 4vh 16px; overflow: auto; scroll-padding-bottom: 96px; }   /* scroll-padding: ein Feld, das den Fokus bekommt, rollt über die klebende Fußleiste, nicht dahinter */
   .dialog:focus { outline: none; }   /* das Fenster selbst trägt beim Öffnen den Fokus (Screenreader), ist aber kein Bedienelement */
   .dialog { background: var(--card); border-radius: 22px; padding: 24px; width: min(720px, 100%); box-shadow: var(--shadow-pop); border: 1px solid var(--edge); }
   .dialog.wide { width: min(1250px, 100%); }

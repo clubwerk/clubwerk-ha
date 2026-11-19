@@ -1,13 +1,19 @@
 # Änderungen
 
+## 2026.11.54
+
+### Behoben
+- Mitglieder-App vom Home-Bildschirm am iPhone: Beim Öffnen und Schließen von Fenstern flackert der Streifen mit Uhrzeit und Akku nicht mehr; das Abdunkeln lässt die Oberkante frei.
+
 ## 2026.11.53
 
 ### Verbessert
 - Mitglieder-App: „Meine Daten“ steht jetzt unter „Mein Konto“ (Profil-Knopf oben rechts). Unter „Mehr“ und in der Leiste unten stehen nur noch die übrigen Bereiche.
 
 ### Behoben
+- Verwaltung: Die Zahlen an den Reitern werden an Ort und Stelle aufgefrischt; Knöpfe daneben verrutschen nicht, vorgelesen wird z. B. „Anträge, 3 offen“.
 - Mitglieder › Anträge: Das Archiv zeigt neben den Beitrittserklärungen auch erledigte Änderungen und Meldungen (übernommen, abgelehnt oder zurückgezogen), mit Datum und wer sie bearbeitet hat.
-- Mitglieder-App, Tablet und Verwaltung am iPhone: Beim Öffnen und Schließen von Fenstern flackert der Streifen mit Uhrzeit und Akku nicht mehr; das Abdunkeln beginnt darunter.
+- Mitglieder-App, Tablet und Verwaltung am iPhone: Fenster dunkeln die Seite erst unter dem Streifen mit Uhrzeit und Akku ab.
 
 ## 2026.11.52
 
