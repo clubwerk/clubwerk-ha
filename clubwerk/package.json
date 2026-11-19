@@ -1,7 +1,7 @@
 {
   "name": "clubwerk",
-  "version": "2026.11.54",
-  "verkaufVersion": "3.101.12",
+  "version": "2026.11.55",
+  "verkaufVersion": "3.101.13",
   "private": true,
   "description": "Clubwerk – modulare Vereinsverwaltung als Home-Assistant-Add-on",
   "main": "src/server.js",

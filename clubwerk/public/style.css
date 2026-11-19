@@ -158,7 +158,7 @@ a.btn.primary { color: var(--on-brand); }
 }
 .toast.error { background: var(--red); color: var(--on-red); }
 /* Hinweis vor einer Zeitgrenze (CWZeit in theme-init.js): Countdown groß, ein Knopf zum Bleiben – über allem, auch über offenen Fenstern */
-.cw-zeit { position: fixed; inset: max(env(safe-area-inset-top, 0px), 4px) 0 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(13,19,16,.5); animation: cw-zeit-ein .16s ease-out; }
+.cw-zeit { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: color-mix(in srgb, var(--bg) 78%, transparent); animation: cw-zeit-ein .16s ease-out; }
 @keyframes cw-zeit-ein { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .cw-zeit { animation: none; } }
 .cw-zeit-k { box-sizing: border-box; width: min(440px, 100%); max-height: 100%; overflow: auto; padding: 24px; border-radius: 22px; background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow-pop); color: var(--ink); text-align: center; }
@@ -306,7 +306,7 @@ button.tk-tile:active { transform: scale(.98); }
 .tk-big { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 64px; border-radius: 16px; border: 0; background: var(--brand); color: var(--on-brand); font: inherit; font-size: 18px; font-weight: 700; }
 .tk-big:active { transform: scale(.99); }
 /* Fenster und PIN-Eingabe */
-body.tk .overlay { position: fixed; inset: max(env(safe-area-inset-top, 0px), 4px) 0 0; background: rgba(13,19,16,.5); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
+body.tk .overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 78%, transparent); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
 body.tk .overlay.hidden { display: none; }
 body.tk .dialog { background: var(--card); border: 1px solid var(--edge); border-radius: 22px; padding: 24px; width: min(560px, 100%); max-height: 92vh; overflow: auto; box-shadow: var(--shadow-pop); text-align: center; }
 body.tk .dialog h2 { margin: 0 0 6px; font-size: 22px; }
@@ -375,3 +375,5 @@ body.tk .overlay::-webkit-scrollbar, .vh-sheet::-webkit-scrollbar { display: non
 #main:focus { outline: none; }
 /* Tablet: nichts Sichtbares unter 13 px – aus einem Meter Abstand an der Theke lesbar (planung/ui-review.md Punkt 11) */
 body.tk .vh-cap, body.tk .vh-chip, body.tk .vh-date span, body.tk .vh-days button span, body.tk .vh-rows small, body.tk .vh-card > h3 small, body.tk .vh-card .vh-ch small, body.tk .vh-next .t small, body.tk .vh-uses span small, body.tk .vh-wlan-diag { font-size: 13px; }
+/* Fenster heben sich über hellen Schleier und Schatten ab (siehe .vh-sheet in kit.css) – einheitlich in Tablet, Verwaltung und App */
+.overlay > *, .cw-zeit > *, .vh-sheet > .vh-box { box-shadow: 0 18px 50px rgba(0,0,0,.22), 0 2px 8px rgba(0,0,0,.1), 0 0 0 1px var(--line); }

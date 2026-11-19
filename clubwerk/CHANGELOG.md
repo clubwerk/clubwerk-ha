@@ -1,5 +1,10 @@
 # Änderungen
 
+## 2026.11.55
+
+### Verbessert
+- Fenster in Mitglieder-App, Tablet und Verwaltung: Statt eines grauen Schleiers tritt die Seite dahinter hell zurück (im dunklen Modus dunkel), das Fenster hebt sich mit Schatten ab. Am iPhone flackert der Streifen mit Uhrzeit und Akku beim Öffnen und Schließen dadurch nicht mehr.
+
 ## 2026.11.54
 
 ### Behoben
