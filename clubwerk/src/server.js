@@ -142,7 +142,7 @@ const rateLimit = (key, max, windowMs) => rateLimitKey(key, max, windowMs, req =
 const demokopie = require('./demokopie');
 if (!DEMO_KOPIE) { demokopie.cleanup(); app.use('/demo', demokopie.proxy(req => auth.currentUser(req))); }
 
-app.use((req, res, next) => /^\/api\/admin\/extensions\/[^/]+\/import$/.test(req.path) ? next() : express.json({ limit: '1mb' })(req, res, next));   // Funktionsimport hat sein eigenes, größeres Limit (Artikelbilder)
+app.use((req, res, next) => /^\/api\/admin\/(extensions\/[^/]+\/import|app\/sonder(\/\d+)?)$/.test(req.path) ? next() : express.json({ limit: '1mb' })(req, res, next));   // Funktionsimport (Artikelbilder) und Sonderdesigns der App (zwei Bilder) haben ihr eigenes, größeres Limit
 
 /* Admin-Änderungen nur mit eigenem Kopfzeilen-Feld → fremde Webseiten können nichts im Namen eines Admins auslösen */
 app.use('/api/admin', (req, res, next) => {
@@ -979,7 +979,7 @@ const KINDS = ['mitglied', 'nichtmitglied', 'mannschaft', 'verein', 'gast'];
 
 admin.get('/members', need('konten', 'buchungen', 'abrechnung', 'export', 'veranstaltungen', 'uebernahme'), (req, res) => {
   const { from, to } = defaultRange(req.query);
-  const rows = db.prepare(`SELECT m.id, m.name, m.kind, m.active, m.pending, m.created_at, m.pin_hash IS NOT NULL AS hasPin,
+  const rows = db.prepare(`SELECT m.id, m.name, m.kind, m.active, m.pending, m.created_at, m.pin_hash IS NOT NULL AS hasPin, m.offen_buchen AS offen,
       m.pin_changed_at, m.pin_changed_by, m.locked_until > strftime('%Y-%m-%dT%H:%M:%fZ','now') AS pinLocked,
       MAX(COALESCE((SELECT MAX(created_at) FROM bookings b WHERE b.member_id = m.id AND b.cancelled_at IS NULL), ''),
           COALESCE((SELECT MAX(created_at) FROM event_guests g WHERE g.member_id = m.id), '')) AS last_seen,
@@ -989,7 +989,7 @@ admin.get('/members', need('konten', 'buchungen', 'abrechnung', 'export', 'veran
     FROM members m WHERE m.deleted = 0 AND m.kind != 'extern' ORDER BY m.pending DESC, m.active DESC,
       CASE m.kind WHEN 'mitglied' THEN 1 WHEN 'nichtmitglied' THEN 2 WHEN 'mannschaft' THEN 3 WHEN 'verein' THEN 4 ELSE 5 END, name_key(m.name, m.kind)`).all();
   const evOpen = eventOpenAll();
-  res.json({ from, to, seasonStart: seasonStart(), rows: rows.map(r => ({ ...r, last_seen: r.last_seen || null, hasPin: Boolean(r.hasPin), pinLocked: Boolean(r.pinLocked),
+  res.json({ from, to, seasonStart: seasonStart(), rows: rows.map(r => ({ ...r, last_seen: r.last_seen || null, hasPin: Boolean(r.hasPin), offen: Boolean(r.offen), pinLocked: Boolean(r.pinLocked),
     active: Boolean(r.active), pending: Boolean(r.pending), eventOpen_cents: evOpen(r.id) })) });
 });
 
@@ -1095,6 +1095,10 @@ admin.put('/members/:id', need('konten'), async (req, res) => {
   if (pin && !validPin(pin)) return bad(res, 'Die PIN muss 4 bis 6 Ziffern haben.');
   if (kind === 'mannschaft' && !pin && !m.pin_hash) return bad(res, 'Mannschaftskonten brauchen eine PIN (4 bis 6 Ziffern).');
   db.prepare('UPDATE members SET name = ?, kind = ?, active = ? WHERE id = ?').run(name, kind, active, m.id);
+  if (b.offen !== undefined && kind === 'mitglied' && (b.offen ? 1 : 0) !== m.offen_buchen) {   // „Andere dürfen für mich buchen“ (nur Mitglieder mit PIN wirken)
+    db.prepare('UPDATE members SET offen_buchen = ? WHERE id = ?').run(b.offen ? 1 : 0, m.id);
+    audit(req.user, 'Andere dürfen für mich buchen', `${name}: ${b.offen ? 'eingeschaltet' : 'ausgeschaltet'}`);
+  }
   if (kind !== m.kind) { audit(req.user, 'Kontoart geändert', `${name}: ${m.kind} → ${kind}`); if (kind === 'verein') securityAlert('konto.verein', `Das Konto „${name}“ wurde von ${req.user.name || req.user.username} auf „Verein (kostenfrei)“ umgestellt. Buchungen darauf kosten nichts.`, { key: m.id }); }
   if (pin) db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL, pin_changed_at = datetime('now','localtime'), pin_changed_by = ? WHERE id = ?`)
     .run(await auth.hashPin(pin), req.user.username, m.id);
@@ -1313,6 +1317,7 @@ try { require('./gobd').install(); } catch (e) { console.error('GoBD: Änderungs
 require('./gobd').routes(admin, { need, bad, asyncRoute });
 const memberapp = require('./memberapp');
 memberapp.adminRoutes(admin, { bad, need, auth, ownPwOk });
+require('./sonderdesign').adminRouten(admin, { bad, need, express });   // Sonderdesigns der Mitglieder-App (Hintergrundbild, Gruß)
 require('./mailer').routes(admin, { bad, need });
 /* Kontoauszug einlesen und abgleichen (src/kontoauszug.js) – Tabellen vor dem Tresor anlegen */
 require('./kontoauszug').routes(admin, { need, bad, int, asyncRoute, rateLimit, express });

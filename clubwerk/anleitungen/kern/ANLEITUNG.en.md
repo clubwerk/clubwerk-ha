@@ -202,7 +202,7 @@ Push messages are short notes on the phone (on iPhone only in the home-screen ap
 
 ### Tab “Settings” {#app-einstellungen}
 
-This is where the cards for the address and security of the app are.
+This is where the cards for the address and security of the app and the special designs are.
 
 #### Address & appearance
 
@@ -223,6 +223,27 @@ How long a QR code (1 hour, 1 day or 7 days) and an email/letter (2, 7 or 14 day
 #### SMS confirmation
 
 A second factor for invitations from outside: an LTE USB stick with a SIM card on the Home Assistant computer sends a code by SMS to the mobile number in the member administration. **Search ports**, choose the port, **Save**, switch on **SMS confirmation**, check with **Send test SMS**. Without SMS, doors and irrigation only unlock in the club Wi-Fi when pairing from outside.
+
+#### Special designs
+
+![“Special designs” card with the demo entries: active now, next, expired.](bild: seite=app; klick=[data-sec="einstellungen"]; ziel=#sdCard)
+
+For a set period the member app shows its own **background image** and a **greeting** at the top of “For me”, for example during Advent or for an anniversary. The list shows name, period, building blocks and the status: **active now**, **next**, **covered** (a shorter period is active) or **expired**. **+ New special design** creates an entry, the pencil opens it for editing.
+
+![“Edit special design” window with period, images, greeting and preview in light and dark.](bild: seite=app; klick=[data-sec="einstellungen"]; klick2=#sdCard [data-sde]; ziel=dialog)
+
+- **Name:** only for you, members do not see it.
+- **From – To:** at most 8 weeks; for a single day, both dates are the same. A special design is never permanent. With **Repeat every year** only day and month count, also across the turn of the year (for example 20.12.–06.01.). Easter moves: create a separate entry for it each year.
+- **Image for light** and **image for dark:** every member keeps their appearance (like the phone, light or dark), so there are two image slots. If one is missing, the app shows no image in that appearance; the greeting stays. With **High contrast** there is never an image.
+- **Greeting:** heading (at most 40 characters) and text (at most 200 characters), plain text without links or emojis. Members hide it with ✕ on their phone; if you change the heading or text, it appears again.
+- **Preview:** “For me” in light and dark, with image and greeting, without real data.
+- At least one image or a greeting must be set. **Delete …** is at the bottom of the window.
+
+If two entries overlap, the shorter one applies in full (if they are the same length, the one created later). The change happens at midnight; the app picks it up the next time it is opened. The phone loads the image only once and then keeps it in its storage.
+
+**Image requirements** (also expandable in the window): portrait 1290 × 2796 pixels, without text, logos or recognisable people, only your own or freely usable images (AI images too). At the top (up to 15 %) a calm area, because the club name and title sit directly on the image there: light for light (pastel, paper, snow), dark for dark. In the middle (15–65 %) calm with soft lights and no motifs, that is where the cards are. Motifs belong in the lower part (65–90 %), at least 10 % from the edge; at the very bottom (90–100 %) only ground for the bar. When uploading, the administration shrinks the image and checks the text: if the image is too dark at the top for light (or too bright for dark) or too strong at the bottom for the bar, it is not accepted. Landscape does not work. If the image is narrower than 1170 pixels or busy at the top, a notice appears.
+
+> For an AI image a prompt like this helps: “Portrait 1290 × 2796, calm light winter sky in the top third, soft blurred lights in the middle, snowy fir trees in the bottom quarter, smooth snow at the very bottom, no text, no people.” For dark, the same sentence with “calm dark night sky”.
 
 ### Page “Messages” {#email}
 
@@ -631,7 +652,7 @@ Everything that applies only to you. You reach the page through your name at the
 
 ![The “For me” start page in the member app.](bild: app=start)
 
-**Member app:** With the QR code and PIN the app opens on the phone. The icon at the top (profile picture or initials) opens “My account”; “More” at the bottom shows the remaining areas, “Install app” (as long as the app is not installed) and a “My account ›” row that opens the same sheet (“Back” then returns to “More”). It contains: profile picture, notifications, language, appearance, **Change PIN** (with the old PIN; it also applies on the tablet) and **Log out** (only unpairs this phone; it then needs a new invitation). The app always stays inside itself and never opens a new window. Without a connection (or when the club is not responding) it shows **“No connection”** with **Try again** instead of a browser error page; when the connection is back, it reloads by itself. Only this notice page is stored for that, no data. The **Messages** section shows the club's messages: newest first, unread in bold, pinned at the top.
+**Member app:** With the QR code and PIN the app opens on the phone. The icon at the top (profile picture or initials) opens “My account”; “More” at the bottom shows the remaining areas, “Install app” (as long as the app is not installed) and a “My account ›” row that opens the same sheet (“Back” then returns to “More”). It contains: profile picture, notifications, language, appearance, **Change PIN** (with the old PIN; it also applies on the tablet) and **Log out** (only unpairs this phone; it then needs a new invitation). The app always stays inside itself and never opens a new window. Without a connection (or when the club is not responding) it shows **“No connection”** with **Try again** instead of a browser error page; when the connection is back, it reloads by itself. Only this notice page is stored for that, no data. The **Messages** section shows the club's messages: newest first, unread in bold, pinned at the top. While a **special design** is active (Member app › Settings), its image sits behind the page and the greeting is at the top of “For me”.
 
 ![The “My account” sheet in the app.](bild: app=mehr; klick=#accKonto)
 

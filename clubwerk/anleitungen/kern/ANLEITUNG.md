@@ -202,7 +202,7 @@ Push sind kurze Hinweise aufs Handy (auf dem iPhone nur in der Home-Bildschirm-A
 
 ### Reiter „Einstellungen“ {#app-einstellungen}
 
-Hier liegen die Karten zur Adresse und Sicherheit der App.
+Hier liegen die Karten zur Adresse und Sicherheit der App und die Sonderdesigns.
 
 #### Adresse & Aussehen
 
@@ -223,6 +223,27 @@ Wie lange QR-Code (1 Stunde, 1 Tag oder 7 Tage) und E-Mail/Brief (2, 7 oder 14 T
 #### Bestätigung per SMS
 
 Ein zweiter Faktor für Einladungen von unterwegs: ein LTE-USB-Stick mit SIM-Karte am Home-Assistant-Rechner schickt einen Code per SMS an die Handynummer aus der Mitgliederverwaltung. **Anschlüsse suchen**, Anschluss wählen, **Speichern**, **SMS-Bestätigung einschalten**, mit **Test-SMS senden** prüfen. Ohne SMS schalten sich Türen und Beregnung bei Kopplung von unterwegs erst im Vereins-WLAN frei.
+
+#### Sonderdesigns
+
+![Karte „Sonderdesigns“ mit den Einträgen der Demo: gilt gerade, als Nächstes, abgelaufen.](bild: seite=app; klick=[data-sec="einstellungen"]; ziel=#sdCard)
+
+Für einen Zeitraum zeigt die Mitglieder-App ein eigenes **Hintergrundbild** und oben in „Für mich“ einen **Gruß**, zum Beispiel im Advent oder zum Jubiläum. Die Liste nennt Name, Zeitraum, Bausteine und den Stand: **gilt gerade**, **als Nächstes**, **überdeckt** (ein kürzerer Zeitraum gilt gerade) oder **abgelaufen**. **+ Neues Sonderdesign** legt einen Eintrag an, der Stift öffnet ihn zum Bearbeiten.
+
+![Fenster „Sonderdesign bearbeiten“ mit Zeitraum, Bildern, Gruß und Vorschau hell und dunkel.](bild: seite=app; klick=[data-sec="einstellungen"]; klick2=#sdCard [data-sde]; ziel=dialog)
+
+- **Name:** nur für euch, die Mitglieder sehen ihn nicht.
+- **Von – Bis:** höchstens 8 Wochen, für einen Tag beide Daten gleich. Ein Sonderdesign gilt nie dauerhaft. Mit **Jedes Jahr wiederholen** zählen nur Tag und Monat, auch über den Jahreswechsel (zum Beispiel 20.12.–06.01.). Ostern wandert: Dafür jedes Jahr einen eigenen Eintrag anlegen.
+- **Bild für hell** und **Bild für dunkel:** Jedes Mitglied behält seine Darstellung (wie das Handy, hell oder dunkel), deshalb gibt es zwei Bildplätze. Fehlt einer, zeigt die App in dieser Darstellung kein Bild, der Gruß bleibt. Mit **Hoher Kontrast** gibt es nie ein Bild.
+- **Gruß:** Überschrift (höchstens 40 Zeichen) und Text (höchstens 200 Zeichen), reiner Text ohne Links und Emojis. Mitglieder blenden ihn mit ✕ auf ihrem Handy aus; ändert ihr Überschrift oder Text, erscheint er neu.
+- **Vorschau:** „Für mich“ in hell und dunkel, mit Bild und Gruß, ohne echte Daten.
+- Mindestens ein Bild oder ein Gruß muss gesetzt sein. **Löschen …** steht unten im Fenster.
+
+Überschneiden sich zwei Einträge, gilt der kürzere ganz (bei gleicher Länge der später angelegte). Der Wechsel kommt um Mitternacht; die App übernimmt ihn beim nächsten Öffnen. Das Handy lädt das Bild nur einmal und hält es danach im Speicher.
+
+**Bildvorgaben** (auch aufklappbar im Fenster): Hochformat 1290 × 2796 Pixel, ohne Text, Logos und erkennbare Personen, nur eigene oder frei nutzbare Bilder (auch KI-Bilder). Oben (bis 15 %) eine ruhige Fläche, denn dort stehen Vereinsname und Titel direkt auf dem Bild: für hell hell (Pastell, Papier, Schnee), für dunkel dunkel. In der Mitte (15–65 %) ruhig mit weichen Lichtern, ohne Motive, dort liegen die Karten. Die Motive gehören in den unteren Teil (65–90 %), mindestens 10 % vom Rand; ganz unten (90–100 %) nur Boden für die Leiste. Beim Hochladen verkleinert die Verwaltung das Bild und prüft die Schrift: Ist das Bild oben zu dunkel für hell (bzw. zu hell für dunkel) oder unten zu kräftig für die Leiste, wird es nicht übernommen. Querformat geht nicht. Ist das Bild schmaler als 1170 Pixel oder oben unruhig, erscheint ein Hinweis.
+
+> Für ein KI-Bild hilft eine Vorlage wie: „Hochformat 1290 × 2796, ruhiger heller Winterhimmel im oberen Drittel, weiche unscharfe Lichter in der Mitte, verschneite Tannen im unteren Viertel, ganz unten glatter Schnee, kein Text, keine Personen.“ Für dunkel denselben Satz mit „ruhiger dunkler Nachthimmel“.
 
 ### Seite „Nachrichten“ {#email}
 
@@ -631,7 +652,7 @@ Alles, was nur für euch gilt. Ihr erreicht die Seite über euren Namen unten im
 
 ![Die Startseite „Für mich“ in der Mitglieder-App.](bild: app=start)
 
-**Mitglieder-App:** Mit dem QR-Code und der PIN am Handy öffnet sich die App. Das Symbol oben (Profilbild oder Initialen) öffnet „Mein Konto“; „Mehr“ unten zeigt die übrigen Bereiche, „App installieren“ (solange die App nicht installiert ist) und eine Zeile „Mein Konto ›“, die dasselbe Blatt öffnet („Zurück“ führt dann wieder zu „Mehr“). Es enthält: Profilbild, Benachrichtigungen, Sprache, Darstellung, **PIN ändern** (mit der bisherigen PIN; sie gilt auch am Tablet) und **Abmelden** (entkoppelt nur dieses Handy; danach braucht es eine neue Einladung). Die App bleibt immer in sich und öffnet nie ein neues Fenster. Ohne Netz (oder wenn der Verein gerade nicht antwortet) zeigt sie statt einer Fehlerseite des Browsers **„Keine Verbindung“** mit **Erneut versuchen**; kommt das Netz zurück, lädt sie von selbst neu. Gespeichert ist dafür nur diese Hinweisseite, keine Daten. Die Rubrik **Nachrichten** zeigt die Mitteilungen des Vereins: neueste zuerst, Ungelesenes fett, Angeheftetes oben.
+**Mitglieder-App:** Mit dem QR-Code und der PIN am Handy öffnet sich die App. Das Symbol oben (Profilbild oder Initialen) öffnet „Mein Konto“; „Mehr“ unten zeigt die übrigen Bereiche, „App installieren“ (solange die App nicht installiert ist) und eine Zeile „Mein Konto ›“, die dasselbe Blatt öffnet („Zurück“ führt dann wieder zu „Mehr“). Es enthält: Profilbild, Benachrichtigungen, Sprache, Darstellung, **PIN ändern** (mit der bisherigen PIN; sie gilt auch am Tablet) und **Abmelden** (entkoppelt nur dieses Handy; danach braucht es eine neue Einladung). Die App bleibt immer in sich und öffnet nie ein neues Fenster. Ohne Netz (oder wenn der Verein gerade nicht antwortet) zeigt sie statt einer Fehlerseite des Browsers **„Keine Verbindung“** mit **Erneut versuchen**; kommt das Netz zurück, lädt sie von selbst neu. Gespeichert ist dafür nur diese Hinweisseite, keine Daten. Die Rubrik **Nachrichten** zeigt die Mitteilungen des Vereins: neueste zuerst, Ungelesenes fett, Angeheftetes oben. Gilt gerade ein **Sonderdesign** (Mitglieder-App › Einstellungen), liegt das Bild hinter der Seite und der Gruß steht oben in „Für mich“.
 
 ![Das Blatt „Mein Konto“ in der App.](bild: app=mehr; klick=#accKonto)
 

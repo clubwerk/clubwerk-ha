@@ -88,6 +88,13 @@ function build(file, { modules } = {}) {
       fs.mkdirSync(dst, { recursive: true }); fs.copyFileSync(src, path.join(dst, `${f.id}.bin`));
     }
   }
+  // Hintergrundbilder der Sonderdesigns (Mitglieder-App): Dateien aus demo/sonder/<id>-<hell|dunkel>.webp – als Hex-Text in kern.sql
+  // enthielten sie zufällig beliebige Zeichenfolgen (die Geheimnis-Prüfung von paket.sh schlüge an)
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'app_sonder'").get())
+    for (const r of db.prepare('SELECT id, typ_hell, typ_dunkel FROM app_sonder').all()) for (const a of ['hell', 'dunkel']) {
+      const f = path.join(DIR, 'sonder', `${r.id}-${a}.webp`);
+      if (r['typ_' + a] && fs.existsSync(f)) db.prepare(`UPDATE app_sonder SET bild_${a} = ? WHERE id = ?`).run(fs.readFileSync(f), r.id);
+    }
   set.run('demo_build', JSON.stringify({ stichtag: stichtag(), off, dm, heute }));
   return { db, off };
 }

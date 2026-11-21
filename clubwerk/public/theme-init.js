@@ -11,6 +11,7 @@
     var hc = t === 'hc' || (t === 'auto' && mq('(prefers-contrast: more)'));
     root.setAttribute('data-theme', dark ? 'dark' : 'light');
     if (hc) root.setAttribute('data-contrast', 'hoch'); else root.removeAttribute('data-contrast');
+    try { window.dispatchEvent(new Event('cw-darstellung')); } catch (e) { /* sehr alte Browser: ohne Ereignis */ }   // z. B. Mitglieder-App: Farbe der Statusleiste zum Sonderdesign
   };
   var parentTk = function () { try { return window.top !== window && window.parent.document.documentElement.getAttribute('data-tk-theme'); } catch (e) { return null; } };
   var now = function () { return root.getAttribute('data-tk-theme') || parentTk() || mine(); };

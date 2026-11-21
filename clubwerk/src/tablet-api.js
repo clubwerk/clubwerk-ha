@@ -119,9 +119,9 @@ module.exports = function tabletApi(h) {
   app.get('/api/tablet/state', (req, res) => {
     const photos = require('./photos');
     // Profilbild-Kennung gleich mitlesen (photos.version nimmt die Zeile) statt je Mitglied eine eigene Abfrage
-    const members = db.prepare(`SELECT id, name, kind, pending, pin_hash IS NOT NULL AS hasPin, photo, photo_use
+    const members = db.prepare(`SELECT id, name, kind, pending, pin_hash IS NOT NULL AS hasPin, offen_buchen AS offen, photo, photo_use
     FROM members WHERE active = 1 AND deleted = 0 AND kind != 'extern' ORDER BY name_key(name, kind)`).all()   // Gastspieler/innen (Spielbetrieb) haben kein Konto
-      .map(({ photo, photo_use, ...m }) => ({ ...m, hasPin: Boolean(m.hasPin), pending: Boolean(m.pending), ph: m.kind === 'mitglied' ? photos.version({ photo, photo_use }, 'verkauf') : null }));
+      .map(({ photo, photo_use, ...m }) => ({ ...m, hasPin: Boolean(m.hasPin), offen: Boolean(m.hasPin && m.offen && m.kind === 'mitglied'), pending: Boolean(m.pending), ph: m.kind === 'mitglied' ? photos.version({ photo, photo_use }, 'verkauf') : null }));
     // Module können Konten in der Namensliste ausblenden (z. B. Angehörige, die über den Hauptzahler buchen)
     const hidden = new Set();
     for (const p of plugins.withHook('tabletMembers')) { try { const r = p.hooks.tabletMembers() || {}; (r.hidden || []).forEach(id => hidden.add(id)); } catch (e) { console.error(`Modul ${p.meta.id}: ausgeblendete Mitglieder nicht lesbar:`, e.message); } }
@@ -142,12 +142,15 @@ module.exports = function tabletApi(h) {
   /* Datenschutz: Offene Beträge und Buchungsverlauf gibt es am Tablet nur für Konten mit PIN.
      (Ein Token für ein Konto mit PIN wird nur nach richtiger PIN ausgegeben.) */
   const privateOk = m => Boolean(m && m.pin_hash);
+  /* Schalter „Andere dürfen für mich buchen“ (nur Mitglieder mit PIN): Das Konto lässt sich ohne PIN zum Buchen öffnen,
+     aber ohne Einsicht (Beträge, Verlauf) und ohne PIN-Änderung – die Freigabe ist ein eingeschränktes Token (auth.ohnePin). */
+  const offenOk = m => Boolean(m && m.pin_hash && m.offen_buchen && m.kind === 'mitglied');
 
-  function unlockResponse(m) {
+  function unlockResponse(m, ohnePin = false) {
     const r = {
-      token: auth.issueTabletToken(m.id),
-      member: { id: m.id, name: m.name, kind: m.kind, hasPin: Boolean(m.pin_hash), pending: Boolean(m.pending) },
-      private: privateOk(m),
+      token: auth.issueTabletToken(m.id, { ohnePin }),
+      member: { id: m.id, name: m.name, kind: m.kind, hasPin: Boolean(m.pin_hash), offen: offenOk(m), pending: Boolean(m.pending) },
+      private: !ohnePin && privateOk(m), ohnePin,
     };
     if (r.private) { r.balance = memberBalance(m.id); r.eventOpen_cents = eventOpen(m.id); }
     return r;
@@ -175,6 +178,10 @@ module.exports = function tabletApi(h) {
     const m = db.prepare('SELECT * FROM members WHERE id = ? AND active = 1').get(int(memberId));
     if (!m) return bad(res, 'Konto nicht gefunden.', 404);
     if (m.kind === 'mannschaft' && !m.pin_hash) return bad(res, 'Für dieses Mannschaftskonto ist noch keine PIN vergeben – bitte an den Vorstand wenden.', 403);
+    // ohne PIN nur, wenn das Mitglied „Andere dürfen für mich buchen“ selbst eingeschaltet hat; eine mitgesendete PIN wird immer geprüft
+    if (m.pin_hash && !pin && offenOk(m)) return res.json(unlockResponse(m, true));
+    // ohne PIN bei ausgeschaltetem Schalter (z. B. Tablet-Liste noch vom alten Stand): Hinweis, kein Fehlversuch – sonst sperrt das Antippen das Mitglied
+    if (m.pin_hash && !pin) return bad(res, 'Ohne PIN buchen ist für dieses Konto nicht erlaubt. Bitte die PIN eingeben.', 401);
     if (m.pin_hash) {
       const err = await checkPin(m, pin);
       if (err) return bad(res, err.msg, err.code);
@@ -315,13 +322,25 @@ module.exports = function tabletApi(h) {
     return `${who}|${requestId}`;
   };
 
+  /* Ohne PIN geöffnete Sitzungen nehmen nur zurück, was sie selbst gebucht haben (Token → Buchungsnummern), nicht die
+     Buchungen des Mitglieds oder anderer – sonst ließen sich der Verlauf über Buchungsnummern abtasten und fremde Buchungen stornieren */
+  const ohnePinGebucht = new Map();
+  function merkeOhnePin(token, ids) {
+    const now = Date.now();
+    for (const [k, v] of ohnePinGebucht) if (now - v.at > UNDO_WINDOW_MIN * 60000) ohnePinGebucht.delete(k);
+    const e = ohnePinGebucht.get(token) || { ids: new Set() };
+    e.at = now; ids.forEach(id => e.ids.add(id)); ohnePinGebucht.set(token, e);
+  }
+
   app.post('/api/tablet/book', rateLimit('book', 120, 60000), (req, res) => {
     // „pay“ aus älteren Tablet-Versionen wird weiter angenommen, aber nicht mehr ausgewertet: ob bar oder angeschrieben,
     // ergibt sich allein aus dem Konto (Deckel, Veranstaltungsliste, Mitglied …)
     const { token, items, requestId } = req.body || {};
-    const who = auth.checkTabletToken(token);
+    const who = auth.checkTabletTokenBuchen(token);
     if (!who) return bad(res, 'Sitzung abgelaufen. Bitte Namen erneut wählen.', 401);
-    const rkey = replayKey(who, requestId);
+    const eingeschraenkt = !auth.checkTabletToken(token);   // ohne PIN geöffnet: nichts Privates in der Antwort
+    if (eingeschraenkt && !offenOk(db.prepare('SELECT * FROM members WHERE id = ?').get(who))) return bad(res, 'Sitzung abgelaufen. Bitte Namen erneut wählen.', 401);   // Schalter inzwischen aus
+    const rkey = replayKey(eingeschraenkt ? `op${who}` : who, requestId);
     if (rkey && bookReplay.has(rkey)) return res.json(bookReplay.get(rkey).body);   // Wiederholung: Erstergebnis, keine neue Buchung
     if (!Array.isArray(items) || !items.length) return bad(res, 'Keine Artikel gewählt.');
     const ev = activeEvent();
@@ -397,24 +416,29 @@ module.exports = function tabletApi(h) {
     } else if (guest) {
       // Veranstaltungsliste ist exklusiv (nur Buchungen dieser Veranstaltung, nie das Getränkekonto) –
       // das Thekenpersonal muss sie für jeden sehen können, auch ohne PIN
-      resp.guest = { id: guest.id, name: guest.name }; resp.private = true; resp.open_cents = guestOpen(guest.id);
+      resp.guest = { id: guest.id, name: guest.name }; resp.private = !eingeschraenkt; if (!eingeschraenkt) resp.open_cents = guestOpen(guest.id);
     } else if (member) {
-      resp.private = privateOk(member);
+      resp.private = !eingeschraenkt && privateOk(member);
       if (resp.private) {
         resp.balance = memberBalance(member.id);
         resp.eventOpen_cents = eventOpen(member.id);
       }
     }
     if (rkey) bookReplay.set(rkey, { at: Date.now(), body: resp });
+    if (eingeschraenkt) merkeOhnePin(token, created.map(b => b.id));
     res.json(resp);
   });
 
   app.post('/api/tablet/undo', rateLimit('undo', 60, 60000), (req, res) => {
     const { token, bookingIds } = req.body || {};
-    const who = auth.checkTabletToken(token);
+    const who = auth.checkTabletTokenBuchen(token);
     if (!who) return bad(res, 'Sitzung abgelaufen. Rückgängig bitte über den Vorstand.', 401);
+    const eingeschraenkt = !auth.checkTabletToken(token);
+    if (eingeschraenkt && !offenOk(db.prepare('SELECT * FROM members WHERE id = ?').get(who))) return bad(res, 'Sitzung abgelaufen. Rückgängig bitte über den Vorstand.', 401);
     if (!Array.isArray(bookingIds) || !bookingIds.length) return bad(res, 'Nichts zum Zurücknehmen.');
     const ids = bookingIds.map(i => int(i));
+    const selbst = ohnePinGebucht.get(token);
+    if (eingeschraenkt && !ids.every(id => selbst && selbst.ids.has(id))) return bad(res, 'Diese Buchung gehört nicht zu diesem Konto.', 403);
     const rows = db.prepare(`SELECT * FROM bookings WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids);
     const limit = new Date(Date.now() - UNDO_WINDOW_MIN * 60000);
     for (const b of rows) {
@@ -493,6 +517,21 @@ module.exports = function tabletApi(h) {
     audit('tablet', m.pin_hash ? 'PIN geändert' : 'PIN festgelegt', m.name);
     require('./push').send(m.id, 'app.pin', { title: `${getSetting('club_name', 'Verein')}: PIN geändert`, body: 'Deine PIN wurde am Tablet geändert. Warst du das nicht, melde dich bitte beim Vorstand.' }).catch(() => {});
     res.json({ ok: true, hasPin: true });
+  });
+
+  /* Das Mitglied schaltet „Andere dürfen für mich buchen“ selbst – nur mit vollem PIN-Nachweis (nie mit einer ohne PIN geöffneten Sitzung) */
+  app.post('/api/tablet/offen', rateLimit('pin', 20, 60000), (req, res) => {
+    const { token, an } = req.body || {};
+    const who = auth.checkTabletToken(token);
+    if (!who || typeof who !== 'number') return bad(res, 'Sitzung abgelaufen.', 401);
+    const m = db.prepare('SELECT * FROM members WHERE id = ?').get(who);
+    if (!m || m.kind !== 'mitglied' || !m.pin_hash) return bad(res, 'Dafür braucht das Konto eine PIN.');
+    const neu = an ? 1 : 0;
+    if (neu !== m.offen_buchen) {
+      db.prepare('UPDATE members SET offen_buchen = ? WHERE id = ?').run(neu, m.id);
+      audit('tablet', 'Andere dürfen für mich buchen', `${m.name}: ${neu ? 'eingeschaltet' : 'ausgeschaltet'}`);
+    }
+    res.json({ ok: true, offen: Boolean(neu) });
   });
 
   app.post('/api/tablet/logout', (req, res) => {

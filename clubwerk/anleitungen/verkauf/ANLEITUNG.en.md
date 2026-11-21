@@ -422,7 +422,7 @@ After 60 seconds without input the tablet returns to the start page, and nothing
 
 ![The PIN entry.](bild: tablet=start; klick=#names button[data-id])
 
-More buttons on the booking page: **My account** shows date, item and amount of your own bookings and the open amount, only with a PIN. **Change PIN** also applies immediately in the member app. **Other member** cancels and goes back to the list.
+More buttons on the booking page: **My account** shows date, item and amount of your own bookings and the open amount, only with a PIN. **Change PIN** also applies immediately in the member app. **Book for me** switches “Others may book for me” on or off: when it is on, someone can book for you – for example bring you a drink – without knowing your PIN. The name then also offers **Book without PIN**; your open amount, your history and your PIN stay hidden, and court booking and volunteer duties stay protected by the PIN. It is off by default; only you switch it on, at the tablet (after entering your PIN), and the committee can switch it off under Accounts. **Other member** cancels and goes back to the list.
 
 ### Free amount {#tablet-betrag}
 

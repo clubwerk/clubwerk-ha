@@ -79,11 +79,13 @@ function activate(ctx) {
   const cfg = () => ({
     default_minutes: parseInt(S('default_minutes', '240'), 10) || 0, min_age: parseInt(S('min_age', '12'), 10) || 0, max_age: parseInt(S('max_age', '0'), 10) || 0,
     rate_cents: parseInt(S('rate_cents', '1500'), 10) || 0, pool_family: S('pool_family', '1') === '1', exempt_passive: S('exempt_passive', '1') === '1',
-    year_mode: ['beitrag', 'geschaeft'].includes(S('year_mode', 'kalender')) ? S('year_mode', 'kalender') : 'kalender', prorate: S('prorate', '1') === '1', tablet_auto: S('tablet_auto', '1') === '1', hours: S('hours', '1') !== '0',
+    year_mode: ['beitrag', 'geschaeft'].includes(S('year_mode', 'kalender')) ? S('year_mode', 'kalender') : 'kalender', prorate: S('prorate', '1') === '1', tablet_auto: S('tablet_auto', '1') === '1', hours: S('hours', '1') !== '0', app_show: S('app_show', '1') !== '0',
     app_report: S('app_report', '1') === '1', start_year: parseInt(S('start_year', '0'), 10) || 0, remind_date: S('remind_date', ''), remind_events: S('remind_events', '1') === '1', round: parseInt(S('round', '15'), 10) || 1, text: S('text', ''),
     contact: S('contact', ''), notify: S('notify', ''), ical_url: S('ical_url', ''),
   });
   const mv = () => ctx.isModuleActive('mitglieder');
+  /* Mitglieder-App zeigt Stunden: „Arbeitsstunden nutzen“ an und „In der Mitglieder-App anzeigen“ an (aus: keine Stundendaten in der App-Antwort, die Verwaltung rechnet weiter) */
+  const appHours = () => { const c = cfg(); return c.hours && c.app_show; };
   const hook = async (name, ...a) => { const r = await ctx.callHooks(name, ...a); const x = r.find(y => y.id === 'mitglieder'); return x ? x.result : null; };
   const yearStart = () => { const mode = cfg().year_mode; if (mode === 'geschaeft') return `${String(ctx.geschaeftsjahr.month()).padStart(2, '0')}-01`; if (mode !== 'beitrag') return '01-01'; const x = ctx.callHooksSync('clubInfo').find(y => y.id === 'mitglieder'); return (x && x.result.yearStart) || '01-01'; };
   /** Jahr Y → Zeitraum [from, to] */
@@ -491,13 +493,13 @@ function activate(ctx) {
   const SET_LABELS = { default_minutes: 'Minuten je Mitglied und Jahr', rate_cents: ['Stundensatz für fehlende Stunden', 'euro'], min_age: 'Ab Alter', max_age: 'Bis Alter', year_mode: 'Abrechnungsjahr',
     start_year: 'Abrechnen ab Jahr', round: 'Am Tablet runden auf (Minuten)', remind_date: 'Erinnerung an fehlende Stunden', text: ['Hinweis für Mitglieder', 'text'], contact: 'Kontakt für kurzfristige Absagen', notify: 'Absagen per E-Mail an',
     pool_family: ['Familien gemeinsam zählen', 'bool'], exempt_passive: ['Passive und Ehrenmitglieder befreit', 'bool'], prorate: ['Bei Ein- oder Austritt anteilig', 'bool'], tablet_auto: ['Tablet-Stunden sofort bestätigt', 'bool'],
-    hours: ['Arbeitsstunden nutzen', 'bool'], app_report: ['Stunden in der App melden', 'bool'], remind_events: ['Helfer am Vortag erinnern', 'bool'] };
+    hours: ['Arbeitsstunden nutzen', 'bool'], app_show: ['Stunden in der Mitglieder-App anzeigen', 'bool'], app_report: ['Stunden in der App melden', 'bool'], remind_events: ['Helfer am Vortag erinnern', 'bool'] };
   admin.put('/settings', P, (req, res) => {
     const b = req.body || {};
     const before = cfg();
     const num = (k, lo, hi) => { if (b[k] !== undefined) SET(k, Math.max(lo, Math.min(hi, int(b[k])))); };
     num('default_minutes', 0, 20000); num('start_year', 2000, 2100); num('min_age', 0, 99); num('max_age', 0, 120); num('rate_cents', 0, 100000); num('round', 1, 60);
-    for (const k of ['hours', 'pool_family', 'exempt_passive', 'prorate', 'tablet_auto', 'app_report', 'remind_events']) if (b[k] !== undefined) SET(k, b[k] ? '1' : '0');
+    for (const k of ['hours', 'app_show', 'pool_family', 'exempt_passive', 'prorate', 'tablet_auto', 'app_report', 'remind_events']) if (b[k] !== undefined) SET(k, b[k] ? '1' : '0');
     if (b.year_mode !== undefined) SET('year_mode', ['beitrag', 'geschaeft'].includes(b.year_mode) ? b.year_mode : 'kalender');
     if (b.remind_date !== undefined) { if (b.remind_date && !/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(b.remind_date)) return bad(res, 'Ungültiges Datum für die Erinnerung (TT.MM.).'); SET('remind_date', b.remind_date || ''); }
     if (b.text !== undefined) SET('text', txt(b.text, 600));
@@ -636,7 +638,7 @@ function activate(ctx) {
     const id = req.member.id, y = yearOf(today());
     const fam = mv() && cfg().pool_family ? await hook('familyOf', id) : null;
     const ids = fam ? fam.members : [id];
-    const hrs = cfg().hours;   // „Arbeitsstunden nutzen“ aus: kein Soll, keine Stunden, nichts zum Melden
+    const hrs = appHours();   // Stunden aus oder in der App nicht angezeigt: kein Soll, keine Stunden, nichts zum Melden
     let tg = 0; if (hrs) for (const x of ids) tg += (await target(x, y)).minutes;
     const done = hrs ? doneMinutes(ids, y) : 0, open = hrs ? openMinutes(ids, y) : 0;
     const mine = hrs ? await target(id, y) : null;
@@ -699,7 +701,7 @@ function activate(ctx) {
     res.json({ ok: true });
   });
   M.post('/report', rateLimit('awrep', 20, 3600000), (req, res) => {
-    if (!cfg().hours || !cfg().app_report) return bad(res, 'Stunden meldet bei uns der Vorstand.', 403);
+    if (!appHours() || !cfg().app_report) return bad(res, 'Stunden meldet bei uns der Vorstand.', 403);
     const b = req.body || {}; const r = entryInput(b); if (r.error) return bad(res, r.error);
     if ((r.v.text || '').length < 3) return bad(res, 'Bitte kurz beschreiben, was du gemacht hast.');
     db.prepare("INSERT INTO aw_entry(member_id, event_id, date, minutes, text, status, source) VALUES (?,?,?,?,?, 'offen', 'app')").run(req.member.id, r.v.event_id, r.v.date, r.v.minutes, r.v.text);
@@ -761,7 +763,7 @@ function activate(ctx) {
     next.push(...icalList(d, until, 6).filter(e => e.date > d || !(e.end || e.start) || (e.end || e.start) > now || (e.end_date || e.date) > d).slice(0, 3)
       .map(e => ({ at: e.date < d ? d : e.date, start: e.date < d ? '' : e.start || '', end: e.date < d || (e.end_date && e.end_date !== e.date) ? '' : e.end || '', title: e.title, sub: [e.end_date && e.end_date !== e.date ? `bis ${deD(e.end_date).slice(0, 6)}` : '', e.place ? String(e.place).split(',')[0] : '', 'Vereinskalender'].filter(Boolean).join(' · '), focus: 'kalender' })));
     const tasks = aufg.forMe(id);   // eigene Aufgaben mit Frist (zuerst, weil sie eine Frist haben)
-    if (!cfg().hours || miss <= 0) return { next, todo: [...tasks, ...ask] };
+    if (!appHours() || miss <= 0) return { next, todo: [...tasks, ...ask] };
     // freie Dienste wie im Bereich: einzelne Termine und Schichten veröffentlichter Dienstpläne, noch nicht vorbei, nicht voll, ich noch nicht dabei
     const free = db.prepare(`SELECT e.* FROM aw_event e LEFT JOIN aw_plan p ON p.id = e.plan_id WHERE e.date >= ? AND e.date <= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.counts = 1
       AND (e.plan_id IS NULL OR p.published = 1) AND NOT EXISTS (SELECT 1 FROM aw_signup s WHERE s.event_id = e.id AND s.member_id = ?)`).all(d, until, id).filter(e => isOpen(e) && (!e.slots || helpersOf(e.id).length < e.slots)).length;
@@ -781,6 +783,7 @@ function activate(ctx) {
   /* „Arbeitsstunden nutzen“ aus: Stundenseiten, Soll-Karten und das Stempeln am Tablet verschwinden (Daten bleiben erhalten) */
   ctx.hooks.adminHidden = () => (cfg().hours ? [] : ['arbeitseinsatz', 'aw-stunden']);
   ctx.hooks.tabletVisible = () => cfg().hours;
+  ctx.hooks.appStundenAus = () => !appHours();   // fragt die Mitgliederverwaltung: Posten „Arbeitsstunden“ in „Meine Daten“ und „Offen“ der App ausblenden
   ctx.hooks.arbeitsstundenAktiv = () => cfg().hours;   // fragt die Mitgliederverwaltung (Beitragsart-Spalte, Beitragslauf)
   ctx.hooks.setupSteps = () => !cfg().hours ? [] : [
     { id: 'regeln', title: 'Dienste & Termine: Soll und Abrechnung', text: 'Wie viele Stunden jedes Mitglied im Jahr leisten soll und was fehlende Stunden kosten. Vorschlagswerte sind eingestellt.', page: 'aw-einstellungen', card: ['Soll', 'Abrechnung'] },
@@ -799,7 +802,7 @@ function activate(ctx) {
     return [{ group: 'Dienstpläne', art: 'dienstplan', page: 'aw-plaene', detail: true, hits: s.pick(rows, r => [r.title, r.place]).map(r => ({ id: r.id, label: r.title, person: false, score: r._score,
       sub: [r.from_date === r.to_date ? deD(r.from_date) : `${deD(r.from_date)} – ${deD(r.to_date)}`, r.place, r.published ? '' : 'Entwurf'] })) }];
   };
-  const CONFIG_KEYS = ['default_minutes', 'min_age', 'max_age', 'rate_cents', 'pool_family', 'exempt_passive', 'year_mode', 'prorate', 'tablet_auto', 'hours', 'app_report', 'remind_date', 'remind_events', 'round', 'text', 'start_year', 'notify', 'contact', 'ical_url', 'task_keep_months'];
+  const CONFIG_KEYS = ['default_minutes', 'min_age', 'max_age', 'rate_cents', 'pool_family', 'exempt_passive', 'year_mode', 'prorate', 'tablet_auto', 'hours', 'app_show', 'app_report', 'remind_date', 'remind_events', 'round', 'text', 'start_year', 'notify', 'contact', 'ical_url', 'task_keep_months'];
   ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });
   // nur bekannte Schlüssel übernehmen – eine fremde Datei darf keine beliebigen Einstellungen anlegen
   ctx.hooks.importConfig = d => { let n = 0; for (const [k, v] of Object.entries((d && d.settings) || {})) if (typeof v === 'string' && CONFIG_KEYS.includes(k)) { SET(k, v.slice(0, 600)); n++; } return `${n} Einstellungen übernommen – Dienste, Termine und Stunden gehören nicht dazu`; };

@@ -1310,6 +1310,7 @@
     { label: 'Wer sieht welchen Bereich der App?', page: 'app', perm: ['app', 'einstellungen'], sec: APS('bereiche'), card: 'Bereiche der App', words: 'App Bereiche Rechte für wen vorwählen', in: 'Bereiche' },
     { label: 'Von unterwegs nutzbare Bereiche', page: 'app', perm: 'einstellungen', sec: APS('bereiche'), card: 'Bereiche der App', words: 'App unterwegs Internet', in: 'Bereiche' },
     { label: 'Reihenfolge und Start der App-Bereiche', page: 'app', perm: ['app', 'einstellungen'], sec: APS('bereiche'), card: 'Bereiche der App', words: 'App Reihenfolge Leiste Start Reiter', in: 'Bereiche' },
+    { label: 'Sonderdesigns der App (Hintergrundbild, Gruß)', page: 'app', perm: ['app', 'einstellungen'], sec: APS('einstellungen'), card: 'Sonderdesigns', words: 'App Advent Weihnachten Jubiläum Hintergrund Bild Gruß Festtag Design', in: 'Einstellungen' },
     { label: 'Thekenkonto in „Für mich“ zeigen', page: 'app', perm: ['app', 'einstellungen'], sec: APS('bereiche'), card: 'Bereiche der App', field: 'bgKonto', words: 'App Für mich Startseite Thekenkonto Verkaufskonto Kontostand offen', in: 'Bereiche' },
     { label: 'Push-Benachrichtigungen freigeben', page: 'app', perm: ['app', 'einstellungen'], sec: APS('push'), card: 'Benachrichtigungen', words: 'Push Benachrichtigung Nachricht', in: 'Benachrichtigungen' },
     { label: 'Adresse und Name der Mitglieder-App', page: 'app', perm: ['app', 'einstellungen'], sec: APS('einstellungen'), card: 'Adresse & Aussehen', field: 'apUrl', words: 'Adresse WLAN Homescreen Name Aussehen', in: 'Einstellungen' },
@@ -2711,7 +2712,7 @@
       sonder: m => m.active && (m.kind === 'verein' || m.kind === 'gast'), offen: m => (m.balance_cents || 0) > 0, aus: m => !m.active,
     };
     const ini = m => esc(initials(isPerson(m.kind) ? m.name : m.name.replace(/[()]/g, '')));
-    const pinPill = m => m.hasPin ? `<span class="pill g">${m.kind === 'mannschaft' ? 'vom Vorstand' : 'gesetzt'}</span>${m.pinLocked ? ' <span class="pill r">gesperrt</span>' : ''}` : m.kind === 'mannschaft' ? '<span class="pill r">fehlt</span>' : '<span class="muted s">ohne</span>';
+    const pinPill = m => m.hasPin ? `<span class="pill g">${m.kind === 'mannschaft' ? 'vom Vorstand' : 'gesetzt'}</span>${m.pinLocked ? ' <span class="pill r">gesperrt</span>' : ''}${m.offen ? ' <span class="pill a" title="Andere dürfen für dieses Mitglied ohne PIN buchen">Buchen ohne PIN erlaubt</span>' : ''}` : m.kind === 'mannschaft' ? '<span class="pill r">fehlt</span>' : '<span class="muted s">ohne</span>';
     klebend($('mDetail'));
     // Detailkarte rechts neben der Liste; bei schmalen Fenstern (≤ 1100 px) als Dialog, damit die Liste nicht springt
     const narrow = () => window.matchMedia('(max-width: 1100px)').matches;
@@ -2866,18 +2867,20 @@
         if (ed) {
           const m = cache.members.find(x => x.id === Number(ed.dataset.ed));
           const special = m.kind === 'verein' || m.kind === 'gast';
-          dialog(`<h2>Konto bearbeiten</h2><div class="row"><label class="f fx1">Name<input id="eName" value="${esc(m.name)}"></label>
+          dialog(`<h2>Konto bearbeiten</h2><div class="row"><label class="f fx1">Name<textarea id="eName" data-grow rows="1">${esc(m.name)}</textarea></label>
             <label class="f">Typ<select id="eKind">${Object.entries(KIND).filter(([k]) => !(mvOn && k === 'mitglied' && m.kind !== 'mitglied')).map(([k, l]) => `<option value="${k}" ${k === m.kind ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
             <div class="${m.kind === 'mannschaft' ? '' : 'hidden'} mt12" id="ePinRow"><label class="f">PIN der Mannschaft ${m.hasPin ? '(leer = unverändert)' : '(Pflicht)'}<input id="ePin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
               <p class="muted s" style="margin:6px 0 0">Mannschaftskonten buchen nur mit dieser PIN. Sie wird hier vom Vorstand vergeben und kann am Tablet nicht geändert werden.</p></div>
             <label class="chk mt12"><input type="checkbox" id="eAct" ${m.active ? 'checked' : ''}> Auf dem Tablet anzeigen</label>
+            ${m.kind === 'mitglied' && m.hasPin ? `<label class="chk mt12"><input type="checkbox" id="eOffen" ${m.offen ? 'checked' : ''}> Andere dürfen für mich buchen</label>
+              <p class="muted s" style="margin:6px 0 0">Das Mitglied legt das am Tablet selbst fest. Ist es eingeschaltet, kann man für dieses Mitglied ohne PIN buchen – ohne Einsicht in Beträge und Verlauf.</p>` : ''}
             ${isPerson(m.kind) && !m.pending && (cache.appModules || []).length ? '<div class="card soft" id="eApp" style="margin:14px 0 0"><p class="muted">Lade …</p></div>' : ''}
             <div class="btns">${special ? '' : '<button class="btn danger mr-auto" id="eDel">Löschen</button>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok3">Speichern</button></div>`);
           $('c').onclick = closeDialog;
           $('eKind').onchange = () => $('ePinRow').classList.toggle('hidden', $('eKind').value !== 'mannschaft');
           if ($('eApp')) appBox($('eApp'), m.id).catch(fail);
           $('ok3').onclick = () => busy($('ok3'), async () => {
-            try { await api('members/' + m.id, 'PUT', { name: $('eName').value, kind: $('eKind').value, active: $('eAct').checked, pin: $('ePin').value }); closeDialog(); RENDER.konten(); } catch (err) { fail(err); }
+            try { await api('members/' + m.id, 'PUT', { name: $('eName').value, kind: $('eKind').value, active: $('eAct').checked, pin: $('ePin').value, ...($('eOffen') ? { offen: $('eOffen').checked } : {}) }); closeDialog(); RENDER.konten(); } catch (err) { fail(err); }
           });
           if ($('eDel')) $('eDel').onclick = () => deleteMember(m, () => RENDER.konten());
         }
@@ -3182,6 +3185,136 @@
       try { const x = await api('push/test', 'POST', { memberId: id }); toast(x.ok ? `Testnachricht gesendet (${x.sent}).` : 'Nicht gesendet' + (x.skipped ? ': ' + x.skipped : ' – kein Handy mit Abo.'), !x.ok); pushCard(el).catch(fail); } catch (e) { fail(e); }
     });
   }
+  /* ---------- Sonderdesigns der Mitglieder-App (src/sonderdesign.js, planung/sonderdesign.md) ----------
+     Zeitraum bis 8 Wochen (nie dauerhaft), optional jedes Jahr; Bausteine: Bild für hell, Bild für dunkel, Gruß in „Für mich“.
+     Bilder werden hier im Browser verkleinert (höchstens 1290 × 2796, WebP) und gemessen: Farbe oben (Schrift steht direkt auf dem Bild) und unten (Leiste). */
+  const SD_SCHRIFT = { hell: { ink: '#141a16', muted: '#56625a' }, dunkel: { ink: '#e8eee9', muted: '#a7b2aa' } };   // Schrift der App (public/style.css), wie der Server prüft
+  const SD_GLAS = { hell: [255, 255, 255, 0.66], dunkel: [23, 29, 25, 0.72] };   // Leiste der App: --glass aus public/style.css, Beschriftung wie .vh-tabs button (kit.css)
+  const sdLum = c => { const v = c.map(x => x / 255).map(x => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+  const sdRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const sdKon = (a, b) => { const x = sdLum(a), y = sdLum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const sdHex = c => '#' + c.map(x => Math.round(x).toString(16).padStart(2, '0')).join('');
+  const sdDate = d => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
+  const sdZeit = x => (x.jaehrlich ? `${sdDate(x.von)}–${sdDate(x.bis)}` : `${sdDate(x.von)}${x.von.slice(0, 4)}–${sdDate(x.bis)}${x.bis.slice(0, 4)}`);
+  const sdTage = x => { if (!x.von || !x.bis) return 0; const md = d => d.slice(5); const u = d => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
+    return x.jaehrlich ? Math.round((u((md(x.bis) < md(x.von) ? '2005-' : '2004-') + md(x.bis)) - u('2004-' + md(x.von))) / 864e5) + 1 : Math.round((u(x.bis) - u(x.von)) / 864e5) + 1; };
+  /** Bild verkleinern, als WebP (sonst JPEG) speichern und messen → { data, top, url, hints } oder Fehler (throw) */
+  async function sdBild(file, art) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error(T('Bitte ein Foto als JPEG, PNG oder WebP wählen.'));
+    const src = URL.createObjectURL(file);
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error(T('Das Bild lässt sich nicht öffnen.'))); i.src = src; });
+    URL.revokeObjectURL(src);
+    const W0 = img.naturalWidth, H0 = img.naturalHeight;
+    if (W0 >= H0) throw new Error(T('Bitte ein Bild im Hochformat wählen (am besten 1290 × 2796 Pixel).'));
+    if (W0 < 600) throw new Error(T('Das Bild ist zu klein (mindestens 600 Pixel breit, am besten 1290).'));
+    const k = Math.min(1, 1290 / W0, 2796 / H0), w = Math.round(W0 * k), h = Math.round(H0 * k);
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(img, 0, 0, w, h);
+    const blobOf = (t, q) => new Promise(r => cv.toBlob(r, t, q));
+    let b = null;
+    for (const q of [0.8, 0.7, 0.6]) { b = await blobOf('image/webp', q); if (!b || b.type !== 'image/webp') { b = await blobOf('image/jpeg', q + 0.02); } if (b && b.size <= 400 * 1024) break; }
+    if (!b || b.size > 1024 * 1024) throw new Error(T('Das Bild ist auch verkleinert noch zu groß (höchstens 1 MB).'));
+    // Messen auf einer kleinen Kopie: Mittelwert und Streuung der oberen und unteren 12 %
+    const mw = 60, mh = Math.round(60 * h / w), m = document.createElement('canvas'); m.width = mw; m.height = mh;
+    const mc = m.getContext('2d', { willReadFrequently: true }); mc.drawImage(img, 0, 0, mw, mh);
+    const band = (y0, y1) => { const d = mc.getImageData(0, y0, mw, Math.max(1, y1 - y0)).data, s = [0, 0, 0], L = []; for (let i = 0; i < d.length; i += 4) { s[0] += d[i]; s[1] += d[i + 1]; s[2] += d[i + 2]; L.push(sdLum([d[i], d[i + 1], d[i + 2]])); } const n = L.length, mean = L.reduce((a, x) => a + x, 0) / n; return { c: s.map(x => x / n), sd: Math.sqrt(L.reduce((a, x) => a + (x - mean) ** 2, 0) / n) }; };
+    const o = band(0, Math.round(mh * 0.12)), u = band(mh - Math.round(mh * 0.12), mh), S = SD_SCHRIFT[art];
+    if (Math.min(sdKon(sdRgb(S.ink), o.c), sdKon(sdRgb(S.muted), o.c)) < 4.5) throw new Error(art === 'hell' ? T('Oben ist das Bild zu dunkel für die Schrift im hellen Design.') : T('Oben ist das Bild zu hell für die Schrift im dunklen Design.'));
+    const g = SD_GLAS[art], leiste = [0, 1, 2].map(i => g[i] * g[3] + u.c[i] * (1 - g[3])), mi = sdRgb(S.muted), ik = sdRgb(S.ink), schrift = [0, 1, 2].map(i => mi[i] * 0.8 + ik[i] * 0.2);
+    if (sdKon(schrift, leiste) < 4.5) throw new Error(art === 'hell' ? T('Unten ist das Bild zu dunkel für die Leiste im hellen Design.') : T('Unten ist das Bild zu hell für die Leiste im dunklen Design.'));
+    const hints = [];
+    if (w < 1170) hints.push(T('Das Bild ist klein und wirkt am Handy unscharf (am besten 1290 Pixel breit).'));
+    if (o.sd > 0.06) hints.push(T('Oben ist das Bild unruhig – dort steht die Schrift direkt auf dem Bild. Ein ruhiger Himmel oder eine glatte Fläche ist besser.'));
+    const data = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(b); });
+    return { data, top: sdHex(o.c), url: URL.createObjectURL(b), hints };
+  }
+  /** Vorschau: die echten Bausteine der App (style.css, theme.css, kit.css) in einem kleinen Rahmen – statische Nachbildung von „Für mich“, ohne Mitgliederdaten */
+  function sdVorschau(art, x) {
+    const bild = x[art] && x[art].url, top = x[art] && x[art].top;
+    const sv = bild ? [' data-sonder-', art, ' style="--sonder-top-', art, ':', top, ';--sonder-bild-', art, ':url(&quot;', esc(bild), '&quot;)"'].join('') : '';   // Attribute wie in der App (app.js)
+    const row = (d, wd, t, sub) => `<div class="vh-fm"><span class="vh-date"><b>${d}</b><span>${esc(T(wd))}</span></span><span class="vh-tx"><strong>${esc(T(t))}</strong><small>${esc(T(sub))}</small></span></div>`;
+    const g = x.gruss && x.gruss.titel ? `<div class="vh-card vh-gruss"><div class="vh-hhead"><h3>${esc(x.gruss.titel)}</h3><button type="button" class="vh-hx" tabindex="-1">✕</button></div>${x.gruss.text ? `<p>${esc(x.gruss.text)}</p>` : ''}</div>` : '';
+    const doc = `<!DOCTYPE html><html lang="de" data-theme="${art === 'dunkel' ? 'dark' : 'light'}"${sv}><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="theme.css"><link rel="stylesheet" href="kit.css">
+      <style>html,body{overflow:hidden} body{pointer-events:none} .sd-leiste{background:var(--glass-solid);border:1px solid var(--glass-edge)}</style></head><body class="vh-page"><header class="vh-top"><h1>${esc(x.club || '')}</h1><p>${esc(T('Für mich'))}</p></header>
+      <main class="vh-main"><div class="vh-sec">${g}<div class="vh-card"><h3>${esc(T('Als Nächstes'))}</h3><div class="vh-rows">${row('12.12.', 'Sa', 'Weihnachtsfeier', '18:00 Uhr · Vereinsheim')}${row('14.12.', 'Mo', 'Platz 2 gebucht', '18:00–19:00')}</div></div>
+      <div class="vh-card"><h3>${esc(T('Zu erledigen'))}</h3><div class="vh-rows">${row('20.12.', 'So', 'Arbeitsdienst', 'noch 2 Stunden offen')}</div></div></div>
+      <div class="vh-tabs sd-leiste">${['Für mich', 'Plätze', 'Dienste', 'Mehr'].map((t, i) => `<button type="button" class="${i ? '' : 'on'}"><span>${esc(T(t))}</span></button>`).join('')}</div></main></body></html>`;
+    return `<figure class="sd-vs"><div class="sd-rahmen"><iframe title="${esc(T(art === 'hell' ? 'Vorschau hell' : 'Vorschau dunkel'))}" tabindex="-1" scrolling="no" srcdoc="${esc(doc)}"></iframe></div><figcaption class="muted s">${esc(T(art === 'hell' ? 'Hell' : 'Dunkel'))}${bild ? '' : ' · ' + esc(T('ohne Bild'))}</figcaption></figure>`;
+  }
+  async function sonderCard(el) {
+    const r = await api('app/sonder');
+    const ST = { jetzt: '<span class="pill g">gilt gerade</span>', naechstes: '<span class="pill">als Nächstes</span>', ueberdeckt: '<span class="pill a" title="Ein kürzerer Zeitraum gilt gerade">überdeckt</span>', abgelaufen: '<span class="pill">abgelaufen</span>' };
+    const teile = x => [x.hell && T('Bild hell'), x.dunkel && T('Bild dunkel'), x.gruss && T('Gruß')].filter(Boolean).join(', ');
+    el.innerHTML = `<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 class="m0">Sonderdesigns</h3><button class="btn" id="sdNew" type="button">+ Neues Sonderdesign</button></div>
+      <p class="muted s mt0">Für einen Zeitraum von höchstens 8 Wochen zeigt die Mitglieder-App ein eigenes Hintergrundbild (je für hell und dunkel) und oben in „Für mich“ einen Gruß – z. B. im Advent oder zum Jubiläum. Überschneiden sich zwei, gilt der kürzere.</p>
+      ${r.rows.length ? `<table class="tbl kompakt" id="sdTbl"><tr><th>Name</th><th>Zeitraum</th><th>Bausteine</th><th>Stand</th><th class="r">Bearbeiten</th></tr>
+        ${r.rows.map(x => `<tr data-sd="${x.id}"><td><b translate="no">${esc(x.name)}</b></td><td class="nw">${esc(sdZeit(x))}${x.jaehrlich ? ` <span class="muted s">${esc(T('jedes Jahr'))}</span>` : ''}</td><td class="k-weg">${esc(teile(x))}</td><td>${ST[x.status] || ''}</td>
+          <td class="r"><span class="acts"><button class="btn ico" type="button" data-sde="${x.id}" title="${esc(T('Bearbeiten …'))}" aria-label="${esc(T('Bearbeiten'))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg></button></span></td></tr>`).join('')}</table>`
+        : '<p class="empty">Noch kein Sonderdesign. Mit „+ Neues Sonderdesign“ legst du eins an, z. B. für den Advent.</p>'}`;
+    labelTables(el);
+    $('sdNew').onclick = () => sonderDlg(el, null, r);
+    el.querySelectorAll('[data-sde]').forEach(b => { b.onclick = () => sonderDlg(el, r.rows.find(x => x.id === Number(b.dataset.sde)), r); });
+  }
+  function sonderDlg(el, row, r) {
+    const id = row ? row.id : 0, bildUrl = (art, v) => `api/admin/app/sonder/${id}/bild/${art}?v=${encodeURIComponent(v)}`;
+    const x = { club: (cache.settings && cache.settings.clubName) || '', gruss: row && row.gruss ? { ...row.gruss } : { titel: '', text: '' },
+      hell: row && row.hell ? { url: bildUrl('hell', row.hell), top: row.top_hell } : null, dunkel: row && row.dunkel ? { url: bildUrl('dunkel', row.dunkel), top: row.top_dunkel } : null };
+    const neu = {};   // geänderte Bilder: { data, top } oder null (entfernen)
+    const hinweis = { hell: [], dunkel: [] };
+    const platz = art => `<div class="sd-bild"><b>${esc(T(art === 'hell' ? 'Bild für hell' : 'Bild für dunkel'))}</b>
+      <div class="row" style="gap:8px;margin-top:6px"><label class="btn small sd-wahl">${esc(T(x[art] ? 'Anderes Bild …' : 'Bild wählen …'))}<input type="file" accept="image/jpeg,image/png,image/webp" data-sdf="${art}" hidden></label>${x[art] ? `<button class="btn small" type="button" data-sdx="${art}">${esc(T('Entfernen'))}</button>` : ''}</div>
+      ${hinweis[art].map(h => `<div class="banner a" style="margin:8px 0 0;font-weight:400">${esc(h)}</div>`).join('')}</div>`;
+    const draw = () => {
+      $('sdBilder').innerHTML = platz('hell') + platz('dunkel');
+      $('sdVor').innerHTML = sdVorschau('hell', x) + sdVorschau('dunkel', x);
+      sdSkalieren();
+      $('sdBilder').querySelectorAll('[data-sdf]').forEach(inp => { inp.onchange = async () => {
+        const art = inp.dataset.sdf, f = inp.files && inp.files[0]; if (!f) return;
+        try { const b = await sdBild(f, art); neu[art] = { data: b.data, top: b.top }; x[art] = { url: b.url, top: b.top }; hinweis[art] = b.hints; draw(); }
+        catch (e) { toast(e.message, true); inp.value = ''; }
+      }; });
+      $('sdBilder').querySelectorAll('[data-sdx]').forEach(btn => { btn.onclick = () => { const art = btn.dataset.sdx; neu[art] = null; x[art] = null; hinweis[art] = []; draw(); }; });
+    };
+    const dauer = () => { const v = { von: $('sdVon').value, bis: $('sdBis').value, jaehrlich: $('sdJahr').checked }; const n = sdTage(v);
+      $('sdDauer').textContent = !v.von || !v.bis ? T('Ein Tag: „Von“ und „Bis“ gleich. Höchstens 8 Wochen.') : n < 1 ? T('„Bis“ liegt vor „Von“.') : n > r.maxTage ? T('{0} Tage – höchstens 8 Wochen ({1} Tage).', [n, r.maxTage]) : n === 1 ? T('1 Tag') : T('{0} Tage', [n]); };
+    dialog(`<h2>${esc(T(row ? 'Sonderdesign bearbeiten' : 'Neues Sonderdesign'))}</h2>
+      <div class="frm"><label class="f wall">Name<input id="sdName" maxlength="40" value="${esc(row ? row.name : '')}" placeholder="${esc(T('z. B. Advent'))}"></label>
+        <label class="f">Von<input type="date" id="sdVon" value="${esc(row ? row.von : '')}"></label><label class="f">Bis<input type="date" id="sdBis" value="${esc(row ? row.bis : '')}"></label>
+        <label class="chk wall"><input type="checkbox" id="sdJahr" ${row && row.jaehrlich ? 'checked' : ''}> Jedes Jahr wiederholen (nur Tag und Monat zählen, auch über den Jahreswechsel)</label></div>
+      <p class="muted s m-8-0-0" id="sdDauer"></p>
+      <h3 class="mt12">Hintergrundbild</h3>
+      <p class="muted s mt0">Fehlt ein Bild, zeigt die App in dieser Darstellung keins – der Gruß bleibt. Mit „Hoher Kontrast“ gibt es nie ein Bild.</p>
+      <div class="sd-bilder" id="sdBilder"></div>
+      <details class="mt10"><summary>Bildvorgaben</summary><ul class="muted s" style="margin:8px 0 0;padding-left:18px;line-height:1.6">
+        <li>${esc(T('Hochformat 1290 × 2796 Pixel, ohne Text, Logos und erkennbare Personen; nur eigene oder frei nutzbare Bilder.'))}</li>
+        <li>${esc(T('Oben (bis 15 %) ruhig: dort steht der Vereinsname direkt auf dem Bild – für hell eine helle, für dunkel eine dunkle Fläche.'))}</li>
+        <li>${esc(T('Mitte (15–65 %) ruhig mit weichen Lichtern, ohne Motive – dort liegen die Karten.'))}</li>
+        <li>${esc(T('Motive im unteren Teil (65–90 %), mindestens 10 % vom Rand; ganz unten (90–100 %) nur Boden für die Leiste.'))}</li></ul></details>
+      <h3 class="mt12">Gruß in „Für mich“</h3>
+      <div class="frm"><label class="f wall">Überschrift<input id="sdTitel" maxlength="40" value="${esc(x.gruss.titel)}" placeholder="${esc(T('z. B. Frohe Weihnachten'))}"></label>
+        <label class="f wall">Text<textarea id="sdText" maxlength="200" rows="3">${esc(x.gruss.text)}</textarea></label></div>
+      <p class="muted s m-8-0-0">Reiner Text ohne Links und Emojis, höchstens 200 Zeichen. Das Mitglied kann ihn mit ✕ ausblenden; ändert ihr ihn, erscheint er neu.</p>
+      <h3 class="mt12">Vorschau</h3><div class="sd-vor" id="sdVor"></div>
+      ${row ? '<div class="dz"><button class="btn ghost danger" id="sdDel" type="button">Löschen …</button></div>' : ''}
+      <div class="btns"><button class="btn ghost" id="sdNo" type="button">Abbrechen</button><button class="btn primary" id="sdOk" type="button">Speichern</button></div>`, true);
+    draw(); dauer();
+    ['sdVon', 'sdBis', 'sdJahr'].forEach(k => { $(k).addEventListener('input', dauer); $(k).addEventListener('change', dauer); });
+    const gr = () => { x.gruss = { titel: $('sdTitel').value.trim(), text: $('sdText').value.trim() }; $('sdVor').innerHTML = sdVorschau('hell', x) + sdVorschau('dunkel', x); sdSkalieren(); };
+    $('sdTitel').addEventListener('change', gr); $('sdText').addEventListener('change', gr);
+    $('sdNo').onclick = closeDialog;
+    if ($('sdDel')) $('sdDel').onclick = async () => {
+      if (!await ask(T('„{0}“ löschen?', [row.name]) + '\n\n' + T('Die Mitglieder-App zeigt das Sonderdesign danach nicht mehr.'))) return;
+      try { await api('app/sonder/' + id, 'DELETE'); closeDialog(); toast(T('Gelöscht.')); sonderCard(el).catch(fail); } catch (e) { fail(e); }
+    };
+    $('sdOk').onclick = () => busy($('sdOk'), async () => {
+      gr();
+      const body = { name: $('sdName').value, von: $('sdVon').value, bis: $('sdBis').value, jaehrlich: $('sdJahr').checked, gruss: x.gruss };
+      for (const art of ['hell', 'dunkel']) if (art in neu) body[art] = neu[art];
+      try { await api(row ? 'app/sonder/' + id : 'app/sonder', row ? 'PUT' : 'POST', body); closeDialog(); toast(T('Gespeichert – die App zeigt es im eingestellten Zeitraum.')); sonderCard(el).catch(fail); } catch (e) { fail(e); }
+    });
+  }
+  /** Vorschau-Rahmen (390 px breite App) auf die verfügbare Breite verkleinern */
+  function sdSkalieren() { document.querySelectorAll('.sd-rahmen').forEach(f => { const i = f.querySelector('iframe'); if (i && f.clientWidth) i.style.transform = `scale(${f.clientWidth / 390})`; }); }
+  window.addEventListener('resize', sdSkalieren);
   /** SMS-Stick für den zweiten Faktor: Anschluss wählen, prüfen, einschalten, Test-SMS */
   async function smsCard(el) {
     const x = await api('app/sms');
@@ -3279,6 +3412,7 @@
           <span class="pill ${r.https ? 'g' : 'a'}">${r.https ? 'HTTPS an' : 'ohne HTTPS'}</span>
           <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt, ab dem 10. Fehlversuch 30 Minuten, nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code. Wer davon erfährt, steht unter Einstellungen › Sicherheit.</span></div></div>` : ''}
       ${can('einstellungen') ? '<div class="card" id="smsCard" data-nodirty data-set="einstellungen"><h3>Bestätigung per SMS</h3><p class="muted s mt0">Lade …</p></div>' : ''}
+      ${mayCfg ? '<div class="card" id="sdCard" data-nodirty data-set="einstellungen"><h3>Sonderdesigns</h3><p class="muted s mt0">Lade …</p></div>' : ''}
       ${mayCfg && mods.length ? `<div class="card" id="apAreas" data-nodirty data-set="bereiche"><h3>Bereiche der App</h3>
         <p class="muted s mt0">Welche Bereiche die App zeigt, wer sie sieht, womit sie startet und in welcher Reihenfolge sie stehen.</p>
         <div class="ds-scroll"><table class="tbl kompakt" id="apAreaTbl"><tr><th>Bereich</th><th>Für wen</th>${mayNet ? '<th>Von unterwegs</th>' : ''}<th>Beim Freischalten</th><th>Start</th><th>Reihenfolge</th></tr><tbody id="bgRows"></tbody></table></div>
@@ -3365,6 +3499,7 @@
         try { await api('settings/app', 'PUT', body); toast('Gespeichert – die App übernimmt es beim nächsten Öffnen.'); RENDER.app().catch(fail); } catch (e) { fail(e); }
       });
     }
+    if ($('sdCard')) sonderCard($('sdCard')).catch(e => { if ($('sdCard')) $('sdCard').innerHTML = `<h3>Sonderdesigns</h3><p class="muted s">${esc(e.message)}</p>`; });
     if ($('smsCard')) smsCard($('smsCard')).catch(e => { if ($('smsCard')) $('smsCard').innerHTML = `<h3>Bestätigung per SMS</h3><p class="muted s">${esc(e.message)}</p>`; });
     const setSrc = ip => async () => { try { await api('settings/app', 'PUT', { tunnelSrc: ip }); toast(ip ? `Nur noch ${ip} gilt als Tunnel.` : 'Jede Adresse im Add-on-Netz gilt wieder als Tunnel.'); RENDER[page](); } catch (e) { fail(e); } };
     if ($('apSrcSet')) $('apSrcSet').onclick = setSrc($('apSrcSet').dataset.ip);
@@ -4821,7 +4956,7 @@
   function bankDialog(a, r) {
     const v = k => esc((a && a[k]) || '');
     dialog(`<h2>${a ? esc(a.name) : 'Bankkonto anlegen'}</h2>
-      <div class="ugrid"><label class="f">Bezeichnung<input id="bkN" value="${v('name')}" placeholder="z. B. Vereinskonto, Padel"></label><label class="f">Kontoinhaber<input id="bkH" value="${v('holder')}" placeholder="${esc(cache.settings.clubName || '')}"></label>
+      <div class="ugrid"><label class="f">Bezeichnung<input id="bkN" value="${v('name')}" placeholder="z. B. Vereinskonto, Padel"></label><label class="f">Kontoinhaber<textarea id="bkH" data-grow rows="1" placeholder="${esc(cache.settings.clubName || '')}">${v('holder')}</textarea></label>
         <label class="f">IBAN<input id="bkI" value="${esc(fmtIbanC(a && a.iban))}" spellcheck="false" autocomplete="off"></label><label class="f">BIC<input id="bkB" value="${v('bic')}" spellcheck="false"></label>
         <label class="f">Kreditinstitut<input id="bkK" value="${v('bank')}"></label><label class="f"><span>&nbsp;</span><label class="chk" style="min-height:40px"><input type="checkbox" id="bkD" ${!a || a.is_default ? 'checked' : ''}> Standardkonto</label></label></div>
       ${r.departments.length ? `<h3 style="margin:16px 0 4px">Abteilungen (optional)</h3><p class="muted s m-0-0-8">Rechnungen dieser Abteilungen nennen dieses Konto. Ohne Auswahl gilt das Konto für den ganzen Verein.</p>
@@ -4850,7 +4985,7 @@
       ${mayBank ? '<div class="card" data-set="bank"><h3>Bankkonten</h3><div id="bankBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       <div class="card" data-set="sprache"><h3>Sprachen</h3><div id="langBody"><p class="muted">Wird geladen …</p></div></div>
       ${can('einstellungen') ? `<div class="card"><h3>Verein</h3>
-        <div class="frm"><label class="f">Vereinsname<input id="club" required value="${esc(s.clubNameSet === false ? '' : s.clubName)}" placeholder="z. B. TC Grün-Weiß Musterstadt"></label>
+        <div class="frm"><label class="f">Vereinsname<textarea id="club" data-grow rows="1" required placeholder="z. B. TC Grün-Weiß Musterstadt">${esc(s.clubNameSet === false ? '' : s.clubName)}</textarea></label>
         <label class="f w1">Vereinsfarbe<span class="row" style="gap:6px;flex-wrap:nowrap;min-width:0"><input type="color" id="clubColorPick" value="${esc(s.clubColor)}" style="width:52px;flex:none;padding:2px">
           <input id="clubColor" value="${esc(s.clubColor)}" class="fx1-0" maxlength="7"></span></label>
         <label class="f w1">Zweitfarbe (freiwillig)<span class="row" style="gap:6px;flex-wrap:nowrap;min-width:0"><input type="color" id="clubColor2Pick" value="${esc(s.clubColor2 || '#c0262d')}" style="width:52px;flex:none;padding:2px">

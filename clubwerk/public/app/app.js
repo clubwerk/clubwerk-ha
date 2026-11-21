@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.55';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.56';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -345,11 +345,11 @@
     const icoBox = x => `<span class="vh-fm-ico">${ti(x.section || 'konto')}</span>`;
     const card = (h, rows, lead, news) => (rows.length ? `<div class="vh-card${news ? ' vh-fm-news' : ''}"><h3>${h}</h3><div class="vh-rows">${rows.map(x => line(x, lead(x), news)).join('')}</div></div>` : '');
     const first = me.sections.find(s => s.ok);
-    const pc = pushCard(d.push);
+    const pc = grussCard() + pushCard(d.push);
     el.innerHTML = pc + (!d.news.length && !d.next.length && !d.todo.length && !d.money.length
       ? `<div class="vh-empty">Gerade steht nichts an.${first ? ` <button type="button" class="vh-link" data-go="${esc(first.id)}">${first.id === 'buchung' ? 'Platz buchen' : `${esc(first.title)} öffnen`}</button>` : ''}</div>`
       : card('Neu für dich', d.news, icoBox, true) + card('Als Nächstes', d.next, dateBox) + card('Zu erledigen', d.todo, icoBox) + card('Mein Konto', d.money, icoBox));
-    wirePushCard(el);
+    wirePushCard(el); wireGruss(el);
     el.querySelectorAll('[data-go]').forEach(b => { b.onclick = () => {
       if (b.dataset.seen) call('forme/seen', 'POST', { key: b.dataset.seen }).catch(() => {});   // Neuigkeit gesehen: erscheint nicht wieder
       wlanTries = 0; show(b.dataset.go, b.dataset.focus || '');
@@ -397,16 +397,39 @@
     appCol = c;
     const l = document.querySelector('link[rel="stylesheet"][href^="theme.css"]');
     if (l) { const n = l.cloneNode(); n.href = `theme.css?c=${c.slice(1)}`; n.onload = () => l.remove(); l.after(n); }   // neue Farben laden, alte erst danach entfernen – kein Flackern
-    const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = c;
+    sonderMeta();
   }
+  /* Sonderdesign (src/sonderdesign.js, kit.css): Bild je hell/dunkel, Gruß in „Für mich“; Bilder im Speicher „cw-sonder“ (sw.js) */
+  let sonder = null;
+  const sonderMeta = () => { const m = document.querySelector('meta[name="theme-color"]'), r = document.documentElement, a = r.dataset.theme === 'dark' ? 'dunkel' : 'hell';
+    if (m) m.content = (!r.hasAttribute('data-contrast') && r.hasAttribute('data-sonder-' + a) && sonder['top_' + a]) || appCol; };   // Statusleiste: Farbe oben im Bild
+  function applySonder(s) {
+    const r = document.documentElement, spar = (window.matchMedia && matchMedia('(prefers-reduced-data: reduce)').matches) || Boolean(navigator.connection && navigator.connection.saveData), keep = [];
+    sonder = s && !EMBED ? s : null;
+    for (const a of ['hell', 'dunkel']) {
+      const v = sonder && !spar && sonder[a] && /^#[0-9a-f]{6}$/.test(sonder['top_' + a] || ''), u = v && `sonder/${sonder.id}-${a}?v=${encodeURIComponent(sonder[a])}`;
+      r.toggleAttribute('data-sonder-' + a, Boolean(v));
+      if (v) { keep.push(new URL(u, location.href).href); r.style.setProperty('--sonder-top-' + a, sonder['top_' + a]); r.style.setProperty('--sonder-bild-' + a, `url("${u}")`); }
+    }
+    sonderMeta();
+    if (window.caches) (keep.length ? caches.open('cw-sonder').then(c => c.keys().then(ks => Promise.all(ks.filter(k => !keep.includes(k.url)).map(k => c.delete(k))))) : caches.delete('cw-sonder')).catch(() => {});   // nur das geltende bleibt
+  }
+  window.addEventListener('cw-darstellung', sonderMeta);   // theme-init.js
+  const grussKey = () => (sonder && sonder.gruss ? `${sonder.id}:${sonder.gruss.ver}` : '');
+  const grussCard = () => { let weg = false; try { weg = localStorage.getItem('cw_sonder_weg') === grussKey(); } catch (e) { /* privat */ }
+    return !grussKey() || weg ? '' : `<div class="vh-card vh-gruss" id="sonderGruss"><div class="vh-hhead"><h3 translate="no">${esc(sonder.gruss.titel)}</h3><button type="button" class="vh-hx" id="sonderGrussX" aria-label="Gruß ausblenden">✕</button></div>${sonder.gruss.text ? `<p translate="no">${esc(sonder.gruss.text)}</p>` : ''}</div>`; };
+  const wireGruss = el => { const b = el.querySelector('#sonderGrussX'); if (b) b.onclick = () => { try { localStorage.setItem('cw_sonder_weg', grussKey()); } catch (e) { /* privat */ } b.closest('.vh-card').remove(); }; };   // ✕: bis Text geändert
+
   const colorCheck = () => { if (document.visibilityState === 'visible') call('ping').then(x => applyColor(x.color)).catch(() => {}); };
-  const recheck = () => { if (document.visibilityState !== 'visible') return; colorCheck(); lanProbe = null; wlanTries = 0; probeInBackground(true); if (current && !embedFrame && me && (current === FM || me.sections.some(x => x.id === current && x.wlanOnly))) show(current); };   // „Für mich“ beim Zurückkommen neu laden
+  const sonderCheck = () => { if (document.visibilityState === 'visible' && me && me.member && !EMBED) call('me').then(x => { const k = grussKey(); applySonder(me.sonder = x.sonder); if (current === FM && grussKey() !== k) show(FM); }).catch(() => {}); };
+  const recheck = () => { if (document.visibilityState !== 'visible') return; colorCheck(); sonderCheck(); lanProbe = null; wlanTries = 0; probeInBackground(true); if (current && !embedFrame && me && (current === FM || me.sections.some(x => x.id === current && x.wlanOnly))) show(current); };   // „Für mich“ beim Zurückkommen neu laden
   document.addEventListener('visibilitychange', recheck);
   window.addEventListener('online', recheck);
   window.addEventListener('pageshow', e => { if (e.persisted) recheck(); });
   async function start() {
     me = await call('me');
     applyColor(me.color);
+    sonder = me.sonder && !EMBED ? me.sonder : null; requestAnimationFrame(() => setTimeout(() => applySonder(me.sonder), 0));   // Gruß sofort, Bild erst nach dem ersten Zeichnen
     // Home-Bildschirm-Apps halten alte Skripte manchmal lange fest: stimmt die Version nicht mit dem Server überein, einmal neu laden
     if (me.version && me.version !== APP_VER) { let done = false; try { done = sessionStorage.getItem('va_reloaded') === me.version; sessionStorage.setItem('va_reloaded', me.version); } catch (e) { done = true; } if (!done) { location.reload(); return; } }
     $('club').textContent = me.club;

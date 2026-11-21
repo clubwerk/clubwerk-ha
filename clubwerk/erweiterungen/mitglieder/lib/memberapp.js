@@ -19,6 +19,9 @@ function register(sh) {
   // Tresor gesperrt (nach einem Neustart): eigene Daten erst wieder nach dem Entsperren – sonst sähe das Mitglied leere Felder
   M.use((req, res, next) => (C.require('./vault').locked() ? res.status(423).json({ error: 'Deine Daten sind gerade verschlossen (nach einem Neustart im Vereinsheim). Bitte später noch einmal versuchen.' }) : next()));
   const P = need('mitglieder');
+  /* Arbeitsstunden in der App ausgeblendet (Dienste & Termine › Einstellungen): Posten der Art „Arbeitsstunden“ erscheinen weder in der Liste noch in „Offen“ noch im Überweisungsbetrag */
+  const noHours = () => C.isModuleActive('arbeitseinsatz') && C.callHooksSync('appStundenAus').some(x => x.result === true);
+  const shown = rows => (noHours() ? rows.filter(c => c.kind !== 'arbeitsstunden') : rows);
   const club = () => { const { street, city } = C.clubAddress(); return { name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street, city, ci: S('creditor_id') }; };
   const { sigOk } = C.util;   // Unterschrift: PNG (App und Formular liefern 600 px Breite), Maße begrenzt (src/util.js)
   const CHANGE_FIELDS = ['street', 'zip', 'city', 'address_extra', 'phone', 'mobile', 'email'];
@@ -62,8 +65,8 @@ function register(sh) {
       if (z.fee) feeRows.push({ name: z.fee.name, who: md.member_id === id ? null : md.who, cents: z.fee.cents, interval: fees.INTERVAL_LABEL[z.fee.interval] || z.fee.interval, booked_until: md.booked_until, end_date: md.exit_date, dept: md.dept });
     }
     const payer = store.payerOf(id);
-    const charges = isHead ? db.prepare(`SELECT c.id, c.text, c.cents, c.due_date, c.status, c.paid_at, c.paid_via, (SELECT name FROM members WHERE id = c.for_member_id) AS for_name, k.collection_date
-      FROM mv_charge c LEFT JOIN mv_collection k ON k.id = c.collection_id WHERE c.member_id = ? AND c.status != 'storniert' ORDER BY c.due_date DESC, c.id DESC LIMIT 40`).all(id) : [];
+    const charges = isHead ? shown(db.prepare(`SELECT c.id, c.kind, c.text, c.cents, c.due_date, c.status, c.paid_at, c.paid_via, (SELECT name FROM members WHERE id = c.for_member_id) AS for_name, k.collection_date
+      FROM mv_charge c LEFT JOIN mv_collection k ON k.id = c.collection_id WHERE c.member_id = ? AND c.status != 'storniert' ORDER BY c.due_date DESC, c.id DESC LIMIT 40`).all(id)) : [];
     const b = isHead ? bankRow(id) : null;
     const consents = JSON.parse(p.consents || '{}');
     const ap = store.appPerms(), V = ap.view;
@@ -110,7 +113,7 @@ function register(sh) {
      nur offene Posten außerhalb eines Einzugs und nur mit gültigem Vereinskonto. Sonst null. */
   function transferList(id, p) {
     if (sh.payWay(p) === 'lastschrift' && !(sh.lastDunning && sh.lastDunning(id))) return null;
-    const list = db.prepare("SELECT * FROM mv_charge WHERE member_id = ? AND status = 'offen' AND collection_id IS NULL ORDER BY due_date, id").all(id);
+    const list = shown(db.prepare("SELECT * FROM mv_charge WHERE member_id = ? AND status = 'offen' AND collection_id IS NULL ORDER BY due_date, id").all(id));
     const cents = list.reduce((n, c) => n + c.cents, 0), acc = store.account();
     return cents > 0 && giro.payload({ name: acc.holder || sh.club().name, iban: acc.iban, cents, text: 'x' }) ? list : null;
   }

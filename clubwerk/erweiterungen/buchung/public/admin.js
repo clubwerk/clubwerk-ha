@@ -620,7 +620,7 @@
     const fns = new Set(l ? l.use_functions : []), mem = l ? l.use_members.slice() : [];
     const allFns = [...new Set([...(m.functions || []), ...fns])];
     dialog(`<h2>${l ? esc(l.name) : 'Neue Buchungsart'}</h2>
-      <div class="bk-grid" style="--c:4"><label class="f w3">Name<input id="lbN" value="${esc(l ? l.name : '')}" placeholder="z. B. Medenspiel Herren 40" maxlength="40"></label>
+      <div class="bk-grid" style="--c:4"><label class="f w3">Name<textarea id="lbN" data-grow rows="1" placeholder="z. B. Medenspiel Herren 40" maxlength="40">${esc(l ? l.name : '')}</textarea></label>
         <label class="f">Reihenfolge<input id="lbS" inputmode="numeric" value="${l ? l.sort : 100}"></label>
         <div class="f bkf w3"><span>Farbe</span><div class="bk-pal">${PALETTE.map(c => `<button type="button" data-col="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}<label class="bk-own" title="Eigene Farbe wählen"><input type="color" id="lbC" value="${color}" aria-label="Eigene Farbe">Eigene</label></div></div>
         <div class="f bkf"><span>Vorschau</span><div><span class="bk-prev" id="lbP"></span></div></div>

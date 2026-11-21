@@ -27,6 +27,17 @@ CREATE TABLE IF NOT EXISTS app_forme_seen (   -- „Für mich“: quittierte Neu
   at        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   PRIMARY KEY (member_id, key)
 );
+CREATE TABLE IF NOT EXISTS app_sonder (   -- Sonderdesigns der Mitglieder-App
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL,               -- nur intern („Advent“)
+  von        TEXT NOT NULL,               -- JJJJ-MM-TT
+  bis        TEXT NOT NULL,               -- JJJJ-MM-TT einschließlich
+  jaehrlich  INTEGER NOT NULL DEFAULT 0,  -- 1 = jedes Jahr (nur Tag und Monat zählen)
+  bausteine  TEXT NOT NULL DEFAULT '{}',  -- JSON: { gruss: { titel, text } } – weitere Bausteine ohne Umbau
+  bild_hell BLOB, typ_hell TEXT, top_hell TEXT,
+  bild_dunkel BLOB, typ_dunkel TEXT, top_dunkel TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
 CREATE TABLE IF NOT EXISTS "audit_log" (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   at         TEXT NOT NULL DEFAULT (datetime('now','localtime')),
@@ -104,7 +115,7 @@ CREATE TABLE IF NOT EXISTS "members" (
   failed_pins   INTEGER NOT NULL DEFAULT 0,
   locked_until  TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-, pending INTEGER NOT NULL DEFAULT 0, first_name TEXT, last_name TEXT, deleted INTEGER NOT NULL DEFAULT 0, pin_strikes INTEGER NOT NULL DEFAULT 0, pin_changed_at TEXT, pin_changed_by TEXT, photo TEXT, photo_use TEXT NOT NULL DEFAULT '[]');
+, pending INTEGER NOT NULL DEFAULT 0, first_name TEXT, last_name TEXT, deleted INTEGER NOT NULL DEFAULT 0, pin_strikes INTEGER NOT NULL DEFAULT 0, pin_changed_at TEXT, pin_changed_by TEXT, photo TEXT, photo_use TEXT NOT NULL DEFAULT '[]', offen_buchen INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS msg_inbox (
   id INTEGER PRIMARY KEY AUTOINCREMENT, message_id INTEGER NOT NULL REFERENCES mail_message(id) ON DELETE CASCADE,
   member_id INTEGER NOT NULL REFERENCES members(id), read_at TEXT, push TEXT,
@@ -182,6 +193,9 @@ INSERT INTO "admin_roles"(id, name, description, perms, dept_scope, sort, create
 INSERT INTO "admin_roles"(id, name, description, perms, dept_scope, sort, created_at) VALUES(4,'Thekenteam','Verkauf: Lieferungen, Bestand, Bestellung, Buchungen, Artikel und neue Konten bestätigen.','["lieferungen","bestand","bestellung","buchungen","artikel","konten","veranstaltungen","app"]',0,4,'2026-02-13 14:52:50');
 INSERT INTO "admin_roles"(id, name, description, perms, dept_scope, sort, created_at) VALUES(5,'Kassenprüfer','Nur ansehen und exportieren.','["export"]',0,5,'2026-02-13 14:52:50');
 INSERT INTO "admin_users"(id, username, name, pw_hash, role, perms, active, last_login, created_at, builtin, roles, departments, member_id) VALUES(1,'admin','Adminkonto','761a7324f3ec5b86700ce1c928b2eaee:d61cfe0884cf2fec5c979c91be90f88b8106985dcdf05b90785b2cb641c49b49','oberadmin','[]',1,'2026-10-21 14:55:37','2026-02-13 14:52:50',1,'[]','[]',NULL);
+INSERT INTO "app_sonder"(id, name, von, bis, jaehrlich, bausteine, bild_hell, typ_hell, top_hell, bild_dunkel, typ_dunkel, top_dunkel, created_at) VALUES(1,'Winterpause','2025-12-11','2026-01-29',0,'{}',NULL,NULL,NULL,NULL,'webp','#1f253f','2026-10-21 10:24:35');
+INSERT INTO "app_sonder"(id, name, von, bis, jaehrlich, bausteine, bild_hell, typ_hell, top_hell, bild_dunkel, typ_dunkel, top_dunkel, created_at) VALUES(2,'Advent','2026-10-14','2026-11-09',1,'{"gruss":{"titel":"Schöne Adventszeit!","text":"Liebe Mitglieder, wir wünschen euch eine schöne Adventszeit! Am zweiten Advent laden wir herzlich zum Glühwein am Vereinsheim ein – mit Waffeln, Musik und dem großen Rückblick auf die Saison."}}',NULL,'webp','#dfe9f3',NULL,'webp','#1b2944','2026-10-21 10:24:35');
+INSERT INTO "app_sonder"(id, name, von, bis, jaehrlich, bausteine, bild_hell, typ_hell, top_hell, bild_dunkel, typ_dunkel, top_dunkel, created_at) VALUES(3,'Jubiläum: 100 Jahre und große Festwoche','2026-11-30','2026-12-07',0,'{"gruss":{"titel":"100 Jahre Grün-Weiß – feiert mit!","text":"Vom Festakt bis zum Jubiläumsturnier: Alle Termine der Festwoche stehen im Vereinskalender."}}',NULL,NULL,NULL,NULL,NULL,NULL,'2026-10-21 10:24:44');
 INSERT INTO "audit_log"(id, at, username, action, detail) VALUES(1,'2026-02-13 14:52:50','admin','Adminkonto eingerichtet',NULL);
 INSERT INTO "audit_log"(id, at, username, action, detail) VALUES(3,'2026-02-13 14:52:50','admin','Konto angelegt','Felix Adler (mitglied)');
 INSERT INTO "audit_log"(id, at, username, action, detail) VALUES(4,'2026-02-13 14:52:50','admin','Konto angelegt','Anna Becker (mitglied)');
@@ -975,7 +989,7 @@ INSERT INTO "member_devices"(id, scope, member_id, invite_hash, invite_expires, 
 UPDATE "member_devices" SET remote = 1 WHERE id = 22;   -- von unterwegs ohne SMS-Code gekoppelt: Türen und Beregnung erst nach dem Öffnen im Vereins-WLAN (Beispiel für die Liste der Mitglieder-App)
 INSERT INTO "members"(id, name, kind, pin_hash, active, failed_pins, locked_until, created_at, pending, first_name, last_name, deleted, pin_strikes, pin_changed_at, pin_changed_by, photo, photo_use) VALUES(1,'Verein (kostenfrei)','verein',NULL,1,0,NULL,'2026-02-13 14:52:50',0,NULL,NULL,0,0,NULL,NULL,NULL,'[]');
 INSERT INTO "members"(id, name, kind, pin_hash, active, failed_pins, locked_until, created_at, pending, first_name, last_name, deleted, pin_strikes, pin_changed_at, pin_changed_by, photo, photo_use) VALUES(2,'Gast (bar)','gast',NULL,1,0,NULL,'2026-02-13 14:52:50',0,NULL,NULL,0,0,NULL,NULL,NULL,'[]');
-INSERT INTO "members"(id, name, kind, pin_hash, active, failed_pins, locked_until, created_at, pending, first_name, last_name, deleted, pin_strikes, pin_changed_at, pin_changed_by, photo, photo_use) VALUES(3,'Felix Adler','mitglied','f6e82245b285d9752bf83ba6691cb239:65ed90b7a3d0a8bd5c55ce09a05ae3b585f6fdf5d64e0d41d4156fa476ca3482',1,0,NULL,'2026-02-13 14:52:50',0,'Felix','Adler',0,0,'2026-10-21 17:36:07','Mitglieder-App','3-00000000d003.jpg','["verkauf","buchung","helfer"]');
+INSERT INTO "members"(id, name, kind, pin_hash, active, failed_pins, locked_until, created_at, pending, first_name, last_name, deleted, pin_strikes, pin_changed_at, pin_changed_by, photo, photo_use, offen_buchen) VALUES(3,'Felix Adler','mitglied','f6e82245b285d9752bf83ba6691cb239:65ed90b7a3d0a8bd5c55ce09a05ae3b585f6fdf5d64e0d41d4156fa476ca3482',1,0,NULL,'2026-02-13 14:52:50',0,'Felix','Adler',0,0,'2026-10-21 17:36:07','Mitglieder-App','3-00000000d003.jpg','["verkauf","buchung","helfer"]',1);
 INSERT INTO "members"(id, name, kind, pin_hash, active, failed_pins, locked_until, created_at, pending, first_name, last_name, deleted, pin_strikes, pin_changed_at, pin_changed_by, photo, photo_use) VALUES(4,'Anna Becker','mitglied','8416332b7f8701930b73f819e6aaa766:c16718f3ed5352d574c19e8fa91118b2733408f098a64c7656bbc850ee20d186',1,0,NULL,'2026-02-13 14:52:50',0,'Anna','Becker',0,0,'2026-10-21 19:14:10','Mitglieder-App','4-00000000d004.jpg','["verkauf","buchung","helfer"]');
 INSERT INTO "members"(id, name, kind, pin_hash, active, failed_pins, locked_until, created_at, pending, first_name, last_name, deleted, pin_strikes, pin_changed_at, pin_changed_by, photo, photo_use) VALUES(5,'Jonas Schmitt','mitglied',NULL,1,0,NULL,'2026-02-13 14:52:50',0,'Jonas','Schmitt',0,0,NULL,NULL,NULL,'[]');
 INSERT INTO "members"(id, name, kind, pin_hash, active, failed_pins, locked_until, created_at, pending, first_name, last_name, deleted, pin_strikes, pin_changed_at, pin_changed_by, photo, photo_use) VALUES(6,'Lea Wagner','mitglied',NULL,1,0,NULL,'2026-02-13 14:52:50',0,'Lea','Wagner',0,0,NULL,NULL,'6-00000000d006.jpg','["verkauf","buchung","helfer"]');

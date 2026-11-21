@@ -127,7 +127,7 @@
   .sub-actions { display: flex; gap: 8px; flex: none; }
   .sub-actions .btn { min-height: 40px; height: 40px; padding: 0 16px; border-radius: 999px; font-size: 15px; font-weight: 600; color: color-mix(in srgb, var(--ink), var(--muted)); background: transparent; border-color: var(--line); box-shadow: none; white-space: nowrap; }
   .sub-actions .btn:active { background: var(--hover); }
-  @media (max-width: 640px) { .sub-actions { flex: 1 1 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); } .sub-actions .btn { min-width: 0; padding: 0 4px; font-size: 14px; white-space: normal; line-height: 1.15; justify-content: center; text-align: center; } }   /* Handy: die drei Knöpfe teilen sich die Zeile, nichts ragt über den Rand */
+  @media (max-width: 640px) { .sub-actions { flex: 1 1 100%; display: flex; flex-wrap: wrap; } .sub-actions .btn { flex: 1 1 calc(50% - 4px); } .sub-actions .btn { min-width: 0; padding: 0 4px; font-size: 14px; white-space: normal; line-height: 1.15; justify-content: center; text-align: center; } }   /* Handy: die Knöpfe stehen paarweise, ein einzelner füllt die Zeile, nichts ragt über den Rand */
 
   /* Kategorien: alle rasten auf denselben Spalten ein; kleine Kategorien stehen nebeneinander */
   /* Kachelhöhe: Platz für bis zu 3 Zeilen Name + Größe/Preis; tablet.js wählt Höhe und Spaltenbreite so,
@@ -314,6 +314,7 @@
           <div class="sub-actions">
             <button class="btn" id="accBtn">Mein Konto</button>
             <button class="btn" id="pinBtn">PIN</button>
+            <button class="btn" id="offenBtn">Für mich buchen</button>
             <button class="btn" id="cancelBtn">Anderes Mitglied</button>
           </div>
         </div>

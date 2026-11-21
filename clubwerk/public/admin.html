@@ -478,6 +478,13 @@
   .mods .mrow .srcb { display: none; margin-left: 6px; }
   @media (max-width: 900px) { .mods .mrow .srcb { display: inline-flex; } }
   /* Gefährliche Aktion abgesetzt: im Fenster in eigener Zeile unter einer Linie, in einer Knopfzeile mit Abstand */
+  /* Sonderdesign (Mitglieder-App › Einstellungen): zwei Bildplätze und zwei Vorschauen nebeneinander, am Handy untereinander bzw. kleiner */
+  .sd-bilder { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; }
+  .sd-vor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 460px; }
+  .sd-vs { margin: 0; } .sd-vs figcaption { margin-top: 6px; text-align: center; }
+  .sd-rahmen { position: relative; aspect-ratio: 390 / 760; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); background: var(--hover); }
+  .sd-rahmen iframe { position: absolute; left: 0; top: 0; width: 390px; height: 760px; border: 0; transform-origin: 0 0; pointer-events: none; }
+  @media (max-width: 560px) { .sd-bilder { grid-template-columns: minmax(0, 1fr); } }
   #overlay .dz, .card .dz { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-soft); display: flex; }
   .btn.abgesetzt { margin-left: 24px; }
   .mods .mrow .mact { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }   /* Demo, Einstellungen exportieren/importieren … (später „Anleitung (PDF)“) */

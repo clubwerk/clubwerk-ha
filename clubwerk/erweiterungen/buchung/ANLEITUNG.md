@@ -73,7 +73,7 @@ Ein Klick auf einen Block zeigt die Einzelheiten: Spieler, Titel, Gebühr, Notiz
 
 Gehört der Termin zu einer Serie oder Sperre, fragt Clubwerk zuerst, was gemeint ist:
 
-![Die Auswahl bei Serienterminen: nur dieser Termin, dieser und alle folgenden, gesamte Serie.](bild: seite=bk-belegung; klick=#bkNext; klick2=#bkDays button:nth-child(3); klick3=.bk-blk.serie; klick4=#bxE; ziel=#askBox)
+![Die Auswahl bei Serienterminen: nur dieser Termin, dieser und alle folgenden, gesamte Serie.](bild: seite=bk-belegung; klick=#bkV [data-v="woche"]; klick2=.bk-blk.serie; klick3=#bxE; ziel=#askBox)
 
 Beim Stornieren folgt eine Rückfrage, bevor etwas verschwindet. Beim Bearbeiten (Platz, Uhrzeit, Titel, Buchungsart, Notiz) zeigt „Prüfen“ vorher, wie viele Termine betroffen sind und an welchen Tagen der Platz belegt ist.
 

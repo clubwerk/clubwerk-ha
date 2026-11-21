@@ -227,6 +227,7 @@ Die Seite besteht aus sieben Karten. Jede Karte hat ein eigenes „Speichern“,
 ![Karte „Arbeitsstunden“.](bild: seite=aw-einstellungen; ziel=[data-set="stunden"])
 
 - **Arbeitsstunden nutzen:** Standard ist „an“. Ohne Häkchen nutzt der Verein nur Dienste, Termine und Aufgaben. Dann entfallen Soll, Stunden und Abrechnung: In der Verwaltung verschwinden die Reiter „Übersicht“ und „Stunden“ sowie die Karten „Soll“, „Abrechnung“, „Tablet & App“ und „Befreite Mitglieder“; in der Mitglieder-App gibt es keinen Kasten „Meine Stunden“ und kein „Stunden melden“; am Tablet entfällt das Stempeln; der Beitragslauf bekommt keinen Posten „Arbeitsstunden“, und es gibt keine Erinnerung an fehlende Stunden. Bereits erfasste Stunden bleiben erhalten und erscheinen wieder, sobald ihr das Häkchen setzt. Das Umschalten steht im Protokoll.
+- **In der Mitglieder-App anzeigen:** Standard ist „an“ und nur wählbar, solange „Arbeitsstunden nutzen“ an ist. Ohne Häkchen laufen die Arbeitsstunden in der Verwaltung weiter wie gewohnt (Soll, Erfassen, Abrechnung, Posten im Beitragslauf, Erinnerungen per E-Mail), aber die Mitglieder-App zeigt nichts dazu: kein „Meine Stunden“, kein „Stunden melden“, keine Stunden-Karte in „Für mich“ und keine Stunden-Beträge in den offenen Posten. Dienste, Termine und Aufgaben bleiben in der App, das Tablet bleibt unverändert. Ist „Arbeitsstunden nutzen“ aus, wirkt der Schalter nicht, sein Stand bleibt gespeichert. Das Umschalten steht im Protokoll.
 
 #### Soll
 

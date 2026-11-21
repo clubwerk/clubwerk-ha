@@ -40,6 +40,7 @@
   const MAIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/></svg>';
   const CHEV = '<svg class="vh-fm-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
   const CLIP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg>';
+  const PINSVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.8a2 2 0 0 0-1.1-1.8l-1.8-.9A2 2 0 0 1 15 10.8V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>';   // Reißzwecke: angeheftet als Symbol statt Pille (die Pille ließ die Meta-Zeile am Handy umbrechen)
 
   window.VA.registerSection({
     id: 'nachrichten',
@@ -93,7 +94,7 @@
         if (!d.items.length) { el.innerHTML = '<div class="vh-empty">Keine Nachrichten. Was der Verein dir schickt, erscheint hier.</div>'; return; }
         el.innerHTML = `<div class="vh-card flush"><h3>Nachrichten${d.unread ? ` <small>${d.unread} neu</small>` : ''}</h3><div class="vh-rows">${d.items.map(m => `<button type="button" class="vh-fm nx-row${m.read ? ' read' : ''}" data-id="${m.id}">
             <span class="vh-fm-ico">${MAIL}</span>
-            <span class="vh-tx"><strong translate="no">${esc(m.subject)}</strong><small class="nx-pre" translate="no">${esc(m.preview)}</small><small>${deD(m.at)}${m.from ? ' · ' + esc(m.from) : ''}${m.files ? ` · <span class="nx-att" title="${m.files === 1 ? 'Anhang' : 'Anhänge'}">${CLIP}${m.files}</span>` : ''}${m.poll === 'offen' ? ' · <span class="vh-chip a">Umfrage</span>' : ''}${m.pinned ? ' · <span class="vh-chip a">angeheftet</span>' : ''}</small></span>${CHEV}</button>`).join('')}</div></div>`;
+            <span class="vh-tx"><strong translate="no">${esc(m.subject)}</strong><small class="nx-pre" translate="no">${esc(m.preview)}</small><small>${deD(m.at)}${m.from ? ' · ' + esc(m.from) : ''}${m.files ? ` · <span class="nx-att" title="${m.files === 1 ? 'Anhang' : 'Anhänge'}">${CLIP}${m.files}</span>` : ''}${m.poll === 'offen' ? ' · <span class="vh-chip a">Umfrage</span>' : ''}${m.pinned ? ` · <span class="nx-att" title="angeheftet" aria-label="angeheftet">${PINSVG}</span>` : ''}</small></span>${CHEV}</button>`).join('')}</div></div>`;
         el.querySelectorAll('[data-id]').forEach(b => { b.onclick = () => open(+b.dataset.id); });
       }
 

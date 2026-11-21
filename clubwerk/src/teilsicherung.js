@@ -64,7 +64,7 @@ function lesekopie({ plugins, db, vault, getSetting }) {
         try { e.data = await plugins.get(p.id).hooks.exportConfig(); } catch (err) { e.fehler = String(err.message || err).slice(0, 200); }
         out.module.push(e);
       }
-      out.konten = db.prepare('SELECT id, name, kind, first_name, last_name, active, pin_hash, pin_changed_at FROM members WHERE deleted = 0 AND pending = 0 ORDER BY id LIMIT ?').all(MAX_KONTEN);
+      out.konten = db.prepare('SELECT id, name, kind, first_name, last_name, active, pin_hash, pin_changed_at, offen_buchen FROM members WHERE deleted = 0 AND pending = 0 ORDER BY id LIMIT ?').all(MAX_KONTEN);
       for (const k of VEREIN_KEYS) { const v = getSetting(k, null); if (v != null && v !== '') out.verein[k] = v; }
       if (JSON.stringify(out).length > MAX_ERGEBNIS) throw new Error('Die Sicherung ist für die Übernahme zu groß.');
       process.send({ ok: true, out }, () => process.exit(0));
@@ -293,13 +293,13 @@ function kontenUebernehmen(db, c, { mvAktiv }) {
       if (found.first_name === v.first_name && found.last_name === v.last_name && found.active === v.active && !neuPin) z('Konten', 'unverändert');
       else {
         db.prepare('UPDATE members SET first_name = ?, last_name = ?, active = ? WHERE id = ?').run(v.first_name, v.last_name, v.active, id);
-        if (neuPin) db.prepare("UPDATE members SET pin_hash = ?, pin_changed_at = ?, pin_changed_by = 'Übernahme aus Sicherung' WHERE id = ?").run(pin, k.pin_changed_at || null, id);
+        if (neuPin) db.prepare("UPDATE members SET pin_hash = ?, pin_changed_at = ?, pin_changed_by = 'Übernahme aus Sicherung', offen_buchen = ? WHERE id = ?").run(pin, k.pin_changed_at || null, k.offen_buchen ? 1 : 0, id);   // die Freigabe „Andere dürfen für mich buchen“ kommt nur zusammen mit der PIN zurück
         z('Konten', 'aktualisiert');
       }
     } else if (k.kind === 'mitglied' && mvAktiv) { ohne++; continue; }
     else {
-      id = Number(db.prepare('INSERT INTO members(name, kind, first_name, last_name, active, pin_hash, pin_changed_at, pin_changed_by) VALUES (?,?,?,?,?,?,?,?)')
-        .run(name, k.kind, v.first_name, v.last_name, v.active, pin, pin ? k.pin_changed_at || null : null, pin ? 'Übernahme aus Sicherung' : null).lastInsertRowid);
+      id = Number(db.prepare('INSERT INTO members(name, kind, first_name, last_name, active, pin_hash, pin_changed_at, pin_changed_by, offen_buchen) VALUES (?,?,?,?,?,?,?,?,?)')
+        .run(name, k.kind, v.first_name, v.last_name, v.active, pin, pin ? k.pin_changed_at || null : null, pin ? 'Übernahme aus Sicherung' : null, pin && k.offen_buchen ? 1 : 0).lastInsertRowid);
       live.set(schl(name, k.kind), { id, name, kind: k.kind, ...v, pin_hash: pin });
       z('Konten', 'neu');
     }

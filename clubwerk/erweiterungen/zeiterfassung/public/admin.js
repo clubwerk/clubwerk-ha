@@ -29,7 +29,7 @@
     const m = r.mail;
     const mailLine = m.error ? `<div class="banner r"><span>Letzter Versand des Monatsnachweises fehlgeschlagen: ${esc(m.error)}</span><a href="#zeit-einstellungen">Einstellungen →</a></div>` : '';
     const flagCell = e => [!e.end_at ? (e.forgotten ? '<span class="pill r">nicht ausgestempelt</span>' : '<span class="pill a">noch da</span>') : '',
-      e.manual ? '<span class="pill b">nachgetragen</span>' : '', e.edited_at && !e.manual ? `<span class="pill">korrigiert von ${esc(e.edited_by)}${e.orig_start ? ` · vorher ${zclock(e.orig_start)}–${zclock(e.orig_end) || 'offen'}` : ''}</span>` : '',
+      e.manual ? '<span class="pill b">nachgetragen</span>' : '', e.edited_at && !e.manual ? `<span class="pill k-wrap">korrigiert von ${esc(e.edited_by)}${e.orig_start ? ` · vorher ${zclock(e.orig_start)}–${zclock(e.orig_end) || 'offen'}` : ''}</span>` : '',
       e.note ? `<span class="muted s">${esc(e.note)}</span>` : ''].filter(Boolean).join(' ');
     $('main').innerHTML = `<h2 class="page">Stunden</h2>
       <p class="lead">Personal stempelt am Tablet mit eigener PIN. Gespeichert werden die echten Zeiten, gerundet wird nur die <b>Monatssumme</b> je Person auf die Viertelstunde.</p>

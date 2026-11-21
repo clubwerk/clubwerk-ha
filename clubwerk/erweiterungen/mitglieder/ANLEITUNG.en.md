@@ -139,7 +139,7 @@ One tick box per consent with its date (“since …”), e.g. for photos. Which
 
 #### More cards and buttons
 
-- **Tablet PIN:** shows whether the member has a PIN. “Reset PIN” deletes it; next time the member sets a new one on the tablet.
+- **Tablet PIN:** shows whether the member has a PIN. “Reset PIN” deletes it; next time the member sets a new one on the tablet. The member can switch on “Others may book for me” at the tablet (then booking works without the PIN, but without any insight); the accounts list shows the badge “Booking without PIN allowed”, and the committee can switch it off there.
 - **Welcome email:** shows when it was last sent and which address it goes to. “Send welcome email …” asks for confirmation and offers to include the invitation to the member app. Every sending is recorded in the member's history and in the log. Every email sent this way is listed with its full text under Messages › Sent › Automatic.
 
 ![“Welcome email” card on the member.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=#sWel)

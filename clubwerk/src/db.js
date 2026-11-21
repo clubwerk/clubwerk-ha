@@ -479,6 +479,7 @@ function stockList() {
 }
 
 addColumn('members', 'pin_strikes', 'INTEGER NOT NULL DEFAULT 0');   // v1.3.1: wachsende PIN-Sperre
+addColumn('members', 'offen_buchen', 'INTEGER NOT NULL DEFAULT 0');   // Mitglied erlaubt: andere dürfen am Tablet für mich buchen, ohne die PIN zu kennen (ohne Einsicht)
 addColumn('members', 'pin_changed_at', 'TEXT');   // v1.5: wann die PIN zuletzt gesetzt/geändert/entfernt wurde
 addColumn('members', 'pin_changed_by', 'TEXT');
 

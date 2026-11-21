@@ -1,10 +1,12 @@
 /* Service Worker der Mitglieder-App: Push-Benachrichtigungen und der Hinweis „Keine Verbindung“ (planung/leitfaeden-2.md).
    Zwischengespeichert wird NUR die Hinweisseite offline.html mit ihren statischen Dateien – nie API-Antworten, Mitgliederdaten oder die
-   App selbst. Alles geht zuerst ans Netz; der Speicher springt nur ein, wenn das Netz scheitert (oder der Tunnel meldet, dass Clubwerk
+   App selbst. Ausnahme: das Hintergrundbild eines Sonderdesigns (sonder/<id>-<hell|dunkel>?v=…, ändert sich nie unter seiner Adresse) liegt
+   im Speicher „cw-sonder“ – so lädt es nicht bei jedem Öffnen neu und erscheint auch ohne Netz. app.js leert ihn, wenn kein Sonderdesign mehr gilt. Alles geht zuerst ans Netz; der Speicher springt nur ein, wenn das Netz scheitert (oder der Tunnel meldet, dass Clubwerk
    nicht antwortet). Je Version (sw.js?v=…) ein eigener Speicher, alte werden beim Aktivieren gelöscht. */
 'use strict';
 const V = new URL(self.location.href).searchParams.get('v') || '0';
 const PREFIX = 'cw-offline-', CACHE = PREFIX + V;
+const SONDER = 'cw-sonder';   // Hintergrundbilder der Sonderdesigns (versioniert, siehe oben)
 const FILES = ['offline.html', 'offline.js', 'style.css', 'kit.css', 'theme.css', 'theme-init.js', 'fonts/jakarta-latin.woff2', 'fonts/barlow-condensed-600.woff2'];
 // Antworten des Tunnels (Cloudflare), wenn Clubwerk selbst nicht erreichbar ist – sonst stünde dort eine fremde Fehlerseite
 const GATEWAY = new Set([502, 503, 504, 520, 521, 522, 523, 524, 530]);
@@ -41,7 +43,17 @@ self.addEventListener('fetch', e => {
   // Dateien der Hinweisseite (ohne ?v=…, also nie die der App): erst Netz; nur eine gute Antwort zählt, sonst aus dem Speicher. Steht die
   // Hinweisseite unter einer Unterseite (z. B. /p/mitglieder/), gibt es dort keine offline.js (404), und der Tunnel antwortet ohne Clubwerk
   // mit 502 – ohne diesen Rückgriff liefe die Seite dann ohne Skript (kein „Erneut versuchen“, kein Nachfassen; Release-Zug 2026.11.35).
-  const f = fileOf(new URL(req.url));
+  const u = new URL(req.url);
+  if (u.origin === self.location.origin && /\/sonder\/\d+-(hell|dunkel)$/.test(u.pathname) && u.searchParams.get('v')) {
+    e.respondWith((async () => {
+      const c = await caches.open(SONDER);
+      const hit = await c.match(req); if (hit) return hit;
+      const r = await fetch(req); if (r.ok) await c.put(req, r.clone()).catch(() => {});
+      return r;
+    })());
+    return;
+  }
+  const f = fileOf(u);
   if (f) e.respondWith((async () => {
     const aus = async () => (await caches.open(CACHE)).match(f);
     try { const r = await fetch(req); if (r.ok) return r; return (await aus()) || r; } catch (err) { return (await aus()) || Response.error(); }

@@ -431,6 +431,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   // Sprache: direkt aus dem gemeinsamen Zwischenspeicher (gleicher Prozess) – nicht per HTTP über den Hauptserver: unter Last gab das Relais nach 5 s auf, die App blieb deutsch
   app.get('/i18n.js', (req, res) => require('./i18n').sendPage(req, res));
   app.get('/logo', relay('/vereinslogo', 'image/png', true));
+  require('./sonderdesign').appRouten(app);   // Hintergrundbild eines Sonderdesigns (versionierte Adresse, öffentlich wie das Logo)
   app.get('/icon.png', relay('/vereinsicon.png', 'image/png'));
   app.get('/icon-maskable.png', relay('/vereinsicon-maskable.png', 'image/png'));
   app.get('/manifest.json', (req, res) => {
@@ -566,7 +567,7 @@ function apiStart({ api, dev, rateLimit }) {
     if (w && w.remote && !awayReq(req) && invites.trust(w.deviceId)) { w.remote = false; audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name); }
     const sections = w ? sectionsFor(req, w) : [];
     res.json({ version: require('../package.json').version, start: getSetting('app_start', ''), color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), demo: getSetting('demo_mode', '') === '1' || undefined, appName: getSetting('app_name', 'Verein'), member: w ? w.name : null,
-      pinTablet: Boolean(w) && require('./plugins').isActive('getraenke'), sections, privacyAt: getSetting('app_privacy_at', '') || undefined });   // „Mein Konto › PIN ändern“: gilt die PIN auch im Verkauf am Tablet?
+      pinTablet: Boolean(w) && require('./plugins').isActive('getraenke'), sections, privacyAt: getSetting('app_privacy_at', '') || undefined, sonder: w ? require('./sonderdesign').fuerApp() || undefined : undefined });   // „Mein Konto › PIN ändern“: gilt die PIN auch im Verkauf am Tablet?
   });
   /* Persönliches Kalender-Abo (src/kalender.js): eigene Termine der Bereiche, die das Mitglied in der App hat (Hook calendarEvents) */
   require('./kalender').register({ api, whoIs: req => invites.whoIs(SCOPE, dev(req)), clubName: () => getSetting('club_name', 'Verein'),

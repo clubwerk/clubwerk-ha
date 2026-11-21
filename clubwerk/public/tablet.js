@@ -397,11 +397,12 @@
   });
 
   /* ---------- PIN ---------- */
-  function pinDialog(title, sub, onDone, { allowEmpty = false, max = 6 } = {}) {   // max 8 beim Entsperren: aus der Mitglieder-App übernommene PINs können länger sein
+  function pinDialog(title, sub, onDone, { allowEmpty = false, max = 6, ohne = null } = {}) {   // max 8 beim Entsperren: aus der Mitglieder-App übernommene PINs können länger sein
     let pin = '';
     const draw = (err = '') => {
       $('dialog').innerHTML = GKPin.pad(esc(title), esc(sub), pin.length)
-        + (allowEmpty ? '<div style="text-align:center;margin-top:12px"><button class="btn small ghost" data-k="none">PIN entfernen</button></div>' : '');
+        + (allowEmpty ? '<div style="text-align:center;margin-top:12px"><button class="btn small ghost" data-k="none">PIN entfernen</button></div>' : '')
+        + (ohne ? '<div style="text-align:center;margin-top:12px"><button class="btn" data-k="ohne">Ohne PIN buchen</button><div class="muted" style="margin-top:6px;font-size:14px">Offener Betrag und Verlauf bleiben dabei verborgen.</div></div>' : '');
       $('perr').textContent = err;
     };
     draw();
@@ -411,6 +412,7 @@
       const key = k.dataset.k;
       bumpIdle();
       if (key === 'x') { closeDialog(); return; }
+      if (key === 'ohne') { await ohne(); return; }
       if (key === 'none') { const r = await onDone(''); if (r !== false) closeDialog(); return; }
       if (key === 'ok') {
         if (pin.length < 4) { draw('Mindestens 4 Ziffern.'); return; }
@@ -443,7 +445,15 @@
         return true;
       } catch (e) { check.lastError = e.message; return false; }
     };
-    pinDialog(m.name, 'Bitte deine PIN eingeben', check, { max: 8 });
+    // „Andere dürfen für mich buchen“: Das Mitglied hat erlaubt, dass man ohne PIN für es bucht (ohne Einsicht)
+    const ohne = m.offen ? async () => {
+      try {
+        const r = await api('api/tablet/unlock', { memberId: m.id });
+        closeDialog();
+        openBooking({ token: r.token, member: r.member, private: false, ohnePin: true, mode: 'mitglied' });
+      } catch (e) { closeDialog(); toast(e.message, true); }
+    } : null;
+    pinDialog(m.name, m.offen ? 'PIN eingeben – oder ohne PIN buchen' : 'Bitte deine PIN eingeben', check, { max: 8, ohne });
   }
 
   /* ---------- Buchen ---------- */
@@ -467,6 +477,7 @@
     else if (isGuest) { note.textContent = `Wird auf der Liste „${s.event.name}“ angeschrieben` + (s.private && s.open ? ` · bisher offen: ${euro(s.open)}` : '') + ' · bezahlt wird am Ende'; note.classList.add('cash'); }
     else if (s.mode === 'verein') { note.textContent = 'Kostenfrei – wird gezählt, aber niemandem berechnet.'; note.classList.add('free'); }
     else if (s.mode === 'gast') { note.textContent = 'Gast – bitte direkt bar bezahlen.'; note.classList.add('cash'); }
+    else if (s.ohnePin) note.textContent = 'Ohne PIN gebucht – das Mitglied hat das erlaubt · offener Betrag und Verlauf bleiben verborgen';
     else note.textContent = (s.private ? `offen ${euro(s.balance.cents)} · ` : '') + 'antippen = 1 Stück'
       + (s.member.pending ? ' · neu – wird vom Vorstand bestätigt' : '') + (!s.private && s.mode === 'mitglied' ? ' · mit eigener PIN siehst du hier deinen offenen Betrag' : '');
     // Datenschutz: Konto/Liste nur, wenn das Konto mit PIN geschützt ist
@@ -478,7 +489,8 @@
     $('tabHead').textContent = isTab ? 'Bisher auf dem Deckel' : 'Bisher auf der Liste';
     $('payBtn').classList.toggle('hidden', !isTab || Boolean(state.nurAnschreiben && s.open));   // „Nur anschreiben“: kein Bezahlen am Tablet, leeren Deckel nur schließen
     if (isGuest || isTab) loadTab();
-    $('pinBtn').classList.toggle('hidden', s.mode !== 'mitglied');
+    $('pinBtn').classList.toggle('hidden', s.mode !== 'mitglied' || Boolean(s.ohnePin));
+    $('offenBtn').classList.toggle('hidden', s.mode !== 'mitglied' || Boolean(s.ohnePin) || !(s.member && s.member.hasPin));
     $('pinBtn').textContent = s.member && s.member.hasPin ? 'PIN ändern' : 'PIN festlegen';
     renderArticles();
     renderCart();
@@ -806,7 +818,7 @@
     else if (r.kind === 'event' && r.paid_cash === 0) hint = `<div class="freehint" style="background:var(--amber-soft);color:var(--amber)">Angeschrieben auf der Liste „${esc(r.event || '')}“${r.private ? ` – jetzt offen: ${euro(r.open_cents || 0)}` : ''}${state.nurAnschreiben ? '' : '<br><span style="font-weight:400">Bezahlt wird am Ende bar oder mit Karte.</span>'}</div>`;
     else if (r.kind === 'gast' || r.kind === 'event') hint = `<div class="cashhint">Bitte ${euro(r.total_cents)} bar in die Kasse</div>`;
     else if (r.kind === 'verein') hint = `<div class="freehint">Kostenfrei gebucht (Wert ${euro(listTotal)})</div>`;
-    else hint = r.private ? `<div class="muted">Neuer offener Betrag: <b>${euro(r.balance.cents)}</b></div>` : '<div class="muted">Auf dein Konto gebucht.</div>';
+    else hint = r.private ? `<div class="muted">Neuer offener Betrag: <b>${euro(r.balance.cents)}</b></div>` : (session && session.ohnePin ? `<div class="muted">Auf das Konto von ${esc(lastFirst(session.member.name))} gebucht.</div>` : '<div class="muted">Auf dein Konto gebucht.</div>');
     openDialog(`<div class="done">
       <div class="big">✓</div><h2>Gebucht!</h2>
       <ul>${r.bookings.map(b => `<li>${b.qty > 1 || !/^Betrag/.test(b.name) ? b.qty + ' × ' : ''}${esc(b.name)}</li>`).join('')}</ul>
@@ -898,6 +910,24 @@
       if (c.dataset.c === 'set') setTimeout(() => setNewPin(''), 0);
     };
   }
+  /* „Andere dürfen für mich buchen“: nur das Mitglied selbst (Sitzung mit PIN), jederzeit wieder ausschaltbar */
+  $('offenBtn').addEventListener('click', () => {
+    const an = Boolean(session.member.offen);
+    openDialog(`<h2>Andere dürfen für mich buchen</h2>
+      <div class="muted" style="margin:6px 0 4px;line-height:1.5">Ist das eingeschaltet, kann jemand für dich buchen – zum Beispiel ein Getränk mitbringen –, ohne deine PIN zu kennen. Dein offener Betrag, dein Verlauf und deine PIN bleiben dabei verborgen. Du kannst es hier jederzeit wieder ausschalten.</div>
+      <div class="pinchoice"><button class="btn" data-c="x">Abbrechen</button><button class="btn primary" data-c="${an ? 'aus' : 'an'}">${an ? 'Ausschalten' : 'Einschalten'}</button></div>`);
+    $('dialog').onclick = async e => {
+      const c = e.target.closest('[data-c]'); if (!c) return;
+      bumpIdle(); closeDialog();
+      if (c.dataset.c === 'x') return;
+      try {
+        const r = await api('api/tablet/offen', { token: session.token, an: c.dataset.c === 'an' });
+        session.member.offen = r.offen;
+        toast(r.offen ? 'Eingeschaltet: Andere dürfen für dich buchen.' : 'Ausgeschaltet: Ohne deine PIN kann niemand für dich buchen.');
+        load();
+      } catch (err) { toast(err.message, true); }
+    };
+  });
   $('pinBtn').addEventListener('click', () => {
     if (!session.member.hasPin) { setNewPin(''); return; }
     pinDialog('Aktuelle PIN', 'Zur Sicherheit erst die bisherige PIN eingeben', async cur => { closeDialog(); setTimeout(() => setNewPin(cur), 0); return true; }, { max: 8 });

@@ -262,21 +262,27 @@ function need(...perms) {
 const TABLET_TTL_MS = 3 * 60 * 1000;
 const tabletTokens = new Map(); // token -> { memberId, expiresAt }
 
-function issueTabletToken(memberId) {
+/** ohnePin: Konto ohne PIN-Nachweis geöffnet (Schalter „Andere dürfen für mich buchen“). Solche Freigaben gelten nur für
+ *  checkTabletTokenBuchen (Buchen/Rückgängig am Tablet); checkTabletToken – der PIN-Nachweis für Konto, PIN, Platzbuchung,
+ *  Helferdienste, Mängelmelder – lehnt sie ab. */
+function issueTabletToken(memberId, { ohnePin = false } = {}) {
   const token = crypto.randomBytes(16).toString('hex');
-  tabletTokens.set(token, { memberId, expiresAt: Date.now() + TABLET_TTL_MS });
+  tabletTokens.set(token, { memberId, ohnePin, expiresAt: Date.now() + TABLET_TTL_MS });
   return token;
 }
 
-function checkTabletToken(token) {
+function lookupTabletToken(token, mitOhnePin) {
   const t = token && tabletTokens.get(token);
   if (!t || t.expiresAt < Date.now()) {
     if (t) tabletTokens.delete(token);
     return false;
   }
+  if (t.ohnePin && !mitOhnePin) return false;
   t.expiresAt = Date.now() + TABLET_TTL_MS;
   return t.memberId;
 }
+const checkTabletToken = token => lookupTabletToken(token, false);
+const checkTabletTokenBuchen = token => lookupTabletToken(token, true);
 
 function dropTabletToken(token) { tabletTokens.delete(token); }
 
@@ -289,5 +295,5 @@ setInterval(() => {
 module.exports = {
   PERMS, DEPT_PERMS, hashSecret, hashPin, pinUmstellen, verifySecret, nacheinander, pinProblem, permInfo, setPermFilter, memberAllowed, deviceCookie, knownDevice,
   adminConfigured, createUser, setPassword, login, logout, dropUserSessions, parseCookies, sessionCookie, currentUser, requireAdmin, need,
-  issueTabletToken, checkTabletToken, dropTabletToken,
+  issueTabletToken, checkTabletToken, checkTabletTokenBuchen, dropTabletToken,
 };

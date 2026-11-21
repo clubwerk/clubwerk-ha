@@ -2229,7 +2229,7 @@
     const ad = m.club || {};
     const addr = [[ad.street, ad.city].filter(Boolean).join(', '), ad.email, ad.phone].filter(Boolean).map(esc).join(' · ');
     el.innerHTML = `<div class="card" data-set="sepa"><h3>Lastschrift (SEPA)</h3><div class="mv-grid" style="--c:4">
-        <label class="f w2">Name als Zahlungsempfänger<input id="eName" value="${esc(s.creditor_name)}" maxlength="70"></label>
+        <label class="f w2">Name als Zahlungsempfänger<textarea id="eName" data-grow rows="1" maxlength="70">${esc(s.creditor_name)}</textarea></label>
         <div class="f w2"><span>Vereinsanschrift</span><div class="mv-addr">${addr || '<span class="muted">noch nicht eingetragen</span>'}</div><span class="muted s">ändern unter <a href="#einstellungen" id="eAddrGo">Einstellungen › Verein</a></span></div>
         <label class="f w2">Gläubiger-ID<input id="eCi" value="${esc(s.creditor_id)}" placeholder="DE98ZZZ09999999999" spellcheck="false"></label>
         <label class="f">Mandatsreferenz = Kürzel + Nr.<input id="ePre" value="${esc(s.mandate_prefix)}" maxlength="10" placeholder="z. B. TCM"></label>

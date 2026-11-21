@@ -1,5 +1,21 @@
 # Änderungen
 
+## 2026.11.56
+
+### Neu
+- Dienste & Termine › Einstellungen: Neuer Schalter „In der Mitglieder-App anzeigen“ (Standard: an) unter „Arbeitsstunden nutzen“. Ohne Häkchen laufen Soll, Erfassen, Abrechnung, Beitragslauf-Posten und Erinnerungen in der Verwaltung weiter, die Mitglieder-App zeigt aber keine Stunden mehr: kein „Meine Stunden“, kein „Stunden melden“, keine Stunden-Karte in „Für mich“ und keine Stunden-Beträge in den offenen Posten. Dienste, Termine und Aufgaben bleiben in der App. Das Umschalten steht im Protokoll.
+- Mitglieder-App: Sonderdesigns. Unter Mitglieder-App › Einstellungen legt der Verein für einen Zeitraum von höchstens 8 Wochen ein eigenes Hintergrundbild (je für hell und dunkel) und einen Gruß oben in „Für mich“ fest, zum Beispiel für den Advent oder ein Jubiläum. Auf Wunsch wiederholt es sich jedes Jahr, auch über den Jahreswechsel. Überschneiden sich zwei, gilt der kürzere.
+- Beim Hochladen verkleinert die Verwaltung das Bild und prüft, ob die Schrift oben und die Leiste unten gut lesbar bleiben; zu kleine oder unruhige Bilder bekommen einen Hinweis. Eine Vorschau zeigt „Für mich“ in hell und dunkel.
+- Den Gruß blenden Mitglieder mit ✕ auf ihrem Handy aus; ändert der Verein den Text, erscheint er neu. Mit „Hoher Kontrast“ gibt es nie ein Bild. Das Handy lädt das Bild nur einmal und zeigt es auch ohne Netz.
+### Behoben
+- Verwaltung: Lange Texte in einzeiligen Feldern werden nicht mehr abgeschnitten, sondern brechen um und das Feld wächst mit – Vereinsname, Name des Kontos, Kontoinhaber eines Bankkontos, Name als Zahlungsempfänger (SEPA), E-Mail einer Firma, „Wofür“ einer Ausgabe, Notiz einer Umbuchung, Name einer Buchungsart und „Was wurde gemacht?“ bei Arbeitseinsätzen.
+- Zeiterfassung › Stunden: Das Schild „korrigiert von … · vorher …“ bricht am Handy um und ragt nicht mehr über den Rand der Zeile hinaus.
+- Tablet: „Andere dürfen für mich buchen“. Wer das am Tablet einschaltet (Knopf „Für mich buchen“, nach Eingabe der eigenen PIN), bei dem kann man ohne PIN buchen – zum Beispiel ein Getränk mitbringen. Offener Betrag, Verlauf und PIN-Änderung bleiben dabei verborgen, Platzbuchung und Helferdienste bleiben mit PIN geschützt. Standardmäßig ist es ausgeschaltet und jederzeit wieder abschaltbar. In der Konten-Verwaltung ist der Zustand zu sehen und lässt sich ausschalten; Änderungen stehen im Protokoll.
+
+### Behoben
+- Mitglieder-App › Nachrichten: Angeheftete Nachrichten zeigen eine Reißzwecke statt der Pille „angeheftet“. Dadurch bricht die Zeile mit Datum und Absender am Handy nicht mehr um, die Einträge bleiben gleich hoch und der Absender wird nicht gekürzt.
+- Tablet: Nach einer Buchung ohne PIN steht „Auf das Konto von … gebucht.“ statt „Auf dein Konto gebucht.“.
+
 ## 2026.11.55
 
 ### Verbessert

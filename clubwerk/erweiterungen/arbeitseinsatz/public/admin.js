@@ -166,7 +166,7 @@
     dialog(`<h2>Stunden nachtragen</h2>
       <div class="aw-grid" style="--c:3"><label class="f">Datum<input id="aeD" type="date" value="${preset.date || st.meta.today}" max="${st.meta.today}"></label><label class="f">Dauer in Stunden<input id="aeM" inputmode="decimal" placeholder="z. B. 2,5"></label>
         <label class="f">Einsatz (optional)<select id="aeE"><option value="">–</option>${ev.map(e => opt(e.id, e.permanent ? `${e.title} (dauerhaft)` : `${deDate(e.date)} ${e.title}`, preset.event)).join('')}</select></label>
-        <label class="f wall">Was wurde gemacht?<input id="aeT" placeholder="z. B. Plätze abziehen, Hecke schneiden"></label></div>
+        <label class="f wall">Was wurde gemacht?<textarea id="aeT" data-grow rows="1" placeholder="z. B. Plätze abziehen, Hecke schneiden"></textarea></label></div>
       <label class="f" style="margin-top:14px">Mitglieder (mehrere möglich)<input id="aeQ" placeholder="filtern …" data-nodirty></label>
       <div class="aw-cols" id="aeL">${people.map(p => `<label class="chk" data-n="${esc(p.name.toLowerCase())}"><input type="checkbox" value="${p.id}" ${(preset.members || []).includes(p.id) ? 'checked' : ''}> ${esc(GK.lastFirst(p.name))}</label>`).join('')}</div>
       <p class="muted s">Nachgetragene Stunden gelten sofort als bestätigt.</p>
@@ -537,7 +537,8 @@
     head('Einstellungen', 'Soll, Abrechnung, Tablet und Erinnerungen der Dienste & Termine.');
     $('main').insertAdjacentHTML('beforeend', `<div class="card" data-set="stunden"><h3>Arbeitsstunden</h3>
         <label class="chk"><input type="checkbox" id="sHrs" ${c.hours ? 'checked' : ''}> Arbeitsstunden nutzen (Soll, Stundenmeldung, Abrechnung)</label>
-        <p class="muted s">Ohne Häkchen nutzt der Verein nur Dienste, Termine und Aufgaben: Soll, Stunden und Abrechnung verschwinden in Verwaltung, Mitglieder-App und Tablet, der Beitragslauf bekommt keinen Posten „Arbeitsstunden“. Bereits erfasste Stunden bleiben erhalten.</p>${foot('sSaveHrs')}</div>
+        <label class="chk"><input type="checkbox" id="sShow" ${c.app_show ? 'checked' : ''} ${c.hours ? '' : 'disabled'}> In der Mitglieder-App anzeigen (Meine Stunden, Stunden melden, Soll, Beträge)</label>
+        <p class="muted s">Ohne Häkchen nutzt der Verein nur Dienste, Termine und Aufgaben: Soll, Stunden und Abrechnung verschwinden in Verwaltung, Mitglieder-App und Tablet, der Beitragslauf bekommt keinen Posten „Arbeitsstunden“. Bereits erfasste Stunden bleiben erhalten. Ohne Häkchen bei „In der Mitglieder-App anzeigen“ läuft in der Verwaltung alles weiter (Soll, Erfassen, Abrechnung, Erinnerungen), die Mitglieder-App zeigt aber nichts zu Stunden; Dienste, Termine und Aufgaben bleiben.</p>${foot('sSaveHrs')}</div>
       <div class="card" data-set="soll"><h3>Soll</h3><div class="aw-grid" style="--c:3">
         <label class="f">Stunden je Mitglied und Jahr<input id="sDef" inputmode="decimal" value="${String(c.default_minutes / 60).replace('.', ',')}"></label>
         <label class="f">Ab Alter (0 = alle)<input id="sMin" inputmode="numeric" value="${c.min_age}"></label><label class="f">Bis Alter (0 = ohne Grenze)<input id="sMax" inputmode="numeric" value="${c.max_age}"></label></div>
@@ -583,8 +584,9 @@
     const save = (btn, body) => { $(btn).onclick = () => GK.busy($(btn), async () => {
       try { await api('settings', 'PUT', body()); GK.clean(); toast('Gespeichert.'); renderEinstellungen().catch(fail); } catch (e) { fail(e); }
     }); };
+    $('sHrs').onchange = () => { $('sShow').disabled = !$('sHrs').checked; };   // ohne Arbeitsstunden wirkt „In der Mitglieder-App anzeigen“ nicht (der Stand bleibt gespeichert)
     $('sSaveHrs').onclick = () => GK.busy($('sSaveHrs'), async () => {   // Menü und Seiten ändern sich: nach dem Speichern neu laden
-      try { await api('settings', 'PUT', { hours: $('sHrs').checked }); GK.clean(); toast('Gespeichert.'); setTimeout(() => location.reload(), 500); } catch (e) { fail(e); }
+      try { await api('settings', 'PUT', { hours: $('sHrs').checked, app_show: $('sShow').checked }); GK.clean(); toast('Gespeichert.'); setTimeout(() => location.reload(), 500); } catch (e) { fail(e); }
     });
     if (c.hours) {
     save('sSaveSoll', () => ({ default_minutes: toMin(val('sDef')), min_age: +val('sMin') || 0, max_age: +val('sMax') || 0, pool_family: $('sPool').checked, exempt_passive: $('sPass').checked, prorate: $('sPro').checked }));

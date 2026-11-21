@@ -422,7 +422,7 @@ Nach 60 Sekunden ohne Eingabe springt das Tablet auf die Startseite zurück, dan
 
 ![Die PIN-Eingabe.](bild: tablet=start; klick=#names button[data-id])
 
-Weitere Knöpfe auf der Buchenseite: **Mein Konto** zeigt Datum, Artikel und Betrag der eigenen Buchungen und den offenen Betrag, nur mit PIN. **PIN ändern** gilt sofort auch in der Mitglieder-App. **Anderes Mitglied** bricht ab und geht zurück zur Liste.
+Weitere Knöpfe auf der Buchenseite: **Mein Konto** zeigt Datum, Artikel und Betrag der eigenen Buchungen und den offenen Betrag, nur mit PIN. **PIN ändern** gilt sofort auch in der Mitglieder-App. **Für mich buchen** schaltet „Andere dürfen für mich buchen“ ein oder aus: Ist es eingeschaltet, kann jemand für dich buchen – zum Beispiel ein Getränk mitbringen –, ohne deine PIN zu kennen. Beim Namen steht dann zusätzlich **Ohne PIN buchen**; dein offener Betrag, dein Verlauf und deine PIN bleiben dabei verborgen, Platzbuchung und Helferdienste bleiben mit PIN geschützt. Standard ist ausgeschaltet; nur du selbst schaltest es am Tablet (nach Eingabe deiner PIN) ein, der Vorstand kann es unter Konten ausschalten. **Anderes Mitglied** bricht ab und geht zurück zur Liste.
 
 ### Freier Betrag {#tablet-betrag}
 

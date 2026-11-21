@@ -319,7 +319,7 @@
         <label class="f">Kundennummer<input id="pK" value="${v('customer_no')}" placeholder="optional"></label>
         <label class="f">Abteilung<select id="pD">${opt('', '– Verein –', p && p.department_id)}${st.meta.departments.map(d => opt(d.id, d.name, p && p.department_id)).join('')}</select></label>
         <label class="f">Ansprechperson<input id="pC" value="${v('contact')}" placeholder="z. B. Frau Muster"></label>
-        <label class="f">E-Mail (Rechnungsversand)<input id="pE" type="email" value="${v('email')}"></label>
+        <label class="f">E-Mail (Rechnungsversand)<textarea id="pE" data-grow rows="1" inputmode="email" autocapitalize="off" spellcheck="false">${v('email')}</textarea></label>
         <label class="f">Telefon<input id="pT" value="${v('phone')}"></label>
         <label class="f">USt-IdNr.<input id="pV" value="${v('vat_id')}" placeholder="optional"></label>
         <label class="f">Straße und Hausnummer<input id="pS" value="${v('street')}"></label>
@@ -573,7 +573,7 @@
         <label class="f">Empfänger<input id="axP" list="axPL" maxlength="100" value="${esc(pre.payee || '')}" placeholder="z. B. Platzbau Muster GmbH" required autocomplete="off"></label>
         <datalist id="axPL">${m.partners.map(p => `<option value="${esc(p.name)}">`).join('')}</datalist>
         <label class="f">Ausgabeart<select id="axT2" required><option value="">– bitte wählen –</option>${m.types.filter(t => t.active).map(t => opt(t.id, t.name, pre.type ? pre.type.id : '')).join('')}</select></label>
-        <label class="f">Wofür<input id="axW" maxlength="200" value="${esc(pre.purpose || '')}" placeholder="z. B. Ziegelmehl für Platz 3" required></label>
+        <label class="f">Wofür<textarea id="axW" data-grow rows="1" maxlength="200" placeholder="z. B. Ziegelmehl für Platz 3" required>${esc(pre.purpose || '')}</textarea></label>
         ${m.vorsteuer ? `<label class="f w1">Umsatzsteuer<select id="axV">${[19, 7, 0].map(v => opt(v, v ? v + ' %' : 'ohne', 19)).join('')}</select></label>` : ''}
       </div>
       <h3 style="margin:16px 0 8px">Bezahlt von</h3>
@@ -725,7 +725,7 @@
       <div class="seg" role="tablist" id="mvK"><button type="button" data-k="in">Von der Bank in die Kasse</button><button type="button" data-k="out">Aus der Kasse zur Bank</button>${others.length ? '<button type="button" data-k="kasse">An andere Kasse</button>' : ''}</div>
       <div class="frm"><label class="f w1">Datum<input id="mvD" type="date" value="${m.today}" max="${m.today}"></label><label class="f w1">Betrag (€)<input id="mvC" inputmode="decimal" required></label>
         <span id="mvTo" class="f-slot"></span>
-        <label class="f wall">Notiz (optional)<input id="mvN" maxlength="120" placeholder="z. B. Wechselgeld für das Sommerfest"></label></div>
+        <label class="f wall">Notiz (optional)<textarea id="mvN" data-grow rows="1" maxlength="120" placeholder="z. B. Wechselgeld für das Sommerfest"></textarea></label></div>
       <p class="err" id="mvErr" role="alert" aria-live="polite"></p>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="mvOk">Buchen</button></div>`, true);
     const paint = () => {

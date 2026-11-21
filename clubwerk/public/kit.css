@@ -4,6 +4,16 @@
 .vh, .vh * { box-sizing: border-box; }
 body.vh-page { margin: 0; background: var(--shimmer), var(--bg); background-repeat: no-repeat; color: var(--ink); min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 .hidden { display: none !important; }
+/* Sonderdesign (planung/sonderdesign.md): Hintergrundbild je hell/dunkel hinter der ganzen Seite. app.js setzt data-sonder-hell/-dunkel und die Bildadresse
+   (--sonder-bild-hell/-dunkel) erst nach dem ersten Zeichnen; geladen wird nur das Bild der sichtbaren Darstellung. Hoher Kontrast nie. Solange ein Bild gilt, ist
+   --bg die Farbe am oberen Bildrand: Fenster lassen die Seite in --bg zurücktreten – oben bleibt dieselbe Farbe, die iPhone-Statusleiste muss nichts umfärben. */
+:root[data-theme="light"][data-sonder-hell]:not([data-contrast]) { --bg: var(--sonder-top-hell); }
+:root[data-theme="dark"][data-sonder-dunkel]:not([data-contrast]) { --bg: var(--sonder-top-dunkel); }
+:root[data-theme="light"][data-sonder-hell]:not([data-contrast]) body.vh-page, :root[data-theme="dark"][data-sonder-dunkel]:not([data-contrast]) body.vh-page { background: transparent; }
+:root[data-theme="light"][data-sonder-hell]:not([data-contrast]) body.vh-page::before, :root[data-theme="dark"][data-sonder-dunkel]:not([data-contrast]) body.vh-page::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--bg) center bottom / cover no-repeat; }
+:root[data-theme="light"][data-sonder-hell]:not([data-contrast]) body.vh-page::before { background-image: var(--sonder-bild-hell, none); }
+:root[data-theme="dark"][data-sonder-dunkel]:not([data-contrast]) body.vh-page::before { background-image: var(--sonder-bild-dunkel, none); }
 
 /* Kopf (nur auf dem Handy / eigener Port – am Tablet steht die gemeinsame Kopfzeile): Vereinsname klein (h1), darunter groß die Seite (p),
    rechts das Profilbild, unten die Platzlinie */
@@ -142,6 +152,8 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 .vh-small { font-size: 13px !important; }
 .vh-hhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; } .vh-hhead h2 { margin: 0; }
 .vh-hx { flex: none; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-size: 16px; display: grid; place-items: center; }
+.vh-gruss .vh-hhead { align-items: flex-start; margin-bottom: 6px; } .vh-gruss h3 { margin: 10px 0 0; font-size: 17px; line-height: 24px; overflow-wrap: anywhere; } .vh-gruss .vh-hx { width: 44px; height: 44px; margin: -4px -4px 0 0; }   /* Gruß eines Sonderdesigns oben in „Für mich“ */
+.vh-gruss p { margin: 0; overflow-wrap: anywhere; }
 .vh-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
 .vh-step, .vh-zero { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: start; text-align: left; margin-bottom: 16px; } .vh-steps .vh-step { margin-bottom: 0; }
 .vh-step > div, .vh-zero > div { min-width: 0; } .vh-step > div > b:first-child, .vh-zero > div > b:first-child { font-size: 15px; display: block; margin: 3px 0 6px; } .vh-step p, .vh-zero p { margin: 0 0 8px; }

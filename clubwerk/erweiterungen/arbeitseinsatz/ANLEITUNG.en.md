@@ -227,6 +227,7 @@ The page consists of seven cards. Each card has its own “Save”, which writes
 ![The “Working hours” card.](bild: seite=aw-einstellungen; ziel=[data-set="stunden"])
 
 - **Use working hours:** on by default. Without the tick the club uses only duties, dates and tasks. Target, hours and billing then disappear: in the administration the “Overview” and “Hours” tabs and the cards “Target”, “Billing”, “Tablet & app” and “Exempt members” are hidden; the member app has no “My hours” box and no “Report hours”; clocking in at the tablet is gone; the fee run gets no “Working hours” item, and there is no reminder about missing hours. Hours already recorded are kept and reappear as soon as you tick the box again. Switching it is recorded in the log.
+- **Show in the member app:** on by default and only selectable while “Use working hours” is on. Without the tick working hours carry on in the administration as usual (target, recording, billing, fee-run item, e-mail reminders), but the member app shows nothing about them: no “My hours”, no “Report hours”, no hours card in “For me” and no hours amounts in the open items. Duties, dates and tasks stay in the app; the tablet is unchanged. While “Use working hours” is off the switch has no effect and keeps its setting. Switching it is recorded in the log.
 
 #### Target
 

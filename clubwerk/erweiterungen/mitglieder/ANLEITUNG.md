@@ -139,7 +139,7 @@ Je Einwilligung ein Häkchen mit Datum („seit …“), z. B. für Fotos. Welch
 
 #### Weitere Karten und Knöpfe
 
-- **Tablet-PIN:** zeigt, ob das Mitglied eine PIN hat. „PIN zurücksetzen“ löscht sie; beim nächsten Mal legt das Mitglied am Tablet eine neue fest.
+- **Tablet-PIN:** zeigt, ob das Mitglied eine PIN hat. „PIN zurücksetzen“ löscht sie; beim nächsten Mal legt das Mitglied am Tablet eine neue fest. Das Mitglied kann am Tablet „Andere dürfen für mich buchen“ einschalten (dann geht Buchen ohne PIN, aber ohne Einsicht); in der Kontenverwaltung steht dazu die Pille „Buchen ohne PIN erlaubt“, und der Vorstand kann es dort ausschalten.
 - **Willkommens-E-Mail:** zeigt, wann sie zuletzt gesendet wurde und an welche Adresse sie geht. „Willkommens-E-Mail senden …“ fragt nach und bietet dabei an, die Einladung zur Mitglieder-App mitzuschicken. Jeder Versand steht im Verlauf des Mitglieds und im Protokoll. Jede so gesendete Mail steht mit vollem Text unter Nachrichten › Gesendet › Automatisch.
 
 ![Karte „Willkommens-E-Mail“ am Mitglied.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=#sWel)
