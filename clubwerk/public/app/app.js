@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.56';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.57';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -29,7 +29,8 @@
   let pinMem = '';
   const sess = { get() { return pinMem; }, set(v) { pinMem = String(v || ''); }, del() { pinMem = ''; } };
   const dev = () => store.get('va_geraet');
-  const hdrs = (x = {}) => { const h = { ...x }; if (dev()) h['X-Geraet'] = dev(); return h; };
+  const asApp = () => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } };
+  const hdrs = (x = {}) => { const h = { ...x }; if (dev()) { h['X-Geraet'] = dev(); if (asApp()) h['X-App-Modus'] = 'app'; } return h; };
 
   function toast(msg, err = false, ms = 3500) { const t = $('toast'); t.textContent = msg; t.className = 'vh-toast show' + (err ? ' err' : ''); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), ms); }
   function lock(text) { if (text) $('lockText').textContent = text; $('lockSheet').classList.add('show'); }
@@ -767,7 +768,7 @@
   }
 
   /* ---------- Übernahme in die Home-Bildschirm-App (iPhone: eigener Speicher je Home-Bildschirm-App) ---------- */
-  const standalone = () => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } };
+  const standalone = asApp;
   const isIOS = iosOf();
   const fmtCode = c => c.slice(0, 5) + '-' + c.slice(5);
   async function prepareTransfer() {

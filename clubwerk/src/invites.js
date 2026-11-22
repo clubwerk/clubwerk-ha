@@ -34,7 +34,9 @@ for (const [c, t] of [['failed_total', 'INTEGER NOT NULL DEFAULT 0'], ['blocked_
   ['invite_kind', 'TEXT'], ['used_hash', 'TEXT'], ['used_at', 'TEXT'], ['used_alerted', 'INTEGER NOT NULL DEFAULT 0'], ['remote', 'INTEGER NOT NULL DEFAULT 0'], ['verified', 'TEXT'],
   ['otp_hash', 'TEXT'], ['otp_expires', 'INTEGER'], ['otp_tries', 'INTEGER NOT NULL DEFAULT 0'], ['otp_day', 'TEXT'], ['otp_count', 'INTEGER NOT NULL DEFAULT 0'], ['otp_last', 'INTEGER'],
   // 3.24: eine PIN für App und Verkauf – pin_synced = alte, getrennt vergebene PINs einmalig abgeglichen
-  ['pin_synced', 'INTEGER NOT NULL DEFAULT 0']]) {
+  ['pin_synced', 'INTEGER NOT NULL DEFAULT 0'],
+  // zuletzt als App vom Startbildschirm genutzt (nur Zeitpunkt, keine Gerätemerkmale) – „App installiert“ / „nur im Browser“ in der Verwaltung
+  ['app_at', 'TEXT']]) {
   if (!db.prepare('PRAGMA table_info(member_devices)').all().some(x => x.name === c)) db.exec(`ALTER TABLE member_devices ADD COLUMN ${c} ${t}`);
 }
 db.exec('CREATE INDEX IF NOT EXISTS ix_devices_token2 ON member_devices(scope, token2_hash)');
@@ -261,13 +263,17 @@ async function redeemHandover(scope, code, pin, host) {
   return { ok: true, device, member: r.name };
 }
 
-/** Gerät erkennen (ohne PIN) → { memberId, name } oder null */
-function whoIs(scope, deviceToken) {
+/** Gerät erkennen (ohne PIN) → { memberId, name } oder null. app: die Anfrage kommt aus der App vom Startbildschirm (Kopfzeile der App) */
+function whoIs(scope, deviceToken, { app = false } = {}) {
   if (!deviceToken || !SCOPE_RE.test(scope)) return null;
-  const r = db.prepare(`SELECT d.id, d.member_id, d.remote, d.last_used, m.name FROM member_devices d JOIN members m ON m.id = d.member_id
+  const r = db.prepare(`SELECT d.id, d.member_id, d.remote, d.last_used, d.app_at, m.name FROM member_devices d JOIN members m ON m.id = d.member_id
     WHERE d.scope = ? AND (d.token_hash = ? OR d.token2_hash = ?) AND m.active = 1 AND m.deleted = 0`).get(scope, sha(deviceToken), sha(deviceToken));
-  // „zuletzt benutzt“: jede Nutzung zählt, nicht nur die PIN-Eingabe (die App bleibt angemeldet) – höchstens alle 10 Minuten geschrieben
-  if (r && (!r.last_used || r.last_used < now(new Date(Date.now() - 600000)))) db.prepare('UPDATE member_devices SET last_used = ? WHERE id = ?').run(now(), r.id);
+  // „zuletzt benutzt“ (und „zuletzt als App“): jede Nutzung zählt, nicht nur die PIN-Eingabe (die App bleibt angemeldet) – höchstens alle 10 Minuten geschrieben, beides in einem Schreibzugriff
+  if (r) {
+    const old = now(new Date(Date.now() - 600000)), last = !r.last_used || r.last_used < old, asApp = app && (!r.app_at || r.app_at < old);
+    if (asApp) db.prepare('UPDATE member_devices SET last_used = ?, app_at = ? WHERE id = ?').run(now(), now(), r.id);
+    else if (last) db.prepare('UPDATE member_devices SET last_used = ? WHERE id = ?').run(now(), r.id);
+  }
   return r ? { deviceId: r.id, memberId: r.member_id, name: r.name, remote: Boolean(r.remote) } : null;
 }
 

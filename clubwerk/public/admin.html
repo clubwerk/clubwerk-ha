@@ -714,6 +714,7 @@
   :where(html.cw-liste) .tbl.kompakt tr[data-row] { cursor: pointer; }
   :where(html.cw-liste) .tbl.kompakt td:empty, :where(html.cw-liste) .tbl.kompakt .k-weg { display: none; }   /* k-weg: am Handy weglassen (steht beim Antippen bzw. Bearbeiten) – ganze Zelle oder ein Teil davon */
   :where(html.cw-liste) .tbl.kompakt td.k-lbl::before { content: attr(data-label) ' '; display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }   /* k-lbl: Spaltenname davor (z. B. „Benutzer: 3“) */
+  :where(html.cw-liste) .tbl.kompakt td.k-neben { flex: 1 1 0; min-width: 64px; white-space: normal; }   /* k-neben: Text neben einem Schild bricht dort um, statt in eine eigene Zeile zu rutschen (Karte bleibt ≤ 96 px, nichts abgeschnitten) */
   :where(html.cw-liste) .tbl.kompakt td.k-1z { white-space: normal; overflow-wrap: break-word; font-size: 14px; }   /* k-1z: Namen etwas kleiner; lange Namen brechen um statt abgeschnitten zu werden */
   :where(html.cw-liste) .tbl.kompakt td.k-datei { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }   /* k-datei: Dateinamen einzeilig, voller Name im title (Länge hängt von Datum und Uhrzeit ab) */
   :where(html.cw-liste) .tbl.kompakt td:first-child .muted { font-weight: 400; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

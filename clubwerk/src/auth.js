@@ -234,11 +234,17 @@ function currentUser(req, scope = 'admin') {
   const s = token && sessions.get(token);
   if (!s || s.expiresAt < Date.now() || s.maxAt < Date.now()) { if (s) sessions.delete(token); return null; }
   if ((s.scope || 'admin') !== scope || Boolean(s.tablet) !== Boolean(scope === 'admin' && req.cwTablet)) return null;
-  const u = db.prepare('SELECT id, username, name, role, perms, roles, departments, member_id, active, builtin FROM admin_users WHERE id = ?').get(s.userId);
-  if (!u || !u.active) { sessions.delete(token); return null; }
+  const u = userById(s.userId);
+  if (!u) { sessions.delete(token); return null; }
   s.expiresAt = Date.now() + (s.tablet ? TABLET_ADMIN_TTL_MS : ADMIN_TTL_MS);
+  return { ...u, token };
+}
+/** Benutzer mit seinen heutigen Rechten – null, wenn gesperrt oder gelöscht (auch für Aufträge, die nach einem Neustart weiterlaufen) */
+function userById(id) {
+  const u = db.prepare('SELECT id, username, name, role, perms, roles, departments, member_id, active, builtin FROM admin_users WHERE id = ?').get(id);
+  if (!u || !u.active) return null;
   const pi = permInfo(u);
-  return { ...u, perms: pi.perms, deptOnly: pi.deptOnly, depts: parse(u.departments).map(Number).filter(Number.isInteger), token };
+  return { ...u, perms: pi.perms, deptOnly: pi.deptOnly, depts: parse(u.departments).map(Number).filter(Number.isInteger) };
 }
 
 function requireAdmin(req, res, next) {
@@ -294,6 +300,6 @@ setInterval(() => {
 
 module.exports = {
   PERMS, DEPT_PERMS, hashSecret, hashPin, pinUmstellen, verifySecret, nacheinander, pinProblem, permInfo, setPermFilter, memberAllowed, deviceCookie, knownDevice,
-  adminConfigured, createUser, setPassword, login, logout, dropUserSessions, parseCookies, sessionCookie, currentUser, requireAdmin, need,
+  adminConfigured, createUser, setPassword, login, logout, dropUserSessions, parseCookies, sessionCookie, currentUser, userById, requireAdmin, need,
   issueTabletToken, checkTabletToken, checkTabletTokenBuchen, dropTabletToken,
 };

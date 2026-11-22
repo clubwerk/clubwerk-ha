@@ -318,7 +318,7 @@ const access = {
   remove: (memberId, module) => db.prepare('DELETE FROM member_access WHERE member_id = ? AND module = ?').run(memberId, module).changes > 0,
 };
 
-const DEV_COLS = 'device, paired_at, last_used, invite_expires, blocked_at, paired_host, remote, verified, invite_kind, invite_hash IS NOT NULL AS invited, token_hash IS NOT NULL AS paired';
+const DEV_COLS = 'device, paired_at, last_used, app_at, invite_expires, blocked_at, paired_host, remote, verified, invite_kind, invite_hash IS NOT NULL AS invited, token_hash IS NOT NULL AS paired';
 const ACC_COLS = 'module, profile, valid_until, blocked, away, flags';
 /** für memberState() bei vielen Mitgliedern: Handys, Freischaltungen, Tunnel und Bereiche einmal laden statt je Mitglied */
 function statesPre() {
@@ -337,7 +337,7 @@ function memberState(memberId, pre = null) {
   const acc = pre ? pre.acc.get(memberId) || [] : db.prepare(`SELECT ${ACC_COLS} FROM member_access WHERE member_id = ?`).all(memberId);
   const nm = pre ? pre.nm.has(memberId) : isNonMember(memberId);
   return {
-    device: dev ? { status: dev.paired ? 'gekoppelt' : dev.blocked_at && !dev.invited ? 'gesperrt' : dev.invite_expires >= Date.now() ? 'eingeladen' : 'abgelaufen', label: dev.device, remote: Boolean(dev.paired && dev.remote), verified: dev.verified || null, kind: dev.invite_kind || 'qr', expires: dev.invited ? dev.invite_expires : null, paired_at: dev.paired_at, last_used: dev.last_used, blocked_at: dev.blocked_at, host: dev.paired_host || null, oldAddress } : null,
+    device: dev ? { status: dev.paired ? 'gekoppelt' : dev.blocked_at && !dev.invited ? 'gesperrt' : dev.invite_expires >= Date.now() ? 'eingeladen' : 'abgelaufen', label: dev.device, remote: Boolean(dev.paired && dev.remote), verified: dev.verified || null, kind: dev.invite_kind || 'qr', expires: dev.invited ? dev.invite_expires : null, paired_at: dev.paired_at, last_used: dev.last_used, app: dev.paired ? dev.app_at || null : null, blocked_at: dev.blocked_at, host: dev.paired_host || null, oldAddress } : null,
     access: Object.fromEntries(acc.map(a => [a.module, { profile: a.profile, valid_until: a.valid_until, blocked: Boolean(a.blocked), away: Boolean(a.away), flags: parseFlags(a.flags) }])),
     // je Bereich angehakt? „für alle“-Bereiche gelten, bis sie für dieses Mitglied abgeschaltet werden
     granted: Object.fromEntries((pre ? pre.mods : activeModules()).map(([id, m]) => { const a = acc.find(x => x.module === id); return [id, nm ? Boolean(m.nonMembers && a) : m.open ? !(a && a.blocked) : Boolean(a)]; })),
@@ -403,7 +403,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     const o = req.get('origin');
     if (o && own.includes(o)) {
       res.setHeader('Access-Control-Allow-Origin', o); res.setHeader('Vary', 'Origin');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Geraet, X-Clubwerk'); res.setHeader('Access-Control-Max-Age', '600');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Geraet, X-Clubwerk, X-App-Modus'); res.setHeader('Access-Control-Max-Age', '600');
       if (req.method === 'OPTIONS') return res.status(204).end();
     }
     next();
@@ -454,11 +454,13 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
 
   const api = express.Router();
   const dev = req => req.get('X-Geraet') || '';
-  apiStart({ api, dev, rateLimit });
-  apiKoppeln({ api, dev, rateLimit, rateLimitKey });
+  /** Gerät der Anfrage; „X-App-Modus: app“ schickt die App, wenn sie vom Startbildschirm läuft (kein zusätzlicher Aufruf, nur diese Kopfzeile) */
+  const who = req => invites.whoIs(SCOPE, dev(req), { app: req.get('X-App-Modus') === 'app' });
+  apiStart({ api, dev, who, rateLimit });
+  apiKoppeln({ api, dev, who, rateLimit, rateLimitKey });
   /* Profilbild: das Mitglied lädt es selbst hoch und bestimmt, wo es erscheint */
   const photos = require('./photos');
-  const meOr403 = (req, res) => { const w = invites.whoIs(SCOPE, dev(req)); if (!w) res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet.', device: true }); return w; };
+  const meOr403 = (req, res) => { const w = who(req); if (!w) res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet.', device: true }); return w; };
   const modOn = id => { try { return require('./plugins').isActive(id); } catch (e) { return false; } };
   api.get('/privacy', (req, res) => { if (meOr403(req, res)) res.json(require('./datenschutz').notice()); });   // Datenschutzhinweis des Vereins
   api.get('/photo', (req, res) => { const w = meOr403(req, res); if (w) res.json(photos.info(w.memberId, modOn)); });
@@ -485,7 +487,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   api.use('/m/:id', (req, res, next) => {
     const m = modules.get(req.params.id);
     if (!m || !m.isActive()) return res.status(404).json({ error: 'Dieser Bereich ist nicht aktiv.' });
-    const w = invites.whoIs(SCOPE, dev(req));
+    const w = who(req);
     if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet. Bitte beim Vorstand einen neuen QR-Code holen.', device: true });
     const c = accessFor(w.memberId, req.params.id);
     if (!c.ok) return res.status(403).json({ error: c.reason, denied: true });
@@ -549,7 +551,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
 }
 
 /** Mitglieder-App: Verbindungstest, eigene Bereiche, „Für mich“ (Teil von startPort) */
-function apiStart({ api, dev, rateLimit }) {
+function apiStart({ api, dev, who, rateLimit }) {
   // Diagnose: ip = so sieht Clubwerk den Absender; wlan = Anfrage kam direkt aus dem Vereinsnetz (nicht über den Tunnel)
   api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', color: appColor(), club: getSetting('club_name', ''), tunnel: Boolean(req.viaTunnel), wlan: !awayReq(req), ip: normIp(req.ip) }));
   /** Bereiche dieses Handys bei dieser Anfrage: freigeschaltet, „Nur im Vereins-WLAN“ (unterwegs) oder „wartet aufs WLAN“ (vertraulich nach Kopplung von unterwegs) */
@@ -563,21 +565,21 @@ function apiStart({ api, dev, rateLimit }) {
     });
   };
   api.get('/me', (req, res) => {
-    const w = invites.whoIs(SCOPE, dev(req));
+    const w = who(req);
     if (w && w.remote && !awayReq(req) && invites.trust(w.deviceId)) { w.remote = false; audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name); }
     const sections = w ? sectionsFor(req, w) : [];
     res.json({ version: require('../package.json').version, start: getSetting('app_start', ''), color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), demo: getSetting('demo_mode', '') === '1' || undefined, appName: getSetting('app_name', 'Verein'), member: w ? w.name : null,
       pinTablet: Boolean(w) && require('./plugins').isActive('getraenke'), sections, privacyAt: getSetting('app_privacy_at', '') || undefined, sonder: w ? require('./sonderdesign').fuerApp() || undefined : undefined });   // „Mein Konto › PIN ändern“: gilt die PIN auch im Verkauf am Tablet?
   });
   /* Persönliches Kalender-Abo (src/kalender.js): eigene Termine der Bereiche, die das Mitglied in der App hat (Hook calendarEvents) */
-  require('./kalender').register({ api, whoIs: req => invites.whoIs(SCOPE, dev(req)), clubName: () => getSetting('club_name', 'Verein'),
+  require('./kalender').register({ api, whoIs: req => who(req), clubName: () => getSetting('club_name', 'Verein'),
     sections: id => activeModules().filter(([mid, m]) => typeof (m.hooks || {}).calendarEvents === 'function' && accessFor(id, mid).ok).map(([mid, m]) => ({ id: mid, hooks: m.hooks })),
     baseUrl: req => appUrl() || `${req.protocol}://${req.get('host')}`, localOnly: () => !appUrl(),
     publicRouter: router => registerPublic('kalender', { router, isActive: () => true, dir: path.join(__dirname, 'kein-ordner') }) });
   /* „Für mich“: Zeilen der freigeschalteten Bereiche (Hook forMe) – alle gleichzeitig, je Modul höchstens FORME_TIMEOUT_MS; nur eigene Daten des gekoppelten Mitglieds.
      Vier Karten: news (einmalige Hinweise, bis zum Quittieren), next (meine Termine), todo (was ich selbst tun muss, optional mit Knöpfen), money (Mein Konto) */
   api.get('/forme', async (req, res) => {
-    const w = invites.whoIs(SCOPE, dev(req));
+    const w = who(req);
     if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet. Bitte beim Vorstand einen neuen QR-Code holen.', device: true });
     res.set('Cache-Control', 'no-store');
     const { addDays, euro } = require('./util');
@@ -613,7 +615,7 @@ function apiStart({ api, dev, rateLimit }) {
   });
   /** Neuigkeit quittiert (angetippt): erscheint nicht wieder – nur für das eigene Mitglied, ohne Protokoll; alte Einträge räumen sich nach 180 Tagen auf */
   api.post('/forme/seen', rateLimit('appfms', 60, 60000), (req, res) => {
-    const w = invites.whoIs(SCOPE, dev(req));
+    const w = who(req);
     if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet. Bitte beim Vorstand einen neuen QR-Code holen.', device: true });
     const key = String((req.body || {}).key || '');
     if (!/^[a-z0-9_-]{1,40}:[A-Za-z0-9:_.-]{1,120}$/.test(key)) return res.status(400).json({ error: 'Ungültige Kennung.' });
@@ -624,7 +626,7 @@ function apiStart({ api, dev, rateLimit }) {
 }
 
 /** Mitglieder-App: Einladung, Koppeln, Umzug aufs neue Handy, Übergabe, Push, PIN, Abmelden (Teil von startPort) */
-function apiKoppeln({ api, dev, rateLimit, rateLimitKey }) {
+function apiKoppeln({ api, dev, who, rateLimit, rateLimitKey }) {
   /** Einladung schon eingelöst und erneut geöffnet: Vorstand warnen (einmal je Einladung) */
   const usedAlert = p => {
     if (!invites.markAlerted(p.deviceId)) return;
@@ -718,7 +720,7 @@ function apiKoppeln({ api, dev, rateLimit, rateLimitKey }) {
     res.json({ ok: true, device: r.device, member: r.member });
   });
   /* Push-Benachrichtigungen je Handy (Abo im Browser; Anlässe gibt der Vorstand frei) */
-  const whoDev = req => { const w = invites.whoIs(SCOPE, dev(req)); return w; };
+  const whoDev = req => { const w = who(req); return w; };
   const devLabel = req => { const d = db.prepare('SELECT device FROM member_devices WHERE id = ?').get((whoDev(req) || {}).deviceId); return d ? d.device : null; };
   api.post('/push/state', rateLimit('apppst', 60, 60000), (req, res) => {
     const w = whoDev(req); if (!w) return res.status(403).json({ error: 'Dieses Gerät ist nicht freigeschaltet.', device: true });
@@ -803,6 +805,8 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     .filter(r => { const m = modules.get(r.module); return m && m.isActive() && !m.open && !r.blocked; })
     .filter(r => !mayModule(req, r.module)).map(r => modules.get(r.module).label || modules.get(r.module).name);
   missingForRef = missingFor; permsAllRef = permsAll;
+  /** @type {(req: any) => any} */
+  let bulkInviteInfo = () => null;   // Sammel-Einladung (adminSammelEinladung)
   admin.get('/app', (req, res, next) => need(...permsAll(), 'app')(req, res, next), (req, res) => {
     const mayMembers = permsAll().some(p => req.user.perms.includes(p));   // nur „Mitglieder-App einrichten“: keine Mitgliederliste
     const ids = db.prepare(`SELECT DISTINCT member_id FROM (SELECT member_id FROM member_devices WHERE scope = ? UNION SELECT member_id FROM member_access)`).all(SCOPE).map(r => r.member_id);
@@ -815,7 +819,7 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     const owners = canMail ? mailOwners() : {}, mailShared = {};
     const all = [...rows.map(x => x.member_id), ...members.map(x => x.id)], addrs = canMail ? contactsOf(all, hooked) : null;   // Anschriften auf einmal statt je Mitglied
     const mailIds = canMail ? all.filter(id => { if (!mailOf(id, hooked, addrs)) return false; const o = mailSharedWith(id, owners); if (o) { mailShared[id] = { name: o.ownerName, why: o.why }; return false; } return true; }) : [];
-    res.json({ startSection: getSetting('app_start', ''), formeKonto: getSetting('app_forme_konto', '0') === '1', kontoOn: require('./plugins').isActive('getraenke'), mailIds: mayMembers ? mailIds : [], mailShared: mayMembers ? mailShared : {}, mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), lanHint: lanPortHint(), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [], bulkCan: mayMembers && bulkModules(req).length > 0, bulkLast: mayMembers ? bulkLastInfo(req) : null,
+    res.json({ startSection: getSetting('app_start', ''), formeKonto: getSetting('app_forme_konto', '0') === '1', kontoOn: require('./plugins').isActive('getraenke'), mailIds: mayMembers ? mailIds : [], mailShared: mayMembers ? mailShared : {}, mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), lanHint: lanPortHint(), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [], bulkCan: mayMembers && bulkModules(req).length > 0, bulkLast: mayMembers ? bulkLastInfo(req) : null, inviteBulk: mayMembers ? bulkInviteInfo(req) : null,
       security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: canMail, sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   // Vereinsnetz (Einstellungen › Erreichbarkeit): nur, was die Karte braucht – ohne Mitgliederliste
@@ -842,7 +846,7 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     try { const buf = await g.pdf(lang); res.type('application/pdf'); res.setHeader('Content-Disposition', `attachment; filename="${g.FILE(lang)}"`); res.setHeader('Cache-Control', 'no-store'); res.send(buf); }
     catch (e) { console.error('Anleitung Mitglieder-App:', e.message); bad(res, 'Die Anleitung konnte nicht erstellt werden.', 500); }
   });
-  adminEinladungen({ admin, auth, bad, missingFor, need, permsAll });
+  bulkInviteInfo = adminEinladungen({ admin, auth, bad, missingFor, need, permsAll });
   const { smsInfo } = adminSms({ admin, bad, need });
   admin.delete('/app/member/:id/device', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     const id = parseInt(req.params.id, 10);
@@ -1002,6 +1006,124 @@ function adminEinladungen({ admin, auth, bad, missingFor, need, permsAll }) {
     audit(req.user, 'Mitglieder-App: Handy freigegeben (sensible Bereiche)', m ? m.name : String(id));
     res.json({ ok: true, ...memberState(id) });
   });
+  return adminSammelEinladung({ admin, auth, bad, need, permsAll, missingFor, inviteOne });
+}
+
+/** Verwaltung: gesammelt per E-Mail einladen – „Abgelaufene neu einladen …“ und „Alle einladen …“ (aktueller Filter der Liste) (Teil von adminEinladungen)
+ *  Vorschau → Bestätigen mit demselben Stand (Prüfwert) → Versand im Hintergrund, eine Mail nach der anderen über denselben Weg wie einzeln (inviteOne).
+ *  Der Auftrag steht in der Einstellung app_invite_bulk (nur Mitglieds-IDs, Namen und Zustand – nie Links oder Codes) und läuft nach einem Neustart weiter.
+ *  Keine doppelten Mails: Während ein Auftrag läuft, startet kein zweiter; wer inzwischen ein Handy oder eine offene Einladung hat, wird übersprungen.
+ *  Vorübergehende Fehler des Mailservers (4xx, Stundengrenze) wartet die E-Mail-Warteschlange ab (src/mail.js), dauerhafte stehen mit Grund im Ergebnis. */
+function adminSammelEinladung({ admin, auth, bad, need, permsAll, missingFor, inviteOne }) {
+  const BULK_MAX = 500, KEY = 'app_invite_bulk';
+  const FILTER = {
+    alle: ['alle in der Liste', () => true], mit: ['mit Handy', d => d && d.status === 'gekoppelt'], ohne: ['ohne Handy', d => !d || d.status !== 'gekoppelt'],
+    eing: ['eingeladen', d => d && d.status === 'eingeladen'], wlan: ['erst im WLAN öffnen', d => d && d.remote], alt: ['alte Adresse', d => d && d.oldAddress],
+  };
+  const job = () => getJsonSetting(KEY, null, isObj);
+  const saveJob = j => setSetting(KEY, JSON.stringify(j));
+  const err = (msg, status = 400) => Object.assign(new Error(msg), { status });
+  /** Grund, warum gerade gar keine E-Mail-Einladung geht (Vereinsname, Postfach, Adresse der App, Mitgliederverwaltung) – sonst null */
+  const blocker = () => !require('./vereinsname').isSet() ? require('./vereinsname').MSG
+    : !require('./mail').ready() ? 'Kein Postfach eingerichtet (Einstellungen → Postfach).'
+      : !qrUrl() ? 'Die Adresse der Mitglieder-App ist noch nicht eingetragen (Mitglieder-App › Einstellungen).'
+        : !require('./plugins').withHook('memberAddress').length ? 'E-Mail-Adressen kommen aus der Mitgliederverwaltung – sie ist nicht eingeschaltet.' : null;
+  const tsDe = ms => new Date(ms).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: process.env.TZ || 'Europe/Berlin' });
+  /** Plan → { mode, filter, label, send, skip, noMail, token } – schreibt nichts */
+  function plan(req, b) {
+    const mode = b.mode === 'abgelaufen' ? 'abgelaufen' : b.mode === 'filter' ? 'filter' : null;
+    if (!mode) throw err('Bitte auswählen, wer eingeladen werden soll.');
+    const filter = mode === 'filter' ? String(b.filter || 'alle') : null;
+    if (mode === 'filter' && !FILTER[filter]) throw err('Unbekannter Filter.');
+    const label = mode === 'abgelaufen' ? 'abgelaufene Einladungen' : `Filter „${FILTER[filter][0]}“`;
+    // dieselbe Liste wie „Freigeschaltete Mitglieder“: mit Handy/Einladung oder mit Freischaltung
+    const ids = db.prepare('SELECT DISTINCT member_id FROM (SELECT member_id FROM member_devices WHERE scope = ? UNION SELECT member_id FROM member_access)').all(SCOPE).map(r => r.member_id);
+    const ms = ids.length ? db.prepare(`SELECT id, name, kind FROM members WHERE id IN (${ids.map(() => '?').join(',')}) AND deleted = 0 AND active = 1 AND pending = 0 AND kind IN ('mitglied','nichtmitglied')`).all(...ids) : [];
+    const nk = require('./db').nameKey; ms.sort((x, y) => nk(x.name, x.kind).localeCompare(nk(y.name, y.kind), 'de'));
+    const pre = statesPre(), hooked = require('./plugins').withHook('memberAddress'), owners = mailOwners();
+    const base = ms.map(m => ({ m, d: memberState(m.id, pre).device })).filter(({ d }) => (mode === 'abgelaufen' ? d && d.status === 'abgelaufen' : FILTER[filter][1](d)));
+    if (base.length > BULK_MAX) throw err(`Höchstens ${BULK_MAX} Mitglieder auf einmal – bitte einen engeren Filter wählen.`);
+    const addrs = hooked.length ? contactsOf(base.map(x => x.m.id), hooked) : null;
+    const send = [], skip = [], noMail = [];
+    for (const { m, d } of base) {
+      const p = { id: m.id, name: m.name, kind: m.kind };
+      if (d && d.status === 'gekoppelt') { skip.push({ ...p, reason: 'Handy schon freigeschaltet' }); continue; }
+      if (d && d.status === 'eingeladen') { skip.push({ ...p, reason: `Einladung noch offen (bis ${tsDe(d.expires)})` }); continue; }
+      if (d && d.status === 'gesperrt') { skip.push({ ...p, reason: 'gesperrt nach falschen PINs – bitte einzeln einladen' }); continue; }
+      if (!auth.memberAllowed(req.user, m.id)) { skip.push({ ...p, reason: 'fehlendes Recht „Mitglieder“' }); continue; }
+      const miss = missingFor(req, m.id); if (miss.length) { skip.push({ ...p, reason: `fehlendes Recht für ${miss.join(', ')}` }); continue; }
+      const o = mailSharedWith(m.id, owners); if (o) { noMail.push({ ...p, reason: sharedReason(o) }); continue; }
+      if (!mailOf(m.id, hooked, addrs)) { noMail.push({ ...p, reason: 'keine E-Mail-Adresse' }); continue; }
+      send.push(p);
+    }
+    const token = require('crypto').createHash('sha256').update(JSON.stringify([mode, filter, send.map(x => x.id)])).digest('hex').slice(0, 16);
+    return { mode, filter, label, send, skip, noMail, token };
+  }
+  const pub = x => ({ id: x.id, name: x.name, kind: x.kind, ...(x.reason ? { reason: x.reason } : {}) });
+  const planErr = (res, e) => { if (e && e.status) { bad(res, e.message, e.status); return true; } return false; };
+  const openMails = () => db.prepare("SELECT COUNT(*) n FROM member_devices WHERE scope = ? AND token_hash IS NULL AND invite_hash IS NOT NULL AND invite_kind = 'mail' AND invite_expires >= ?").get(SCOPE, Date.now()).n;
+  let running = false;
+  /** Auftrag abarbeiten – eine Mail nach der anderen, Zustand nach jeder Mail gespeichert */
+  async function work() {
+    if (running) return; running = true;
+    try {
+      let j = job(); if (!j || j.fin) return;
+      let user = null;
+      for (const it of j.items) {
+        if (it.st === 'ok' || it.st === 'fehler' || it.st === 'skip') continue;
+        user = auth.userById(j.byId);   // je Mitglied die heutigen Rechte – gesperrt oder beschränkt wirkt sofort, auch nach einem Neustart
+        const st = memberState(it.id).device;
+        // nach einem Abbruch mitten im Versand: steht die Einladung seit dem Versuch im Mail-Verlauf (gesendet oder wartend), ist sie raus – keine zweite Mail
+        if (it.st === 'senden' && db.prepare("SELECT 1 FROM mail_message WHERE art = 'einladung' AND member_id = ? AND sent_at >= ? AND status IN ('gesendet','sendet')").get(it.id, it.t || '')) it.st = 'ok';
+        else if (!user) { it.st = 'fehler'; it.why = 'Benutzerkonto gesperrt oder gelöscht'; }
+        else if (st && st.status === 'gekoppelt') { it.st = 'skip'; it.why = 'Handy inzwischen freigeschaltet'; }
+        else if (st && st.status === 'eingeladen' && it.st !== 'senden') { it.st = 'skip'; it.why = 'inzwischen eingeladen'; }   // 'senden' ohne Eintrag im Verlauf: die Einladung entstand, die Mail ging nicht raus – neu
+        else {
+          it.st = 'senden'; it.t = require('./util').nowTs(); saveJob(j);
+          let r; try { r = await inviteOne({ user }, it.id, 'mail', null, { guide: j.guide }); } catch (e) { r = { error: e.message }; }
+          if (r.error) { it.st = 'fehler'; it.why = String(r.error).replace(/\.$/, ''); } else it.st = 'ok';
+        }
+        saveJob(j);
+      }
+      j.fin = new Date().toISOString(); saveJob(j);
+      const n = s => j.items.filter(x => x.st === s).length;
+      audit(auth.userById(j.byId) || { username: j.byUser }, 'Mitglieder-App: Sammel-Einladung abgeschlossen', `${auditDiff({ n: 'Offene E-Mail-Einladungen' }, { n: String(j.openBefore) }, { n: String(openMails()) })} · ${n('ok')} verschickt${n('fehler') ? ` · ${n('fehler')} fehlgeschlagen` : ''}${n('skip') ? ` · ${n('skip')} übersprungen` : ''}`);
+    } catch (e) { console.error('Sammel-Einladung:', e.message); }
+    finally { running = false; }
+  }
+  /** Zustand für die Verwaltung – nur Mitglieder, die dieser Benutzer verwalten darf; ohne IDs außer für Zeilen „ohne E-Mail“ (Einzel-QR-Code) */
+  const info = req => {
+    const j = job(); if (!j) return null;
+    const mine = (j.items || []).filter(x => auth.memberAllowed(req.user, x.id)), n = s => mine.filter(x => x.st === s).length;
+    return { label: j.label, by: j.by, at: j.at, fin: j.fin || null, total: mine.length, sent: n('ok'), open: n('offen') + n('senden'),
+      failed: mine.filter(x => x.st === 'fehler').map(x => ({ name: x.name, kind: x.kind, reason: x.why })), skipped: mine.filter(x => x.st === 'skip').map(x => ({ name: x.name, kind: x.kind, reason: x.why })),
+      noMail: (j.noMail || []).filter(x => auth.memberAllowed(req.user, x.id)).map(pub) };
+  };
+  const guard = (req, res, next) => need(...permsAll())(req, res, next);
+  admin.get('/app/invites/bulk', guard, (req, res) => res.json({ job: info(req), max: BULK_MAX }));
+  admin.post('/app/invites/bulk/preview', guard, (req, res) => {
+    let p; try { p = plan(req, req.body || {}); } catch (e) { if (planErr(res, e)) return; throw e; }
+    const j = job();
+    res.json({ label: p.label, send: p.send.map(pub), skip: p.skip.map(pub), noMail: p.noMail.map(pub), token: p.token, problem: blocker(), busy: Boolean(j && !j.fin), days: invites.mailDays(), max: BULK_MAX });
+  });
+  admin.post('/app/invites/bulk', guard, (req, res) => {
+    const b = req.body || {};
+    { const j = job(); if (j && !j.fin) return res.status(409).json({ error: 'Es werden gerade schon Einladungen verschickt – bitte warten, bis sie durch sind.', busy: true, job: info(req) }); }
+    const why = blocker(); if (why) return bad(res, why);
+    let p; try { p = plan(req, b); } catch (e) { if (planErr(res, e)) return; throw e; }
+    if (b.confirm !== true) return bad(res, 'Bitte bestätigen.');
+    if (!p.send.length) return bad(res, 'Es gibt niemanden, der eine E-Mail-Einladung bekommt.');
+    if (b.token !== p.token) return res.status(409).json({ error: 'Seit der Vorschau hat sich etwas geändert. Bitte die Vorschau neu laden und noch einmal prüfen.', stale: true });
+    const by = req.user.name || req.user.username || '';
+    saveJob({ label: p.label, by, byId: req.user.id, byUser: req.user.username, at: new Date().toISOString(), fin: null, guide: b.guide !== false, openBefore: openMails(),
+      items: p.send.map(x => ({ id: x.id, name: x.name, kind: x.kind, st: 'offen' })), noMail: p.noMail.map(pub) });
+    audit(req.user, 'Mitglieder-App: Einladungen gesammelt verschickt', `Auswahl: ${p.label} · ${p.send.length} per E-Mail${p.noMail.length ? ` · ${p.noMail.length} ohne E-Mail-Adresse` : ''}${p.skip.length ? ` · ${p.skip.length} übersprungen` : ''}${b.guide !== false ? ' · mit Anleitung (PDF)' : ''}`);
+    setImmediate(() => work());
+    res.json({ ok: true, job: info(req) });
+  });
+  // nach einem Neustart: angefangenen Auftrag fortsetzen
+  { const j = job(); if (j && !j.fin) setTimeout(() => work(), Number(process.env.CW_INVITE_RESUME_MS) || 5000).unref(); }
+  return info;
 }
 
 /** Verwaltung: SMS-Modem für den zweiten Faktor (Teil von adminRoutes) */

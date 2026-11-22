@@ -2746,7 +2746,7 @@
       const rows = base.filter(m => f(m) && match(m));
       if (cache.mSel && !rows.some(m => m.id === cache.mSel)) cache.mSel = null;   // Karte zeigt nie ein Konto, das nach Suche oder Filter nicht in der Liste steht
       $('mTbl').innerHTML = `<tr><th>Name</th><th>Typ</th><th>PIN</th><th>Zuletzt da</th><th class="r">Offen</th></tr>` +
-        (rows.length ? rows.map(m => `<tr data-sel="${m.id}" class="${m.active ? '' : 'off'} ${cache.mSel === m.id ? 'on' : ''}" tabindex="0"><td><span class="who"><span class="av">${ini(m)}</span><b>${pName(m)}</b></span></td><td>${KIND[m.kind]}</td>
+        (rows.length ? rows.map(m => `<tr data-sel="${m.id}" class="${m.active ? '' : 'off'} ${cache.mSel === m.id ? 'on' : ''}" tabindex="0"><td><span class="who"><span class="av">${ini(m)}</span><b>${pName(m)}</b></span></td><td class="nw">${KIND[m.kind]}</td>
           <td>${pinPill(m)}</td><td class="k-weg">${m.last_seen ? deDate(m.last_seen.slice(0, 10)) : ''}</td><td class="r k-lbl">${m.balance_cents ? euro(m.balance_cents) : ''}</td></tr>`).join('') : '');
       $('mTbl').classList.toggle('hidden', !rows.length);
       $('mEmpty').classList.toggle('hidden', !!rows.length);
@@ -2892,16 +2892,22 @@
   const DEVSTAT = { gekoppelt: ['g', 'Handy freigeschaltet'], eingeladen: ['a', 'QR-Code offen'], abgelaufen: ['r', 'Einladung abgelaufen'], gesperrt: ['r', 'gesperrt (falsche PINs)'] };
   const INVKIND = { qr: 'QR-Code offen', mail: 'E-Mail-Einladung offen', brief: 'Einladungsbrief offen' };
   const hoursTxt = h => (h >= 48 ? `${h / 24} Tage` : h === 1 ? '1 Stunde' : `${h} Stunden`);
-  const devPill = d => (d ? `<span class="pill ${DEVSTAT[d.status][0]}">${d.status === 'eingeladen' ? INVKIND[d.kind] || DEVSTAT.eingeladen[1] : DEVSTAT[d.status][1]}</span>${d.remote ? ' <span class="pill a" title="Von unterwegs ohne SMS-Code gekoppelt – einige Bereiche schalten sich beim ersten Öffnen im Vereins-WLAN frei">Erst im Vereins-WLAN öffnen</span>' : ''}${d.verified === 'sms' ? ' <span class="pill" title="Beim Freischalten mit dem Code per SMS bestätigt">per SMS bestätigt</span>' : ''}${d.oldAddress ? ' <span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN">alte Adresse – neuer QR-Code nötig</span>' : ''}` : '<span class="pill">ohne Handy</span>');
+  const devPill = d => (d ? `<span class="pill ${DEVSTAT[d.status][0]}">${d.status === 'eingeladen' ? INVKIND[d.kind] || DEVSTAT.eingeladen[1] : DEVSTAT[d.status][1]}</span>${d.status === 'gekoppelt' ? ' ' + appPill(d) : ''}${d.remote ? ' <span class="pill a" title="Von unterwegs ohne SMS-Code gekoppelt – einige Bereiche schalten sich beim ersten Öffnen im Vereins-WLAN frei">Erst im Vereins-WLAN öffnen</span>' : ''}${d.verified === 'sms' ? ' <span class="pill" title="Beim Freischalten mit dem Code per SMS bestätigt">per SMS bestätigt</span>' : ''}${d.oldAddress ? ' <span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN">alte Adresse – neuer QR-Code nötig</span>' : ''}` : '<span class="pill">ohne Handy</span>');
   /** Handy in einer Pille: der Zustand, bei Bedarf mit dem wichtigsten Zusatz (Einzelheiten stehen im Freigaben-Fenster) */
   const devPill1 = (d, names = stagedNames([])) => {
     if (!d) return '<span class="pill">ohne Handy</span>';
     if (d.status === 'gekoppelt' && d.oldAddress) return '<span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN. Neuer QR-Code nötig.">alte Adresse</span>';
     if (d.status === 'gekoppelt' && d.remote) return `<span class="pill a k-wrap" title="${esc(wlanWhy(names))}">${esc(T('Erst im Vereins-WLAN öffnen'))}</span>`;
+    if (d.status === 'gekoppelt') return appPill(d);
     return `<span class="pill ${DEVSTAT[d.status][0]}">${d.status === 'eingeladen' ? INVKIND[d.kind] || DEVSTAT.eingeladen[1] : DEVSTAT[d.status][1]}</span>`;
   };
+  /** freigeschaltetes Handy: als App vom Startbildschirm genutzt oder nur im Browser (die App meldet es bei jeder Nutzung mit; ob sie installiert, aber nie geöffnet wurde, ist nicht erkennbar) */
+  const appPill = d => (d.app ? `<span class="pill g" title="${esc(T('Handy freigeschaltet – zuletzt als App vom Startbildschirm genutzt: {0}', [deTime(d.app)]))}">${esc(T('App installiert'))}</span>`
+    : `<span class="pill" title="${esc(T('Handy freigeschaltet – bisher nur im Browser genutzt. Ob die App installiert, aber nie geöffnet wurde, ist nicht erkennbar.'))}">${esc(T('nur im Browser'))}</span>`);
   /** Bereiche, die sich nach einer Kopplung von unterwegs erst im Vereins-WLAN freischalten (z. B. „Türen & Licht“); ohne Liste allgemein */
   const stagedNames = mods => { const n = mods.filter(m => m.sensitive).map(m => m.label || m.name); return n.length ? n.length > 1 ? n.slice(0, -1).join(', ') + ' & ' + n[n.length - 1] : n[0] : T('die sensiblen Bereiche'); };
+  /** derselbe Hinweis über der Liste – nur im Filter „erst im WLAN öffnen“, wo jede Zeile so ein Handy ist (sonst stand er auch über „ohne Handy“) */
+  const wlanWhyAll = names => T('Diese Handys wurden von unterwegs ohne SMS-Code freigeschaltet. Aus Sicherheitsgründen bleiben {0} gesperrt, bis das Mitglied die App einmal im Vereins-WLAN (im Vereinsheim) öffnet – dann schalten sie sich von selbst frei.', [names]);
   const wlanWhy = names => T('Dieses Handy wurde von unterwegs ohne SMS-Code freigeschaltet. Aus Sicherheitsgründen bleiben {0} gesperrt, bis das Mitglied die App einmal im Vereins-WLAN (im Vereinsheim) öffnet – dann schalten sie sich von selbst frei.', [names]);
   /** Entfernen: nur das Handy oder ganz aus der App? → 'device' | 'all' | null */
   function askRemove(name, hasDevice) {
@@ -3123,6 +3129,75 @@
   async function bulkUndo(last) {
     if (!await ask(T('Sammel-Freigabe zurücknehmen?\n\n„{0}“ wird den {1} Mitgliedern wieder entzogen, die ihn am {2} gesammelt bekommen haben. Was seitdem jemand einzeln geändert hat, bleibt.', [T(last.label), last.n, deTime(last.at)]), { ok: T('Zurücknehmen') })) return;
     try { const x = await api('app/bulk-access/undo', 'POST', {}); toast(T('Zurückgenommen: {0} entzogen', [x.removed]) + (x.kept ? T(', {0} seitdem geändert – so gelassen', [x.kept]) : '') + '.'); RENDER.app().catch(fail); } catch (e) { fail(e); }
+  }
+
+  /** Gesammelt per E-Mail einladen: mode 'abgelaufen' (alle mit abgelaufener Einladung) oder 'filter' (alle im aktuellen Filter der Liste)
+   *  Vorschau → Bestätigen → Versand im Hintergrund mit Fortschritt → Ergebnis (Fehlgeschlagene, ohne E-Mail-Adresse: Liste drucken oder QR-Code) */
+  async function bulkInvite(mode, filter) {
+    const body = { mode, filter };
+    const names = (L, why) => `<div class="invlist bfl">${L.map(x => `<div><b>${pName(x)}</b>${why && x.reason ? `<span class="muted s">${esc(T(x.reason))}</span>` : ''}</div>`).join('')}</div>`;
+    let guide = true;
+    const preview = async () => {
+      const p = await api('app/invites/bulk/preview', 'POST', body), n = p.send.length;
+      dialog(`<h2>${esc(mode === 'abgelaufen' ? T('Abgelaufene neu einladen') : T('Alle einladen'))}</h2>
+        <p class="muted mt0">${esc(T('Auswahl: {0}', [T(p.label)]))} · ${esc(T('Jede Person bekommt einen persönlichen Link per E-Mail (gilt {0} Tage, einmal).', [p.days]))}</p>
+        ${p.problem ? `<div class="banner a" style="margin:10px 0 0;font-weight:400"><div>${esc(T(p.problem))}</div></div>` : ''}
+        ${p.busy ? `<div class="banner a" style="margin:10px 0 0;font-weight:400"><div>${esc(T('Es werden gerade schon Einladungen verschickt – bitte warten, bis sie durch sind.'))}</div></div>` : ''}
+        <div class="bfsum"><div><b class="num">${n}</b><span>${esc(T('per E-Mail'))}</span></div><div><b class="num">${p.noMail.length}</b><span>${esc(T('ohne E-Mail'))}</span></div><div><b class="num">${p.skip.length}</b><span>${esc(T('nicht dabei'))}</span></div></div>
+        ${n ? `<details class="mt10" open><summary>${esc(T('Bekommen eine E-Mail ({0})', [n]))}</summary>${names(p.send)}</details>` : `<p class="empty mt10">${esc(T('Niemand in dieser Auswahl bekommt eine E-Mail.'))}</p>`}
+        ${p.noMail.length ? `<details class="mt10"><summary>${esc(T('Ohne E-Mail-Adresse ({0})', [p.noMail.length]))}</summary>${names(p.noMail, true)}<p class="muted s m-8-0-0">${esc(T('Für sie gibt es nach dem Versand eine Liste zum Ausdrucken und den QR-Code je Mitglied.'))}</p></details>` : ''}
+        ${p.skip.length ? `<details class="mt10"><summary>${esc(T('Nicht dabei ({0})', [p.skip.length]))}</summary>${names(p.skip, true)}</details>` : ''}
+        ${n ? `<label class="chk mt12"><input type="checkbox" id="biGuide" data-nodirty ${guide ? 'checked' : ''}> ${esc(T('E-Mail: Anleitung als PDF anhängen'))}</label>` : ''}
+        <div class="btns"><button class="btn ghost" id="biX" type="button">Abbrechen</button>${n ? `<button class="btn primary" id="biGo" type="button" ${p.problem || p.busy ? 'disabled' : ''}>${esc(n === 1 ? T('1 Einladung verschicken') : T('{0} Einladungen verschicken', [n]))}</button>` : ''}</div>`, true);
+      $('biX').onclick = closeDialog;
+      if (!n || !$('biGo')) return;
+      $('biGuide').onchange = () => { guide = $('biGuide').checked; };
+      $('biGo').onclick = () => busy($('biGo'), async () => {
+        if (!await ask(n === 1 ? T('1 Einladung per E-Mail verschicken?') : T('{0} Einladungen per E-Mail verschicken?', [n]), { ok: T('Verschicken') })) return;
+        try { const x = await api('app/invites/bulk', 'POST', { ...body, token: p.token, confirm: true, guide }); bulkInviteProgress(x.job); }
+        catch (e) {
+          if (e.status !== 409) { fail(e); return; }
+          const j = (await api('app/invites/bulk').catch(() => ({}))).job;   // schon ein Versand im Gang (Doppelklick, zweites Fenster): dessen Fortschritt zeigen
+          if (j && !j.fin) { bulkInviteProgress(j); return; }
+          fail(e); preview().catch(fail);   // Stand hat sich seit der Vorschau geändert
+        }
+      });
+    };
+    preview().catch(fail);
+  }
+  /** Fortschritt eines laufenden Sammelversands; fertig → Ergebnis. Das Fenster darf zu – der Versand läuft weiter. */
+  function bulkInviteProgress(job) {
+    if (!job) return;
+    if (job.fin) { bulkInviteResult(job); return; }
+    const done = job.total - job.open;
+    dialog(`<h2>${esc(T('Einladungen werden verschickt'))}</h2>
+      <p class="mt0" id="biProg" role="status">${esc(T('{0} von {1} erledigt', [done, job.total]))}</p>
+      <progress max="${job.total}" value="${done}" style="width:100%"></progress>
+      <p class="muted s m-8-0-0">${esc(T('Das kann ein paar Minuten dauern. Du kannst das Fenster schließen – der Versand läuft weiter, auch nach einem Neustart.'))}</p>
+      <div class="btns"><button class="btn" id="biClose" type="button">Schließen</button></div>`, true);
+    let stop = false;
+    $('biClose').onclick = () => { stop = true; closeDialog(); RENDER.app().catch(fail); };
+    setTimeout(async () => { if (stop || !$('biProg')) return; try { bulkInviteProgress((await api('app/invites/bulk')).job); } catch (e) { fail(e); } }, 1500);
+  }
+  /** Ergebnis des letzten Sammelversands */
+  function bulkInviteResult(job) {
+    // mit QR-Knopf: Name und Grund untereinander, Knopf rechts – jede Zeile gleich gebaut, egal wie lang der Grund ist
+    const names = (L, qr) => `<div class="invlist bfl">${L.map(x => qr && x.id
+      ? `<div style="flex-wrap:nowrap;align-items:center"><span style="display:grid;gap:2px;min-width:0"><b>${pName(x)}</b>${x.reason ? `<span class="muted s">${esc(T(x.reason))}</span>` : ''}</span><button type="button" class="btn small" style="flex:none" data-biqr="${x.id}">${esc(T('QR-Code …'))}</button></div>`
+      : `<div><b>${pName(x)}</b>${x.reason ? `<span class="muted s">${esc(T(x.reason))}</span>` : ''}</div>`).join('')}</div>`;
+    dialog(`<h2>${esc(T('Sammel-Einladung'))}</h2>
+      <p class="muted mt0">${esc(T('Auswahl: {0}', [T(job.label)]))} · ${esc(deTime(job.at))} · ${esc(job.by)}</p>
+      <div class="bfsum"><div><b class="num">${job.sent}</b><span>${esc(T('verschickt'))}</span></div><div><b class="num">${job.failed.length}</b><span>${esc(T('Fehler'))}</span></div><div><b class="num">${job.noMail.length}</b><span>${esc(T('ohne E-Mail'))}</span></div></div>
+      ${job.failed.length ? `<details class="mt10" open><summary>${esc(T('Fehlgeschlagen ({0})', [job.failed.length]))}</summary>${names(job.failed)}<p class="muted s m-8-0-0">${esc(T('Adresse in der Mitgliederverwaltung prüfen und einzeln neu einladen.'))}</p></details>` : ''}
+      ${job.noMail.length ? `<details class="mt10" open><summary>${esc(T('Ohne E-Mail-Adresse ({0})', [job.noMail.length]))}</summary>${names(job.noMail, true)}</details>` : ''}
+      ${job.skipped.length ? `<details class="mt10"><summary>${esc(T('Übersprungen ({0})', [job.skipped.length]))}</summary>${names(job.skipped)}</details>` : ''}
+      <p class="muted s m-12-0-0">${esc(T('Vorübergehende Fehler des Mailservers holt Clubwerk von selbst nach (Nachrichten › Gesendet).'))}</p>
+      <div class="btns">${job.noMail.length ? `<button class="btn" id="biPrint" type="button">${esc(T('Liste drucken'))}</button>` : ''}<button class="btn primary" id="biOk" type="button">${esc(T('Fertig'))}</button></div>`, true);
+    $('biOk').onclick = () => { closeDialog(); RENDER.app().catch(fail); };
+    if ($('biPrint')) $('biPrint').onclick = () => printHtml(`<div class="pr"><h1>${esc(cache.settings.clubName || '')}</h1><h2>${esc(T('Mitglieder-App: noch ohne E-Mail-Adresse'))}</h2>
+      <p>${esc(T('Bitte persönlich einladen (QR-Code am Bildschirm oder Einladungsbrief) oder die E-Mail-Adresse nachtragen.'))}</p>
+      <table class="tbl"><tr><th>${esc(T('Mitglied'))}</th><th>${esc(T('Grund'))}</th><th>${esc(T('Erledigt'))}</th></tr>${job.noMail.map(x => `<tr><td>${pName(x)}</td><td>${esc(T(x.reason || ''))}</td><td>☐</td></tr>`).join('')}</table></div>`);
+    $('dialog').querySelectorAll('[data-biqr]').forEach(b => { b.onclick = () => { closeDialog(); appInvite(Number(b.dataset.biqr), () => RENDER.app().catch(fail)); }; });
   }
 
   /** Freischaltungen eines Mitglieds (für den Bearbeiten-Dialog) – speichert sofort */
@@ -3349,6 +3424,9 @@
     const oldN = r.rows.filter(x => x.device && x.device.oldAddress).length;
     // Freigaben in einem Satz: „alle Bereiche“, „alle außer Beregnung“, „keine“ oder die Anzahl – bearbeitet wird im Fenster
     const wlanNames = stagedNames(mods), nWlan = r.rows.filter(x => x.device && x.device.remote).length;
+    const nExp = r.rows.filter(x => x.device && x.device.status === 'abgelaufen').length;
+    // letzter Sammelversand: solange er läuft, und danach so lange, wie seine Einladungen gelten
+    const ib = r.inviteBulk && (!r.inviteBulk.fin || Date.now() - Date.parse(r.inviteBulk.fin) < r.security.inviteMailDays * 86400000) ? r.inviteBulk : null;
     const apMods = x => mods.filter(m => !(x.kind === 'nichtmitglied' && !m.nonMembers));
     const apName = m => m.label || m.name;
     const apSum = x => {
@@ -3365,7 +3443,7 @@
       appBox($('apDlg'), id).catch(fail);
       $('apDlgX').onclick = () => { closeDialog(); RENDER.app().catch(fail); };
     };
-    const FIL = { alle: () => true, mit: x => x.device && x.device.status === 'gekoppelt', ohne: x => !x.device || x.device.status !== 'gekoppelt', eing: x => x.device && x.device.status === 'eingeladen', wlan: x => x.device && x.device.remote, alt: x => x.device && x.device.oldAddress };
+    const FIL = { alle: () => true, mit: x => x.device && x.device.status === 'gekoppelt', ohne: x => !x.device || x.device.status !== 'gekoppelt', eing: x => x.device && x.device.status === 'eingeladen', wlan: x => x.device && x.device.remote, alt: x => x.device && x.device.oldAddress, browser: x => x.device && x.device.status === 'gekoppelt' && !x.device.app };
     let filt = FIL[cache.apFilter] ? cache.apFilter : 'alle';
     // abgelehnte Tunnel-Anfrage der letzten 24 Stunden: Hinweis, damit der Vorstand ein falsch erkanntes Cloudflared-Add-on bemerkt
     const rj = r.tunnel.lastReject && Date.now() - Date.parse(r.tunnel.lastReject.at) < 24 * 3600000 ? r.tunnel.lastReject : null;
@@ -3427,12 +3505,14 @@
         <p class="muted s m-10-0-0">Nur das freigeschaltete Handy funktioniert. Es ist dieselbe PIN wie im Verkauf am Tablet: Wer dort schon eine hat, gibt sie beim Freischalten ein; wer noch keine hat, legt sie in der App fest und sie gilt dann auch am Tablet.</p></div>
       <div class="card" data-set="mitglieder"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 class="m0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><div class="row" style="gap:8px">${r.bulkCan ? '<button class="btn" id="apBulkAcc" type="button">Bereich freigeben …</button>' : ''}<button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div></div>
         ${r.bulkLast ? `<p class="muted s m-0-0-10" id="apBulkLast">${esc(T('Letzte Sammel-Freigabe: „{0}“ für {1} ({2}, {3}).', [T(r.bulkLast.label), r.bulkLast.n === 1 ? T('1 Mitglied') : T('{0} Mitglieder', [r.bulkLast.n]), deTime(r.bulkLast.at), r.bulkLast.by]))}${r.bulkLast.undo ? ` <button class="btn small" id="apBulkUndo" type="button">Zurücknehmen …</button>` : ''}</p>` : ''}
-        ${r.rows.length ? `<div class="chips" id="apFil" role="group" aria-label="Filter" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'erst im WLAN öffnen'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
+        ${ib ? `<p class="muted s m-0-0-10" id="apInvLast">${esc(ib.fin ? T('Letzte Sammel-Einladung: {0} verschickt, {1} fehlgeschlagen, {2} ohne E-Mail-Adresse ({3}, {4}).', [ib.sent, ib.failed.length, ib.noMail.length, deTime(ib.at), ib.by]) : T('Einladungen werden verschickt: {0} von {1} erledigt.', [ib.total - ib.open, ib.total]))} <button class="btn small" id="apInvRes" type="button">${esc(ib.fin ? T('Ergebnis …') : T('Fortschritt …'))}</button></p>` : ''}
+        ${r.rows.length ? `<div class="chips" id="apFil" role="group" aria-label="Filter" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['browser', 'nur im Browser'], ['wlan', 'erst im WLAN öffnen'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan', 'browser'].includes(k) || r.rows.some(FIL[k]))
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
-          ${nWlan ? `<div class="banner a" id="apWlanHint" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhy(wlanNames))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Bereiche im Vereins-WLAN jetzt freigeben“.'))}</div></div>` : ''}
+          <div class="row" id="apInvRow" style="gap:8px;margin-bottom:10px"><button class="btn" id="apInvAll" type="button">${esc(T('Alle einladen …'))}</button>${nExp ? `<button class="btn" id="apInvExp" type="button">${esc(T('Abgelaufene neu einladen …'))} <span class="cnt">${nExp}</span></button>` : ''}</div>
+          ${nWlan ? `<div class="banner a" id="apWlanHint" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhyAll(wlanNames))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Bereiche im Vereins-WLAN jetzt freigeben“.'))}</div></div>` : ''}
           <table class="tbl kompakt" id="apTbl"><tr><th>Mitglied</th><th>Handy</th><th>Freigaben</th><th class="hide-md nw">Zuletzt benutzt</th><th class="r">Rechte · Einladen · Entfernen</th></tr>
-          ${r.rows.map(x => `<tr data-row="${x.member_id}"><td><b>${pName(x)}</b>${x.kind === 'nichtmitglied' ? ' <span class="pill">Kein Mitglied</span>' : ''}</td><td>${devPill1(x.device, wlanNames)}</td><td class="nw" title="${esc(apSumTitle(x))}">${esc(apSum(x))}</td>
-            <td class="muted s hide-md k-weg">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
+          ${r.rows.map(x => `<tr data-row="${x.member_id}"><td><b>${pName(x)}</b>${x.kind === 'nichtmitglied' ? ' <span class="pill">Kein Mitglied</span>' : ''}${x.device && x.device.last_used ? `<span class="k-sum muted s">${esc(T('zuletzt {0}', [deTime(x.device.last_used)]))}</span>` : ''}</td><td>${devPill1(x.device, wlanNames)}</td><td class="nw k-neben" title="${esc(apSumTitle(x))}">${esc(apSum(x))}</td>
+            <td class="muted s hide-md k-weg k-dash nw">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
             <td class="r"><span class="acts"><button class="btn ico" data-ae="${x.member_id}" title="Freigaben bearbeiten …" aria-label="Freigaben bearbeiten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button><button class="btn ico" data-aq="${x.member_id}" title="Einladen (QR-Code, E-Mail, Brief) …" aria-label="Einladen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg></button><button class="btn ico danger-h" data-ad="${x.member_id}" title="Aus der App entfernen …" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table>
           <p class="empty" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
           : '<p class="empty">Noch niemand freigeschaltet.</p>'}</div>` : ''}
@@ -3510,6 +3590,9 @@
     if ($('apBulk')) $('apBulk').onclick = () => bulkInvites(r);
     if ($('apBulkAcc')) $('apBulkAcc').onclick = () => busy($('apBulkAcc'), () => bulkAccess(r).catch(fail));
     if ($('apBulkUndo')) $('apBulkUndo').onclick = () => bulkUndo(r.bulkLast);
+    if ($('apInvAll')) $('apInvAll').onclick = () => bulkInvite('filter', filt);
+    if ($('apInvExp')) $('apInvExp').onclick = () => bulkInvite('abgelaufen');
+    if ($('apInvRes')) $('apInvRes').onclick = () => bulkInviteProgress(ib);
     if (bulkPre && $('apBulkAcc')) bulkAccess(r, bulkPre).catch(fail);   // aus dem Hinweis „Neuer Bereich“ der Übersicht
     $('main').querySelectorAll('[data-ad]').forEach(b => { b.onclick = async () => {
       const x = r.rows.find(y => y.member_id === Number(b.dataset.ad));
@@ -3520,6 +3603,8 @@
       r.rows.forEach(x => { const tr = $('main').querySelector(`[data-row="${x.member_id}"]`); const on = FIL[filt](x); if (tr) tr.style.display = on ? '' : 'none'; if (on) n++; });
       if ($('apNone')) $('apNone').style.display = n ? 'none' : '';
       if ($('apTbl')) $('apTbl').style.display = n ? '' : 'none';
+      if ($('apWlanHint')) $('apWlanHint').style.display = filt === 'wlan' ? '' : 'none';
+      if ($('apInvAll')) $('apInvAll').disabled = !n;
       $('main').querySelectorAll('#apFil [data-f]').forEach(b => b.classList.toggle('on', b.dataset.f === filt));
     };
     $('main').querySelectorAll('#apFil [data-f]').forEach(b => { b.onclick = () => { filt = cache.apFilter = b.dataset.f; applyFil(); }; });

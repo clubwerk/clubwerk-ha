@@ -6,6 +6,7 @@
     const g = localStorage.getItem('va_geraet');
     if (!g || location.hash.length > 1 || /[?&]embed=/.test(location.search)) return;
     const h = { 'X-Geraet': g };
+    if (matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) h['X-App-Modus'] = 'app';   // wie hdrs() in app.js
     window.__vaEarly = { t: Date.now(), me: fetch('api/me', { headers: h }), forme: fetch('api/forme', { headers: h }) };
     window.__vaEarly.me.catch(() => {}); window.__vaEarly.forme.catch(() => {});
   } catch (e) { /* ohne Vorabfrage startet app.js wie gewohnt */ }

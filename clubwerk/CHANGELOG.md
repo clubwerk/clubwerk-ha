@@ -1,5 +1,15 @@
 # Änderungen
 
+## 2026.11.57
+
+### Neu
+- Mitglieder-App › Mitglieder: „Abgelaufene neu einladen …“ schickt allen mit abgelaufener Einladung eine frische Einladung per E-Mail, „Alle einladen …“ allen im gewählten Filter (zum Beispiel „ohne Handy“). Vorher zeigt eine Vorschau, wer eine E-Mail bekommt, wer keine Adresse hat und wer nicht dabei ist (Handy schon freigeschaltet, Einladung noch gültig) – verschickt wird erst nach der Bestätigung.
+- Die E-Mails gehen im Hintergrund raus, mit Fortschritt; der Versand läuft auch nach einem Neustart weiter, ein zweiter Klick startet keinen zweiten Versand und niemand bekommt die Einladung doppelt. Das Ergebnis nennt fehlgeschlagene Adressen mit Grund und alle ohne E-Mail-Adresse, mit Liste zum Ausdrucken und QR-Code je Mitglied. Start und Abschluss stehen im Protokoll.
+- Mitglieder-App › Mitglieder: Bei jedem freigeschalteten Handy steht, ob die App vom Startbildschirm genutzt wird („App installiert“) oder nur im Browser („nur im Browser“), dazu ein Filter „nur im Browser“. Die App meldet das bei der normalen Nutzung mit; gespeichert wird nur der Zeitpunkt, keine Merkmale des Handys. Ob eine installierte App nie geöffnet wurde, ist nicht erkennbar. „Zuletzt benutzt“ steht jetzt auch am Handy unter dem Namen.
+
+### Behoben
+- Mitglieder-App › Mitglieder: Der Hinweis „Diese Handys wurden von unterwegs ohne SMS-Code freigeschaltet …“ steht nur noch im Filter „erst im WLAN öffnen“ über der Liste, nicht mehr bei „Alle“, „mit Handy“ oder „ohne Handy“.
+
 ## 2026.11.56
 
 ### Neu
