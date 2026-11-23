@@ -27,6 +27,8 @@
   var l = null;
   try { l = localStorage.getItem('cw_lang'); } catch (e) { l = null; }
   var me = document.currentScript, base = me && me.src ? me.src.replace(/[^\/]*(\?.*)?$/, '') : '';
+  // Verwaltung (admin.html: data-start): Anmeldestand, Module und Vereinsauftritt gleich anfordern – parallel zu den Skripten statt erst nach admin.js
+  if (me && me.getAttribute('data-start')) window.CW_START = fetch(base + me.getAttribute('data-start')).then(function (r) { return r.json(); });
   var q = 'l=' + encodeURIComponent(l || 'auto');
   if (!l && root.getAttribute('data-lang-auto') === 'browser') q += '&b=' + encodeURIComponent(((navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || '']).join(',')).slice(0, 200));
   // Ersatz, falls die Sprachdatei nicht lädt (Netz, Server ausgelastet): Platzhalter füllen, Text bleibt Deutsch – Modul-Skripte rufen T() direkt auf und

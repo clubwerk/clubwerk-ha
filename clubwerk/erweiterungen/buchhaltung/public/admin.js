@@ -853,5 +853,5 @@
     { label: 'Ausgabearten', page: 'bh-einstellungen', card: 'Ausgabearten', in: 'Einstellungen', words: 'Kategorie Ausgabe Art Sphäre', perm: 'ausgaben' },
     { label: 'Kassen (Anfangsbestand, Hauptkasse)', page: 'bh-einstellungen', card: 'Kassen', in: 'Einstellungen', words: 'Kasse Thekenkasse Turnierkasse Anfangsbestand Bargeld', perm: 'ausgaben' },
   ]);
-  if (GK.badges) GK.badges(async () => { if (!GK.can('buchhaltung')) return {}; const m = await api('meta'); return { 'bh-rechnungen': m.kpis.overdue.n }; });
+  // Zahl am Reiter „Rechnungen“: Server-Hook adminBadges (server.js)
 })();

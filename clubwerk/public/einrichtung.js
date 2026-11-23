@@ -73,7 +73,9 @@
   document.head.appendChild(style);
 
   const bar = p => `<div class="wizbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p}" aria-label="${esc(T('Einrichtung'))}"><i style="width:${Math.max(0, Math.min(100, p))}%"></i></div>`;
-  const load = async () => { data = await api('einrichtung'); return data; };
+  // gleichzeitige Aufrufe (Übersicht-Karte und Start-Prüfung) teilen sich eine Anfrage
+  let loading = null;
+  const load = () => loading || (loading = api('einrichtung').then(d => { data = d; return d; }).finally(() => { loading = null; }));
 
   /* =================== Erster Start (noch kein Adminkonto) =================== */
   GK.firstStart = (st, logo) => {
@@ -158,7 +160,7 @@
   };
   /* Hinweisleiste in der Demo: Zugangsdaten (nur mit „Einstellungen“) und „Demo beenden und einrichten“ */
   GK.afterShell(async () => {
-    const st = await fetch('api/admin/status', { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
+    const st = GK.startStatus() || await fetch('api/admin/status', { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));   // Stand vom Start (gleiche Antwort)
     if (!st.demoMode || $('demoBar')) return;
     const i = st.demoInfo || {};
     if (st.demoCopy) {   // Demo-Kopie aus Einstellungen › Module (src/demokopie.js): endet beim Schließen des Tabs, ohne Nutzung nach 30 Minuten

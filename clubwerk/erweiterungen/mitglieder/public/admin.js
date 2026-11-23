@@ -2561,5 +2561,5 @@
   // Konten & PINs gehören zum Verkauf, sobald die Mitglieder hier verwaltet werden
   if (GK.regroup && (!GK.modules || GK.modules().includes('getraenke'))) GK.regroup('konten', 'getraenke', { title: 'Konten & PINs', tab: 'Konten' });
   else if (GK.relabel) GK.relabel('konten', 'Konten & PINs');
-  if (GK.badges) GK.badges(async () => { if (!GK.can('mitglieder')) return {}; const m = await api('meta'); return { 'mv-antraege': m.counts.applications + m.counts.changes, ...(GK.canFull('mitglieder') ? { 'mv-stamm': m.ages || 0 } : {}) }; });
+  // Zahlen an „Anträge“ und „Beiträge & Abteilungen“: Server-Hook adminBadges (server.js)
 })();

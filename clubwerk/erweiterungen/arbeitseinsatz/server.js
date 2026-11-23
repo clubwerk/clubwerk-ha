@@ -788,6 +788,8 @@ function activate(ctx) {
   ctx.hooks.setupSteps = () => !cfg().hours ? [] : [
     { id: 'regeln', title: 'Dienste & Termine: Soll und Abrechnung', text: 'Wie viele Stunden jedes Mitglied im Jahr leisten soll und was fehlende Stunden kosten. Vorschlagswerte sind eingestellt.', page: 'aw-einstellungen', card: ['Soll', 'Abrechnung'] },
   ];
+  /** Zahl an der Seitenleiste der Verwaltung (api/admin/badges): Stunden, die auf Bestätigung warten */
+  ctx.hooks.adminBadges = user => (user.perms.includes('arbeitseinsatz') ? { 'aw-stunden': db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE status = 'offen'").get().n } : {});
   ctx.hooks.overview = async () => {
     const pend = db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE status = 'offen'").get().n;
     if (!cfg().hours) return { kpis: [], alerts: aufg.overdueAlert() };

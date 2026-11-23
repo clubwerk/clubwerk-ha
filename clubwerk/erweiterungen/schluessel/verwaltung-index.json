@@ -1,0 +1,118 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "1.0.8",
+ "varianten": [
+  {
+   "wenn": {},
+   "aufrufe": [
+    [
+     "registerPage",
+     {
+      "key": "schluessel",
+      "title": "Schlüssel",
+      "perm": "schluessel",
+      "icon": "schluessel",
+      "order": 6.6,
+      "bereich": "anlage"
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Wer hat welchen Schlüssel?",
+       "page": "schluessel",
+       "tab": [
+        "schluessel",
+        "ausgegeben"
+       ],
+       "kind": "reiter",
+       "in": "Ausgegeben",
+       "words": "Ausgabe Schlüssel Transponder Person zurückfordern"
+      },
+      {
+       "label": "Schlüssel ausgeben",
+       "page": "schluessel",
+       "tab": [
+        "schluessel",
+        "ausgegeben"
+       ],
+       "btn": "Schlüssel ausgeben",
+       "kind": "aktion",
+       "in": "Ausgegeben",
+       "words": "Übergabe Protokoll Unterschrift Transponder",
+       "boost": 1
+      },
+      {
+       "label": "Schlüsselbestand",
+       "page": "schluessel",
+       "tab": [
+        "schluessel",
+        "bestand"
+       ],
+       "kind": "reiter",
+       "in": "Bestand",
+       "words": "Sorte Stück Transponder Karte vorrätig"
+      },
+      {
+       "label": "Sorte anlegen",
+       "page": "schluessel",
+       "tab": [
+        "schluessel",
+        "bestand"
+       ],
+       "btn": "+ Sorte",
+       "kind": "aktion",
+       "in": "Bestand",
+       "words": "Schlüssel neu Transponder"
+      },
+      {
+       "label": "Schlüsselprotokolle",
+       "page": "schluessel",
+       "tab": [
+        "schluessel",
+        "protokolle"
+       ],
+       "kind": "reiter",
+       "in": "Protokolle",
+       "words": "PDF Rückgabe Verlust Storno Übergabe"
+      },
+      {
+       "label": "Bedingungen der Schlüsselübergabe",
+       "page": "schluessel",
+       "tab": [
+        "schluessel",
+        "einstellungen"
+       ],
+       "card": "Bedingungen",
+       "in": "Einstellungen",
+       "words": "Vorlage Text Haftung Pfand"
+      },
+      {
+       "label": "Aufbewahrung der Schlüsselprotokolle",
+       "page": "schluessel",
+       "tab": [
+        "schluessel",
+        "einstellungen"
+       ],
+       "card": "Verlust und Aufbewahrung",
+       "in": "Einstellungen",
+       "words": "Höchstbetrag löschen Frist"
+      },
+      {
+       "label": "Schlüssel: E-Mail mit PDF",
+       "page": "schluessel",
+       "tab": [
+        "schluessel",
+        "einstellungen"
+       ],
+       "card": "E-Mail",
+       "in": "Einstellungen",
+       "words": "Kopie Protokoll"
+      }
+     ]
+    ]
+   ]
+  }
+ ]
+}

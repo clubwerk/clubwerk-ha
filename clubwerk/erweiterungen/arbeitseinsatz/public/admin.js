@@ -645,5 +645,5 @@
     { label: 'Einstellungen der Dienste & Termine übertragen', page: 'aw-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
   ]);
   // Zähler: gemeldete Stunden, die noch zu bestätigen sind (am Reiter „Stunden“, im Menü die Summe)
-  if (GK.badges) GK.badges(async () => { if (!GK.can('arbeitseinsatz')) return {}; const m = await api('meta'); return { 'aw-stunden': m.pending || 0 }; });
+  // Zahl am Reiter „Stunden“: Server-Hook adminBadges (server.js)
 })();

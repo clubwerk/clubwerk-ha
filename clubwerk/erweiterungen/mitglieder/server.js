@@ -1282,6 +1282,16 @@ function activate(ctx) {
     { id: 'import', title: 'Mitglieder übernehmen', text: 'Mitglieder aus einer CSV-Datei (z. B. Export aus verein.cloud) importieren – oder später einzeln von Hand anlegen.',
       page: 'mitglieder', card: [], done: Boolean(ctx.db.prepare("SELECT 1 FROM members WHERE kind = 'mitglied' AND deleted = 0").get()) },
   ];
+  /** Zahlen an der Seitenleiste der Verwaltung (api/admin/badges): offene Anträge und Änderungen (Abteilungsadmin: nur eigene), Altersstufen-Hinweise */
+  ctx.hooks.adminBadges = user => {
+    if (!user.perms.includes('mitglieder')) return {};
+    const scope = scopeOf({ user });
+    const apps = scope ? ctx.db.prepare("SELECT * FROM mv_application WHERE status IN ('eingegangen','unterschrift')").all().filter(a => appInScope(a, scope)).length
+      : ctx.db.prepare("SELECT COUNT(*) n FROM mv_application WHERE status IN ('eingegangen','unterschrift')").get().n;
+    const changes = scope ? ctx.db.prepare("SELECT member_id FROM mv_change WHERE status = 'offen'").all().filter(c => inScope(c.member_id, scope)).length
+      : ctx.db.prepare("SELECT COUNT(*) n FROM mv_change WHERE status = 'offen'").get().n;
+    return { 'mv-antraege': apps + changes, ...(scope ? {} : { 'mv-stamm': ctx.db.prepare("SELECT COUNT(*) n FROM mv_age_notice WHERE status = 'offen'").get().n }) };
+  };
   ctx.hooks.overview = async user => {
     const scope = user && (user.deptOnly || []).includes('mitglieder') ? (user.depts || []) : null;
     if (scope) {   // Abteilungsadmin: nur die eigenen Mitglieder und nur, was er selbst erledigen kann

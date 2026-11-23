@@ -192,6 +192,15 @@ function load({ app, admin, helpers }) {
       app.get([`/x/${id}/`, `/x/${id}/index.html`], (req, res) => res.redirect(302, `../../${slug}/` + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '')));
     }
     if (fs.existsSync(pub)) app.use(`/x/${id}`, (req, res, next) => (isActive(id) ? next() : inactive(req, res)),
+      /* Skripte des Moduls: mit fremder Modulversion in der Adresse (?v=…; Tablet-Seiten hängen die Paketversion an) war die Verwaltung noch vom alten Stand offen und lädt ein Modul erst jetzt nach –
+         dann nicht die neue Datei unterschieben, sondern 409 (die Verwaltung bietet „Neu laden“ an). Sonst vorgepackt (src/vorgepackt.js). */
+      (req, res, next) => {
+        if ((req.method !== 'GET' && req.method !== 'HEAD') || !/^\/[\w.-]+\.js$/.test(req.path)) return next();
+        const f = path.join(pub, req.path.slice(1));
+        if (!fs.existsSync(f)) return next();
+        if (typeof req.query.v === 'string' && req.query.v !== p.meta.version && req.query.v !== APP_VERSION) return res.status(409).set('Cache-Control', 'no-store').type('text').send('Clubwerk wurde aktualisiert – bitte die Seite neu laden.');
+        return require('./vorgepackt').datei(req, res, f, 'application/javascript', req.query.v === p.meta.version ? 'public, max-age=31536000, immutable' : 'no-cache');
+      },
       // mit der aktuellen Modulversion in der Adresse (?v=…, Verwaltung lädt so) ein Jahr im Zwischenspeicher – eine neue Version hat eine neue
       // Adresse; sonst kurz nachfragen (ETag → 304). Vorher fragte die Verwaltung bei jedem Aufruf alle Modul-Skripte neu nach (planung/leitfaeden.md)
       express.static(pub, { setHeaders: res => res.setHeader('Cache-Control', res.req && res.req.query.v === p.meta.version ? 'public, max-age=31536000, immutable' : 'no-cache') }));
@@ -287,6 +296,19 @@ function list() {
     tablet: p.meta.tablet || null, verwaltung: p.meta.verwaltung || null, builtin: Boolean(p.builtin), app: Boolean(p.meta.mitgliederApp),
     configIO: !p.error && typeof p.hooks.exportConfig === 'function' && typeof p.hooks.importConfig === 'function',
     adminScript: !p.builtin && !p.error && fs.existsSync(path.join(p.dir, 'public', 'admin.js')), scripts: sharedScripts(p.meta) }));
+}
+
+/** Verzeichnis der Verwaltungsseiten eines mitgelieferten Moduls (verwaltung-index.json, zur Bauzeit aus admin.js erzeugt: werkzeuge/verwaltung-index.js).
+ *  Nur wenn es zur Modulversion passt; Fremd-Module haben nie eins (ihr Code läuft nie auf dem Server) – die Verwaltung lädt sie sofort. */
+const indexCache = new Map();
+function adminIndex(id) {
+  const p = plugins.get(id);
+  if (!p || p.source !== 'mitgeliefert' || p.builtin || !p.dir) return null;
+  const c = indexCache.get(id); if (c && c.version === p.meta.version) return c.index;
+  let index = null;
+  try { const j = JSON.parse(fs.readFileSync(path.join(p.dir, 'verwaltung-index.json'), 'utf8')); if (j.version === p.meta.version && Array.isArray(j.varianten)) index = j.varianten; } catch (e) { /* kein Verzeichnis: sofort laden */ }
+  indexCache.set(id, { version: p.meta.version, index });
+  return index;
 }
 
 function setActive(id, on, user) {
@@ -413,4 +435,4 @@ const get = id => plugins.get(id);
 /** Ordner der geladenen, freigegebenen Erweiterungen (für deren Sprachdateien) */
 const dirs = () => [...plugins.values()].filter(p => p.dir && !p.error && !p.unapproved && !p.pending).map(p => p.dir);
 
-module.exports = { tabletSlugs, tabletPage, dirs, load, list, setActive, isActive, tabletNav, tabletSwitches, setTabletSwitch, orderPos, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };
+module.exports = { tabletSlugs, tabletPage, dirs, load, list, adminIndex, setActive, isActive, tabletNav, tabletSwitches, setTabletSwitch, orderPos, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };

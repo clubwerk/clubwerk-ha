@@ -1,0 +1,178 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "1.4.3",
+ "varianten": [
+  {
+   "wenn": {},
+   "aufrufe": [
+    [
+     "registerPage",
+     {
+      "key": "flutlicht",
+      "title": "Bedienen",
+      "perm": [
+       "flutlicht",
+       "flutlicht_bedienen"
+      ],
+      "group": {
+       "key": "flutlicht",
+       "label": "Flutlicht",
+       "icon": "flutlicht",
+       "order": 5.5
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "flutlicht-anlagen",
+      "title": "Anlagen",
+      "perm": "flutlicht",
+      "group": {
+       "key": "flutlicht",
+       "label": "Flutlicht",
+       "icon": "flutlicht",
+       "order": 5.5
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "flutlicht-zeiten",
+      "title": "Zeiten",
+      "perm": "flutlicht",
+      "group": {
+       "key": "flutlicht",
+       "label": "Flutlicht",
+       "icon": "flutlicht",
+       "order": 5.5
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "flutlicht-verlauf",
+      "title": "Verlauf",
+      "perm": "flutlicht",
+      "group": {
+       "key": "flutlicht",
+       "label": "Flutlicht",
+       "icon": "flutlicht",
+       "order": 5.5
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "flutlicht-einstellungen",
+      "title": "Einstellungen",
+      "perm": "flutlicht",
+      "group": {
+       "key": "flutlicht",
+       "label": "Flutlicht",
+       "icon": "flutlicht",
+       "order": 5.5
+      }
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Flutlicht einschalten",
+       "page": "flutlicht",
+       "card": "Lichtanlagen",
+       "kind": "aktion",
+       "words": "Licht Flutlicht einschalten ausschalten Platz"
+      },
+      {
+       "label": "Alles Licht aus",
+       "page": "flutlicht",
+       "btn": "Alles aus",
+       "kind": "aktion",
+       "words": "Flutlicht Notfall aus"
+      },
+      {
+       "label": "Lichtanlage anlegen",
+       "page": "flutlicht-anlagen",
+       "perm": "flutlicht",
+       "btn": "+ Lichtanlage",
+       "kind": "aktion",
+       "words": "Flutlicht Schalter Home Assistant Platz Vorlauf Nachlauf"
+      },
+      {
+       "label": "Sonnenuntergang und Standort (Flutlicht)",
+       "page": "flutlicht-zeiten",
+       "perm": "flutlicht",
+       "card": "Dunkelheit",
+       "words": "Dunkelheit Sonnenuntergang Breitengrad Längengrad"
+      },
+      {
+       "label": "Nachtruhe des Flutlichts",
+       "page": "flutlicht-zeiten",
+       "perm": "flutlicht",
+       "card": "Nachtruhe",
+       "words": "Nachtruhe Abschaltung spätestens"
+      },
+      {
+       "label": "Saison des Flutlichts",
+       "page": "flutlicht-zeiten",
+       "perm": "flutlicht",
+       "card": "Saison",
+       "words": "Saison Sommer Winter"
+      },
+      {
+       "label": "Sperrzeitraum eintragen (Flutlicht)",
+       "page": "flutlicht-zeiten",
+       "perm": "flutlicht",
+       "btn": "+ Sperrzeitraum",
+       "kind": "aktion",
+       "words": "Sperrtage Wartung gesperrt"
+      },
+      {
+       "label": "Flutlicht-Verlauf als Excel",
+       "page": "flutlicht-verlauf",
+       "perm": "flutlicht",
+       "btn": "Excel",
+       "kind": "aktion",
+       "words": "Verlauf Betriebsstunden Excel Lichtgeld"
+      },
+      {
+       "label": "Lichtgeld einstellen",
+       "page": "flutlicht-einstellungen",
+       "perm": "flutlicht",
+       "card": "Lichtgeld",
+       "words": "Lichtgeld Gebühr Viertelstunde Preis"
+      },
+      {
+       "label": "Wer darf das Flutlicht schalten",
+       "page": "flutlicht-einstellungen",
+       "perm": "flutlicht",
+       "card": "Wer darf schalten",
+       "words": "Automatik App Tablet Höchstdauer verlängern"
+      },
+      {
+       "label": "Verbindung des Flutlichts testen",
+       "page": "flutlicht-einstellungen",
+       "perm": "flutlicht",
+       "card": "Anbindung",
+       "kind": "aktion",
+       "words": "Home Assistant Verbindung testen Schalter"
+      },
+      {
+       "label": "Einstellungen des Flutlichts übertragen",
+       "page": "flutlicht-einstellungen",
+       "perm": "flutlicht",
+       "card": "Einstellungen übertragen",
+       "kind": "aktion",
+       "words": "Export Import Datei"
+      }
+     ]
+    ]
+   ]
+  }
+ ]
+}

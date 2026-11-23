@@ -1,0 +1,175 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "1.17.3",
+ "varianten": [
+  {
+   "wenn": {},
+   "aufrufe": [
+    [
+     "registerPage",
+     {
+      "key": "beregnung",
+      "title": "Beregnung",
+      "perm": [
+       "beregnung",
+       "beregnung_bedienen"
+      ],
+      "order": 5
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Beregnung starten",
+       "page": "beregnung",
+       "tab": [
+        "beregnung",
+        "bedienen"
+       ],
+       "card": "Plätze",
+       "kind": "aktion",
+       "in": "Bedienen",
+       "words": "starten Wasser Platz beregnen"
+      },
+      {
+       "label": "Alle Zonen ausschalten (Notaus)",
+       "page": "beregnung",
+       "tab": [
+        "beregnung",
+        "bedienen"
+       ],
+       "btn": "■ Alle Zonen ausschalten",
+       "kind": "aktion",
+       "in": "Bedienen",
+       "words": "Stopp Notaus stoppen Wasser aus"
+      },
+      {
+       "label": "Plätze und Zonen der Beregnung",
+       "page": "beregnung",
+       "perm": "beregnung",
+       "tab": [
+        "beregnung",
+        "plaetze"
+       ],
+       "card": "Plätze & Zonen",
+       "kind": "reiter",
+       "in": "Plätze & Zonen",
+       "words": "Zone Ventil Platz Laufzeit Minuten"
+      },
+      {
+       "label": "Platz hinzufügen",
+       "page": "beregnung",
+       "perm": "beregnung",
+       "tab": [
+        "beregnung",
+        "plaetze"
+       ],
+       "btn": "+ Platz",
+       "kind": "aktion",
+       "in": "Plätze & Zonen",
+       "words": "Platz neu anlegen Zone"
+      },
+      {
+       "label": "Verlauf der Beregnung",
+       "page": "beregnung",
+       "perm": "beregnung",
+       "tab": [
+        "beregnung",
+        "verlauf"
+       ],
+       "kind": "reiter",
+       "in": "Verlauf",
+       "words": "Protokoll Log Start Stopp Fehler"
+      },
+      {
+       "label": "Verlauf der Beregnung als Excel",
+       "page": "beregnung",
+       "perm": "beregnung",
+       "tab": [
+        "beregnung",
+        "verlauf"
+       ],
+       "kind": "aktion",
+       "in": "Verlauf",
+       "words": "Excel Export Protokoll"
+      },
+      {
+       "label": "Anbindung der Bewässerung (Hersteller)",
+       "page": "beregnung",
+       "perm": "beregnung",
+       "tab": [
+        "beregnung",
+        "einstellungen"
+       ],
+       "card": "Anbindung",
+       "in": "Einstellungen",
+       "words": "Hydrawise Rain Bird Hunter Home Assistant Schlüssel Key Steuerung"
+      },
+      {
+       "label": "Wer darf die Beregnung bedienen?",
+       "page": "beregnung",
+       "perm": "beregnung",
+       "tab": [
+        "beregnung",
+        "einstellungen"
+       ],
+       "card": "Wer darf bedienen",
+       "in": "Einstellungen",
+       "words": "Bedienung Sperre Stopp ohne PIN"
+      },
+      {
+       "label": "Vereins-PIN der Beregnung",
+       "page": "beregnung",
+       "perm": "beregnung",
+       "tab": [
+        "beregnung",
+        "einstellungen"
+       ],
+       "field": "bPin",
+       "in": "Einstellungen › Wer darf bedienen?",
+       "words": "PIN Vereins-PIN Kennwort"
+      },
+      {
+       "label": "Beregnungs-Webapp (Name, Untertitel)",
+       "page": "beregnung",
+       "perm": "beregnung",
+       "tab": [
+        "beregnung",
+        "einstellungen"
+       ],
+       "card": "Webapp",
+       "in": "Einstellungen",
+       "words": "Webapp Homescreen Name Handy Adresse nächste Beregnung"
+      },
+      {
+       "label": "Benachrichtigung bei Störung der Beregnung",
+       "page": "beregnung",
+       "perm": "beregnung",
+       "tab": [
+        "beregnung",
+        "einstellungen"
+       ],
+       "card": "Benachrichtigungen",
+       "in": "Einstellungen",
+       "words": "Störung Push notify Platzwart Handy"
+      },
+      {
+       "label": "Einstellungen der Beregnung übertragen",
+       "page": "beregnung",
+       "perm": "beregnung",
+       "tab": [
+        "beregnung",
+        "einstellungen"
+       ],
+       "card": "Einstellungen übertragen",
+       "kind": "aktion",
+       "in": "Einstellungen",
+       "words": "Export Import Datei sichern"
+      }
+     ]
+    ]
+   ]
+  }
+ ]
+}

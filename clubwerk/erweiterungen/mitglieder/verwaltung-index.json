@@ -1,0 +1,1018 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "1.52.1",
+ "varianten": [
+  {
+   "wenn": {
+    "getraenke": false
+   },
+   "aufrufe": [
+    [
+     "registerDetail",
+     {
+      "key": "mitglied",
+      "page": "mitglieder",
+      "back": "Alle Mitglieder",
+      "perm": "mitglieder"
+     }
+    ],
+    [
+     "stellt",
+     "drinksCollect"
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mitglieder",
+      "title": "Mitglieder",
+      "perm": "mitglieder",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-antraege",
+      "title": "Anträge & Änderungen",
+      "perm": "mitglieder",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      },
+      "tab": "Anträge"
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-gratulationen",
+      "title": "Gratulationen",
+      "perm": "gratulationen",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-stamm",
+      "title": "Beiträge & Abteilungen",
+      "perm": "!mitglieder",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-auswertung",
+      "title": "Auswertung",
+      "perm": "!mitglieder",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-einstellungen",
+      "title": "Einstellungen",
+      "perm": "!mitglieder",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-beitraege",
+      "title": "Beitragslauf",
+      "perm": "mitglieder_finanzen",
+      "group": {
+       "key": "mv-zahlungen",
+       "label": "Beiträge & Zahlungen",
+       "icon": "zahlung",
+       "order": 7.5
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-einzug",
+      "title": "Lastschriften",
+      "perm": "mitglieder_finanzen",
+      "group": {
+       "key": "mv-zahlungen",
+       "label": "Beiträge & Zahlungen",
+       "icon": "zahlung",
+       "order": 7.5
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-posten",
+      "title": "Offene Posten",
+      "perm": "mitglieder_finanzen",
+      "group": {
+       "key": "mv-zahlungen",
+       "label": "Beiträge & Zahlungen",
+       "icon": "zahlung",
+       "order": 7.5
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-mahnung",
+      "title": "Rechnungen & Mahnungen",
+      "perm": "mitglieder_finanzen",
+      "group": {
+       "key": "mv-zahlungen",
+       "label": "Beiträge & Zahlungen",
+       "icon": "zahlung",
+       "order": 7.5
+      }
+     }
+    ],
+    [
+     "kontoauszugRegister",
+     {
+      "key": "mv-zahlungen",
+      "label": "Beiträge & Zahlungen",
+      "icon": "zahlung",
+      "order": 7.5
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-zeinst",
+      "title": "Einstellungen",
+      "perm": "mitglieder_finanzen",
+      "group": {
+       "key": "mv-zahlungen",
+       "label": "Beiträge & Zahlungen",
+       "icon": "zahlung",
+       "order": 7.5
+      }
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Neues Mitglied anlegen",
+       "page": "mitglieder",
+       "btn": "+ Neues Mitglied",
+       "kind": "aktion",
+       "words": "Mitglied aufnehmen Neuaufnahme"
+      },
+      {
+       "label": "Mitglieder importieren",
+       "page": "mitglieder",
+       "btn": "Import",
+       "perm": "!mitglieder",
+       "kind": "aktion",
+       "words": "Import S-Verein WISO verein.cloud CSV Excel übernehmen"
+      },
+      {
+       "label": "Mitgliederliste als Excel",
+       "page": "mitglieder",
+       "btn": "Excel",
+       "perm": "!mitglieder",
+       "kind": "aktion",
+       "words": "Export Liste Excel"
+      },
+      {
+       "label": "Dokumente aller Mitglieder als ZIP",
+       "page": "mitglieder",
+       "btn": "Dokumente (ZIP)",
+       "perm": "mitglieder_dokumente",
+       "kind": "aktion",
+       "words": "Export Dokumente ZIP herunterladen Beitrittserklärung Mandat Ablage"
+      },
+      {
+       "label": "Mitglieder mit Hinweis (fehlende Angaben)",
+       "page": "mitglieder",
+       "seg": "Mit Hinweis",
+       "words": "Pflichtangaben fehlen Hinweis IBAN Mandat Beitrag"
+      },
+      {
+       "label": "Ausgetretene Mitglieder",
+       "page": "mitglieder",
+       "seg": "Ausgetreten",
+       "words": "Austritt ehemalige Kündigung"
+      },
+      {
+       "label": "Beitrittserklärung erfassen",
+       "page": "mv-antraege",
+       "btn": "+ Beitrittserklärung",
+       "kind": "aktion",
+       "words": "Antrag Aufnahme Beitritt"
+      },
+      {
+       "label": "Online-Antrag",
+       "page": "mv-antraege",
+       "btn": "Online-Antrag",
+       "kind": "aktion",
+       "words": "online Antrag Beitritt"
+      },
+      {
+       "label": "Formular Beitrittserklärung (PDF)",
+       "page": "mv-antraege",
+       "btn": "Formular",
+       "kind": "aktion",
+       "words": "PDF Formular leer drucken Beitritt"
+      },
+      {
+       "label": "Beitragsarten",
+       "page": "mv-stamm",
+       "card": "Beiträge Hauptverein",
+       "in": "Beiträge & Abteilungen",
+       "words": "Beitrag Familienbeitrag Grundbeitrag"
+      },
+      {
+       "label": "Neue Beitragsart",
+       "page": "mv-stamm",
+       "btn": "+ Beitragsart",
+       "kind": "aktion",
+       "in": "Beiträge & Abteilungen",
+       "words": "Beitrag anlegen Familienbeitrag"
+      },
+      {
+       "label": "Zusatzbeiträge der Abteilungen",
+       "page": "mv-stamm",
+       "card": "Zusatzbeiträge",
+       "in": "Beiträge & Abteilungen",
+       "words": "Abteilungsbeitrag Zusatzbeitrag"
+      },
+      {
+       "label": "Neuer Zusatzbeitrag",
+       "page": "mv-stamm",
+       "btn": "+ Zusatzbeitrag",
+       "kind": "aktion",
+       "in": "Beiträge & Abteilungen",
+       "words": "Abteilungsbeitrag anlegen"
+      },
+      {
+       "label": "Abteilungen",
+       "page": "mv-stamm",
+       "card": "Abteilungen",
+       "in": "Beiträge & Abteilungen",
+       "words": "Abteilung Sparte anlegen"
+      },
+      {
+       "label": "Neue Abteilung",
+       "page": "mv-stamm",
+       "btn": "+ Abteilung",
+       "kind": "aktion",
+       "in": "Beiträge & Abteilungen",
+       "words": "Sparte anlegen"
+      },
+      {
+       "label": "Altersstufen prüfen",
+       "page": "mv-stamm",
+       "card": "Altersstufen",
+       "in": "Beiträge & Abteilungen",
+       "words": "Alter Jugend Erwachsene Beitragsart wechseln umstellen"
+      },
+      {
+       "label": "Beitragslauf",
+       "page": "mv-beitraege",
+       "perm": "mitglieder_finanzen",
+       "kind": "aktion",
+       "boost": 1,
+       "words": "Beiträge abrechnen Jahresbeitrag Lastschrift"
+      },
+      {
+       "label": "Lastschriften und SEPA-Datei",
+       "page": "mv-einzug",
+       "card": "Neuer Einzug",
+       "perm": "mitglieder_finanzen",
+       "kind": "aktion",
+       "boost": 1,
+       "words": "SEPA Einzug pain.008 Vorabinformation Rücklastschrift"
+      },
+      {
+       "label": "Verkauf per Lastschrift einziehen",
+       "page": "mv-einzug",
+       "card": "Verkauf einziehen",
+       "perm": "mitglieder_finanzen",
+       "kind": "aktion",
+       "words": "Getränke Verkaufskonten Einzug SEPA abbuchen"
+      },
+      {
+       "label": "Überfällige Posten",
+       "page": "mv-posten",
+       "seg": "Überfällig",
+       "perm": "mitglieder_finanzen",
+       "words": "Forderung offen überfällig nicht bezahlt"
+      },
+      {
+       "label": "Forderung anlegen",
+       "page": "mv-posten",
+       "btn": "+ Forderung",
+       "perm": "mitglieder_finanzen",
+       "kind": "aktion",
+       "words": "Posten Gutschrift Betrag Mitglied berechnen"
+      },
+      {
+       "label": "Rechnungen & Mahnungen (Beiträge)",
+       "page": "mv-mahnung",
+       "perm": "mitglieder_finanzen",
+       "words": "Mahnung Erinnerung Rechnung bar"
+      },
+      {
+       "label": "Mahnlauf: wer ist jetzt zu mahnen",
+       "page": "mv-mahnung",
+       "card": "Mahnungen – jetzt fällig",
+       "perm": "mitglieder_finanzen",
+       "kind": "aktion",
+       "words": "Mahnung Mahnlauf Zahlungserinnerung Brief PDF E-Mail Mahnsperre"
+      },
+      {
+       "label": "Mitgliederzahlen und Abteilungen",
+       "page": "mv-auswertung",
+       "card": "Abteilungen",
+       "words": "Statistik Zahlen Stichtag"
+      },
+      {
+       "label": "Bestandserhebung (Landessportbund)",
+       "page": "mv-auswertung",
+       "card": "Bestandserhebung",
+       "words": "LSB Statistik Meldung Verband"
+      },
+      {
+       "label": "Einwilligungen: wer hat zugestimmt",
+       "page": "mv-auswertung",
+       "card": "Einwilligungen",
+       "words": "Fotos Presse Homepage DSGVO Excel Liste"
+      },
+      {
+       "label": "Runde Geburtstage & Jubiläen",
+       "page": "mv-auswertung",
+       "card": "Runde Geburtstage",
+       "words": "Geburtstag Jubiläum Ehrung"
+      },
+      {
+       "label": "Anstehende Gratulationen",
+       "page": "mv-gratulationen",
+       "perm": "gratulationen",
+       "boost": 1,
+       "words": "Geburtstag Jubiläum Ehrung Blumen gratulieren Ehrennadel"
+      },
+      {
+       "label": "Anlass für eine Gratulation ergänzen",
+       "page": "mv-gratulationen",
+       "btn": "+ Anlass",
+       "perm": "gratulationen",
+       "kind": "aktion",
+       "words": "Hochzeit Gratulation von Hand"
+      },
+      {
+       "label": "Erinnerung an Gratulationen (E-Mail, Push)",
+       "page": "mv-gratulationen",
+       "card": "Deine Erinnerung",
+       "perm": "gratulationen",
+       "words": "Benachrichtigung Geburtstag Push E-Mail"
+      },
+      {
+       "label": "Regeln für Gratulationen",
+       "page": "mv-einstellungen",
+       "card": "Gratulationen",
+       "field": "cgDays",
+       "in": "Einstellungen",
+       "words": "Geburtstag Jubiläum Ehrennadel Urkunde Blumen Erinnerung Tage vorher"
+      },
+      {
+       "label": "Mitgliedsnummern, Beitragsjahr, Geschäftsjahr und Kündigungsfrist",
+       "page": "mv-einstellungen",
+       "card": "Mitgliedschaft",
+       "field": "eNo",
+       "in": "Einstellungen",
+       "words": "Geschäftsjahr Wirtschaftsjahr Mitgliedsnummer Beitragsjahr Kündigungsfrist Kündigung"
+      },
+      {
+       "label": "Lastschrift als Pflicht",
+       "page": "mv-einstellungen",
+       "card": "Mitgliedschaft",
+       "field": "eSepaReq",
+       "in": "Einstellungen",
+       "words": "Zahlart Lastschrift Rechnung bar"
+      },
+      {
+       "label": "Abteilungsleitungen: Ein- und Austritte bestätigen",
+       "page": "mv-einstellungen",
+       "card": "Mitgliedschaft",
+       "field": "eScope",
+       "in": "Einstellungen",
+       "words": "Abteilungsleitung bestätigen"
+      },
+      {
+       "label": "Beitrittserklärung und Online-Antrag (Formular, Einwilligungen)",
+       "page": "mv-einstellungen",
+       "card": "Beitrittserklärung",
+       "in": "Einstellungen",
+       "words": "Formular Satzung Einwilligung Online-Antrag Tablet"
+      },
+      {
+       "label": "„Meine Daten“ in der Mitglieder-App",
+       "page": "mv-einstellungen",
+       "card": "„Meine Daten“",
+       "in": "Einstellungen",
+       "words": "App Anschrift Bankverbindung Kündigen Einwilligungen"
+      },
+      {
+       "label": "Neue Anträge melden an (E-Mail)",
+       "page": "mv-einstellungen",
+       "card": "Benachrichtigungen",
+       "field": "eNotify",
+       "in": "Einstellungen",
+       "words": "Benachrichtigung Antrag E-Mail Vorstand"
+      },
+      {
+       "label": "Datenschutz nach dem Austritt",
+       "page": "mv-einstellungen",
+       "card": "Datenschutz",
+       "field": "eRet2",
+       "in": "Einstellungen",
+       "words": "DSGVO Anonymisieren löschen Aufbewahrung Erinnerung"
+      },
+      {
+       "label": "Einstellungen der Mitglieder übertragen",
+       "page": "mv-einstellungen",
+       "card": "Einstellungen übertragen",
+       "kind": "aktion",
+       "in": "Einstellungen",
+       "words": "Export Import Datei"
+      },
+      {
+       "label": "Lastschrift (Gläubiger-ID, Mandatsreferenz)",
+       "page": "mv-zeinst",
+       "card": "Lastschrift",
+       "field": "eCi",
+       "perm": "mitglieder_finanzen",
+       "words": "SEPA Gläubiger-ID Gläubiger Mandatsreferenz Vorabinformation Rücklastschrift Verkaufs-Einzug Zahlungsempfänger Konto"
+      },
+      {
+       "label": "Rechnungen (Zusatz, Steuernummer)",
+       "page": "mv-zeinst",
+       "card": "Rechnungen",
+       "field": "eInv",
+       "perm": "mitglieder_finanzen",
+       "words": "Rechnungstext Zusatz Steuernummer"
+      },
+      {
+       "label": "Mahnstufen und Mahngebühr",
+       "page": "mv-zeinst",
+       "card": "Mahnungen",
+       "field": "eDunDl",
+       "perm": "mitglieder_finanzen",
+       "words": "Mahngebühr Mahnstufe Zahlungserinnerung Mahnung Frist Abstand Text"
+      }
+     ]
+    ],
+    [
+     "relabel",
+     "konten",
+     "Konten & PINs"
+    ]
+   ]
+  },
+  {
+   "wenn": {
+    "getraenke": true
+   },
+   "aufrufe": [
+    [
+     "registerDetail",
+     {
+      "key": "mitglied",
+      "page": "mitglieder",
+      "back": "Alle Mitglieder",
+      "perm": "mitglieder"
+     }
+    ],
+    [
+     "stellt",
+     "drinksCollect"
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mitglieder",
+      "title": "Mitglieder",
+      "perm": "mitglieder",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-antraege",
+      "title": "Anträge & Änderungen",
+      "perm": "mitglieder",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      },
+      "tab": "Anträge"
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-gratulationen",
+      "title": "Gratulationen",
+      "perm": "gratulationen",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-stamm",
+      "title": "Beiträge & Abteilungen",
+      "perm": "!mitglieder",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-auswertung",
+      "title": "Auswertung",
+      "perm": "!mitglieder",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-einstellungen",
+      "title": "Einstellungen",
+      "perm": "!mitglieder",
+      "group": {
+       "key": "mitglieder",
+       "label": "Mitglieder",
+       "icon": "ausweis",
+       "order": 7
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-beitraege",
+      "title": "Beitragslauf",
+      "perm": "mitglieder_finanzen",
+      "group": {
+       "key": "mv-zahlungen",
+       "label": "Beiträge & Zahlungen",
+       "icon": "zahlung",
+       "order": 7.5
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-einzug",
+      "title": "Lastschriften",
+      "perm": "mitglieder_finanzen",
+      "group": {
+       "key": "mv-zahlungen",
+       "label": "Beiträge & Zahlungen",
+       "icon": "zahlung",
+       "order": 7.5
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-posten",
+      "title": "Offene Posten",
+      "perm": "mitglieder_finanzen",
+      "group": {
+       "key": "mv-zahlungen",
+       "label": "Beiträge & Zahlungen",
+       "icon": "zahlung",
+       "order": 7.5
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-mahnung",
+      "title": "Rechnungen & Mahnungen",
+      "perm": "mitglieder_finanzen",
+      "group": {
+       "key": "mv-zahlungen",
+       "label": "Beiträge & Zahlungen",
+       "icon": "zahlung",
+       "order": 7.5
+      }
+     }
+    ],
+    [
+     "kontoauszugRegister",
+     {
+      "key": "mv-zahlungen",
+      "label": "Beiträge & Zahlungen",
+      "icon": "zahlung",
+      "order": 7.5
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "mv-zeinst",
+      "title": "Einstellungen",
+      "perm": "mitglieder_finanzen",
+      "group": {
+       "key": "mv-zahlungen",
+       "label": "Beiträge & Zahlungen",
+       "icon": "zahlung",
+       "order": 7.5
+      }
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Neues Mitglied anlegen",
+       "page": "mitglieder",
+       "btn": "+ Neues Mitglied",
+       "kind": "aktion",
+       "words": "Mitglied aufnehmen Neuaufnahme"
+      },
+      {
+       "label": "Mitglieder importieren",
+       "page": "mitglieder",
+       "btn": "Import",
+       "perm": "!mitglieder",
+       "kind": "aktion",
+       "words": "Import S-Verein WISO verein.cloud CSV Excel übernehmen"
+      },
+      {
+       "label": "Mitgliederliste als Excel",
+       "page": "mitglieder",
+       "btn": "Excel",
+       "perm": "!mitglieder",
+       "kind": "aktion",
+       "words": "Export Liste Excel"
+      },
+      {
+       "label": "Dokumente aller Mitglieder als ZIP",
+       "page": "mitglieder",
+       "btn": "Dokumente (ZIP)",
+       "perm": "mitglieder_dokumente",
+       "kind": "aktion",
+       "words": "Export Dokumente ZIP herunterladen Beitrittserklärung Mandat Ablage"
+      },
+      {
+       "label": "Mitglieder mit Hinweis (fehlende Angaben)",
+       "page": "mitglieder",
+       "seg": "Mit Hinweis",
+       "words": "Pflichtangaben fehlen Hinweis IBAN Mandat Beitrag"
+      },
+      {
+       "label": "Ausgetretene Mitglieder",
+       "page": "mitglieder",
+       "seg": "Ausgetreten",
+       "words": "Austritt ehemalige Kündigung"
+      },
+      {
+       "label": "Beitrittserklärung erfassen",
+       "page": "mv-antraege",
+       "btn": "+ Beitrittserklärung",
+       "kind": "aktion",
+       "words": "Antrag Aufnahme Beitritt"
+      },
+      {
+       "label": "Online-Antrag",
+       "page": "mv-antraege",
+       "btn": "Online-Antrag",
+       "kind": "aktion",
+       "words": "online Antrag Beitritt"
+      },
+      {
+       "label": "Formular Beitrittserklärung (PDF)",
+       "page": "mv-antraege",
+       "btn": "Formular",
+       "kind": "aktion",
+       "words": "PDF Formular leer drucken Beitritt"
+      },
+      {
+       "label": "Beitragsarten",
+       "page": "mv-stamm",
+       "card": "Beiträge Hauptverein",
+       "in": "Beiträge & Abteilungen",
+       "words": "Beitrag Familienbeitrag Grundbeitrag"
+      },
+      {
+       "label": "Neue Beitragsart",
+       "page": "mv-stamm",
+       "btn": "+ Beitragsart",
+       "kind": "aktion",
+       "in": "Beiträge & Abteilungen",
+       "words": "Beitrag anlegen Familienbeitrag"
+      },
+      {
+       "label": "Zusatzbeiträge der Abteilungen",
+       "page": "mv-stamm",
+       "card": "Zusatzbeiträge",
+       "in": "Beiträge & Abteilungen",
+       "words": "Abteilungsbeitrag Zusatzbeitrag"
+      },
+      {
+       "label": "Neuer Zusatzbeitrag",
+       "page": "mv-stamm",
+       "btn": "+ Zusatzbeitrag",
+       "kind": "aktion",
+       "in": "Beiträge & Abteilungen",
+       "words": "Abteilungsbeitrag anlegen"
+      },
+      {
+       "label": "Abteilungen",
+       "page": "mv-stamm",
+       "card": "Abteilungen",
+       "in": "Beiträge & Abteilungen",
+       "words": "Abteilung Sparte anlegen"
+      },
+      {
+       "label": "Neue Abteilung",
+       "page": "mv-stamm",
+       "btn": "+ Abteilung",
+       "kind": "aktion",
+       "in": "Beiträge & Abteilungen",
+       "words": "Sparte anlegen"
+      },
+      {
+       "label": "Altersstufen prüfen",
+       "page": "mv-stamm",
+       "card": "Altersstufen",
+       "in": "Beiträge & Abteilungen",
+       "words": "Alter Jugend Erwachsene Beitragsart wechseln umstellen"
+      },
+      {
+       "label": "Beitragslauf",
+       "page": "mv-beitraege",
+       "perm": "mitglieder_finanzen",
+       "kind": "aktion",
+       "boost": 1,
+       "words": "Beiträge abrechnen Jahresbeitrag Lastschrift"
+      },
+      {
+       "label": "Lastschriften und SEPA-Datei",
+       "page": "mv-einzug",
+       "card": "Neuer Einzug",
+       "perm": "mitglieder_finanzen",
+       "kind": "aktion",
+       "boost": 1,
+       "words": "SEPA Einzug pain.008 Vorabinformation Rücklastschrift"
+      },
+      {
+       "label": "Verkauf per Lastschrift einziehen",
+       "page": "mv-einzug",
+       "card": "Verkauf einziehen",
+       "perm": "mitglieder_finanzen",
+       "kind": "aktion",
+       "words": "Getränke Verkaufskonten Einzug SEPA abbuchen"
+      },
+      {
+       "label": "Überfällige Posten",
+       "page": "mv-posten",
+       "seg": "Überfällig",
+       "perm": "mitglieder_finanzen",
+       "words": "Forderung offen überfällig nicht bezahlt"
+      },
+      {
+       "label": "Forderung anlegen",
+       "page": "mv-posten",
+       "btn": "+ Forderung",
+       "perm": "mitglieder_finanzen",
+       "kind": "aktion",
+       "words": "Posten Gutschrift Betrag Mitglied berechnen"
+      },
+      {
+       "label": "Rechnungen & Mahnungen (Beiträge)",
+       "page": "mv-mahnung",
+       "perm": "mitglieder_finanzen",
+       "words": "Mahnung Erinnerung Rechnung bar"
+      },
+      {
+       "label": "Mahnlauf: wer ist jetzt zu mahnen",
+       "page": "mv-mahnung",
+       "card": "Mahnungen – jetzt fällig",
+       "perm": "mitglieder_finanzen",
+       "kind": "aktion",
+       "words": "Mahnung Mahnlauf Zahlungserinnerung Brief PDF E-Mail Mahnsperre"
+      },
+      {
+       "label": "Mitgliederzahlen und Abteilungen",
+       "page": "mv-auswertung",
+       "card": "Abteilungen",
+       "words": "Statistik Zahlen Stichtag"
+      },
+      {
+       "label": "Bestandserhebung (Landessportbund)",
+       "page": "mv-auswertung",
+       "card": "Bestandserhebung",
+       "words": "LSB Statistik Meldung Verband"
+      },
+      {
+       "label": "Einwilligungen: wer hat zugestimmt",
+       "page": "mv-auswertung",
+       "card": "Einwilligungen",
+       "words": "Fotos Presse Homepage DSGVO Excel Liste"
+      },
+      {
+       "label": "Runde Geburtstage & Jubiläen",
+       "page": "mv-auswertung",
+       "card": "Runde Geburtstage",
+       "words": "Geburtstag Jubiläum Ehrung"
+      },
+      {
+       "label": "Anstehende Gratulationen",
+       "page": "mv-gratulationen",
+       "perm": "gratulationen",
+       "boost": 1,
+       "words": "Geburtstag Jubiläum Ehrung Blumen gratulieren Ehrennadel"
+      },
+      {
+       "label": "Anlass für eine Gratulation ergänzen",
+       "page": "mv-gratulationen",
+       "btn": "+ Anlass",
+       "perm": "gratulationen",
+       "kind": "aktion",
+       "words": "Hochzeit Gratulation von Hand"
+      },
+      {
+       "label": "Erinnerung an Gratulationen (E-Mail, Push)",
+       "page": "mv-gratulationen",
+       "card": "Deine Erinnerung",
+       "perm": "gratulationen",
+       "words": "Benachrichtigung Geburtstag Push E-Mail"
+      },
+      {
+       "label": "Regeln für Gratulationen",
+       "page": "mv-einstellungen",
+       "card": "Gratulationen",
+       "field": "cgDays",
+       "in": "Einstellungen",
+       "words": "Geburtstag Jubiläum Ehrennadel Urkunde Blumen Erinnerung Tage vorher"
+      },
+      {
+       "label": "Mitgliedsnummern, Beitragsjahr, Geschäftsjahr und Kündigungsfrist",
+       "page": "mv-einstellungen",
+       "card": "Mitgliedschaft",
+       "field": "eNo",
+       "in": "Einstellungen",
+       "words": "Geschäftsjahr Wirtschaftsjahr Mitgliedsnummer Beitragsjahr Kündigungsfrist Kündigung"
+      },
+      {
+       "label": "Lastschrift als Pflicht",
+       "page": "mv-einstellungen",
+       "card": "Mitgliedschaft",
+       "field": "eSepaReq",
+       "in": "Einstellungen",
+       "words": "Zahlart Lastschrift Rechnung bar"
+      },
+      {
+       "label": "Abteilungsleitungen: Ein- und Austritte bestätigen",
+       "page": "mv-einstellungen",
+       "card": "Mitgliedschaft",
+       "field": "eScope",
+       "in": "Einstellungen",
+       "words": "Abteilungsleitung bestätigen"
+      },
+      {
+       "label": "Beitrittserklärung und Online-Antrag (Formular, Einwilligungen)",
+       "page": "mv-einstellungen",
+       "card": "Beitrittserklärung",
+       "in": "Einstellungen",
+       "words": "Formular Satzung Einwilligung Online-Antrag Tablet"
+      },
+      {
+       "label": "„Meine Daten“ in der Mitglieder-App",
+       "page": "mv-einstellungen",
+       "card": "„Meine Daten“",
+       "in": "Einstellungen",
+       "words": "App Anschrift Bankverbindung Kündigen Einwilligungen"
+      },
+      {
+       "label": "Neue Anträge melden an (E-Mail)",
+       "page": "mv-einstellungen",
+       "card": "Benachrichtigungen",
+       "field": "eNotify",
+       "in": "Einstellungen",
+       "words": "Benachrichtigung Antrag E-Mail Vorstand"
+      },
+      {
+       "label": "Datenschutz nach dem Austritt",
+       "page": "mv-einstellungen",
+       "card": "Datenschutz",
+       "field": "eRet2",
+       "in": "Einstellungen",
+       "words": "DSGVO Anonymisieren löschen Aufbewahrung Erinnerung"
+      },
+      {
+       "label": "Einstellungen der Mitglieder übertragen",
+       "page": "mv-einstellungen",
+       "card": "Einstellungen übertragen",
+       "kind": "aktion",
+       "in": "Einstellungen",
+       "words": "Export Import Datei"
+      },
+      {
+       "label": "Lastschrift (Gläubiger-ID, Mandatsreferenz)",
+       "page": "mv-zeinst",
+       "card": "Lastschrift",
+       "field": "eCi",
+       "perm": "mitglieder_finanzen",
+       "words": "SEPA Gläubiger-ID Gläubiger Mandatsreferenz Vorabinformation Rücklastschrift Verkaufs-Einzug Zahlungsempfänger Konto"
+      },
+      {
+       "label": "Rechnungen (Zusatz, Steuernummer)",
+       "page": "mv-zeinst",
+       "card": "Rechnungen",
+       "field": "eInv",
+       "perm": "mitglieder_finanzen",
+       "words": "Rechnungstext Zusatz Steuernummer"
+      },
+      {
+       "label": "Mahnstufen und Mahngebühr",
+       "page": "mv-zeinst",
+       "card": "Mahnungen",
+       "field": "eDunDl",
+       "perm": "mitglieder_finanzen",
+       "words": "Mahngebühr Mahnstufe Zahlungserinnerung Mahnung Frist Abstand Text"
+      }
+     ]
+    ],
+    [
+     "regroup",
+     "konten",
+     "getraenke",
+     {
+      "title": "Konten & PINs",
+      "tab": "Konten"
+     }
+    ]
+   ]
+  }
+ ]
+}

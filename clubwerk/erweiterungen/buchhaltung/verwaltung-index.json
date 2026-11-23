@@ -1,0 +1,575 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "1.16.4",
+ "varianten": [
+  {
+   "wenn": {
+    "mitglieder": false
+   },
+   "aufrufe": [
+    [
+     "registerPage",
+     {
+      "key": "bh-rechnungen",
+      "title": "Rechnungen",
+      "perm": "buchhaltung",
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-spenden",
+      "title": "Spendenquittungen",
+      "perm": "buchhaltung",
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-firmen",
+      "title": "Firmen & Sponsoren",
+      "perm": "buchhaltung",
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-ausgaben",
+      "title": "Ausgaben",
+      "perm": [
+       "ausgaben",
+       "kassenpruefung"
+      ],
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-kasse",
+      "title": "Kassenbuch",
+      "perm": [
+       "ausgaben",
+       "kassenpruefung"
+      ],
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-euer",
+      "title": "EÜR",
+      "perm": [
+       "ausgaben",
+       "kassenpruefung"
+      ],
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "kontoauszugRegister",
+     {
+      "key": "buchhaltung",
+      "label": "Buchhaltung",
+      "icon": "buchhaltung",
+      "order": 8
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-einstellungen",
+      "title": "Einstellungen",
+      "perm": [
+       "buchhaltung",
+       "ausgaben"
+      ],
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerHit",
+     "rechnung",
+     {}
+    ],
+    [
+     "registerHit",
+     "firma",
+     {}
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Rechnung schreiben",
+       "page": "bh-rechnungen",
+       "btn": "+ Neue Rechnung",
+       "kind": "aktion",
+       "in": "Rechnungen",
+       "words": "Rechnung Sponsor Firma",
+       "boost": 1
+      },
+      {
+       "label": "Jahresrechnungen",
+       "page": "bh-rechnungen",
+       "btn": "Jahresrechnungen",
+       "kind": "aktion",
+       "in": "Rechnungen",
+       "words": "Sponsoren jährlich Bandenwerbung"
+      },
+      {
+       "label": "Offene und überfällige Rechnungen",
+       "page": "bh-rechnungen",
+       "seg": "Überfällig",
+       "kind": "aktion",
+       "in": "Rechnungen",
+       "words": "Mahnung Erinnerung Zahlung offen bezahlt"
+      },
+      {
+       "label": "Firma oder Sponsor anlegen",
+       "page": "bh-firmen",
+       "btn": "+ Firma",
+       "kind": "aktion",
+       "in": "Firmen & Sponsoren",
+       "words": "Sponsor Partner Firma",
+       "boost": 1
+      },
+      {
+       "label": "Spendenquittung ausstellen",
+       "page": "bh-spenden",
+       "btn": "+ Neue Spendenquittung",
+       "kind": "aktion",
+       "in": "Spendenquittungen",
+       "words": "Spende Zuwendungsbestätigung Quittung",
+       "boost": 1
+      },
+      {
+       "label": "Rechnungen (Nummernkreis, Zahlungsziel, Einleitung, Fußzeile)",
+       "page": "bh-einstellungen",
+       "card": "Rechnungen",
+       "perm": "buchhaltung",
+       "in": "Einstellungen",
+       "words": "Nummernkreis Zahlungsziel Einleitung Fußzeile Rechnungsnummer"
+      },
+      {
+       "label": "Steuer & Finanzamt (Steuernummer, Umsatzsteuer, Freistellungsbescheid)",
+       "page": "bh-einstellungen",
+       "card": "Steuer & Finanzamt",
+       "perm": "buchhaltung",
+       "in": "Einstellungen",
+       "words": "Steuernummer USt Umsatzsteuer Kleinunternehmer Finanzamt Freistellungsbescheid Feststellungsbescheid Veranlagungszeitraum"
+      },
+      {
+       "label": "Spendenquittungen (Zwecke, Unterschrift, Ort, Nummernkreis)",
+       "page": "bh-einstellungen",
+       "card": "Spendenquittungen",
+       "perm": "buchhaltung",
+       "in": "Einstellungen",
+       "words": "Zwecke Unterschrift Funktion Ort Nummernkreis Zuwendungsbestätigung"
+      },
+      {
+       "label": "Briefkopf und Bankkonten auf Rechnungen",
+       "page": "bh-einstellungen",
+       "card": "Briefkopf",
+       "perm": "buchhaltung",
+       "in": "Einstellungen",
+       "words": "Anschrift Absender Telefon Konto IBAN"
+      },
+      {
+       "label": "Einstellungen der Buchhaltung übertragen",
+       "page": "bh-einstellungen",
+       "card": "Einstellungen übertragen",
+       "kind": "aktion",
+       "in": "Einstellungen",
+       "words": "Export Import Datei",
+       "perm": "buchhaltung"
+      },
+      {
+       "label": "Ausgabe erfassen",
+       "page": "bh-ausgaben",
+       "btn": "+ Neue Ausgabe",
+       "kind": "aktion",
+       "in": "Ausgaben",
+       "words": "Beleg Quittung Rechnung bezahlt Foto Kassenbon Auslage",
+       "perm": "ausgaben",
+       "boost": 1
+      },
+      {
+       "label": "Kassensturz (Kasse zählen)",
+       "page": "bh-kasse",
+       "btn": "Kassensturz",
+       "kind": "aktion",
+       "in": "Kassenbuch",
+       "words": "zählen Bargeld Kasse Bestand Differenz Zählprotokoll",
+       "perm": "ausgaben",
+       "boost": 1
+      },
+      {
+       "label": "Geldtransit zwischen Kasse und Bank",
+       "page": "bh-kasse",
+       "btn": "Geldtransit",
+       "kind": "aktion",
+       "in": "Kassenbuch",
+       "words": "einzahlen abheben Wechselgeld Bank Kasse Umbuchung",
+       "perm": "ausgaben"
+      },
+      {
+       "label": "Einnahmen-Überschuss-Rechnung (EÜR)",
+       "page": "bh-euer",
+       "kind": "aktion",
+       "in": "EÜR",
+       "words": "Auswertung Jahresabschluss Sphäre Überschuss Kassenprüfung Freigrenze",
+       "perm": [
+        "ausgaben",
+        "kassenpruefung"
+       ]
+      },
+      {
+       "label": "Ausgaben: Nummernkreis und Vorsteuer",
+       "page": "bh-einstellungen",
+       "card": "Ausgaben",
+       "in": "Einstellungen",
+       "words": "Vorsteuer Nummernkreis brutto netto",
+       "perm": "ausgaben"
+      },
+      {
+       "label": "Ausgabearten",
+       "page": "bh-einstellungen",
+       "card": "Ausgabearten",
+       "in": "Einstellungen",
+       "words": "Kategorie Ausgabe Art Sphäre",
+       "perm": "ausgaben"
+      },
+      {
+       "label": "Kassen (Anfangsbestand, Hauptkasse)",
+       "page": "bh-einstellungen",
+       "card": "Kassen",
+       "in": "Einstellungen",
+       "words": "Kasse Thekenkasse Turnierkasse Anfangsbestand Bargeld",
+       "perm": "ausgaben"
+      }
+     ]
+    ]
+   ]
+  },
+  {
+   "wenn": {
+    "mitglieder": true
+   },
+   "aufrufe": [
+    [
+     "registerPage",
+     {
+      "key": "bh-rechnungen",
+      "title": "Rechnungen",
+      "perm": "buchhaltung",
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-spenden",
+      "title": "Spendenquittungen",
+      "perm": "buchhaltung",
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-firmen",
+      "title": "Firmen & Sponsoren",
+      "perm": "buchhaltung",
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-ausgaben",
+      "title": "Ausgaben",
+      "perm": [
+       "ausgaben",
+       "kassenpruefung"
+      ],
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-kasse",
+      "title": "Kassenbuch",
+      "perm": [
+       "ausgaben",
+       "kassenpruefung"
+      ],
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-euer",
+      "title": "EÜR",
+      "perm": [
+       "ausgaben",
+       "kassenpruefung"
+      ],
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bh-einstellungen",
+      "title": "Einstellungen",
+      "perm": [
+       "buchhaltung",
+       "ausgaben"
+      ],
+      "group": {
+       "key": "buchhaltung",
+       "label": "Buchhaltung",
+       "icon": "buchhaltung",
+       "order": 8
+      }
+     }
+    ],
+    [
+     "registerHit",
+     "rechnung",
+     {}
+    ],
+    [
+     "registerHit",
+     "firma",
+     {}
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Rechnung schreiben",
+       "page": "bh-rechnungen",
+       "btn": "+ Neue Rechnung",
+       "kind": "aktion",
+       "in": "Rechnungen",
+       "words": "Rechnung Sponsor Firma",
+       "boost": 1
+      },
+      {
+       "label": "Jahresrechnungen",
+       "page": "bh-rechnungen",
+       "btn": "Jahresrechnungen",
+       "kind": "aktion",
+       "in": "Rechnungen",
+       "words": "Sponsoren jährlich Bandenwerbung"
+      },
+      {
+       "label": "Offene und überfällige Rechnungen",
+       "page": "bh-rechnungen",
+       "seg": "Überfällig",
+       "kind": "aktion",
+       "in": "Rechnungen",
+       "words": "Mahnung Erinnerung Zahlung offen bezahlt"
+      },
+      {
+       "label": "Firma oder Sponsor anlegen",
+       "page": "bh-firmen",
+       "btn": "+ Firma",
+       "kind": "aktion",
+       "in": "Firmen & Sponsoren",
+       "words": "Sponsor Partner Firma",
+       "boost": 1
+      },
+      {
+       "label": "Spendenquittung ausstellen",
+       "page": "bh-spenden",
+       "btn": "+ Neue Spendenquittung",
+       "kind": "aktion",
+       "in": "Spendenquittungen",
+       "words": "Spende Zuwendungsbestätigung Quittung",
+       "boost": 1
+      },
+      {
+       "label": "Rechnungen (Nummernkreis, Zahlungsziel, Einleitung, Fußzeile)",
+       "page": "bh-einstellungen",
+       "card": "Rechnungen",
+       "perm": "buchhaltung",
+       "in": "Einstellungen",
+       "words": "Nummernkreis Zahlungsziel Einleitung Fußzeile Rechnungsnummer"
+      },
+      {
+       "label": "Steuer & Finanzamt (Steuernummer, Umsatzsteuer, Freistellungsbescheid)",
+       "page": "bh-einstellungen",
+       "card": "Steuer & Finanzamt",
+       "perm": "buchhaltung",
+       "in": "Einstellungen",
+       "words": "Steuernummer USt Umsatzsteuer Kleinunternehmer Finanzamt Freistellungsbescheid Feststellungsbescheid Veranlagungszeitraum"
+      },
+      {
+       "label": "Spendenquittungen (Zwecke, Unterschrift, Ort, Nummernkreis)",
+       "page": "bh-einstellungen",
+       "card": "Spendenquittungen",
+       "perm": "buchhaltung",
+       "in": "Einstellungen",
+       "words": "Zwecke Unterschrift Funktion Ort Nummernkreis Zuwendungsbestätigung"
+      },
+      {
+       "label": "Briefkopf und Bankkonten auf Rechnungen",
+       "page": "bh-einstellungen",
+       "card": "Briefkopf",
+       "perm": "buchhaltung",
+       "in": "Einstellungen",
+       "words": "Anschrift Absender Telefon Konto IBAN"
+      },
+      {
+       "label": "Einstellungen der Buchhaltung übertragen",
+       "page": "bh-einstellungen",
+       "card": "Einstellungen übertragen",
+       "kind": "aktion",
+       "in": "Einstellungen",
+       "words": "Export Import Datei",
+       "perm": "buchhaltung"
+      },
+      {
+       "label": "Ausgabe erfassen",
+       "page": "bh-ausgaben",
+       "btn": "+ Neue Ausgabe",
+       "kind": "aktion",
+       "in": "Ausgaben",
+       "words": "Beleg Quittung Rechnung bezahlt Foto Kassenbon Auslage",
+       "perm": "ausgaben",
+       "boost": 1
+      },
+      {
+       "label": "Kassensturz (Kasse zählen)",
+       "page": "bh-kasse",
+       "btn": "Kassensturz",
+       "kind": "aktion",
+       "in": "Kassenbuch",
+       "words": "zählen Bargeld Kasse Bestand Differenz Zählprotokoll",
+       "perm": "ausgaben",
+       "boost": 1
+      },
+      {
+       "label": "Geldtransit zwischen Kasse und Bank",
+       "page": "bh-kasse",
+       "btn": "Geldtransit",
+       "kind": "aktion",
+       "in": "Kassenbuch",
+       "words": "einzahlen abheben Wechselgeld Bank Kasse Umbuchung",
+       "perm": "ausgaben"
+      },
+      {
+       "label": "Einnahmen-Überschuss-Rechnung (EÜR)",
+       "page": "bh-euer",
+       "kind": "aktion",
+       "in": "EÜR",
+       "words": "Auswertung Jahresabschluss Sphäre Überschuss Kassenprüfung Freigrenze",
+       "perm": [
+        "ausgaben",
+        "kassenpruefung"
+       ]
+      },
+      {
+       "label": "Ausgaben: Nummernkreis und Vorsteuer",
+       "page": "bh-einstellungen",
+       "card": "Ausgaben",
+       "in": "Einstellungen",
+       "words": "Vorsteuer Nummernkreis brutto netto",
+       "perm": "ausgaben"
+      },
+      {
+       "label": "Ausgabearten",
+       "page": "bh-einstellungen",
+       "card": "Ausgabearten",
+       "in": "Einstellungen",
+       "words": "Kategorie Ausgabe Art Sphäre",
+       "perm": "ausgaben"
+      },
+      {
+       "label": "Kassen (Anfangsbestand, Hauptkasse)",
+       "page": "bh-einstellungen",
+       "card": "Kassen",
+       "in": "Einstellungen",
+       "words": "Kasse Thekenkasse Turnierkasse Anfangsbestand Bargeld",
+       "perm": "ausgaben"
+      }
+     ]
+    ]
+   ]
+  }
+ ]
+}

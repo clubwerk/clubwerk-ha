@@ -15139,6 +15139,13 @@
   "Zusage zurückziehen": "Withdraw reply",
   "Zusage zurückziehen bei {0}, {1}": "Withdraw reply to {0}, {1}",
   "Zusage zurückziehen?": "Withdraw reply?",
-  "Zusagen je Mitglied und Tag": "Replies per member and day"
+  "Zusagen je Mitglied und Tag": "Replies per member and day",
+  "Bitte die Verbindung prüfen und es erneut versuchen.": "Please check the connection and try again.",
+  "Clubwerk wurde aktualisiert": "Clubwerk has been updated",
+  "Clubwerk wurde aktualisiert – bitte die Seite neu laden.": "Clubwerk has been updated – please reload the page.",
+  "Diese Seite gehört zur neuen Version. Bitte die Verwaltung neu laden.": "This page belongs to the new version. Please reload the administration.",
+  "Neu laden": "Reload",
+  "Seite konnte nicht geladen werden": "The page could not be loaded",
+  "Seite nicht gefunden.": "Page not found."
  }
 }

@@ -29,6 +29,7 @@ const plugins = require('./plugins');
 require('./geheim');   // legt die Tabelle der Geheimnisse an – früh laden wie bisher
 const APP_VERSION = require('../package.json').version;
 const versioniert = require('./versioniert');
+const vorgepackt = require('./vorgepackt');
 const { seedIfEmpty } = require('./seed');
 
 const PORT = Number(process.env.PORT || 3100);
@@ -157,7 +158,7 @@ const { clubColor } = require('./db');
 const { normIp } = require('./security');
 
 const isDemo = () => getSetting('demo_mode', '') === '1';
-const { checkLogo, clubColor2, iconKey, logoInfo, logoUrl, TABLET_THEMES, tabletTheme } = require('./logo')({
+const { branding, checkLogo, clubColor2, iconKey, logoInfo, logoUrl, TABLET_THEMES, tabletTheme } = require('./logo')({
   app, isDemo
 });
 
@@ -199,19 +200,39 @@ app.use('/app', (req, res) => res.status(404).end());   // Mitglieder-App nur ü
 // Seiten der Erweiterungen binden die gemeinsamen Stile relativ ein („style.css“) – am Tablet liegen sie zwei Ebenen höher
 app.get(/^\/x\/[a-z0-9-]+\/((style|kit|theme)\.css|theme-init\.js)$/, (req, res) => res.redirect(302, '../../' + req.path.split('/').pop()));   // theme-init.js: Beregnung bindet es relativ ein (eigene Webapp) – am Tablet fehlte es (404, 02.11.2026)
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
-/* Seiten und Stile mit Version ausliefern: Kern-Dateien bekommen „?v=<Version>“ (src/versioniert.js), versionierte Abrufe
-   werden ein Jahr unveränderlich gehalten – Tablet und Verwaltung fragen so nicht mehr bei jedem Seitenwechsel nach */
+/* Seiten, Skripte und Stile mit Version ausliefern: Kern-Dateien bekommen „?v=<Version>“ (src/versioniert.js), versionierte Abrufe
+   werden ein Jahr unveränderlich gehalten – Tablet und Verwaltung fragen so nicht mehr bei jedem Seitenwechsel nach. Alles vorgepackt (src/vorgepackt.js). */
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const js = /^\/([\w-]+)\.js$/.exec(req.path);
+  if (js) {
+    const f = path.join(PUBLIC_DIR, js[1] + '.js');
+    if (!fs.existsSync(f)) return next();
+    return vorgepackt.datei(req, res, f, 'application/javascript', versioniert.passt(req) ? versioniert.IMMUTABLE : 'no-cache');
+  }
   const m = req.path === '/' ? ['', 'index', 'html'] : /^\/([\w-]+)(?:\.(html|css))?$/.exec(req.path);
   if (!m) return next();
   const istCss = m[2] === 'css';
-  if (istCss ? !versioniert.passt(req) || m[1] === 'theme' : m[2] !== 'html' && m[1] !== 'index' && !/^(start|verwaltung|link|admin)$/.test(m[1] || '')) return next();
+  if (istCss ? m[1] === 'theme' : m[2] !== 'html' && m[1] !== 'index' && !/^(start|verwaltung|link|admin)$/.test(m[1] || '')) return next();
   const f = path.join(PUBLIC_DIR, m[1] + (istCss ? '.css' : '.html'));
   if (!fs.existsSync(f)) return next();
-  res.setHeader('Cache-Control', istCss ? versioniert.IMMUTABLE : 'no-cache');
-  res.type(istCss ? 'css' : 'html').send(versioniert.umgeschrieben(f, istCss ? versioniert.css : versioniert.html));
+  if (istCss && !versioniert.passt(req)) return vorgepackt.datei(req, res, f, 'css', 'no-cache');
+  let text = versioniert.umgeschrieben(f, istCss ? versioniert.css : versioniert.html);
+  if (m[1] === 'admin') text = ladegeruest(req, text);
+  vorgepackt.senden(req, res, f + (text.includes('class="cw-an"') ? '#an' : ''), text, istCss ? 'css' : 'html', istCss ? versioniert.IMMUTABLE : 'no-cache');   // angemeldet/abgemeldet je eine gepackte Fassung
 });
+/** Lade-Gerüst der Verwaltung (admin.html, #ladegeruest): Wer angemeldet ist, sieht gleich beim ersten Bild die Kopfzeile bzw. Seitenleiste mit
+ *  Vereinsname und Logo in denselben Maßen wie die fertige Verwaltung (ohne Kreisel, ohne Schleier) – statt einer weißen Seite, bis alle Skripte geladen sind.
+ *  Ohne Anmeldung bleibt es aus (dort folgt die Anmeldung). */
+function ladegeruest(req, text) {
+  if (!auth.adminConfigured() || !auth.currentUser(req)) return text;
+  const { esc } = require('./util'), b = branding();
+  const name = String(b.clubName || '').replace(/\be\.\s+V\./g, 'e.\u00a0V.');
+  const ini = String(b.clubName || '?').split(/[\s,]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  // Ersatz als Funktion: im Ersatztext stünden „$'“ und „$`“ (z. B. im Vereinsnamen) für Teile der Seite
+  return text.replace('<html lang="de">', '<html lang="de" class="cw-an">')
+    .replace('<!--cw:logo-->', () => (b.logo ? `<img src="${esc(b.logo)}" alt="">` : `<span>${esc(ini)}</span>`)).replace('<!--cw:verein-->', () => esc(name));
+}
 app.use(express.static(PUBLIC_DIR, {
   extensions: ['html'],
   setHeaders: (res, file) => {
@@ -433,7 +454,9 @@ app.get('/api/admin/status', (req, res) => {
     languages: auth.adminConfigured() ? undefined : i18n.list().map(l => ({ code: l.code, name: l.name })), language: auth.adminConfigured() ? undefined : i18n.clubLang(),
     demo: auth.adminConfigured() ? undefined : demo.freshDb(db), demoMode: isDemo() || undefined,
     demoInfo: isDemo() && u && u.perms.includes('einstellungen') ? getJsonSetting('demo_info', {}) : undefined,
-    demoCopy: DEMO_KOPIE ? { module: process.env.CW_DEMO_MODUL || '', minutes: Number(process.env.CW_DEMO_MINUTEN || 30) } : undefined });
+    demoCopy: DEMO_KOPIE ? { module: process.env.CW_DEMO_MODUL || '', minutes: Number(process.env.CW_DEMO_MINUTEN || 30) } : undefined,
+    // angemeldet: Module und Vereinsauftritt gleich mit – ein Netz-Umlauf statt drei nacheinander, bevor die Verwaltung steht (planung/verwaltung-handy-tempo.md)
+    ext: u && auth.adminConfigured() && req.query.ext === '1' ? { ...extInfo(), settings: settingsView(u) } : undefined, brand: req.query.ext === '1' ? branding() : undefined });
 });
 
 const pwOk = p => { const n = String(p || '').length; return n >= 8 && n <= 200; };
@@ -733,14 +756,16 @@ const orderSettings = () => Object.fromEntries(Object.entries(ORDER_KEYS).map(([
 /* Suche nach Datensätzen (Strg/⌘ K, siehe src/suche.js) – als POST, damit Suchbegriffe in keiner Adresse stehen; nie im Protokoll */
 admin.post('/suche', (req, res) => res.json(require('./suche').run(req.user, req.body && req.body.q)));
 
-admin.get('/settings', (req, res) => {
-  const p = req.user.perms;   // Bestelldaten (Kundennummer, Adresse, Mail des Lieferanten) nur für „Bestellung“/„Einstellungen“
-  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), clubNameSet: require('./vereinsname').isSet(), lastSettlement: lastSettlement(),
+admin.get('/settings', (req, res) => res.json(settingsView(req.user)));
+/** Grundeinstellungen für die Verwaltung (auch im Start über api/admin/status?ext=1) */
+function settingsView(user) {
+  const p = user.perms;   // Bestelldaten (Kundennummer, Adresse, Mail des Lieferanten) nur für „Bestellung“/„Einstellungen“
+  return { clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), clubNameSet: require('./vereinsname').isSet(), lastSettlement: lastSettlement(),
     order: p.includes('bestellung') || p.includes('einstellungen') ? orderSettings() : undefined, clubColor: clubColor(), clubColor2: clubColor2(), tabletTheme: tabletTheme(), logo: logoUrl(), logoCustom: Boolean((logoInfo() || {}).custom),
     clubStreet: getSetting('club_street', ''), clubCity: getSetting('club_city', ''), clubEmail: getSetting('club_email', ''), clubPhone: getSetting('club_phone', ''), fiscalMonth: require('./geschaeftsjahr').month(),
     topN: topN(), topDays: topDays(), nurAnschreiben: nurAnschreiben(), tabletPw: p.includes('einstellungen') ? { on: gateOn(), since: getSetting('tablet_pw_at') } : undefined, tablet: tabletOn(), tabletChosen: getSetting('tablet_enabled', null) !== null,
-    allowedHosts: p.includes('einstellungen') ? getSetting('allowed_hosts', '') : undefined });
-});
+    allowedHosts: p.includes('einstellungen') ? getSetting('allowed_hosts', '') : undefined };
+}
 /* Weitere Adressen (Namen), unter denen die Verwaltung erreichbar sein soll – z. B. verein.duckdns.org */
 admin.put('/settings/hosts', need('einstellungen'), (req, res) => {
   const list = String((req.body || {}).hosts || '').toLowerCase().split(/[\s,;]+/).map(h => h.trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '')).filter(Boolean);
@@ -1248,6 +1273,20 @@ const { bkCfg, bkHasKey, bkRunning, bkWartet, dropUpload, MB, ownerConfirm, prob
   viaIngress
 });
 
+/* Zahlen an der Seitenleiste und den Reitern der Verwaltung – alle in einer Anfrage (vorher je Zähler eine, nacheinander, Module mit ihrer ganzen „meta“).
+   Kern: offene Gäste-Deckel, unbestätigte Tablet-Konten, Datensicherung („!“ = kein Sicherungspasswort oder seit 7 Tagen keine erfolgreiche Sicherung);
+   Module über den Hook adminBadges(user) → { seite: Anzahl } (prüfen ihre Rechte selbst). Fremd-Module können weiter GK.badges im Browser nutzen. */
+admin.get('/badges', asyncRoute(async (req, res) => {
+  const has = (...p) => p.some(x => req.user.perms.includes(x)), out = {};
+  if (has('veranstaltungen', 'uebernahme', 'abrechnung', 'export') && plugins.isActive('getraenke')) out.veranstaltungen = db.prepare("SELECT COUNT(*) n FROM guest_tabs WHERE status = 'offen'").get().n;
+  if (has('konten')) out.konten = db.prepare("SELECT COUNT(*) n FROM members WHERE deleted = 0 AND kind != 'extern' AND pending = 1").get().n;
+  if (has('einstellungen')) { const ok = getSetting('backup_last_ok', ''); out.sicherung = !bkHasKey() || !ok || Date.now() - Date.parse(ok) > 7 * 24 * 3600000 ? '!' : 0; }
+  for (const p of plugins.withHook('adminBadges')) {
+    try { Object.assign(out, await p.hooks.adminBadges(req.user)); } catch (e) { console.error(`Modul ${p.meta.id}: Zähler nicht lesbar:`, e.message); }
+  }
+  res.json(out);
+}));
+
 /* Neustart: beendet den Prozess, der Watchdog von Home Assistant startet das Add-on neu */
 /* Demo beenden und einrichten: alle Beispieldaten restlos löschen (beim Neustart, src/demo.js) – mit eigenem Passwort bestätigt */
 admin.post('/demo/ende', need('einstellungen'), owner, rateLimit('demoende', 10, 10 * 60000), async (req, res) => {
@@ -1452,13 +1491,20 @@ admin.get('/anleitung/:id/seiten', (req, res) => {
   const f = anleitungDatei(req.params.id, req.query.l, 'json');
   res.json(f ? JSON.parse(fs.readFileSync(f, 'utf8')) : {});
 });
-admin.get('/extensions', (req, res) => {
-  const all = plugins.list();
-  // Jeder Admin bekommt die aktiven Erweiterungen mit Verwaltungsseite (zum Einblenden im Menü); die volle Liste nur mit „Einstellungen“
+/** Was die Verwaltung beim Start über die Module braucht (api/admin/status liefert es nach der Anmeldung gleich mit, api/admin/extensions einzeln):
+ *  ui = aktive Module mit Verwaltungsseite; index = Verzeichnis ihrer Seiten, Suche und Detailansichten (nur mitgelieferte Module, zur Bauzeit erzeugt –
+ *  werkzeuge/verwaltung-index.js). Mit Verzeichnis lädt die Verwaltung das Skript erst beim Öffnen einer Seite des Moduls, ohne sofort wie bisher. */
+function extInfo() {
   const hidden = [];   // Seiten und Funktionen, die ein Modul gerade ausblendet (z. B. Arbeitsstunden abgeschaltet)
   for (const p of plugins.withHook('adminHidden')) { try { hidden.push(...(p.hooks.adminHidden() || [])); } catch (e) { console.error(`Modul ${p.meta.id}: ausgeblendete Seiten nicht lesbar:`, e.message); } }
-  res.json({ navLayout: navLayout(), nurAnschreiben: nurAnschreiben(), hidden, modules: plugins.activeIds(), appModules: require('./memberapp').activeModules().map(([id]) => id), ui: all.filter(p => p.active && p.adminScript).map(p => ({ id: p.id, name: p.name, version: p.version, verwaltung: p.verwaltung, scripts: p.scripts })),
-    all: req.user.perms.includes('einstellungen') || req.user.perms.includes('deinstallieren') ? all.map(p => ({ ...p, demo: !DEMO_KOPIE && demo.withData().includes(p.id) || undefined, anleitung: Boolean(anleitungDatei(p.id, 'de', 'pdf')) || undefined })) : undefined, links: navLinks() });
+  return { navLayout: navLayout(), nurAnschreiben: nurAnschreiben(), hidden, modules: plugins.activeIds(), appModules: require('./memberapp').activeModules().map(([id]) => id),
+    ui: plugins.list().filter(p => p.active && p.adminScript).map(p => ({ id: p.id, name: p.name, version: p.version, verwaltung: p.verwaltung, scripts: p.scripts, index: plugins.adminIndex(p.id) || undefined })),
+    links: navLinks() };
+}
+admin.get('/extensions', (req, res) => {
+  // Jeder Admin bekommt die aktiven Erweiterungen mit Verwaltungsseite (zum Einblenden im Menü); die volle Liste nur mit „Einstellungen“
+  const all = req.user.perms.includes('einstellungen') || req.user.perms.includes('deinstallieren') ? plugins.list() : null;
+  res.json({ ...extInfo(), all: all ? all.map(p => ({ ...p, demo: !DEMO_KOPIE && demo.withData().includes(p.id) || undefined, anleitung: Boolean(anleitungDatei(p.id, 'de', 'pdf')) || undefined })) : undefined });
 });
 /* Übersicht: Kennzahlen und Warnungen der aktiven Module (Hook „overview“) – je Modul höchstens OVERVIEW_TIMEOUT_MS */
 const OVERVIEW_TIMEOUT_MS = 6000;

@@ -1,0 +1,198 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "1.26.3",
+ "varianten": [
+  {
+   "wenn": {},
+   "aufrufe": [
+    [
+     "registerPage",
+     {
+      "key": "spielbetrieb",
+      "title": "Spielbetrieb",
+      "perm": "spielbetrieb",
+      "icon": "pokal",
+      "order": 2.5
+     }
+    ],
+    [
+     "registerHit",
+     "spieltag",
+     {
+      "tab": [
+       "spielbetrieb",
+       "spieltage"
+      ]
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Spielbetrieb: Übersicht (Braucht Aufmerksamkeit)",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "uebersicht"
+       ],
+       "kind": "reiter",
+       "in": "Übersicht",
+       "words": "Rückmeldungen Zusagen Absage Mannschaften Sportwart"
+      },
+      {
+       "label": "Spieltage",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "spieltage"
+       ],
+       "kind": "reiter",
+       "in": "Spieltage",
+       "words": "Spiele Termine Ampel Aufstellung Verfügbarkeit Medenspiele"
+      },
+      {
+       "label": "Spielplan importieren (Spieltage)",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "spieltage"
+       ],
+       "btn": "Spielplan importieren",
+       "kind": "aktion",
+       "in": "Spieltage",
+       "words": "Import nuLiga Medenspiel Termine"
+      },
+      {
+       "label": "Rahmenterminplan",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "spieltage"
+       ],
+       "btn": "Rahmenterminplan",
+       "kind": "aktion",
+       "in": "Spieltage",
+       "words": "Import Termine Saison vorläufig"
+      },
+      {
+       "label": "Spieltag anlegen",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "spieltage"
+       ],
+       "btn": "+ Spieltag",
+       "kind": "aktion",
+       "in": "Spieltage",
+       "words": "Spiel Termin neu"
+      },
+      {
+       "label": "Spieltage als Kalender",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "spieltage"
+       ],
+       "seg": "Kalender",
+       "kind": "aktion",
+       "in": "Spieltage",
+       "words": "Ansicht Jahr Monate Übersicht"
+      },
+      {
+       "label": "Spieltage drucken",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "spieltage"
+       ],
+       "btn": "Drucken",
+       "kind": "aktion",
+       "in": "Spieltage",
+       "words": "Drucken Kalender Liste"
+      },
+      {
+       "label": "Mannschaften",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "mannschaften"
+       ],
+       "kind": "reiter",
+       "in": "Mannschaften",
+       "words": "Mannschaftsführer Stellvertreter Meldeliste Team"
+      },
+      {
+       "label": "Mannschaft anlegen",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "mannschaften"
+       ],
+       "btn": "+ Mannschaft",
+       "kind": "aktion",
+       "in": "Mannschaften",
+       "words": "Mannschaft Team neu"
+      },
+      {
+       "label": "Spieler einer Mannschaft (Meldeliste)",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "mannschaften"
+       ],
+       "btn": "Spieler verwalten",
+       "kind": "aktion",
+       "in": "Mannschaften",
+       "words": "Meldeliste Spieler Gastspieler Aufstellung"
+      },
+      {
+       "label": "Was Spieler in der App sehen",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "einstellungen"
+       ],
+       "card": "Was Spieler in der App sehen",
+       "in": "Einstellungen",
+       "words": "App Aufstellung Handynummer Mannschaftsführer"
+      },
+      {
+       "label": "Aufgaben je Spieltag",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "einstellungen"
+       ],
+       "card": "Aufgaben",
+       "in": "Einstellungen",
+       "words": "Fahrer Kuchen Aufgabe"
+      },
+      {
+       "label": "Erinnerungen & Nachrichten (Spielbetrieb)",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "einstellungen"
+       ],
+       "card": "Erinnerungen & Nachrichten",
+       "in": "Einstellungen",
+       "words": "Push E-Mail erinnern Absage"
+      },
+      {
+       "label": "Einstellungen des Spielbetriebs übertragen",
+       "page": "spielbetrieb",
+       "tab": [
+        "spielbetrieb",
+        "einstellungen"
+       ],
+       "card": "Einstellungen übertragen",
+       "kind": "aktion",
+       "in": "Einstellungen",
+       "words": "Export Import Datei sichern"
+      }
+     ]
+    ]
+   ]
+  }
+ ]
+}

@@ -1,0 +1,235 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "2.20.3",
+ "varianten": [
+  {
+   "wenn": {},
+   "aufrufe": [
+    [
+     "registerDetail",
+     {
+      "key": "dienstplan",
+      "page": "aw-plaene",
+      "back": "Alle Dienstpläne",
+      "perm": "arbeitseinsatz"
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "arbeitseinsatz",
+      "title": "Übersicht",
+      "perm": "arbeitseinsatz",
+      "group": {
+       "key": "arbeitseinsatz",
+       "label": "Dienste & Termine",
+       "icon": "arbeit",
+       "order": 3
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "aw-plaene",
+      "title": "Dienstpläne",
+      "perm": "arbeitseinsatz",
+      "group": {
+       "key": "arbeitseinsatz",
+       "label": "Dienste & Termine",
+       "icon": "arbeit",
+       "order": 3
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "aw-einsaetze",
+      "title": "Einsätze",
+      "perm": "arbeitseinsatz",
+      "group": {
+       "key": "arbeitseinsatz",
+       "label": "Dienste & Termine",
+       "icon": "arbeit",
+       "order": 3
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "aw-aufgaben",
+      "title": "Aufgaben",
+      "perm": "arbeitseinsatz",
+      "group": {
+       "key": "arbeitseinsatz",
+       "label": "Dienste & Termine",
+       "icon": "arbeit",
+       "order": 3
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "aw-stunden",
+      "title": "Stunden",
+      "perm": "arbeitseinsatz",
+      "group": {
+       "key": "arbeitseinsatz",
+       "label": "Dienste & Termine",
+       "icon": "arbeit",
+       "order": 3
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "aw-einstellungen",
+      "title": "Einstellungen",
+      "perm": "arbeitseinsatz",
+      "group": {
+       "key": "arbeitseinsatz",
+       "label": "Dienste & Termine",
+       "icon": "arbeit",
+       "order": 3
+      }
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Dienstplan anlegen",
+       "page": "aw-plaene",
+       "btn": "+ Neuer Dienstplan",
+       "kind": "aktion",
+       "words": "Veranstaltung Schichten Kirmes Turnier"
+      },
+      {
+       "label": "Einsatz oder Thekendienst anlegen",
+       "page": "aw-einsaetze",
+       "btn": "+ Neuer Einsatz",
+       "kind": "aktion",
+       "words": "Arbeitseinsatz Thekendienst Einzeltermin Termin"
+      },
+      {
+       "label": "Termin mit Zu- und Absage anlegen",
+       "page": "aw-einsaetze",
+       "btn": "+ Neuer Einsatz",
+       "kind": "aktion",
+       "words": "Termin Weihnachtsfeier Versammlung Feier Einladung Zusage Absage Antwort Teilnehmerliste"
+      },
+      {
+       "label": "Aufgabe anlegen und zuteilen",
+       "page": "aw-aufgaben",
+       "btn": "+ Neue Aufgabe",
+       "kind": "aktion",
+       "words": "Aufgabe Verantwortlicher Frist erledigt zuteilen Pokale bestellen To-do"
+      },
+      {
+       "label": "Überfällige Aufgaben",
+       "page": "aw-aufgaben",
+       "kind": "aktion",
+       "words": "Aufgaben überfällig offen erledigt Frist"
+      },
+      {
+       "label": "Stunden bestätigen",
+       "page": "aw-stunden",
+       "kind": "aktion",
+       "words": "Arbeitsstunden bestätigen ablehnen freigeben gemeldet"
+      },
+      {
+       "label": "Stunden nachtragen",
+       "page": "aw-stunden",
+       "btn": "Stunden nachtragen",
+       "kind": "aktion",
+       "words": "Arbeitsstunden nachtragen eintragen"
+      },
+      {
+       "label": "Dienstplan als Vorlage kopieren",
+       "page": "aw-plaene",
+       "kind": "aktion",
+       "words": "Vorlage kopieren nächstes Jahr Kirmes"
+      },
+      {
+       "label": "Dienstplan in den Verkauf übernehmen",
+       "page": "aw-plaene",
+       "kind": "aktion",
+       "words": "Veranstaltung Verkauf Getränke"
+      },
+      {
+       "label": "Pflichtstunden einzelner Mitglieder",
+       "page": "arbeitseinsatz",
+       "btn": "Pflichtstunden",
+       "kind": "aktion",
+       "words": "Soll befreien Ausnahme Arbeitsstunden"
+      },
+      {
+       "label": "Arbeitsstunden als Excel",
+       "page": "arbeitseinsatz",
+       "btn": "Excel",
+       "kind": "aktion",
+       "words": "Export Liste"
+      },
+      {
+       "label": "Arbeitsstunden nutzen oder abschalten",
+       "page": "aw-einstellungen",
+       "card": "Arbeitsstunden",
+       "words": "Stunden ausschalten Soll Abrechnung nur Dienste und Termine"
+      },
+      {
+       "label": "Soll der Arbeitsstunden",
+       "page": "aw-einstellungen",
+       "card": "Soll",
+       "feature": "aw-stunden",
+       "words": "Stunden je Mitglied Alter Familien gemeinsam Passive Ehrenmitglieder anteilig Eintritt Austritt"
+      },
+      {
+       "label": "Abrechnung der Arbeitsstunden",
+       "page": "aw-einstellungen",
+       "card": "Abrechnung",
+       "feature": "aw-stunden",
+       "words": "Stundensatz fehlende Stunden Abrechnungsjahr Beitragsjahr Beitragslauf"
+      },
+      {
+       "label": "Stunden am Tablet und in der App",
+       "page": "aw-einstellungen",
+       "card": "Tablet & App",
+       "feature": "aw-stunden",
+       "words": "runden Minuten sofort bestätigt melden Stempeln"
+      },
+      {
+       "label": "Befreite Mitglieder (Dienste & Termine)",
+       "page": "aw-einstellungen",
+       "card": "Befreite Mitglieder",
+       "feature": "aw-stunden",
+       "words": "befreien Ausnahme Vorstand"
+      },
+      {
+       "label": "Erinnerungen und Absagen der Dienste & Termine",
+       "page": "aw-einstellungen",
+       "card": "Benachrichtigungen & Kontakt",
+       "words": "Erinnerung E-Mail Vortag Absagen Kontakt Hinweis fehlende Stunden"
+      },
+      {
+       "label": "Kalender der Homepage (Abo-Link)",
+       "page": "aw-einstellungen",
+       "card": "Kalender der Homepage",
+       "words": "webcal iCal ics Abo Homepage Kalender Termine Vereinskalender"
+      },
+      {
+       "label": "Einstellungen der Dienste & Termine übertragen",
+       "page": "aw-einstellungen",
+       "card": "Einstellungen übertragen",
+       "kind": "aktion",
+       "words": "Export Import Datei"
+      }
+     ]
+    ]
+   ]
+  }
+ ]
+}

@@ -1,0 +1,92 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "1.9.6",
+ "varianten": [
+  {
+   "wenn": {},
+   "aufrufe": [
+    [
+     "registerPage",
+     {
+      "key": "zeit",
+      "title": "Stunden",
+      "perm": "zeiterfassung",
+      "group": {
+       "key": "zeiterfassung",
+       "label": "Zeiterfassung",
+       "icon": "zeit",
+       "order": 4
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "zeit-personal",
+      "title": "Personal",
+      "perm": "zeiterfassung",
+      "group": {
+       "key": "zeiterfassung",
+       "label": "Zeiterfassung",
+       "icon": "zeit",
+       "order": 4
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "zeit-einstellungen",
+      "title": "Einstellungen",
+      "perm": "zeiterfassung",
+      "group": {
+       "key": "zeiterfassung",
+       "label": "Zeiterfassung",
+       "icon": "zeit",
+       "order": 4
+      }
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Personal verwalten (PIN, Stundensatz)",
+       "page": "zeit-personal",
+       "btn": "+ Person",
+       "kind": "aktion",
+       "words": "Mitarbeiter Personal PIN Stundensatz Reinigung Hausmeister Person anlegen"
+      },
+      {
+       "label": "Einsatz nachtragen (Zeiterfassung)",
+       "page": "zeit",
+       "btn": "+ Einsatz nachtragen",
+       "kind": "aktion",
+       "words": "Stunden nachtragen vergessen"
+      },
+      {
+       "label": "Monatsnachweis (PDF)",
+       "page": "zeit",
+       "btn": "Monatsnachweis",
+       "kind": "aktion",
+       "words": "Stunden Nachweis Abrechnung"
+      },
+      {
+       "label": "Stunden als Excel",
+       "page": "zeit",
+       "btn": "Excel",
+       "kind": "aktion",
+       "words": "Stunden Export Tabelle"
+      },
+      {
+       "label": "Monatsnachweis per E-Mail",
+       "page": "zeit-einstellungen",
+       "card": "Monatsnachweis per E-Mail",
+       "words": "Empfänger Kassierer E-Mail Testmail"
+      }
+     ]
+    ]
+   ]
+  }
+ ]
+}

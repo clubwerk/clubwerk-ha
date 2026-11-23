@@ -1,0 +1,317 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "1.12.2",
+ "varianten": [
+  {
+   "wenn": {},
+   "aufrufe": [
+    [
+     "registerPage",
+     {
+      "key": "turniere",
+      "title": "Clubmeisterschaft",
+      "perm": "turniere",
+      "icon": "turnier",
+      "order": 2.7
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "turniertag",
+      "title": "Turniertag",
+      "perm": "turniere",
+      "icon": "turnier",
+      "order": 2.71
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "turnierplaner",
+      "title": "Turnierplaner",
+      "perm": "turniere",
+      "icon": "turnier",
+      "order": 2.72
+     }
+    ],
+    [
+     "registerDetail",
+     {
+      "key": "turnier",
+      "page": "turnierplaner",
+      "back": "Alle Turniere",
+      "perm": "turniere"
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Clubmeisterschaft",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "uebersicht"
+       ],
+       "kind": "reiter",
+       "in": "Übersicht",
+       "words": "Turnier Saison Vereinsmeisterschaft Liga",
+       "boost": 1
+      },
+      {
+       "label": "Neue Saison anlegen",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "uebersicht"
+       ],
+       "btn": "+ Neue Saison",
+       "kind": "aktion",
+       "in": "Übersicht",
+       "words": "Clubmeisterschaft Ligen Fristen Anmeldeschluss"
+      },
+      {
+       "label": "Teilnehmer der Clubmeisterschaft",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "teilnehmer"
+       ],
+       "kind": "reiter",
+       "in": "Teilnehmer",
+       "words": "Anmeldung Liga Spieler einteilen"
+      },
+      {
+       "label": "Spieler eintragen",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "teilnehmer"
+       ],
+       "btn": "+ Spieler",
+       "kind": "aktion",
+       "in": "Teilnehmer",
+       "words": "Clubmeisterschaft Anmeldung von Hand"
+      },
+      {
+       "label": "Gruppen auslosen",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "teilnehmer"
+       ],
+       "card": "Auslosung",
+       "kind": "aktion",
+       "in": "Teilnehmer",
+       "words": "losen Auslosung Gruppen tauschen"
+      },
+      {
+       "label": "Spiele und Ergebnisse",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "spiele"
+       ],
+       "kind": "reiter",
+       "in": "Spiele",
+       "words": "Ergebnis korrigieren kampflos Aufgabe überfällig Erinnerung"
+      },
+      {
+       "label": "Tabellen und Endrunde",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "tabellen"
+       ],
+       "kind": "reiter",
+       "in": "Tabellen",
+       "words": "Gruppe Halbfinale Finale Relegation Clubmeister Aushang drucken"
+      },
+      {
+       "label": "Doppelpartner auslosen",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "teilnehmer"
+       ],
+       "card": "Doppel",
+       "kind": "aktion",
+       "in": "Teilnehmer",
+       "words": "Doppel Partner Paar Gruppen"
+      },
+      {
+       "label": "Einteilung importieren",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "teilnehmer"
+       ],
+       "kind": "aktion",
+       "in": "Teilnehmer › Import (vor der Auslosung)",
+       "words": "Excel CSV Vorsaison Liste"
+      },
+      {
+       "label": "Ehrentafel der Clubmeister",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "ehrentafel"
+       ],
+       "kind": "reiter",
+       "in": "Ehrentafel",
+       "words": "Clubmeister Sieger Jahre Saisonabschluss"
+      },
+      {
+       "label": "Platzbuchung für Turnierspiele",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "einstellungen"
+       ],
+       "card": "Platzbuchung",
+       "in": "Einstellungen",
+       "words": "Dauer Spiel Stunden Platz buchen"
+      },
+      {
+       "label": "Turniertag (LK-Turnier)",
+       "page": "turniertag",
+       "tab": [
+        "turniertag",
+        "zentrale"
+       ],
+       "kind": "reiter",
+       "in": "Zentrale",
+       "words": "LK Turnier nuLiga Turnierzentrale Plätze Warteschlange verteilen",
+       "boost": 1
+      },
+      {
+       "label": "Turnier aus nuLiga importieren",
+       "page": "turniertag",
+       "tab": [
+        "turniertag",
+        "zentrale"
+       ],
+       "btn": "Neu einlesen",
+       "kind": "aktion",
+       "in": "Zentrale",
+       "words": "nuLiga XML CSV Import Meldeliste Nachmeldung"
+      },
+      {
+       "label": "Zeitplan des Turniertags",
+       "page": "turniertag",
+       "tab": [
+        "turniertag",
+        "zeitplan"
+       ],
+       "kind": "reiter",
+       "in": "Zeitplan",
+       "words": "Verzug Uhrzeit Platz Matches nachrutschen"
+      },
+      {
+       "label": "Check-in und Nenngeld",
+       "page": "turniertag",
+       "tab": [
+        "turniertag",
+        "checkin"
+       ],
+       "kind": "reiter",
+       "in": "Check-in",
+       "words": "einchecken abwesend bar digital Kassenbericht QR-Code Spielerseite"
+      },
+      {
+       "label": "Ergebnisliste für nuLiga",
+       "page": "turniertag",
+       "tab": [
+        "turniertag",
+        "ergebnisse"
+       ],
+       "kind": "reiter",
+       "in": "Ergebnisse",
+       "words": "abtippen drucken Runde Konkurrenz"
+      },
+      {
+       "label": "Turnierplätze und Sperre im Buchungssystem",
+       "page": "turniertag",
+       "tab": [
+        "turniertag",
+        "plaetze"
+       ],
+       "card": "Sperre im Buchungssystem",
+       "in": "Plätze",
+       "words": "sperren Halle Platz zuordnen"
+      },
+      {
+       "label": "Löschfrist fremder Spieler",
+       "page": "turniertag",
+       "tab": [
+        "turniertag",
+        "einstellungen"
+       ],
+       "card": "Datenschutz",
+       "in": "Einstellungen",
+       "words": "Datenschutz löschen Turnier Spieler"
+      },
+      {
+       "label": "Dauer je Match und Pause",
+       "page": "turniertag",
+       "tab": [
+        "turniertag",
+        "einstellungen"
+       ],
+       "card": "Zeitplan",
+       "in": "Einstellungen",
+       "words": "Matchdauer Pause Zeitplan"
+      },
+      {
+       "label": "Turnierplaner (Dorfturnier)",
+       "page": "turnierplaner",
+       "tab": [
+        "turnierplaner",
+        "turniere"
+       ],
+       "kind": "reiter",
+       "in": "Turniere",
+       "words": "Dorfturnier Fußball Tennis Gruppen Endrunde K.-o. Schleifchen jeder gegen jeden Spielplan Monitor",
+       "boost": 1
+      },
+      {
+       "label": "Neues Turnier anlegen",
+       "page": "turnierplaner",
+       "tab": [
+        "turnierplaner",
+        "turniere"
+       ],
+       "btn": "+ Neues Turnier",
+       "kind": "aktion",
+       "in": "Turniere",
+       "words": "Dorfturnier Turnierplaner anlegen"
+      },
+      {
+       "label": "Ehrentafel der Turniere",
+       "page": "turnierplaner",
+       "tab": [
+        "turnierplaner",
+        "ehrentafel"
+       ],
+       "kind": "reiter",
+       "in": "Ehrentafel",
+       "words": "Sieger Dorfturnier Jahre"
+      },
+      {
+       "label": "Einstellungen der Turniere übertragen",
+       "page": "turniere",
+       "tab": [
+        "turniere",
+        "einstellungen"
+       ],
+       "card": "Einstellungen übertragen",
+       "in": "Einstellungen",
+       "words": "Export Import sichern Datei"
+      }
+     ]
+    ]
+   ]
+  }
+ ]
+}

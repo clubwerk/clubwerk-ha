@@ -1,0 +1,115 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "1.11.8",
+ "varianten": [
+  {
+   "wenn": {},
+   "aufrufe": [
+    [
+     "registerPage",
+     {
+      "key": "maengel",
+      "title": "Mängel",
+      "perm": "maengel",
+      "icon": "maengel",
+      "order": 6.5
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Offene Mängel",
+       "page": "maengel",
+       "tab": [
+        "maengel",
+        "offen"
+       ],
+       "kind": "reiter",
+       "in": "Offen",
+       "words": "Meldungen defekt kaputt Schaden"
+      },
+      {
+       "label": "Erledigte Mängel",
+       "page": "maengel",
+       "tab": [
+        "maengel",
+        "erledigt"
+       ],
+       "kind": "reiter",
+       "in": "Erledigt",
+       "words": "Meldungen abgeschlossen abgelehnt"
+      },
+      {
+       "label": "Orte für Mängel",
+       "page": "maengel",
+       "tab": [
+        "maengel",
+        "einstellungen"
+       ],
+       "card": "Orte",
+       "in": "Einstellungen",
+       "words": "Ort Platz Clubhaus Parkplatz"
+      },
+      {
+       "label": "Ort hinzufügen",
+       "page": "maengel",
+       "tab": [
+        "maengel",
+        "einstellungen"
+       ],
+       "btn": "+ Ort",
+       "kind": "aktion",
+       "in": "Einstellungen › Orte",
+       "words": "Ort neu Liste"
+      },
+      {
+       "label": "Benachrichtigungen bei neuen Mängeln",
+       "page": "maengel",
+       "tab": [
+        "maengel",
+        "einstellungen"
+       ],
+       "card": "Benachrichtigungen",
+       "in": "Einstellungen",
+       "words": "E-Mail Push Meldung"
+      },
+      {
+       "label": "E-Mail-Empfänger für Mängel",
+       "page": "maengel",
+       "tab": [
+        "maengel",
+        "einstellungen"
+       ],
+       "field": "mgNotify",
+       "in": "Einstellungen › Benachrichtigungen",
+       "words": "E-Mail Platzwart Hausmeister"
+      },
+      {
+       "label": "Aufbewahrung erledigter Mängel",
+       "page": "maengel",
+       "tab": [
+        "maengel",
+        "einstellungen"
+       ],
+       "card": "Aufbewahrung",
+       "in": "Einstellungen",
+       "words": "löschen aufbewahren Frist"
+      },
+      {
+       "label": "Einstellungen der Mängel übertragen",
+       "page": "maengel",
+       "tab": [
+        "maengel",
+        "einstellungen"
+       ],
+       "card": "Einstellungen übertragen",
+       "in": "Einstellungen",
+       "words": "Export Import sichern Datei"
+      }
+     ]
+    ]
+   ]
+  }
+ ]
+}

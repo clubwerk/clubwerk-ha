@@ -1,0 +1,343 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "1.33.1",
+ "varianten": [
+  {
+   "wenn": {},
+   "aufrufe": [
+    [
+     "registerPage",
+     {
+      "key": "bk-belegung",
+      "title": "Belegung",
+      "perm": [
+       "buchung",
+       "buchung_buchen",
+       "buchung_stornieren",
+       "buchung_serien",
+       "buchung_einstellungen"
+      ],
+      "group": {
+       "key": "buchung",
+       "label": "Plätze",
+       "icon": "kalender",
+       "order": 2
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bk-serien",
+      "title": "Serien & Sperren",
+      "perm": [
+       "buchung",
+       "buchung_buchen",
+       "buchung_stornieren",
+       "buchung_serien",
+       "buchung_einstellungen"
+      ],
+      "group": {
+       "key": "buchung",
+       "label": "Plätze",
+       "icon": "kalender",
+       "order": 2
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bk-protokoll",
+      "title": "Buchungen",
+      "perm": [
+       "buchung",
+       "buchung_buchen",
+       "buchung_stornieren",
+       "buchung_serien",
+       "buchung_einstellungen"
+      ],
+      "group": {
+       "key": "buchung",
+       "label": "Plätze",
+       "icon": "kalender",
+       "order": 2
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bk-gebuehren",
+      "title": "Gebühren",
+      "perm": [
+       "buchung",
+       "buchung_buchen",
+       "buchung_stornieren",
+       "buchung_serien",
+       "buchung_einstellungen"
+      ],
+      "group": {
+       "key": "buchung",
+       "label": "Plätze",
+       "icon": "kalender",
+       "order": 2
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bk-auswertung",
+      "title": "Auswertung",
+      "perm": [
+       "buchung",
+       "buchung_buchen",
+       "buchung_stornieren",
+       "buchung_serien",
+       "buchung_einstellungen"
+      ],
+      "group": {
+       "key": "buchung",
+       "label": "Plätze",
+       "icon": "kalender",
+       "order": 2
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bk-mitspieler",
+      "title": "Mitspielersuche",
+      "perm": [
+       "buchung",
+       "buchung_buchen",
+       "buchung_stornieren",
+       "buchung_serien",
+       "buchung_einstellungen"
+      ],
+      "group": {
+       "key": "buchung",
+       "label": "Plätze",
+       "icon": "kalender",
+       "order": 2
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bk-plaetze",
+      "title": "Plätze & Geräte",
+      "perm": [
+       "buchung",
+       "buchung_buchen",
+       "buchung_stornieren",
+       "buchung_serien",
+       "buchung_einstellungen"
+      ],
+      "group": {
+       "key": "buchung",
+       "label": "Plätze",
+       "icon": "kalender",
+       "order": 2
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bk-einstellungen",
+      "title": "Einstellungen",
+      "perm": "buchung_einstellungen",
+      "group": {
+       "key": "buchung",
+       "label": "Plätze",
+       "icon": "kalender",
+       "order": 2
+      }
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Buchung für ein Mitglied eintragen",
+       "page": "bk-belegung",
+       "btn": "+ Buchung",
+       "perm": "buchung_buchen",
+       "kind": "aktion",
+       "in": "Belegung",
+       "words": "Platz buchen reservieren"
+      },
+      {
+       "label": "Sperre eintragen",
+       "page": "bk-belegung",
+       "btn": "+ Sperre",
+       "perm": "buchung_serien",
+       "kind": "aktion",
+       "in": "Belegung",
+       "words": "Platzsperre gesperrt"
+      },
+      {
+       "label": "Belegung nach Woche",
+       "page": "bk-belegung",
+       "seg": "Woche",
+       "kind": "aktion",
+       "in": "Belegung",
+       "words": "Ansicht Wochenplan Tag"
+      },
+      {
+       "label": "Serie anlegen (z. B. Training)",
+       "page": "bk-serien",
+       "btn": "+ Serie",
+       "perm": "buchung_serien",
+       "kind": "aktion",
+       "in": "Serien & Sperren",
+       "words": "Training wöchentlich Mannschaft Serienbuchung"
+      },
+      {
+       "label": "Sperre über einen Zeitraum",
+       "page": "bk-serien",
+       "btn": "+ Sperre über Zeitraum",
+       "perm": "buchung_serien",
+       "kind": "aktion",
+       "in": "Serien & Sperren",
+       "words": "Platzsperre Winter gesperrt"
+      },
+      {
+       "label": "Spielplan importieren (Plätze buchen)",
+       "page": "bk-serien",
+       "btn": "Spielplan importieren",
+       "perm": "buchung_serien",
+       "kind": "aktion",
+       "in": "Serien & Sperren",
+       "words": "Import nuLiga Medenspiel Heimspiel"
+      },
+      {
+       "label": "Buchungen als Excel-Liste",
+       "page": "bk-protokoll",
+       "btn": "Excel",
+       "kind": "aktion",
+       "in": "Buchungen",
+       "words": "Export Liste Protokoll CSV"
+      },
+      {
+       "label": "Gebühr buchen",
+       "page": "bk-gebuehren",
+       "btn": "+ Gebühr buchen",
+       "perm": "buchung_buchen",
+       "kind": "aktion",
+       "in": "Gebühren",
+       "words": "Gastgebühr Platzgebühr stornieren"
+      },
+      {
+       "label": "Mitspielersuche (Gesuche, gemeldet, sperren)",
+       "page": "bk-mitspieler",
+       "kind": "aktion",
+       "in": "Mitspielersuche",
+       "words": "Mitspieler suchen Gesuch melden sperren Spielpartner Doppel Einzel"
+      },
+      {
+       "label": "Platz anlegen",
+       "page": "bk-plaetze",
+       "btn": "+ Platz",
+       "perm": "buchung_einstellungen",
+       "kind": "aktion",
+       "in": "Plätze & Geräte",
+       "words": "Platz Court Halle"
+      },
+      {
+       "label": "Gerät anlegen (z. B. Ballmaschine)",
+       "page": "bk-plaetze",
+       "btn": "+ Gerät",
+       "perm": "buchung_einstellungen",
+       "kind": "aktion",
+       "in": "Plätze & Geräte",
+       "words": "Gerät Ballmaschine"
+      },
+      {
+       "label": "Buchen (Vorlauf, Kontingent, Stornieren)",
+       "page": "bk-einstellungen",
+       "card": "Buchen",
+       "in": "Einstellungen",
+       "words": "Vorlauf Kontingent offene Buchungen Storno Platz Gerät"
+      },
+      {
+       "label": "Mitspieler & Gäste (Gastgebühr)",
+       "page": "bk-einstellungen",
+       "card": "Mitspieler",
+       "in": "Einstellungen",
+       "words": "Gäste Gastgebühr Mitspieler E-Mail Kontingent"
+      },
+      {
+       "label": "Warteliste",
+       "page": "bk-einstellungen",
+       "card": "Warteliste",
+       "in": "Einstellungen",
+       "words": "vormerken belegt frei E-Mail"
+      },
+      {
+       "label": "Wer darf Plätze buchen?",
+       "page": "bk-einstellungen",
+       "card": "Wer darf buchen",
+       "in": "Einstellungen",
+       "words": "Status Beitragsart passiv Fördermitglied buchen"
+      },
+      {
+       "label": "Sonderrechte (z. B. Trainer)",
+       "page": "bk-einstellungen",
+       "card": "Wer darf buchen",
+       "btn": "+ Sonderrecht",
+       "perm": "buchung_einstellungen",
+       "kind": "aktion",
+       "in": "Einstellungen",
+       "words": "Trainer Serien für andere buchen App Buchungsarten"
+      },
+      {
+       "label": "Buchungsart anlegen",
+       "page": "bk-einstellungen",
+       "card": "Buchungsarten",
+       "btn": "+ Neue Buchungsart",
+       "perm": "buchung_einstellungen",
+       "kind": "aktion",
+       "in": "Einstellungen",
+       "words": "Training Medenspiel Kurs Turnier Farbe Label",
+       "boost": 1
+      },
+      {
+       "label": "Buchungsarten",
+       "page": "bk-einstellungen",
+       "card": "Buchungsarten",
+       "in": "Einstellungen",
+       "words": "Training Medenspiel Farbe Vereinstermin Label"
+      },
+      {
+       "label": "Tablet & Mitglieder-App (Namen, Jetzt auf der Anlage)",
+       "page": "bk-einstellungen",
+       "card": "Tablet & Mitglieder-App",
+       "in": "Einstellungen",
+       "words": "Tablet buchen Namen sichtbar Jetzt auf der Anlage unterwegs Tunnel Internet"
+      },
+      {
+       "label": "Platzordnung",
+       "page": "bk-einstellungen",
+       "card": "Platzordnung",
+       "in": "Einstellungen",
+       "words": "Regeln Hinweis Tennisschuhe"
+      },
+      {
+       "label": "Einstellungen der Plätze übertragen",
+       "page": "bk-einstellungen",
+       "card": "Einstellungen übertragen",
+       "kind": "aktion",
+       "in": "Einstellungen",
+       "words": "Export Import Datei"
+      }
+     ]
+    ]
+   ]
+  }
+ ]
+}

@@ -1,0 +1,207 @@
+{
+ "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
+ "version": "1.14.3",
+ "varianten": [
+  {
+   "wenn": {},
+   "aufrufe": [
+    [
+     "registerPage",
+     {
+      "key": "zugang",
+      "title": "Bedienen",
+      "perm": [
+       "zugang",
+       "zugang_bedienen"
+      ],
+      "group": {
+       "key": "zugang",
+       "label": "Zugang",
+       "icon": "zugang",
+       "order": 6
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "zugang-freischaltungen",
+      "title": "Freischaltungen",
+      "perm": "zugang",
+      "group": {
+       "key": "zugang",
+       "label": "Zugang",
+       "icon": "zugang",
+       "order": 6
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "zugang-tueren",
+      "title": "Türen",
+      "perm": "zugang",
+      "group": {
+       "key": "zugang",
+       "label": "Zugang",
+       "icon": "zugang",
+       "order": 6
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "zugang-profile",
+      "title": "Zeitprofile",
+      "perm": "zugang",
+      "group": {
+       "key": "zugang",
+       "label": "Zugang",
+       "icon": "zugang",
+       "order": 6
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "zugang-sperrtage",
+      "title": "Sperrtage",
+      "perm": "zugang",
+      "group": {
+       "key": "zugang",
+       "label": "Zugang",
+       "icon": "zugang",
+       "order": 6
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "zugang-verlauf",
+      "title": "Verlauf",
+      "perm": "zugang",
+      "group": {
+       "key": "zugang",
+       "label": "Zugang",
+       "icon": "zugang",
+       "order": 6
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "zugang-einstellungen",
+      "title": "Einstellungen",
+      "perm": "zugang",
+      "group": {
+       "key": "zugang",
+       "label": "Zugang",
+       "icon": "zugang",
+       "order": 6
+      }
+     }
+    ],
+    [
+     "registerSearch",
+     [
+      {
+       "label": "Tür öffnen",
+       "page": "zugang",
+       "card": "Türen",
+       "kind": "aktion",
+       "words": "öffnen Fernöffnung Schloss Fernbedienung"
+      },
+      {
+       "label": "Sofort alle Türen sperren",
+       "page": "zugang",
+       "btn": "Sofort alle sperren",
+       "kind": "aktion",
+       "words": "Notfall sperren"
+      },
+      {
+       "label": "Mitglied für Türen freischalten",
+       "page": "zugang-freischaltungen",
+       "perm": "zugang",
+       "btn": "+ Mitglied freischalten",
+       "kind": "aktion",
+       "words": "Schlüssel QR-Code Freischaltung"
+      },
+      {
+       "label": "Zeitprofil, gültig bis, unterwegs oder Sperre eines Mitglieds",
+       "page": "zugang-freischaltungen",
+       "perm": "zugang",
+       "kind": "aktion",
+       "words": "Freischaltung Zeitprofil gültig bis unterwegs sperren entziehen Zugang"
+      },
+      {
+       "label": "Tür, Tor oder Schloss anlegen",
+       "page": "zugang-tueren",
+       "perm": "zugang",
+       "btn": "+ Tür",
+       "kind": "aktion",
+       "words": "Schloss Tor Hersteller Nuki Türkontakt"
+      },
+      {
+       "label": "Zeitprofil anlegen (Öffnungszeiten)",
+       "page": "zugang-profile",
+       "perm": "zugang",
+       "btn": "+ Zeitprofil",
+       "kind": "aktion",
+       "words": "Öffnungszeiten Zeiten Profil Standardprofil"
+      },
+      {
+       "label": "Sperrzeitraum eintragen (Zugang)",
+       "page": "zugang-sperrtage",
+       "perm": "zugang",
+       "btn": "+ Sperrzeitraum",
+       "kind": "aktion",
+       "words": "Sperrtage Ferien geschlossen gesperrt Platzsanierung"
+      },
+      {
+       "label": "Zugangsverlauf als Excel",
+       "page": "zugang-verlauf",
+       "perm": "zugang",
+       "btn": "Excel",
+       "kind": "aktion",
+       "words": "Verlauf Protokoll Excel Türprotokoll"
+      },
+      {
+       "label": "Hersteller der Türen (Anbindung)",
+       "page": "zugang-einstellungen",
+       "perm": "zugang",
+       "card": "Anbindung",
+       "words": "Hersteller Home Assistant Nuki Matter Yale tedee Shelly"
+      },
+      {
+       "label": "Öffnen nur aus dem Vereinsnetz (Zugang)",
+       "page": "zugang-einstellungen",
+       "perm": "zugang",
+       "card": "Sicherheit",
+       "words": "WLAN Vereinsnetz Internet Sicherheit"
+      },
+      {
+       "label": "Störung und offene Tür melden",
+       "page": "zugang-einstellungen",
+       "perm": "zugang",
+       "card": "Benachrichtigungen",
+       "words": "Benachrichtigung Störung Tür offen Handy notify"
+      },
+      {
+       "label": "Einstellungen des Zugangs übertragen",
+       "page": "zugang-einstellungen",
+       "perm": "zugang",
+       "card": "Einstellungen übertragen",
+       "kind": "aktion",
+       "words": "Export Import Datei"
+      }
+     ]
+    ]
+   ]
+  }
+ ]
+}

@@ -1,5 +1,12 @@
 # Änderungen
 
+## 2026.11.59
+
+### Verbessert
+- Die Verwaltung öffnet am Handy deutlich schneller: Statt einer weißen Seite erscheinen sofort Kopfzeile bzw. Seitenleiste mit Vereinsname und Logo, die Seiten eines Moduls laden erst beim ersten Öffnen, und die Zahlen an der Seitenleiste kommen in einer einzigen Abfrage.
+- Skripte, Stile und Seiten werden kleiner übertragen.
+- Lässt sich eine Seite wegen fehlender Verbindung nicht laden, erscheint ein Hinweis mit „Erneut versuchen“; wurde Clubwerk inzwischen aktualisiert, ein Hinweis mit „Neu laden“.
+
 ## 2026.11.58
 
 ### Neu

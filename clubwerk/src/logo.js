@@ -95,9 +95,11 @@ module.exports = function logoRouten(h) {
       icons: [{ src: 'vereinsicon.png', sizes: '512x512', type: 'image/png' }, { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' },
         { src: 'vereinsicon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] }));
   });
-  app.get('/api/branding', (req, res) => {
+  /** Name, Farbe, Logo des Vereins (auch in api/admin/status für den Start der Verwaltung) */
+  const branding = () => {
     const l = logoInfo();
-    res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), tabletTheme: tabletTheme(), demo: isDemo() || undefined, iconNeeded: Boolean(l) && (!iconFresh() || !maskFresh() || (l.type === 'svg' && getSetting('club_logo_png_ver', '') !== getSetting('club_logo_ver', 'std'))) });
-  });
-  return { checkLogo, clubColor2, iconKey, logoInfo, logoUrl, TABLET_THEMES, tabletTheme };
+    return { clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), tabletTheme: tabletTheme(), demo: isDemo() || undefined, iconNeeded: Boolean(l) && (!iconFresh() || !maskFresh() || (l.type === 'svg' && getSetting('club_logo_png_ver', '') !== getSetting('club_logo_ver', 'std'))) };
+  };
+  app.get('/api/branding', (req, res) => res.json(branding()));
+  return { branding, checkLogo, clubColor2, iconKey, logoInfo, logoUrl, TABLET_THEMES, tabletTheme };
 };

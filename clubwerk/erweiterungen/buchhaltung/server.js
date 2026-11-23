@@ -564,6 +564,12 @@ function activate(ctx) {
   ctx.hooks.setupSteps = () => [
     { id: 'rechnungen', title: 'Rechnungen und Steuer', text: 'Nummernkreis, Zahlungsziel und Angaben zum Finanzamt für Rechnungen und Spendenquittungen.', page: 'bh-einstellungen', card: ['Rechnungen', 'Steuer & Finanzamt'] },
   ];
+  /** Zahl an der Seitenleiste der Verwaltung (api/admin/badges): überfällige Rechnungen (Stand wie in der Übersicht des Moduls) */
+  ctx.hooks.adminBadges = async user => {
+    if (!user.perms.includes('buchhaltung')) return {};
+    await syncMemberInvoices();
+    return { 'bh-rechnungen': db.prepare("SELECT COUNT(*) n FROM bh_invoice WHERE status = 'offen' AND due_date < ?").get(today()).n };
+  };
   ctx.hooks.overview = async user => {
     await syncMemberInvoices();
     const open = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(gross),0) c FROM bh_invoice WHERE status = 'offen'").get();

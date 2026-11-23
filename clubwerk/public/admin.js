@@ -30,8 +30,8 @@
     if (r.status === 401 && !data.pwWrong && !url.startsWith('login') && !url.startsWith('setup')) { showLogin(); throw new Error(data.error || 'Bitte anmelden.'); }
     if (r.status === 423 && data.vaultLocked) throw Object.assign(new Error(data.error), { status: 423, vaultLocked: true });
     if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status, odd: data.odd, links: data.links, needPassword: Boolean(data.needPassword) });
-    // Jede Änderung frischt die Zähler an Reitern und Menü auf (zentral statt an jeder Stelle eines Moduls; gebündelt, falls mehrere Aufrufe kurz nacheinander kommen)
-    if (method !== 'GET' && !/^(login|logout|setup)/.test(url)) { clearTimeout(api.zaehler); api.zaehler = setTimeout(() => refreshBadges().catch(() => { /* Zähler sind nur Anzeige */ }), 300); }
+    // Jede Änderung frischt die Zähler an Reitern und Menü auf (zentral statt an jeder Stelle eines Moduls; gebündelt, falls mehrere Aufrufe kurz nacheinander kommen). Suche und GoBD-Prüfung sind nur Abfragen per POST.
+    if (method !== 'GET' && !/^(login|logout|setup|suche$|gobd\/pruefen$)/.test(url)) { clearTimeout(api.zaehler); api.zaehler = setTimeout(() => refreshBadges().catch(() => { /* Zähler sind nur Anzeige */ }), 300); }
     return data;
   }
 
@@ -54,7 +54,7 @@
     }
   }
   /** Fehler beim Aufbau einer Seite: Tresor verschlossen → Hinweis mit „Öffnen“ statt nur einer Meldung */
-  const pageFail = e => (e && e.vaultLocked ? vaultLockedPage() : fail(e));
+  const pageFail = e => (e && e.vaultLocked ? vaultLockedPage() : e && e.modulFehlt ? modulFehltPage(e) : fail(e));
   /** Doppelklick-Schutz: Knopf sperren, solange fn() läuft (Beschriftung bleibt), danach wieder freigeben – auch bei Fehlern.
    *  Verwendung: $('xOk').onclick = () => busy($('xOk'), async () => { … }); */
   async function busy(btn, fn) {
@@ -366,49 +366,116 @@
   let SCHEME = 'http';   // Schema der direkten Adressen (Tablet, Mitglieder-App, Beregnung)
   const AFTER_SHELL = [];   // nach dem Aufbau der Verwaltung (GK.afterShell), z. B. der Einrichtungs-Assistent beim ersten Start
   let tabletPwMissing = false, clubNetsMissing = false, tabletOnUI = true;   // tabletOnUI: Tablet im Vereinsheim eingeschaltet (Einstellungen › Tablet)
+  let startStatus = null, startSettings = null;   // Antwort von api/admin/status beim letzten Start (Demo-Hinweis u. a.)
   async function start() {
-    const [s] = await Promise.all([fetch('api/admin/status').then(r => r.json()), loadBrand()]);
+    // Anfrage schon aus dem Kopf der Seite (theme-init.js, data-start): Anmeldestand, Module und Vereinsauftritt in einem Umlauf
+    const pre = window.CW_START; window.CW_START = null;
+    const s = (pre && await pre.catch(() => null)) || await fetch('api/admin/status?ext=1').then(r => r.json());
+    if (s.brand) brand = s.brand; else await loadBrand();
     permLabels = s.permLabels || {};
     SCHEME = s.https ? 'https' : 'http'; tabletOnUI = s.tablet !== false;
     if (!s.configured) return showSetup(s.modules || [], s);
     if (!s.loggedIn) return showLogin();
+    startStatus = s;
     me = s.user; tabletPwMissing = Boolean(s.tabletPwMissing); clubNetsMissing = Boolean(s.clubNetsMissing);
-    await loadExtensions().catch(() => {});
+    startSettings = s.ext && s.ext.settings;   // Grundeinstellungen kamen mit (spart api/admin/settings beim Aufbau)
+    await loadExtensions(s.ext).catch(() => {});
     showShell();
     AFTER_SHELL.forEach(fn => Promise.resolve().then(fn).catch(e => console.warn(e)));
     if (brand.iconNeeded) makeAppIcon().catch(e => console.warn('App-Symbol:', e));
   }
 
-  /* ---------- Erweiterungen: Verwaltungsseiten der aktiven Erweiterungen nachladen ---------- */
+  /* ---------- Erweiterungen: Verwaltungsseiten der aktiven Erweiterungen ----------
+     Mitgelieferte Module bringen ein Verzeichnis ihrer Anmeldungen mit (verwaltung-index.json, zur Bauzeit erzeugt): daraus entstehen Seitenleiste, Reiter,
+     Suche und Detail-Arten sofort, das Skript lädt erst beim Öffnen einer seiner Seiten (loadModule). Fremd-Module ohne Verzeichnis laden wie bisher sofort.
+     „?alle=1“ in der Adresse lädt alle Module sofort (Gleichlauf-Prüfung in der Testreihe admintempo). */
   let extLoaded = new Set();
   let loadingExt = null;   // Modul, dessen admin.js gerade lädt – registerPage merkt sich so, welche Seite zu welchem Modul gehört
-  async function loadExtensions() {
-    const r = await api('extensions');
+  const LAZY = {};         // Modul → { id, version, scripts }, solange sein Skript noch nicht geladen ist
+  const MODLOAD = {};      // Modul → laufendes Laden (Promise)
+  const PROVIDES = {};     // Baustein für Kernseiten (z. B. drinksCollect) → Modul, das ihn bereitstellt
+  const ALLE = /[?&]alle=1\b/.test(location.search);
+  const extUrl = (x, f) => `x/${x.id}/${f}?v=${encodeURIComponent(x.version)}`;
+  /** Läuft gerade das Skript eines nachgeladenen Moduls (Rückgabe: seine id)? Seine Anmeldungen stehen dann schon aus dem Verzeichnis da. */
+  const lazyNow = () => { const c = document.currentScript; return (c && c.dataset && c.dataset.cwLazy) || ''; };
+  async function loadExtensions(pre) {
+    const r = pre || await api('extensions');
     cache.extLinks = r.links || [];
     cache.modules = r.modules || [];
     cache.nurAnschreiben = Boolean(r.nurAnschreiben);
     cache.appModules = r.appModules || [];
     cache.navLayout = r.navLayout || null;
     cache.hidden = new Set(r.hidden || []);
-    const url = (x, f) => `x/${x.id}/${f}?v=${encodeURIComponent(x.version)}`;
-    // alle Skripte gleichzeitig anfordern (vorher eins nach dem anderen: am Handy ein Netz-Umlauf je Modul, Lighthouse 10.11.2026) –
-    // ausgeführt werden sie unten weiter der Reihe nach, damit registerPage jedes Skript seinem Modul zuordnet
-    for (const x of r.ui) if (!extLoaded.has(x.id)) for (const f of [...(x.scripts || []), 'admin.js']) {
-      const l = document.createElement('link'); l.rel = 'preload'; l.as = 'script'; l.href = url(x, f); document.head.appendChild(l);
+    const variante = x => (ALLE || !Array.isArray(x.index) ? null : x.index.find(v => Object.entries(v.wenn || {}).every(([m, on]) => cache.modules.includes(m) === on)));
+    // Fremd-Module: alle Skripte gleichzeitig anfordern, ausgeführt werden sie unten der Reihe nach, damit registerPage jedes Skript seinem Modul zuordnet
+    for (const x of r.ui) if (!extLoaded.has(x.id) && !variante(x)) for (const f of [...(x.scripts || []), 'admin.js']) {
+      const l = document.createElement('link'); l.rel = 'preload'; l.as = 'script'; l.href = extUrl(x, f); document.head.appendChild(l);
     }
-    for (const x of r.ui) {
+    for (const x of r.ui) {   // Reihenfolge wie beim sofortigen Laden – Seitenleiste und Suche sind dann gleich
       if (extLoaded.has(x.id)) continue;
       extLoaded.add(x.id);
+      const v = variante(x);
+      if (v) { LAZY[x.id] = { id: x.id, version: x.version, scripts: x.scripts || [] }; loadingExt = x.id; try { v.aufrufe.forEach(a => replay(x.id, a)); } finally { loadingExt = null; } continue; }
       loadingExt = x.id;
       // erst die gemeinsamen Skripte des Moduls (z. B. Kacheln, die auch Tablet und App nutzen), dann admin.js – alle mit Modulversion
       for (const f of [...(x.scripts || []), 'admin.js']) await new Promise(res => {
         const sc = document.createElement('script');
-        sc.src = url(x, f);
+        sc.src = extUrl(x, f);
         sc.onload = res; sc.onerror = () => { console.error('Erweiterung', x.id, f, 'konnte nicht geladen werden'); res(); };
         document.head.appendChild(sc);
       });
       loadingExt = null;
     }
+  }
+  /** Eine Anmeldung aus dem Verzeichnis nachspielen – wie das Skript sie beim Laden machen würde, nur ohne dessen Code */
+  function replay(id, [name, a, b, c]) {
+    const G = window.GK;
+    if (name === 'registerPage') { const r = lazyRender(id, a.key); G.registerPage({ ...a, render: r }); }
+    else if (name === 'registerSearch') G.registerSearch(a);
+    else if (name === 'regroup') G.regroup(a, b, c);
+    else if (name === 'relabel') G.relabel(a, b);
+    else if (name === 'kontoauszugRegister') { if (G.kontoauszugRegister) G.kontoauszugRegister(a, b); }
+    else if (name === 'registerDetail') { if (/^[a-z0-9-]+$/.test(a.key) && a.page) DETAIL[a.key] = { page: a.page, back: a.back || 'Zurück', perm: a.perm, lazy: id }; }
+    else if (name === 'registerHit') { if (/^[a-z0-9-]+$/.test(a)) HIT[a] = { tab: b && b.tab, lazy: id }; }
+    else if (name === 'stellt') PROVIDES[a] = id;
+  }
+  /** Platzhalter für die Seite eines noch nicht geladenen Moduls: lädt das Modul, dann zeichnet die echte Seite */
+  function lazyRender(id, key) {
+    const r = async (...a) => {
+      await loadModule(id);
+      if (RENDER[key] === r) throw new Error('Seite nicht gefunden.');
+      return RENDER[key](...a);
+    };
+    r.cwLazy = id;
+    return r;
+  }
+  /** Skripte eines Moduls laden (gemeinsame Skripte zuerst, gleichzeitig angefordert, der Reihe nach ausgeführt); einmal je Modul */
+  function loadModule(id) {
+    const x = LAZY[id];
+    if (!x) return Promise.resolve();
+    if (MODLOAD[id]) return MODLOAD[id];
+    const urls = [...x.scripts, 'admin.js'].map(f => extUrl(x, f));
+    MODLOAD[id] = Promise.all(urls.map(u => new Promise((ok, no) => {
+      const sc = document.createElement('script');
+      sc.src = u; sc.async = false; sc.dataset.cwLazy = id;
+      sc.onload = ok;
+      sc.onerror = () => { sc.remove(); fetch(u, { method: 'HEAD' }).then(r => no(Object.assign(new Error(), { modulAlt: r.status === 409 }))).catch(() => no(new Error())); };
+      document.head.appendChild(sc);
+    }))).then(() => { delete LAZY[id]; }, e => {
+      delete MODLOAD[id];
+      document.querySelectorAll('script[data-cw-lazy="' + id + '"]').forEach(s => s.remove());
+      throw Object.assign(e, { modulFehlt: true });
+    });
+    return MODLOAD[id];
+  }
+  /** Seite eines Moduls ließ sich nicht laden: klare Meldung statt leerer Seite – Netz weg („Erneut versuchen“) oder Clubwerk inzwischen aktualisiert („Neu laden“) */
+  function modulFehltPage(e) {
+    const m = $('main'); if (!m) return;
+    m.innerHTML = e.modulAlt
+      ? `<div class="card" id="modFehlt" style="max-width:760px"><h3>Clubwerk wurde aktualisiert</h3><p class="muted m-0-0-6">Diese Seite gehört zur neuen Version. Bitte die Verwaltung neu laden.</p><div class="row"><button type="button" class="btn primary" id="modNeu">Neu laden</button></div></div>`
+      : `<div class="card" id="modFehlt" style="max-width:760px"><h3>Seite konnte nicht geladen werden</h3><p class="muted m-0-0-6">Bitte die Verbindung prüfen und es erneut versuchen.</p><div class="row"><button type="button" class="btn primary" id="modNochmal">Erneut versuchen</button></div></div>`;
+    if ($('modNeu')) $('modNeu').onclick = () => location.reload();
+    if ($('modNochmal')) $('modNochmal').onclick = () => go(hashOf());
   }
 
   let brand = { logo: null };
@@ -673,8 +740,8 @@
   function showShell() {
     $('app').innerHTML = `<a class="skiplink" href="#main" id="skipMain">Zum Inhalt springen</a><div class="shell">
       <nav class="side glass" id="side">
-        <div class="brandbox"><div class="mark">${brand.logo ? `<img src="${esc(brand.logo)}" alt="" data-logo>` : '<span id="clubIni"></span>'}</div>
-          <div><b id="clubName" translate="no">Verein</b><small>Verwaltung</small></div>
+        <div class="brandbox"><div class="mark">${brand.logo ? `<img src="${esc(brand.logo)}" alt="" data-logo>` : `<span id="clubIni">${esc(initials(brand.clubName || ''))}</span>`}</div>
+          <div><b id="clubName" translate="no">${esc(String(brand.clubName || 'Verein').replace(/\be\.\s+V\./g, 'e.\u00a0V.'))}</b><small>Verwaltung</small></div>
           <button class="menutoggle" id="menuT" aria-label="Menü">${icon('menue', 16)}<span id="menuCur">Menü</span></button></div>
         <div class="navbody">
           <label class="search">${icon('suche')}<input id="navSearch" placeholder="Suchen" aria-label="Seite suchen" autocomplete="off"><kbd>${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Strg K'}</kbd><div class="results hidden" id="navRes"></div></label>
@@ -698,7 +765,7 @@
     $('skipMain').onclick = e => { e.preventDefault(); const m = $('main'); m.focus({ preventScroll: true }); m.scrollIntoView(); };   // Sprunglink: die Adresse (#…) ist die Seitenwahl, darum von Hand
     $('logout').onclick = async e => { e.preventDefault(); await api('logout', 'POST', {}).catch(() => {}); showLogin(); };
     bindSearch();
-    api('settings').then(s => { cache.settings = s; $('clubName').textContent = String(s.clubName).replace(/\be\.\s+V\./g, 'e.\u00a0V.');   /* „e. V.“ nie auf zwei Zeilen */ document.title = `${s.clubName} – ${T('Verwaltung')}`; if ($('clubIni')) $('clubIni').textContent = initials(s.clubName); }).catch(() => {});
+    (startSettings ? Promise.resolve(startSettings) : api('settings')).then(s => { startSettings = null; cache.settings = s; $('clubName').textContent = String(s.clubName).replace(/\be\.\s+V\./g, 'e.\u00a0V.');   /* „e. V.“ nie auf zwei Zeilen */ document.title = `${s.clubName} – ${T('Verwaltung')}`; if ($('clubIni')) $('clubIni').textContent = initials(s.clubName); }).catch(() => {});
     refreshBadges();
     go(page);
   }
@@ -815,6 +882,8 @@
      (GK.registerDetail) oder die passende Liste und hebt den Eintrag hervor – wie, meldet das Modul mit GK.registerHit(art, { tab, before, find }). */
   const HIT = {};
   async function recordJump(r) {
+    const lz = (HIT[r.art] && HIT[r.art].lazy) || (DETAIL[r.art] && DETAIL[r.art].lazy);
+    if (lz) await loadModule(lz).catch(() => {});   // Filter und Fundstelle kennt erst das Skript des Moduls
     const h = HIT[r.art] || {};
     if (r.detail && DETAIL[r.art]) await go(`${r.page}/${r.art}/${encodeURIComponent(r.id)}`);
     else { if (h.tab) sset('tab_' + h.tab[0], h.tab[1]); if (h.before) h.before(r.id, r.ref); await go(r.page); }
@@ -1025,7 +1094,9 @@
   const DETAIL = {};
   let detailCur = null;   // { key, id } der offenen Detailansicht
   async function renderDetail(det) {
+    if (DETAIL[det.key].lazy) await loadModule(DETAIL[det.key].lazy);   // Detailansicht eines noch nicht geladenen Moduls
     const d = DETAIL[det.key];
+    if (d.lazy) throw new Error('Nicht mehr vorhanden.');
     const rec = await d.load(det.id);
     if (!rec) { toast('Nicht mehr vorhanden.'); detailCur = null; history.replaceState(null, '', '#' + page); return RENDER[page](); }
     const list = rec.tabs && rec.tabs.length ? rec.tabs : [['', '']];
@@ -1081,16 +1152,11 @@
   }
   async function refreshBadges() {
     const setB = (k, n, cls) => { const b = document.querySelector(`[data-badge="${k}"]`); if (b) { b.textContent = n || ''; b.classList.toggle('hidden', !n); if (cls) b.classList.add(cls); } };
-    if (canAny(['veranstaltungen', 'uebernahme', 'abrechnung', 'export']) && (cache.modules || []).includes('getraenke')) {
-      const t = await api('tabs?days=1').catch(() => ({ open: [] }));
-      badges.veranstaltungen = t.open.length;
-    }
-    if (can('konten')) badges.konten = (await api('members').catch(() => ({ rows: [] }))).rows.filter(m => m.pending).length;
-    // Datensicherung: rot, wenn kein Sicherungspasswort gesetzt ist oder die letzte erfolgreiche Sicherung älter als 7 Tage ist (Status ist eine billige Abfrage)
-    if (can('einstellungen')) {
-      const b = await api('backups/status').catch(() => null);
-      badges.sicherung = b && (!b.hasKey || !b.last_ok || Date.now() - Date.parse(b.last_ok) > 7 * 24 * 3600000) ? '!' : 0;
-    }
+    // alle Zahlen in einer Anfrage (Kern und mitgelieferte Module, Server-Hook adminBadges); Fremd-Module zusätzlich über GK.badges
+    if (refreshBadges.lauf) { refreshBadges.nochmal = true; return refreshBadges.lauf; }   // schon unterwegs: danach einmal nachholen statt doppelt fragen
+    refreshBadges.lauf = api('badges').then(b => { badges = { ...badges, ...b }; }).catch(() => {}).finally(() => { refreshBadges.lauf = null; });
+    await refreshBadges.lauf;
+    if (refreshBadges.nochmal) { refreshBadges.nochmal = false; return refreshBadges(); }
     for (const fn of BADGE_HOOKS) { try { Object.assign(badges, await fn()); } catch (e) { /* egal */ } }
     // Menüeinträge: Seite selbst oder Summe der Seiten eines Moduls
     for (const g of Object.keys(MODG)) { const v = GPAGES(g).map(x => badges[x[0]] || 0); setB(g, v.includes('!') ? '!' : v.reduce((a, x) => a + x, 0), v.includes('!') ? 'r' : 'a'); }   // „!“ = Sicherung fehlt (rot)
@@ -1184,6 +1250,8 @@
     sortKit, $, esc, euro, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
     scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, lastFirst, busy, klebend, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
+    /** Antwort von api/admin/status beim Start der Verwaltung (spart eine zweite Anfrage) */
+    startStatus: () => startStatus,
     /** ungespeicherte Änderungen? Rückfrage „Verwerfen?“ → true = weiter */
     leaveOk: () => leaveOk(),
     /** Verwaltung neu aufbauen (nach der Ersteinrichtung) */
@@ -1211,7 +1279,9 @@
      *  order: Position, wenn der Eintrag in BEREICHE nicht vorkommt (ohne Angabe 50 = hinten, in Registrierungsreihenfolge)
      *  bereich: Bereich der Seitenleiste für Einträge, die BEREICHE nicht kennt ('gastro' · 'sport' · 'anlage' · 'mitglieder' · 'finanzen' · 'verein', Standard 'verein') */
     registerPage({ key, title, perm, render, group, before, icon, tab, order, bereich }) {
-      if (!/^[a-z0-9-]+$/.test(key) || PAGES.some(p => p[0] === key)) return;
+      // nachgeladenes Modul: die Seite steht schon aus dem Verzeichnis da – nur die echte Darstellung einsetzen
+      if (PAGES.some(p => p[0] === key)) { if (RENDER[key] && RENDER[key].cwLazy && RENDER[key].cwLazy === lazyNow() && typeof render === 'function') RENDER[key] = render; return; }
+      if (!/^[a-z0-9-]+$/.test(key)) return;
       RENDER[key] = render;
       if (icon && ICO[icon]) PAGE_ICON[key] = icon;
       if (order) PAGE_ORDER[key] = order;
@@ -1225,9 +1295,10 @@
       if (at >= 0) PAGES.splice(at, 0, entry); else PAGES.push(entry);
     },
     /** Menüeintrag umbenennen (z. B. „Mitglieder & Konten“ → „Getränkekonten & PINs“, wenn die Mitgliederverwaltung aktiv ist) */
-    relabel(key, title) { const p = PAGES.find(x => x[0] === key); if (p) { p[1] = title; if (TAB_LABEL[key]) TAB_LABEL[key] = title; } },
+    relabel(key, title) { if (lazyNow()) return; const p = PAGES.find(x => x[0] === key); if (p) { p[1] = title; if (TAB_LABEL[key]) TAB_LABEL[key] = title; } },
     /** Seite in einen anderen Bereich verschieben, z. B. „Konten & PINs“ zu „Verkauf“ (group: 'getraenke' | 'verein' | Modulschlüssel), optional vor eine Seite */
     regroup(key, group, { title, before, tab } = {}) {
+      if (lazyNow()) return;   // schon aus dem Verzeichnis umgruppiert
       const i = PAGES.findIndex(x => x[0] === key); if (i < 0) return;
       const [p] = PAGES.splice(i, 1); p[3] = MODG[group] ? group : MODG['g-' + group] ? 'g-' + group : group;
       if (title) { p[1] = title; TAB_LABEL[key] = tab || title; }
@@ -1236,7 +1307,7 @@
       if (at >= 0) PAGES.splice(at, 0, p); else { const last = PAGES.map(x => x[3]).lastIndexOf(p[3]); PAGES.splice(last >= 0 ? last + 1 : PAGES.length, 0, p); }
     },
     /** Einträge für die Suche (Strg/⌘ K): registerSearch([{ label, page, tab, sec, seg, card, field, btn, words, perm, kind, in }]) – siehe Kommentar an SEARCH */
-    registerSearch(list) { for (const e of list || []) if (e && e.label && e.page) SEARCH.push({ kind: 'einstellung', words: '', ...e }); },
+    registerSearch(list) { if (lazyNow()) return; for (const e of list || []) if (e && e.label && e.page) SEARCH.push({ kind: 'einstellung', words: '', ...e }); },
     /** Für den Design-Prüfstand: alle sichtbaren Sucheinträge und der Sprung dorthin (true = Ziel gefunden) */
     searchIndex: () => searchIndex(), searchJump: e => searchJump(e),
     /** Sprung zu einem Datensatz-Treffer der Suche (Server-Hook „search“) ohne Detailansicht: registerHit(art, { tab: [tabsKey, reiter], before(id, ref), find(id, ref) → Element })
@@ -1245,6 +1316,8 @@
     /** Zahlen für Reiter-Abzeichen: fn() → { seitenschlüssel: Anzahl } */
     badges(fn) { BADGE_HOOKS.push(fn); },
     refreshBadges: () => refreshBadges(),
+    /** Für Tests (admintempo): Stand von Seiten, Suche, Detail- und Treffer-Arten – gleich, ob Module sofort oder erst beim Öffnen laden */
+    stand: () => ({ pages: PAGES.map(p => [...p]), search: SEARCH.map(e => JSON.stringify(e)), detail: Object.keys(DETAIL).sort().map(k => [k, DETAIL[k].page]), hit: Object.keys(HIT).sort(), geladen: Object.keys(MODLOAD), offen: Object.keys(LAZY) }),
     /** Einstellungskarten eines Moduls nach Bereichen ordnen (untereinander, mit Abschnittsüberschriften): sectionize({ root, secs: [[key, label]], keyOf }) */
     sectionize: o => sectionize(o),
     /** Detailansicht anmelden: registerDetail({ key, page, back, perm, load, render })
@@ -1383,25 +1456,30 @@
   }
   RENDER.uebersicht = async () => {
     const drinksOn = (cache.modules || []).includes('getraenke') && DRINKS().length;
+    // alle Abfragen gleich anstoßen (vorher fünf Runden nacheinander – am Handy je ein Netz-Umlauf); Fehler der Hinweise sind nur „kein Hinweis“
+    const pZwei = can('einstellungen') ? Promise.all([api('backups/status').catch(() => null), window.GK.setupCard().catch(() => ''), api('datenqualitaet').catch(() => null)]) : Promise.resolve([null, '', null]);
+    const pVault = can('einstellungen') || can('mitglieder') ? api('vault').catch(() => null) : null;
+    const pSicher = can('sicherheit') ? api('security/alerts?counts=1').catch(() => null) : null;
+    const pNeu = (cache.appModules || []).length ? api('app/new-areas').catch(() => []) : [];
     const [stock, bal, ev, del, mem, mods] = await Promise.all([
       drinksOn ? api('stock') : null, drinksOn && (can('abrechnung') || can('export')) ? api('balances') : null, drinksOn && can('veranstaltungen') ? api('events') : null,
       drinksOn && can('lieferungen') ? api('deliveries') : null, can('konten') ? api('members') : null, moduleOverview()]);
-    const [bkSt, setupCard, dq] = can('einstellungen') ? await Promise.all([api('backups/status').catch(() => null), window.GK.setupCard().catch(() => ''), api('datenqualitaet').catch(() => null)]) : [null, '', null];
+    const [bkSt, setupCard, dq] = await pZwei;
     if (page !== 'uebersicht') return;   // inzwischen woandershin gewechselt – nichts überschreiben
     const alerts = [];
-    const vs = can('einstellungen') || can('mitglieder') ? await api('vault').catch(() => null) : null;
+    const vs = await pVault;
     if (page !== 'uebersicht') return;
     if (vs && vs.on && vs.locked) alerts.push({ level: 'r', who: 'Tresor', text: 'Tresor gesperrt – Sicherung und E-Mails warten, bitte anmelden.',   // Zugangsdaten (Postfach, Sicherung, Hydrawise) liegen im Tresor – planung/geheimnisse.md
       detail: [T('Seit dem Neustart verschlossen – dein Konto hat noch keinen Schlüssel. Ein Admin mit Schlüssel meldet sich an, oder du öffnest mit dem Wiederherstellungscode.'),
         vs.waitingMails ? T(vs.waitingMails === 1 ? '1 E-Mail wartet.' : '{0} E-Mails warten.', [vs.waitingMails]) : '',
         (vs.wartet || []).length ? T('Verschlossen: {0}.', [vs.wartet.map(x => T(x)).join(', ')]) : ''].filter(Boolean).join(' '), go: 'sicherung', link: 'Öffnen' });
     else if (vs && !vs.on && vs.may && (cache.modules || []).some(m => m === 'mitglieder' || m === 'buchhaltung')) alerts.push({ level: 'a', who: 'Datenschutz', text: 'Mitgliederdaten liegen unverschlüsselt.', detail: 'Die persönlichen Daten der Mitglieder liegen unverschlüsselt auf dem Home Assistant. Empfohlen: Verschlüsselung einschalten.', go: 'sicherung', link: 'Einschalten' });
-    const sw = can('sicherheit') ? await api('security/alerts?counts=1').catch(() => null) : null;
+    const sw = await pSicher;
     const swN = sw ? sw.counts.r + sw.counts.a : 0;
     if (sw && sw.uhr) alerts.push({ level: 'r', who: 'Uhrzeit', text: 'Uhrzeit falsch – Geldläufe und Automatik gesperrt.', detail: T('Die Uhr zeigt {0}, der neueste Eintrag ist von {1}. Stimmt die Uhrzeit doch, die Warnung unter Sicherheit als erledigt markieren.', [sw.uhr.jetzt, sw.uhr.neuester]), go: 'einstellungen', sec: ['cw_setsec', 'sicherheit'], link: 'Ansehen' });   // src/uhr.js
     if (swN) alerts.push({ level: sw.counts.r ? 'r' : 'a', who: 'Sicherheit', text: swN === 1 ? '1 neue Warnung – bitte ansehen.' : `${swN} neue Warnungen – bitte ansehen.`, go: 'einstellungen', sec: ['cw_setsec', 'sicherheit'], link: 'Ansehen' });
     // neu eingeschalteter Bereich der App, den noch niemand hat: „für wen freigeben?“ (öffnet das Sammel-Fenster mit diesem Bereich)
-    const na = (cache.appModules || []).length ? await api('app/new-areas').catch(() => []) : [];
+    const na = await pNeu;
     if (page !== 'uebersicht') return;
     na.forEach(x => alerts.push({ level: 'a', who: 'Mitglieder-App', text: T('Neuer Bereich „{0}“: für wen freigeben?', [T(x.label)]), go: 'app', sec: ['cw_apbulk', x.id], link: 'Freigeben …' }));
     if (bkSt && bkSt.warn && !(bkSt.wartet && vs && vs.locked)) alerts.push({ level: bkSt.hasKey ? 'r' : 'a', who: 'Datensicherung', text: bkSt.warn, go: 'sicherung', link: 'Öffnen' });
@@ -2099,7 +2177,7 @@
     const xls = `api/admin/export.xlsx?from=${r.from}&to=${r.to}&asOf=${encodeURIComponent(r.asOf)}&upTo=${r.upTo}`;
     const stand = deTime(r.asOf);
     // Einzug per Lastschrift gibt es nur mit der Mitgliederverwaltung (deren Verwaltungsseite stellt GK.drinksCollect bereit)
-    const sepa = GK.drinksCollect && (cache.modules || []).includes('mitglieder') && can('mitglieder_finanzen');
+    const sepa = (GK.drinksCollect || PROVIDES.drinksCollect) && (cache.modules || []).includes('mitglieder') && can('mitglieder_finanzen');
     $('main').innerHTML = `<h2 class="page">Abrechnung & Export</h2>
       <p class="lead">Liste holen, in der Vereinsverwaltung abbuchen, hier als abgerechnet markieren.</p>
       <div class="toolbar">
@@ -2151,7 +2229,7 @@
     bindRange('rng', (f, t) => RENDER.abrechnung(f, t).catch(fail));
     $('reload').onclick = () => RENDER.abrechnung(from, to).catch(fail);
     if ($('abtipp')) $('abtipp').onclick = () => abtippDialog(r.asOf, r.upTo).catch(fail);
-    if ($('sepaGo')) $('sepaGo').onclick = () => GK.drinksCollect(() => RENDER.abrechnung(from, to).catch(fail)).catch(fail);
+    if ($('sepaGo')) $('sepaGo').onclick = () => (PROVIDES.drinksCollect ? loadModule(PROVIDES.drinksCollect) : Promise.resolve()).then(() => GK.drinksCollect(() => RENDER.abrechnung(from, to).catch(fail))).catch(e => fail(e.modulFehlt ? new Error(T('Seite konnte nicht geladen werden')) : e));
     if ($('addAmt')) $('addAmt').onclick = () => amountDialog(() => RENDER.abrechnung(from, to).catch(fail)).catch(fail);
     const settle = async (ids, text) => {
       if (!await ask(text)) return;
