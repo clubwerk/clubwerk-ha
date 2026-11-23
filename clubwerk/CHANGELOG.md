@@ -1,5 +1,30 @@
 # Änderungen
 
+## 2026.11.58
+
+### Neu
+- Mitglieder: Digitaler Mitgliedsausweis in der Mitglieder-App. Unter „Meine Daten“ gibt es den Reiter „Ausweis“ mit Vereinsname, Foto, „Nachname, Vorname“, Nummer, „Mitglied seit“, Abteilungen, Altersstufe, Status, „gültig bis“, einem signierten QR-Code und einer laufenden Uhr mit Glanzstreifen gegen Bildschirmfotos. Einschalten unter Mitglieder › Einstellungen › Mitgliedsausweis.
+- Der Ausweis ist auf dem Handy gespeichert und geht auch ohne Netz: Die Seite „Keine Verbindung“ hat dann den Knopf „Mitgliedsausweis zeigen“. Der QR-Code gilt 30 Tage und erneuert sich beim Öffnen der App mit Netz von selbst. Im Code stehen weder Name noch Geburtsdatum.
+- „Für mich“ zeigt unten die Zeile „Mitgliedsausweis zeigen“, solange der Ausweis gilt.
+- Ausweise prüfen: Mitglieder, denen der Vorstand unter Mitglieder-App den Schalter „Ausweise prüfen“ gibt (etwa Thekendienst oder Trainer), prüfen andere Ausweise mit der Kamera ihres Handys. Das Ergebnis erscheint groß mit Symbol und Text: gültig, abgelaufen, nicht mehr Mitglied, gesperrt oder ungültig. Prüfungen werden nicht gespeichert; viele ungültige Codes sperren die Prüfung eine Weile und lösen eine Sicherheitswarnung aus.
+- Verwaltung › Mitglied › Ausweis: Stand der ausgestellten Ausweise und „Ausweis sperren / neu ausstellen“, etwa nach einem verlorenen Handy. In den Einstellungen außerdem Foto (nur wenn das Mitglied es wählt, oder nie), „gültig bis“ (Beitrags- oder Geschäftsjahr), angezeigte Angaben, „Alle Ausweise sperren“ und „Schlüssel wechseln“.
+- Profilbild: neue Verwendung „Mitgliedsausweis“ – das Foto erscheint nur auf dem Ausweis, wenn das Mitglied sie ankreuzt.
+- Nach einem Austritt gilt der Ausweis sofort nicht mehr, die App zeigt „Mitgliedschaft beendet“. Anonymisieren löscht die Ausweise, die Datenauskunft nennt sie. Abmelden in der App löscht den gespeicherten Ausweis.
+- „Einstellungen exportieren / importieren …“ nimmt die Einstellungen des Mitgliedsausweises mit, ohne Schlüssel und ohne ausgestellte Ausweise.
+
+### Behoben
+- Mitglieder: Ausgetretene Mitglieder zeigen in der Liste keinen Hinweis „keine Bankverbindung“ mehr.
+- Dienste & Termine › Übersicht: Am Handy steht „Pflichtstunden …“ wie in allen Listen oben neben dem Namen, darunter der Grund und die Stunden. Mit Kommastunden oder vierstelligen Beträgen bricht die Zeile nicht mehr um.
+- Plätze › Mitspielersuche: In der Mitglieder-App gibt es bei „Plätze“ den neuen Reiter „Mitspieler“. Wer Mitspieler sucht, stellt ein Gesuch ein: Spielform (Einzel, Doppel, Training), Tag und Uhrzeit oder eine schon gebuchte eigene Buchung, auf Wunsch Spielstärke, LK-Bereich und ein kurzer Hinweis.
+- Andere sagen mit „Ich spiele mit“ verbindlich zu – wer zuerst kommt, ist dabei. Mit gebuchtem Platz wird man direkt als Mitspieler eingetragen, mit allen üblichen Regeln (Kontingent, Überschneidung, Höchstzahl der Mitspieler) und der gewohnten Nachricht „Als Mitspieler eingetragen“.
+- Ohne Platz sammelt das Gesuch die Zusagen. Ist es voll, öffnet „Platz buchen“ das Buchungsfenster mit Zeit, Dauer und den Mitspielern. „Für mich“ erinnert daran. Gesuche enden zur Startzeit; wird die Buchung storniert, endet auch das Gesuch.
+- Sichtbar sind nur „Nachname, Vorname“, das Foto (wenn für die Platzbuchung freigegeben), Spielform, Zeit, Spielstärke und Hinweis – nur für Mitglieder, die „Plätze“ in der App nutzen dürfen. Telefonnummern und E-Mail-Adressen erscheinen nie, einen Chat gibt es nicht.
+- „Ich suche auch Mitspieler“: Wer freiwillig seine Spielstärke angibt, sieht passende Gesuche zuerst. Ausschalten löscht die Angabe sofort.
+- Schutz vor Missbrauch: höchstens 3 offene Gesuche je Mitglied, höchstens 10 Zusagen am Tag, keine Links im Hinweis. Jedes Gesuch lässt sich melden.
+- Verwaltung › Plätze › Mitspielersuche: alle Gesuche (offen, gemeldet, erledigt, beendet), Ausblenden, Sperren einzelner Mitglieder für die Mitspielersuche und die Einstellungen (an/aus, Spielformen, Spielstärken, Grenzen). Gemeldete Gesuche erscheinen als Hinweis in der Übersicht, Sperren und Einstellungen stehen im Protokoll.
+- Neue Benachrichtigungen, die der Vorstand unter Mitglieder-App › Benachrichtigungen freigibt: „Mitspielersuche: jemand spielt mit“ und „Mitspielersuche: Gesuch voll“.
+- Datenschutz: Gesuche und Zusagen werden 90 Tage nach dem Termin gelöscht (einstellbar unter Einstellungen › Datenschutz) und sind Teil der Datenauskunft.
+
 ## 2026.11.57
 
 ### Neu

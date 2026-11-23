@@ -1,9 +1,9 @@
 {
   "id": "mitglieder",
   "name": "Mitglieder",
-  "version": "1.51.8",
+  "version": "1.52.0",
   "kurz": "Mitglieder, Beiträge und SEPA-Lastschrift.",
-  "beschreibung": "Alles rund um die Mitglieder: Stammdaten, Abteilungen, Beitragsarten mit Altersgrenzen und Familienbeitrag, Ein- und Austritt, Dokumente, Beitragslauf mit SEPA-Lastschrift (pain.008, auf Wunsch mit Getränken), offene Posten, Rechnungen und Mahnungen, digitale Beitrittserklärung mit Unterschrift am Tablet oder online, „Meine Daten“ in der Mitglieder-App, Auswertungen für Landessportbund und Verband, Gratulationen zu Geburtstagen und Jubiläen, Import aus verein.cloud und Datenschutz (Auskunft, Anonymisieren).",
+  "beschreibung": "Alles rund um die Mitglieder: Stammdaten, Abteilungen, Beitragsarten mit Altersgrenzen und Familienbeitrag, Ein- und Austritt, Dokumente, Beitragslauf mit SEPA-Lastschrift (pain.008, auf Wunsch mit Getränken), offene Posten, Rechnungen und Mahnungen, digitale Beitrittserklärung mit Unterschrift am Tablet oder online, „Meine Daten“ und digitaler Mitgliedsausweis in der Mitglieder-App, Auswertungen für Landessportbund und Verband, Gratulationen zu Geburtstagen und Jubiläen, Import aus verein.cloud und Datenschutz (Auskunft, Anonymisieren).",
   "minApp": "3.1.0",
   "perms": {
     "mitglieder": "Mitglieder: Stammdaten, Abteilungen, Beiträge, Anträge & Auswertungen",
@@ -49,7 +49,8 @@
     "mv_congrats_off",
     "mv_congrats_pref",
     "mv_booked_set",
-    "mv_booked_row"
+    "mv_booked_row",
+    "mv_card"
   ],
   "einstellungen": [
     "ext_mitglieder_"

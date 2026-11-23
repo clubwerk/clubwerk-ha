@@ -104,7 +104,7 @@ function listRows(q = {}) {
       depts: r.depts || '', dept_ids: r.dept_ids ? r.dept_ids.split(',').map(Number) : [], fees: r.fees || '', fee_ids: r.fee_ids ? r.fee_ids.split(',').map(Number) : [],
       payer_id: r.payer_id, payer_name: r.payer_name, dependents: r.dependents, family_of: r.family_of, family_head_name: r.family_head_name, family_count: r.family_count, payment: r.payment || 'lastschrift', email: r.email, mobile: r.mobile || r.phone, city: r.city,
       complete: Boolean(r.complete), pending: Boolean(r.pending), open_cents: r.open_cents,
-      issues: [r.family_of && r.fee_ids && 'eigener Beitrag trotz Familienmitgliedschaft', !r.complete && 'ohne Mitgliedsdaten', r.complete && !exited && !r.anonymized_at && sepaRequired() && payNeedsSepa(r) && r.payment !== 'lastschrift' && 'Zahlart nicht Lastschrift', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', !exited && !r.anonymized_at && !r.birth_date && 'Geburtsdatum fehlt', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
+      issues: [r.family_of && r.fee_ids && 'eigener Beitrag trotz Familienmitgliedschaft', !r.complete && 'ohne Mitgliedsdaten', r.complete && !exited && !r.anonymized_at && sepaRequired() && payNeedsSepa(r) && r.payment !== 'lastschrift' && 'Zahlart nicht Lastschrift', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', !exited && ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', !exited && !r.anonymized_at && !r.birth_date && 'Geburtsdatum fehlt', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
   }).filter(r => {
     if (q.status === 'aktuell' && (r.status === 'ausgetreten' || r.status === 'anonym')) return false;
     if (q.status && !['aktuell', 'alle'].includes(q.status) && r.status !== q.status) return false;
@@ -300,6 +300,7 @@ function anonymize(id, user) {
     C.db.prepare('DELETE FROM mv_history WHERE member_id = ?').run(id);
     C.db.prepare('DELETE FROM mv_change WHERE member_id = ?').run(id);
     shared.congratsForget(id);   // Gratulationen samt Notizen
+    shared.cardsForget(id);   // Mitgliedsausweise (Seriennummern)
     C.db.prepare("UPDATE members SET name = ?, first_name = NULL, last_name = ?, pin_hash = NULL, active = 0 WHERE id = ?").run(label, label, id);
     C.db.prepare('DELETE FROM member_devices WHERE member_id = ?').run(id);
     C.db.prepare('DELETE FROM member_access WHERE member_id = ?').run(id);
@@ -461,7 +462,7 @@ function activate(ctx) {
     try { store.fillNames(int(req.params.id)); } catch (e) { console.error('Mitglieder: Name nicht übernommen:', e.message); }
     const d = detail(int(req.params.id), req.user);
     if (!d) return bad(res, 'Mitglied nicht gefunden.', 404);
-    res.json(d);
+    res.json({ ...d, ausweis: shared.cardOn() });   // Reiter „Ausweis“ (lib/ausweis.js)
   });
   /* Unterschriebene Beitrittserklärung (Papier) vorab hochladen – wird beim Anlegen dem neuen Mitglied zugeordnet.
      Nicht zugeordnete Uploads werden nach 2 Std. gelöscht, je Benutzer bleiben höchstens die 10 neuesten (sonst ließe sich der Speicher füllen). */
@@ -998,7 +999,7 @@ function activate(ctx) {
     for (const r of await ctx.callHooks('memberData', id)) if (r.result && Object.values(r.result).some(v => v && (!Array.isArray(v) || v.length))) module[r.name] = r.result;
     return { erstellt: nowTs(), verein: ctx.getSetting('club_name', ''), hinweis: 'Auskunft nach Art. 15 DSGVO – alle zu dieser Person gespeicherten Daten.',
       konto: core, vereinsdaten: { ...d.person, consents: d.person.consents }, bankverbindung: d.bank, abteilungen: d.departments, beitraege: d.fees, zahlergruppe: d.payerGroup, familienmitgliedschaft: d.family,
-      ehrungen: d.honors, aemter: d.functions, gratulationen: { keine_gewuenscht: d.no_congrats, anlaesse: shared.congratsOf(id) }, forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
+      ehrungen: d.honors, aemter: d.functions, gratulationen: { keine_gewuenscht: d.no_congrats, anlaesse: shared.congratsOf(id) }, mitgliedsausweise: shared.cardsOf(id), forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
       aenderungsverlauf: d.history, mitglieder_app: d.app, nachrichten_in_der_app: (ctx.messagesOf ? ctx.messagesOf(id) : []), automatische_mails: (ctx.autoMailsOf ? ctx.autoMailsOf(id) : []), sicherheitswarnungen: ctx.require('./security').ofMember(id), getraenke_je_monat: drinks, weitere_bereiche: module };
   }
   admin.get('/member/:id/auskunft', P, ar(async (req, res) => {
@@ -1224,6 +1225,7 @@ function activate(ctx) {
   require('./lib/congrats').register(shared);
   require('./lib/importvc').register(shared);
   require('./lib/memberapp').register(shared);
+  require('./lib/ausweis').register(shared);   // Digitaler Mitgliedsausweis (App, Prüfung am Tablet und in der Verwaltung)
   try { anonReapply(); } catch (e) { console.error('Mitgliederverwaltung – Anonymisierungen:', e.message); }   // nach dem Zurückspielen einer Sicherung
   /* Posten aus anderen Modulen (Platz-, Gast-, Lichtgeld, Rechnungen) lagen bis 2026.11 beim Angehörigen statt beim Zahler – offene,
      noch nicht eingezogene einmalig zum Zahler umhängen (sonst findet der Einzug kein Mandat). Läuft bei jedem Start, ändert nur Altfälle. */
@@ -1535,7 +1537,7 @@ function activate(ctx) {
   ctx.hooks.clubInfo = () => ({ yearStart: S('year_start', '01-01') });   // Beginn des Beitragsjahres (Arbeitseinsatz); die Anschrift gibt es nur über ctx.clubAddress()
   ctx.hooks.familiesOf = list => { const rel = store.relations(); return new Map([...new Set((list || []).map(Number))].map(id => [id, store.familyOf(id, rel)])); };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
-  const CONFIG_KEYS = ['creditor_name', 'mandate_prefix', 'sepa_purpose', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max', 'welcome_subject', 'welcome_text', 'exit_mail_subject', 'exit_mail_text'];
+  const CONFIG_KEYS = ['card_on', 'card_photo', 'card_valid', 'card_fields', 'creditor_name', 'mandate_prefix', 'sepa_purpose', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max', 'welcome_subject', 'welcome_text', 'exit_mail_subject', 'exit_mail_text'];
   ctx.hooks.exportConfig = () => ({ depts: ctx.db.prepare('SELECT name, federation, sort, active FROM mv_department').all(),
     fees: ctx.db.prepare('SELECT f.name, f.kind, d.name AS department, f.cents, f.interval, f.prorate, f.age_min, f.age_max, f.family, f.work_minutes, f.on_form, f.sort, f.active, f.note FROM mv_fee f LEFT JOIN mv_department d ON d.id = f.department_id').all(),
     settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });
@@ -1560,7 +1562,7 @@ function activate(ctx) {
         z('Beitragsarten', konfigio.schreibe(ctx.db, 'mv_fee', fi.v, found));
         if (first) zusatzBegin(fi.v.department_id);
       }
-      if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (typeof v === 'string' && CONFIG_KEYS.includes(k) && ({ member_no_mode: x => x === 'start' || x === 'max', congrats_days: x => /^\d+$/.test(x) && +x >= 1 && +x <= 60, family_child_max: x => /^\d+$/.test(x) && +x >= 1 && +x <= 30, welcome_text: x => x.length <= 6000, congrats_rules: x => { try { return Array.isArray(JSON.parse(x)); } catch (e) { return false; } } }[k] || (() => true))(v)) SET(k, v.slice(0, ['dunning_levels', 'congrats_rules', 'welcome_text'].includes(k) ? 6000 : 2000));
+      if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (typeof v === 'string' && CONFIG_KEYS.includes(k) && ({ member_no_mode: x => x === 'start' || x === 'max', congrats_days: x => /^\d+$/.test(x) && +x >= 1 && +x <= 60, family_child_max: x => /^\d+$/.test(x) && +x >= 1 && +x <= 30, welcome_text: x => x.length <= 6000, card_on: x => x === '0' || x === '1', card_photo: x => x === 'optional' || x === 'nie', card_valid: x => x === 'beitrag' || x === 'geschaeft', card_fields: x => { try { const f = JSON.parse(x); return !!f && typeof f === 'object' && !Array.isArray(f); } catch (e) { return false; } }, congrats_rules: x => { try { return Array.isArray(JSON.parse(x)); } catch (e) { return false; } } }[k] || (() => true))(v)) SET(k, v.slice(0, ['dunning_levels', 'congrats_rules', 'welcome_text'].includes(k) ? 6000 : 2000));
     })();
     if (ungueltig) z.hinweis(`${ungueltig} ungültige Einträge übersprungen`);
     z.hinweis('Gläubiger-ID und Vereinskonto bitte selbst eintragen');

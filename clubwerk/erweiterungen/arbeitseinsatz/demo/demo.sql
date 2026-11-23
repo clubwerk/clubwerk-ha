@@ -181,6 +181,7 @@ INSERT INTO "aw_signup"(id, event_id, member_id, reminded, created_at, answer, p
 INSERT INTO "aw_signup"(id, event_id, member_id, reminded, created_at, answer, persons, note) VALUES(84,3,33,0,'2026-10-20 20:10:13','ja',2,NULL);
 INSERT INTO "aw_signup"(id, event_id, member_id, reminded, created_at, answer, persons, note) VALUES(85,3,40,0,'2026-10-20 20:10:13','nein',0,NULL);
 INSERT INTO "aw_target"(member_id, year, minutes, note) VALUES(24,2026,0,'Jugendtrainer – über das Training abgegolten');
+INSERT INTO "aw_target"(member_id, year, minutes, note) VALUES(16,2026,4365,'Platzpflege übernommen – feste Stundenzahl');   -- Kommastunden und vierstelliger Betrag in der Handy-Liste (hängt nicht vom Datumsverschieben ab)
 INSERT INTO "settings"(key, value) VALUES('ext_arbeitseinsatz_seed_theke','1');
 INSERT INTO "settings"(key, value) VALUES('ext_arbeitseinsatz_start_year','2026');
 INSERT INTO "settings"(key, value) VALUES('ext_arbeitseinsatz_text','Jedes Mitglied ab 12 Jahren leistet 4 Arbeitsstunden im Jahr – Familien gemeinsam. Nicht geleistete Stunden berechnen wir mit 15 € je Stunde.');

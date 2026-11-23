@@ -310,4 +310,41 @@ INSERT INTO "bk_series"(id, type, title, resources, weekdays, start, end, from_d
 INSERT INTO "settings"(key, value) VALUES('ext_buchung_labels_seeded','1');
 INSERT INTO "settings"(key, value) VALUES('ext_buchung_seeded','1');
 INSERT INTO "settings"(key, value) VALUES('ext_buchung_ics_key','2739027314bfe484661a1f7aeb26a80937c6f04831fe3120');
+CREATE TABLE IF NOT EXISTS "bk_ms_profile" (
+  member_id INTEGER NOT NULL REFERENCES members(id), open INTEGER NOT NULL DEFAULT 0, level TEXT, lk REAL, blocked_at TEXT, blocked_by TEXT, PRIMARY KEY (member_id)
+);
+CREATE TABLE IF NOT EXISTS "bk_ms_reply" (
+  request_id INTEGER NOT NULL, member_id INTEGER NOT NULL REFERENCES members(id), status TEXT NOT NULL DEFAULT 'zugesagt',
+  created_at TEXT NOT NULL, PRIMARY KEY (request_id, member_id)
+);
+CREATE TABLE IF NOT EXISTS "bk_ms_report" (
+  request_id INTEGER NOT NULL, member_id INTEGER NOT NULL REFERENCES members(id), created_at TEXT NOT NULL, PRIMARY KEY (request_id, member_id)
+);
+CREATE TABLE IF NOT EXISTS "bk_ms_request" (
+  id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL REFERENCES members(id), kind TEXT NOT NULL, date TEXT NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL,
+  booking_id INTEGER, need INTEGER NOT NULL DEFAULT 1, level TEXT, lk_from REAL, lk_to REAL, note TEXT,
+  status TEXT NOT NULL DEFAULT 'offen', reports INTEGER NOT NULL DEFAULT 0, hidden_by TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+INSERT INTO "bk_ms_request"(id, member_id, kind, date, start, end, booking_id, need, level, lk_from, lk_to, note, status, reports, hidden_by, created_at, updated_at) VALUES(1,3,'Doppel','2026-10-23','18:00','20:00',NULL,3,'Freizeit',15,22,'Gern auch gemischtes Doppel','voll',0,NULL,'2026-10-19 18:40:00','2026-10-19 18:40:00');
+INSERT INTO "bk_ms_request"(id, member_id, kind, date, start, end, booking_id, need, level, lk_from, lk_to, note, status, reports, hidden_by, created_at, updated_at) VALUES(2,3,'Einzel','2026-10-26','10:00','11:00',NULL,1,NULL,NULL,NULL,NULL,'offen',0,NULL,'2026-10-20 08:15:00','2026-10-20 08:15:00');
+INSERT INTO "bk_ms_request"(id, member_id, kind, date, start, end, booking_id, need, level, lk_from, lk_to, note, status, reports, hidden_by, created_at, updated_at) VALUES(3,6,'Einzel','2026-10-25','09:00','10:00',217,1,'Mannschaft',12,16,'Suche lockeres Match, gern auch nur Training.','offen',0,NULL,'2026-10-20 12:02:00','2026-10-20 12:02:00');
+INSERT INTO "bk_ms_request"(id, member_id, kind, date, start, end, booking_id, need, level, lk_from, lk_to, note, status, reports, hidden_by, created_at, updated_at) VALUES(4,5,'Doppel','2026-10-24','16:00','18:00',NULL,3,'Turnier',NULL,NULL,'Wir sind zu dritt und suchen noch jemanden für ein flottes Doppel. Bälle bringen wir mit, danach gern noch ein Getränk auf der Terrasse!','offen',0,NULL,'2026-10-20 17:30:00','2026-10-20 17:30:00');
+INSERT INTO "bk_ms_request"(id, member_id, kind, date, start, end, booking_id, need, level, lk_from, lk_to, note, status, reports, hidden_by, created_at, updated_at) VALUES(5,9,'Training','2026-10-22','18:00','19:00',NULL,2,'Einsteiger',NULL,NULL,NULL,'offen',0,NULL,'2026-10-20 19:45:00','2026-10-20 19:45:00');
+INSERT INTO "bk_ms_request"(id, member_id, kind, date, start, end, booking_id, need, level, lk_from, lk_to, note, status, reports, hidden_by, created_at, updated_at) VALUES(6,11,'Einzel','2026-10-27','17:00','18:00',NULL,1,'Freizeit',NULL,NULL,'Wer verliert, zahlt die Getränke!','offen',1,NULL,'2026-10-20 21:10:00','2026-10-20 21:10:00');
+INSERT INTO "bk_ms_request"(id, member_id, kind, date, start, end, booking_id, need, level, lk_from, lk_to, note, status, reports, hidden_by, created_at, updated_at) VALUES(7,12,'Einzel','2026-10-26','09:00','10:00',220,1,'Freizeit',NULL,NULL,NULL,'erledigt',0,NULL,'2026-10-18 10:00:00','2026-10-18 10:00:00');
+INSERT INTO "bk_ms_request"(id, member_id, kind, date, start, end, booking_id, need, level, lk_from, lk_to, note, status, reports, hidden_by, created_at, updated_at) VALUES(8,19,'Doppel','2026-10-19','18:00','20:00',NULL,3,NULL,NULL,NULL,'Mixed am Abend?','abgelaufen',0,NULL,'2026-10-16 09:20:00','2026-10-16 09:20:00');
+INSERT INTO "bk_ms_request"(id, member_id, kind, date, start, end, booking_id, need, level, lk_from, lk_to, note, status, reports, hidden_by, created_at, updated_at) VALUES(9,44,'Einzel','2026-10-24','10:00','11:00',NULL,1,'Einsteiger',NULL,NULL,'Suche jemanden zum Üben nach dem Jugendtraining.','offen',0,NULL,'2026-10-20 16:05:00','2026-10-20 16:05:00');
+INSERT INTO "bk_ms_request"(id, member_id, kind, date, start, end, booking_id, need, level, lk_from, lk_to, note, status, reports, hidden_by, created_at, updated_at) VALUES(10,16,'Einzel','2026-10-25','18:00','19:00',NULL,1,NULL,NULL,NULL,'Bitte meldet euch alle bei mir.','ausgeblendet',2,'admin','2026-10-19 22:30:00','2026-10-19 22:30:00');
+INSERT INTO "bk_ms_reply"(request_id, member_id, status, created_at) VALUES(1,4,'zugesagt','2026-10-19 19:04:00');
+INSERT INTO "bk_ms_reply"(request_id, member_id, status, created_at) VALUES(1,7,'zugesagt','2026-10-19 20:31:00');
+INSERT INTO "bk_ms_reply"(request_id, member_id, status, created_at) VALUES(1,10,'zugesagt','2026-10-20 07:15:00');
+INSERT INTO "bk_ms_reply"(request_id, member_id, status, created_at) VALUES(4,8,'zugesagt','2026-10-20 18:02:00');
+INSERT INTO "bk_ms_reply"(request_id, member_id, status, created_at) VALUES(5,3,'zugesagt','2026-10-20 20:11:00');
+INSERT INTO "bk_ms_reply"(request_id, member_id, status, created_at) VALUES(7,14,'zugesagt','2026-10-18 11:30:00');
+INSERT INTO "bk_ms_reply"(request_id, member_id, status, created_at) VALUES(8,20,'zugesagt','2026-10-17 08:00:00');
+INSERT INTO "bk_ms_report"(request_id, member_id, created_at) VALUES(6,12,'2026-10-20 22:00:00');
+INSERT INTO "bk_ms_report"(request_id, member_id, created_at) VALUES(10,4,'2026-10-19 23:00:00');
+INSERT INTO "bk_ms_report"(request_id, member_id, created_at) VALUES(10,6,'2026-10-20 07:40:00');
+INSERT INTO "bk_ms_profile"(member_id, open, level, lk, blocked_at, blocked_by) VALUES(3,1,'Freizeit',18.5,NULL,NULL);
+INSERT INTO "bk_ms_profile"(member_id, open, level, lk, blocked_at, blocked_by) VALUES(16,0,NULL,NULL,'2026-10-20 08:00:00','admin');
 COMMIT;

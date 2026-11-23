@@ -240,6 +240,14 @@ For family members and members with a different payer the tab is greyed out: acc
 
 Membership application, SEPA mandate, cancellation, proofs and correspondence are kept here as files. With **File document** you choose the type, optionally a name, and the file (PDF, photo, Word or text, up to 15 MB). In the **Filing**, “Open …” opens the file or deletes it. **All documents as ZIP** (on the right above the filing) downloads all documents of this member in one go, with an overview as Excel; this is logged. The documents are stored only on the club computer and are included in the backup. For family members the membership application and mandate are with the head of family.
 
+### Member › Card {#mitglied-ausweis}
+
+![The “Card” tab: status and issued cards, one of them blocked.](bild: seite=mitglieder/mitglied/12; tab=ausweis; tabkey=detail_mitglied)
+
+The tab is there when the membership card is switched on (Settings › Membership card). At the top it says whether the card is valid and whether it has a photo. A photo only appears if the member releases their profile picture for the membership card in the app. The list **Issued cards** shows the serial number of each card, when it was issued, until when it is valid and whether it is valid or blocked. The member’s phone issues the card itself as soon as the member opens “My data” › “Card” in the app, and renews it by itself.
+
+**Block / reissue card …** (top right) makes the serial number invalid immediately, for example after a lost phone. When the member opens the app with a connection again, they get a new card with a new serial number. For a lost phone, also invite the member to the app again; the old phone then loses access. Blocking is recorded in the log and in the member’s history. After a member leaves, the card stops being valid from the day after the leaving date without you having to do anything.
+
 ### Member › History {#mitglied-verlauf}
 
 ![The “Change history” card.](bild: seite=mitglieder/mitglied/7; tab=verlauf; tabkey=detail_mitglied; ziel=.detbody > div:nth-child(2))
@@ -427,6 +435,20 @@ Subject and text of the email a member receives on leaving – when you record a
 ![The “My data” card in the app.](bild: seite=mv-einstellungen; ziel=#eApp)
 
 Sets what members can **view** in the app (fee, items, address, contact, date of birth, bank details, consents) and what they may **change** (address, contact, bank details, consents, cancellation). The board always confirms changes to data. If the consents are hidden in the app, members withdraw them informally with the board.
+
+#### Membership card
+
+![The “Membership card” card in the settings.](bild: seite=mv-einstellungen; ziel=#eAusweis)
+
+**Offer the membership card in the app** switches the card on for all members. Every card has a signed QR code. It is stored on the phone and works without a connection; the code is valid for 30 days, then the app fetches a new one with a connection. Name and date of birth are not in the code.
+
+- **Photo on the card:** “if the member chooses it for the card” or “never”.
+- **Valid until:** end of the membership year or of the financial year. After a notice of termination the card is only valid until the leaving date.
+- **Show on the card:** departments, age group (the fee type) and “Member since”.
+- **Block all cards …** makes all previous codes invalid immediately; every phone fetches a new card the next time the app is opened.
+- **Change key …** creates a new signing key. Previous codes remain valid until they expire. The key is kept in the vault; if the vault is locked after a restart, the cards stay valid and only new ones wait until an admin logs in.
+
+Cards can be checked by members you give the **Check cards** switch under **Member app** for that member (area “My data”), for example bar duty or coaches. Checks are not stored.
 
 #### Notifications
 
@@ -625,6 +647,14 @@ Signatures, cancellation and changes that concern money or email require the mem
 
 ![The “New bank details” window with the signature field.](bild: app=mitglieder; klick=#mdBank)
 
+**Membership card:** When it is switched on, “My data” has the tabs **Membership** and **Card**. The card shows the club name, photo (only if released), “Last name, First name”, number, “Member since”, departments, age group, status, “valid until”, the QR code and a running clock with seconds. The clock and the moving shine show that it is not a screenshot. The card is stored on the phone: without a connection the “No connection” page shows the button **Show membership card**. In “For me” the line **Show membership card** leads straight to the card. Anyone who has left sees “Your membership ended on …” without a code; “Log out” deletes the card from the phone.
+
+![The membership card in the app.](bild: app=mitglieder; klick=[data-tab="ausweis"])
+
+**Checking cards:** With the “Check cards” switch the tab **Check** is added. Tap **Start camera** and hold the other phone’s QR code in front of it. The result is shown in large letters, with symbol and text: **Valid** (with photo, name, number, status, departments, “valid until”), **Expired**, **No longer a member**, **Card blocked** or **Invalid code**. If the photo matches the person, the card is valid. A membership number deliberately cannot be typed in. After many invalid codes checking is blocked for a while and the board gets a security warning. The camera only works if the app is opened via https (the club’s address).
+
+![The “Check” tab in the app.](bild: app=mitglieder; klick=[data-tab="pruefen"])
+
 **On the tablet** the “Join” tab appears if it is switched on. Interested people fill in the membership application themselves and sign with a finger, or enter the **code** from the admin area. For privacy reasons the tablet deletes everything after 4 minutes without input and 25 seconds after sending. Anyone who is already a member books on the tablet with their PIN as before; the PIN is reset by the admin area on the member.
 
 **Online:** via the address of the member app (`/p/mitglieder/`) there is the same application for the phone, if “Online application” is switched on.
@@ -639,6 +669,7 @@ Signatures, cancellation and changes that concern money or email require the mem
 | Collection | “Fees & payments” menu: fee run, direct debits, open items, invoices & reminders, settings, claims, reminder holds |
 | Documents | “Documents” tab on the member: view and upload |
 | Congratulations | “Congratulations” tab, ticking off and reminders |
+| “Check cards” switch (Member app › member, area “My data”) | check other members’ cards with the camera in your own app – not a permission in the admin area |
 
 ## Working with other modules {#zusammenspiel}
 
@@ -648,7 +679,7 @@ Signatures, cancellation and changes that concern money or email require the mem
 - **Courts:** Fees for courts and guests become claims and are collected like a fee. Positions from this module can determine permissions when booking courts.
 - **Match play:** Birth year and gender come from here (for age groups).
 - **Messages:** Recipients can be chosen by department, position or fee type.
-- **Member app:** “My data” and the online application.
+- **Member app:** “My data”, the membership card (with the line “Show membership card” in “For me”) and the online application. The profile picture from “My account” appears on the card if the member ticks “Membership card”.
 - **Bank statement and bank accounts (core):** Imported bank statements book items as paid and record returned debits. You choose the account for direct debits from the bank accounts.
 - **Privacy (core):** The data access request collects the data of all modules. Anonymised members stay in the statistics, bookings continue under “Anonymous …”.
 - **Setup and overview (core):** Setup guides you through the first steps. The overview warns about new applications, missing mandates, upcoming age brackets, members who left long ago and direct debits still to be booked as paid.

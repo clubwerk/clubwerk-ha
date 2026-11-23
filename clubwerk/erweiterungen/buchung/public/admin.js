@@ -1,5 +1,5 @@
 'use strict';
-/* Verwaltung „Plätze“: Belegung · Serien & Sperren · Buchungen · Gebühren · Auswertung · Plätze & Geräte · Einstellungen */
+/* Verwaltung „Plätze“: Belegung · Serien & Sperren · Buchungen · Gebühren · Auswertung · Mitspielersuche · Plätze & Geräte · Einstellungen */
 (() => {
   const GK = window.GK;
   const { $, esc, euro, toast, fail, dialog, closeDialog, ask, askText, deDate, toCents, centsToInput } = GK;
@@ -222,6 +222,7 @@
     'bk-protokoll': ['Buchungen', 'Alle Buchungen des Jahres, auch stornierte und Sperren.'],
     'bk-auswertung': ['Auswertung', 'Auslastung je Platz, beliebte Zeiten und Vergleich mit dem Vorjahr.'],
     'bk-gebuehren': ['Gebühren', 'Gast- und Platzgebühren aus Buchungen: offen, bezahlt oder storniert.'],
+    'bk-mitspieler': ['Mitspielersuche', 'Gesuche aus der Mitglieder-App: offen, voll, gemeldet. Ausblenden, sperren und die Regeln festlegen.'],
     'bk-plaetze': ['Plätze & Geräte', 'Was gebucht werden kann, mit Zeiten, Raster, Höchstdauer und Gastgebühr.'],
     'bk-einstellungen': ['Einstellungen', 'Regeln und Rechte fürs Buchen von Plätzen.'],
   };
@@ -1005,6 +1006,59 @@
     saveCard($('bsOkOrd'), () => ({ rules: $('bs_rules').value }));
   }
 
+  /* ---------------------------------------------------------------- Mitspielersuche: Gesuche der App, Melden, Ausblenden, Sperren, Einstellungen */
+  async function showMs(el) {
+    st.ms = st.ms || { f: 'offen' };
+    const g = st.ms, d = await api('ms?f=' + g.f), c = d.counts || {};
+    const mod = can('buchung_stornieren'), canE = can('buchung_einstellungen');
+    const STS = { offen: ['g', 'offen'], voll: ['b', 'voll'], erledigt: ['', 'erledigt'], zurueckgezogen: ['', 'zurückgezogen'], abgelaufen: ['', 'abgelaufen'], ausgeblendet: ['r', 'ausgeblendet'] };
+    const when = q => `${WD[dow(q.date)]} ${deDate(q.date).slice(0, 6)} · ${q.start}–${q.end}`;
+    const rows = d.rows.map(q => `<tr data-ms="${q.id}" style="cursor:pointer"><td><b>${esc(q.by.name)}</b>${q.blocked ? ' <span class="pill r">gesperrt</span>' : ''}</td><td>${esc(q.kind)}</td><td class="k-weg nw">${esc([q.level, q.lk].filter(Boolean).join(' · '))}</td>
+      <td class="nw">${esc(when(q))}</td><td class="k-weg nw">${q.place ? esc(q.place) : 'noch kein Platz'}</td><td title="${esc(q.players.map(p => p.name).join(' · '))}">${GK.T('{0} von {1}', [q.found, q.need])}</td>
+      <td>${pill(STS[q.status] || ['', q.status_txt])}${q.reports ? ` <span class="pill a">${GK.T(q.reports === 1 ? '1 Meldung' : '{0} Meldungen', [q.reports])}</span>` : ''}</td></tr>`).join('');
+    const s = d.settings;
+    el.innerHTML = `${s.on ? '' : '<div class="banner a" style="margin:0 0 16px;font-weight:400">Die Mitspielersuche ist ausgeschaltet – in der App gibt es den Reiter „Mitspieler“ nicht.</div>'}
+      <div class="filterbar"><div class="chips" id="msF" role="group" aria-label="Filter">${[['offen', 'Offen', c.offen], ['gemeldet', 'Gemeldet', c.gemeldet], ['erledigt', 'Erledigt', c.erledigt], ['beendet', 'Beendet', c.beendet], ['alle', 'Alle', c.alle]].map(([k, t, n]) => `<button type="button" data-f="${k}" class="${g.f === k ? 'on' : ''}" aria-pressed="${g.f === k}">${t}<span class="cnt">${n || ''}</span></button>`).join('')}</div></div>
+      <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl kompakt"><tr><th>Mitglied</th><th>Spielform</th><th class="k-weg">Spielstärke</th><th>Termin</th><th class="k-weg">Platz</th><th>Zusagen</th><th>Status</th></tr>${rows}</table>` : `<p class="empty">${g.f === 'gemeldet' ? 'Kein Gesuch gemeldet.' : 'Keine Gesuche in dieser Auswahl.'}</p>`}</div>
+      <p class="muted s">Mitglieder stellen Gesuche in der App unter Plätze › Mitspieler ein. Gesuche enden zur Startzeit. Gemeldete Gesuche erscheinen in der Übersicht.</p>
+      <div class="card" data-card="ms-gesperrt"><h3>Gesperrt für die Mitspielersuche</h3>${d.blocked.length ? `<table class="tbl kompakt">${d.blocked.map(b => `<tr><td><b>${esc(b.name)}</b></td><td class="muted s">${GK.T('seit {0}', [deDate(String(b.at).slice(0, 10))])}${b.by ? ` · ${esc(b.by)}` : ''}</td><td class="r">${mod ? `<button class="btn small" type="button" data-unb="${b.member_id}">Sperre aufheben</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Niemand ist gesperrt. Sperren geht über ein Gesuch des Mitglieds.</p>'}</div>
+      ${canE ? `<div class="card" data-card="ms-einstellungen"><h3>Einstellungen der Mitspielersuche</h3>
+        <label class="chk"><input type="checkbox" id="msOn" ${s.on ? 'checked' : ''}> Mitspielersuche in der Mitglieder-App (Reiter „Mitspieler“ bei Plätze)</label>
+        <div class="frm" style="margin-top:14px"><label class="f">Offene Gesuche je Mitglied<input id="msMo" inputmode="numeric" value="${s.max_open}"></label><label class="f">Zusagen je Mitglied und Tag<input id="msMd" inputmode="numeric" value="${s.max_day}"></label>
+          <label class="f">Spielformen (eine je Zeile: Name: Anzahl oder Name: von–bis)<textarea id="msK" rows="4">${esc(s.kinds.map(k => `${k.name}: ${k.min === k.max ? k.min : `${k.min}–${k.max}`}`).join('\n'))}</textarea></label>
+          <label class="f">Spielstärken (eine je Zeile, von niedrig bis hoch)<textarea id="msL" rows="4">${esc(s.levels.join('\n'))}</textarea></label></div>
+        <p class="muted s">Die Anzahl ist die Zahl der gesuchten Mitspieler (Einzel 1, Doppel 3). „Passend“ heißt: gleiche oder benachbarte Spielstärke bzw. LK im gesuchten Bereich. Es gibt keine Einschränkung nach Alter.</p>
+        <div class="btns"><button class="btn primary" id="msOk" type="button">Speichern</button></div></div>` : ''}`;
+    const again = () => showMs(el).catch(fail);
+    el.querySelectorAll('#msF [data-f]').forEach(b => { b.onclick = () => { g.f = b.dataset.f; again(); }; });
+    el.querySelectorAll('[data-unb]').forEach(b => { b.onclick = async () => { try { await api('ms/block', 'POST', { member_id: +b.dataset.unb, block: false }); toast('Sperre aufgehoben.'); again(); } catch (e) { fail(e); } }; });
+    el.querySelectorAll('tr[data-ms]').forEach(tr => { tr.onclick = () => msDetail(d.rows.find(x => x.id === +tr.dataset.ms), mod, again); });
+    if ($('msOk')) $('msOk').onclick = () => GK.busy($('msOk'), async () => {
+      const kinds = val('msK').split('\n').map(l => l.trim()).filter(Boolean).map(l => { const m = /^(.+?)\s*:\s*(\d+)(?:\s*[-–]\s*(\d+))?$/.exec(l); return m ? { name: m[1].trim(), min: +m[2], max: +(m[3] || m[2]) } : { name: l, min: 1, max: 1 }; });
+      try { await api('ms/settings', 'PUT', { on: $('msOn').checked, max_open: +val('msMo'), max_day: +val('msMd'), kinds, levels: val('msL').split('\n') }); GK.clean(); toast('Gespeichert.'); again(); } catch (e) { fail(e); }
+    });
+  }
+  function msDetail(q, mod, after) {
+    if (!q) return;
+    const hidden = q.status === 'ausgeblendet';
+    dialog(`<h2>${esc(q.by.name)}</h2><dl class="bk-facts">
+        <dt>Spielform</dt><dd>${esc(q.kind)} · ${GK.T('{0} von {1} gefunden', [q.found, q.need])}</dd>
+        <dt>Termin</dt><dd>${WD[dow(q.date)]} ${deDate(q.date)} · ${q.start}–${q.end} Uhr${q.place ? ` · ${esc(q.place)}` : ''}</dd>
+        ${q.level || q.lk ? `<dt>Spielstärke</dt><dd>${esc([q.level, q.lk].filter(Boolean).join(' · '))}</dd>` : ''}
+        ${q.note ? `<dt>Hinweis</dt><dd>${esc(q.note)}</dd>` : ''}
+        ${q.players.length ? `<dt>Zusagen</dt><dd>${esc(q.players.map(p => p.name).join(' · '))}</dd>` : ''}
+        <dt>Status</dt><dd>${esc(q.status_txt)}${q.reports ? ` · ${GK.T(q.reports === 1 ? '1 Meldung' : '{0} Meldungen', [q.reports])}` : ''}${q.hidden_by ? ` · ${GK.T('ausgeblendet von {0}', [q.hidden_by])}` : ''}</dd>
+        <dt>Eingestellt</dt><dd>${deDate(String(q.created_at).slice(0, 10))} ${String(q.created_at).slice(11, 16)}</dd></dl>
+      ${mod ? `<div class="dz"><button class="btn ghost danger" id="msBl">${q.blocked ? 'Sperre aufheben' : 'Mitglied für die Mitspielersuche sperren'}</button></div>` : ''}
+      <div class="btns"><span style="flex:1"></span>${mod ? `<button class="btn" id="msHi">${hidden ? 'Wieder zeigen' : 'Ausblenden'}</button>` : ''}<button class="btn primary" id="c">Schließen</button></div>`);
+    $('c').onclick = closeDialog;
+    if ($('msHi')) $('msHi').onclick = async () => { try { await api(`ms/${q.id}/hide`, 'POST', { hide: !hidden }); closeDialog(); toast(hidden ? 'Wieder sichtbar.' : 'Ausgeblendet.'); after(); } catch (e) { fail(e); } };
+    if ($('msBl')) $('msBl').onclick = async () => {
+      if (!q.blocked && !await ask(`${q.by.name} für die Mitspielersuche sperren?\n\nOffene Gesuche werden ausgeblendet. Buchen bleibt möglich.`, { ok: 'Sperren', danger: true })) return;
+      try { await api('ms/block', 'POST', { member_id: q.member_id, block: !q.blocked }); closeDialog(); toast(q.blocked ? 'Sperre aufgehoben.' : 'Gesperrt.'); after(); } catch (e) { fail(e); }
+    };
+  }
+
   const G = { key: 'buchung', label: 'Plätze', icon: 'kalender', order: 2 };   // Menü: Verkauf 1 · Plätze 2 · Helferdienste 3 · Zeiterfassung 4 · Beregnung 5 · Zugang 6 · Mitgliederverwaltung 7 · Buchhaltung 8
   const ANY = ['buchung', 'buchung_buchen', 'buchung_stornieren', 'buchung_serien', 'buchung_einstellungen'];
   GK.registerPage({ key: 'bk-belegung', title: 'Belegung', perm: ANY, render: pageRender('bk-belegung', showPlan), group: G });
@@ -1012,6 +1066,7 @@
   GK.registerPage({ key: 'bk-protokoll', title: 'Buchungen', perm: ANY, render: pageRender('bk-protokoll', showLog), group: G });
   GK.registerPage({ key: 'bk-gebuehren', title: 'Gebühren', perm: ANY, render: pageRender('bk-gebuehren', showFees), group: G });
   GK.registerPage({ key: 'bk-auswertung', title: 'Auswertung', perm: ANY, render: pageRender('bk-auswertung', showStats), group: G });
+  GK.registerPage({ key: 'bk-mitspieler', title: 'Mitspielersuche', perm: ANY, render: pageRender('bk-mitspieler', showMs), group: G });
   GK.registerPage({ key: 'bk-plaetze', title: 'Plätze & Geräte', perm: ANY, render: pageRender('bk-plaetze', showResources), group: G });
   GK.registerPage({ key: 'bk-einstellungen', title: 'Einstellungen', perm: 'buchung_einstellungen', render: pageRender('bk-einstellungen', showSettings), group: G });
   // Suche (Strg/⌘ K): Karten, Felder und Aktionen der Plätze
@@ -1024,6 +1079,7 @@
     { label: 'Spielplan importieren (Plätze buchen)', page: 'bk-serien', btn: 'Spielplan importieren', perm: 'buchung_serien', kind: 'aktion', in: 'Serien & Sperren', words: 'Import nuLiga Medenspiel Heimspiel' },
     { label: 'Buchungen als Excel-Liste', page: 'bk-protokoll', btn: 'Excel', kind: 'aktion', in: 'Buchungen', words: 'Export Liste Protokoll CSV' },
     { label: 'Gebühr buchen', page: 'bk-gebuehren', btn: '+ Gebühr buchen', perm: 'buchung_buchen', kind: 'aktion', in: 'Gebühren', words: 'Gastgebühr Platzgebühr stornieren' },
+    { label: 'Mitspielersuche (Gesuche, gemeldet, sperren)', page: 'bk-mitspieler', kind: 'aktion', in: 'Mitspielersuche', words: 'Mitspieler suchen Gesuch melden sperren Spielpartner Doppel Einzel' },
     { label: 'Platz anlegen', page: 'bk-plaetze', btn: '+ Platz', perm: 'buchung_einstellungen', kind: 'aktion', in: 'Plätze & Geräte', words: 'Platz Court Halle' },
     { label: 'Gerät anlegen (z. B. Ballmaschine)', page: 'bk-plaetze', btn: '+ Gerät', perm: 'buchung_einstellungen', kind: 'aktion', in: 'Plätze & Geräte', words: 'Gerät Ballmaschine' },
     { label: 'Buchen (Vorlauf, Kontingent, Stornieren)', page: 'bk-einstellungen', card: 'Buchen', in: 'Einstellungen', words: 'Vorlauf Kontingent offene Buchungen Storno Platz Gerät' },

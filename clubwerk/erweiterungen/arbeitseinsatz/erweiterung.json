@@ -1,7 +1,7 @@
 {
   "id": "arbeitseinsatz",
   "name": "Dienste & Termine",
-  "version": "2.20.1",
+  "version": "2.20.2",
   "kurz": "Dienstpläne, Arbeitseinsätze und Arbeitsstunden, Vereinstermine mit Zu- und Absage – und Aufgaben mit Verantwortlichem und Frist.",
   "beschreibung": "Dienstpläne für Veranstaltungen (z. B. Kirmes, Turnier): Tage mit Schichten wie Theke, Kasse, Aufbau – Mitglieder tragen sich in der Mitglieder-App ein, Austragen bis 24 Stunden vorher. Dazu Arbeitseinsätze und dauerhafte Dienste wie der Thekendienst, Ein- und Ausstempeln am Tablet, Stunden melden. Soll je Mitglied (Vorgabe, Beitragsart, Alter, Befreiung), Familien gemeinsam, Erinnerungen per E-Mail. Dazu Vereinstermine (z. B. Weihnachtsfeier) mit „Ich komme“ / „Ich komme nicht“, Begleitpersonen, Antwortfrist und Teilnehmerliste. Dazu Aufgaben des Vorstands (z. B. „Pokale bestellen“): einer Person zuteilen, Frist setzen, in der Mitglieder-App abhaken – ohne Stunden. Nicht geleistete Stunden rechnet das Modul „Mitglieder“ im Beitragslauf ab.",
   "minApp": "3.1.0",

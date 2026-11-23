@@ -99,6 +99,7 @@ function activate(ctx) {
     // Gebühren: Monatsliste nur aus den (wenigen) Buchungen mit Gebühr statt aus allen
     db.exec('CREATE INDEX IF NOT EXISTS ix_bk_fee ON bk_booking(date) WHERE fee_cents > 0'); }
   const admin = ctx.admin, T = ctx.tablet, M = ctx.member;
+  let ms = null;   // Mitspielersuche (unten eingebunden)
   const uname = ctx.userName;
   const ar = fn => ctx.asyncRoute(fn);
   const mv = () => ctx.isModuleActive('mitglieder');
@@ -427,7 +428,7 @@ function activate(ctx) {
     editing.add(editId);
     try { return await memberBookOnce(mid, b, source, opts); } finally { editing.delete(editId); }
   }
-  async function memberBookOnce(mid, b, source, { by = null } = {}) {   // by = Mitglied, das für mid bucht (Sonderrecht „für andere buchen“)
+  async function memberBookOnce(mid, b, source, { by = null, onlyPartners = false } = {}) {   // onlyPartners: Zusage der Mitspielersuche – nur ein-/ausgetragene Mitspieler bekommen Nachricht   // by = Mitglied, das für mid bucht (Sonderrecht „für andere buchen“)
     const editId = int(b.id) || 0;
     const old = editId ? db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(editId) : null;
     if (editId) {
@@ -468,7 +469,8 @@ function activate(ctx) {
     db.prepare('DELETE FROM bk_wait WHERE member_id = ? AND resource_id = ? AND date = ? AND start = ?').run(mid, r.id, date, hhmm(s));
     const now = db.prepare('SELECT * FROM bk_booking WHERE id = ?').get(id);
     if (old) {
-      mailChange(old, now, { by: by || mid, toBooker: Boolean(by), budget: by || mid });
+      if (onlyPartners) mailChange(old, now, { by: by || mid, budget: by || mid, quiet: true });
+      else mailChange(old, now, { by: by || mid, toBooker: Boolean(by), budget: by || mid });
       if (old.start !== now.start || old.end !== now.end || old.date !== now.date || old.resource_id !== now.resource_id) await wakeWaitlist(old);
     } else {
       if (partners.length) mailPlayers(now, 'buchung', { budget: by || mid, by });
@@ -477,11 +479,12 @@ function activate(ctx) {
     return { id, fee_cents: fee, lines };
   }
   /** Änderung: neue Mitspieler bekommen die normale Buchungs-Mail, entfernte eine Storno-Mail, gebliebene (und ggf. der Bucher) eine Änderungs-Mail */
-  function mailChange(old, now, { by = null, toBooker = false, budget = null } = {}) {   // Mail-Einstellung prüft mailPlayers (Push kommt immer)
+  function mailChange(old, now, { by = null, toBooker = false, budget = null, quiet = false } = {}) {   // Mail-Einstellung prüft mailPlayers (Push kommt immer)
     const a = J(old.partners, []), b = J(now.partners, []);
     const added = b.filter(x => !a.includes(x)), removed = a.filter(x => !b.includes(x)), kept = b.filter(x => a.includes(x));
     if (added.length) mailPlayers({ ...now, partners: JSON.stringify(added) }, 'buchung', { budget });
     if (removed.length) mailPlayers({ ...old, partners: JSON.stringify(removed) }, 'storno', { by, budget });
+    if (quiet) return;   // nur Mitspieler ein-/ausgetragen (Mitspielersuche): keine Änderungs-Mail an alle übrigen
     const moved = old.date !== now.date || old.start !== now.start || old.end !== now.end || old.resource_id !== now.resource_id;
     if (moved || old.guests !== now.guests || added.length || removed.length) mailPlayers({ ...now, partners: JSON.stringify(kept) }, 'aenderung', { by, toBooker, old, budget });
   }
@@ -597,6 +600,7 @@ function activate(ctx) {
     const dev = deviceOf(b);
     if (dev) { db.prepare("UPDATE bk_booking SET status = 'storniert', cancelled_at = ?, cancelled_by = ?, cancel_reason = ? WHERE id = ? AND status = 'aktiv'").run(nowTs(), by, txt(reason, 160) || 'Platzbuchung storniert', dev.booking.id); await wakeWaitlist(dev.booking); }
     db.prepare('UPDATE bk_booking SET partner_device_id = NULL WHERE partner_device_id = ?').run(b.id);
+    if (ms) ms.bookingCancelled(b.id);   // Mitspielersuche: Gesuch zu dieser Buchung endet
     await wakeWaitlist(b);
   }
   async function wakeWaitlist(b) {
@@ -722,6 +726,10 @@ function activate(ctx) {
     res.set({ 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': `inline; filename="buchung-${b.date}.ics"`, 'Cache-Control': 'no-store' }).send(ics);
   });
 
+  /* Mitspielersuche (Gesuche, Zusagen, Übergang in die Buchung): lib/mitspieler.js */
+  ms = require('./lib/mitspieler').activate(ctx, { M: ctx.member, admin: ctx.admin, P, need, S, SET, J, tm, hhmm, nowMin, WD, isoDow, bad, int, ar, txt, addDays, cfg, memberBook, notAllowed, openCount, personBusy, isTrainer,
+    resource, nameOf, lastFirst, photos, isTu, canCancelNow, rateLimit, rateLimitKey, uname: req => uname(req) });
+
   /* ================================================================= Mitglieder-App (/api/m/buchung/…) */
   /** Für wen wird gebucht? Ohne Angabe für sich selbst; sonst nur mit Sonderrecht „für andere buchen“ (und beim Ändern nur eigene Fremdbuchungen) */
   function actingFor(me, b) {
@@ -750,6 +758,7 @@ function activate(ctx) {
       people: (await eligiblePeople(mid)).map(p => ({ ...p, ln: lastFirst(p.name) })), blocked: await notAllowed(mid),
       labels: labels().filter(l => labelForMember(l, mid)).map(l => ({ id: l.id, name: l.name, color: l.color, free_rules: Boolean(l.free_rules) })),
       rights: { series: rt.series, forOthers: rt.forOthers },
+      ms: ms.on(),   // Reiter „Mitspieler“ (Mitspielersuche eingeschaltet)
       series: rt.series ? db.prepare("SELECT * FROM bk_series WHERE member_id = ? AND active = 1 AND to_date >= ? AND type = 'serie' ORDER BY from_date").all(mid, today()).map(x => ({ id: x.id, title: x.title, weekdays: x.weekdays, start: x.start, end: x.end, from_date: x.from_date, to_date: x.to_date, rule_text: ruleText(x),
         resources: J(x.resources, []).map(id => (resource(id) || {}).name).filter(Boolean), count: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE series_id = ? AND status = 'aktiv' AND date >= ?").get(x.id, today()).n })) : [] });
   }));
@@ -757,7 +766,7 @@ function activate(ctx) {
   const perMember = rateLimitKey('bkmem', 10, 60000, req => 'm' + req.member.id);
   M.post('/book', rateLimit('bkapp', 60, 60000), perMember, ar(async (req, res) => {
     const a = actingFor(req.member.id, req.body || {}); if (a.error) return bad(res, a.error, 403);
-    try { const r = await memberBook(a.target, req.body || {}, 'app', { by: a.by }); res.json({ ok: true, ...r, ics: icsUrl(r.id), for_name: a.by ? nameOf(a.target) : null }); } catch (e) { bad(res, e.message); }
+    try { const r = await memberBook(a.target, req.body || {}, 'app', { by: a.by }); if (!a.by && !int((req.body || {}).id) && int((req.body || {}).ms)) ms.booked(a.target, int(req.body.ms), r.id); res.json({ ok: true, ...r, ics: icsUrl(r.id), for_name: a.by ? nameOf(a.target) : null }); } catch (e) { bad(res, e.message); }
   }));
   M.post('/cancel', rateLimit('bkapp', 60, 60000), perMember, ar(async (req, res) => {
     const b = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int((req.body || {}).id));
@@ -1636,7 +1645,8 @@ function activate(ctx) {
     { key: 'bk.platz', label: 'Platz- und Gastgebühren (Buchungssystem)', sphere: 'zweck', prefix: 'bk-' },
     { key: 'bk.gebuehr', label: 'Von Hand gebuchte Gebühren (Buchungssystem)', sphere: 'zweck', prefix: 'bkf-' },
   ];
-  ctx.hooks.privacyRecord = () => [{ purpose: 'Buchung von Plätzen und Geräten, Gebühren für Gäste', data: 'Name, gebuchte Zeiten, Mitspieler und Gäste, Gebühren, Warteliste', persons: 'Mitglieder und ihre Gäste' }];
+  ctx.hooks.privacyRecord = () => [{ purpose: 'Buchung von Plätzen und Geräten, Gebühren für Gäste', data: 'Name, gebuchte Zeiten, Mitspieler und Gäste, Gebühren, Warteliste', persons: 'Mitglieder und ihre Gäste' }, ms.privacy()];
+  ctx.hooks.retention = ms.retention;
   /* Datenauskunft: eigene Buchungen und solche als Mitspieler, Gebühren, Warteliste, Sonderrechte */
   ctx.hooks.memberData = id => ({
     buchungen: db.prepare(`SELECT b.date AS datum, b.start AS von, b.end AS bis, r.name AS platz, b.status, b.partners AS mitspieler, b.guests AS gaeste, b.fee_cents AS gebuehr_cent, b.source AS quelle,
@@ -1645,6 +1655,7 @@ function activate(ctx) {
     gebuehren: db.prepare('SELECT date AS datum, text, cents AS cent, cancelled_at AS storniert FROM bk_fee WHERE member_id = ? ORDER BY date').all(id),
     warteliste: db.prepare('SELECT w.date AS datum, w.start AS von, r.name AS platz FROM bk_wait w JOIN bk_resource r ON r.id = w.resource_id WHERE w.member_id = ?').all(id),
     sonderrechte: db.prepare('SELECT series AS serien, labels AS kennzeichen, note AS notiz FROM bk_rights WHERE member_id = ?').get(id) || null,
+    ...ms.memberData(id),
   });
   ctx.hooks.memberLinks = id => {
     const d0 = today(), out = [];
@@ -1659,6 +1670,7 @@ function activate(ctx) {
     return out;
   };
   ctx.hooks.memberRemoved = (fromId, intoId) => {
+    ms.memberRemoved(fromId, intoId);
     if (intoId) {
       for (const w of db.prepare('SELECT id FROM bk_wait WHERE member_id = ?').all(fromId)) {
         try { db.prepare('UPDATE bk_wait SET member_id = ? WHERE id = ?').run(intoId, w.id); } catch (e) { db.prepare('DELETE FROM bk_wait WHERE id = ?').run(w.id); }   // steht dort schon
@@ -1698,7 +1710,8 @@ function activate(ctx) {
     const { rows, tracked } = await feeRows(mv() ? {} : { from: ctx.geschaeftsjahr.startOf(d) });   // ohne Mitgliederverwaltung: seit Beginn des Geschäftsjahres
     const open = rows.filter(isOpenFee), sum = sumOf(open);
     // Kachel wie beim Verkauf: groß die offenen Gebühren, darunter die Belegung – kein Hinweis-Banner
-    return { kpis: [{ l: 'Buchungen heute', v: ctx.T('{0} heute', [t]) }, { l: tracked ? 'Offene Gebühren' : 'Gebühren dieses Geschäftsjahr', v: euro(sum) }, { l: 'belegt', v: `${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }, { l: 'offene Posten', v: open.length }], alerts: [] };
+    const rep = ms.reportedCount();   // gemeldete Gesuche der Mitspielersuche
+    return { kpis: [{ l: 'Buchungen heute', v: ctx.T('{0} heute', [t]) }, { l: tracked ? 'Offene Gebühren' : 'Gebühren dieses Geschäftsjahr', v: euro(sum) }, { l: 'belegt', v: `${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }, { l: 'offene Posten', v: open.length }], alerts: rep ? [{ level: 'a', text: ctx.T(rep === 1 ? 'Ein Gesuch der Mitspielersuche wurde gemeldet.' : '{0} Gesuche der Mitspielersuche wurden gemeldet.', [rep]), link: 'Ansehen' }] : [] };
   };
   /* Mitglieder-App „Für mich“: next = eigene Buchungen (auch als Mitspieler) bis zum Tag „until“; news = Platz von der Warteliste frei geworden,
      kommende Buchung wegen einer Platzsperre storniert (letzte 14 Tage) – je einmal, bis das Mitglied sie antippt */
@@ -1721,7 +1734,7 @@ function activate(ctx) {
     const lock = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'storniert' AND b.type = 'buchung' AND b.cancel_reason LIKE 'Platz gesperrt%'
       AND b.date >= ? AND b.cancelled_at >= datetime('now','localtime','-14 days') AND (b.member_id = ? OR b.partners LIKE '%' || ? || '%') ORDER BY b.date, b.start LIMIT 10`).all(d, mid, String(mid))
       .filter(mine).slice(0, 3).map(b => ({ key: `sperre-${b.id}`, title: `Buchung storniert: ${b.rname}`, sub: `${when(b)} · ${b.cancel_reason}`, tr: true }));
-    return { next, news: [...lock, ...free] };
+    return { next, news: [...lock, ...free], todo: ms.todo(mid) };
   };
   /* Push-Anlässe (der Vorstand gibt frei, das Mitglied wählt je Handy) */
   ctx.hooks.pushEvents = () => [
@@ -1730,6 +1743,7 @@ function activate(ctx) {
     { id: 'storno', label: 'Buchung storniert', desc: 'Eine Buchung, bei der du dabei bist, wurde storniert – auch durch den Verein (Platzsperre).', default: true },
     { id: 'warteliste', label: 'Platz frei geworden', desc: 'Ein Termin von deiner Warteliste ist frei geworden.', default: true },
     { id: 'erinnerung', label: 'Erinnerung vor dem Spiel', desc: 'Kurz vor deiner Buchung – an Buchende und Mitspieler.', default: true, lead: { default: 120, label: 'Vorlauf' } },
+    ...ms.pushEvents(),
   ];
   try { db.exec('ALTER TABLE bk_booking ADD COLUMN reminded INTEGER NOT NULL DEFAULT 0'); } catch (e) { if (!/duplicate column/i.test(e.message)) console.error('Spalte ergänzen:', e.message); }   // nur „gibt es schon“ ist erwartet
   const andere = require('./lib/andere');
@@ -1752,14 +1766,14 @@ function activate(ctx) {
   }
   setInterval(() => remind().catch(() => {}), process.env.CW_TEST_FAST ? 1500 : 60000).unref();
   setTimeout(() => remind().catch(() => {}), 5000).unref();
-  ctx.hooks.exportConfig = () => ({ labels: db.prepare('SELECT name, color, sort, active, use_mode, use_functions, free_rules FROM bk_label').all().map(l => ({ ...l, use_functions: J(l.use_functions, []) })), settings: Object.fromEntries(Object.keys(DEF).filter(k => k !== 'blocked_fees').map(k => [k, S(k, DEF[k])])),
+  ctx.hooks.exportConfig = () => ({ labels: db.prepare('SELECT name, color, sort, active, use_mode, use_functions, free_rules FROM bk_label').all().map(l => ({ ...l, use_functions: J(l.use_functions, []) })), settings: Object.fromEntries([...Object.keys(DEF).filter(k => k !== 'blocked_fees').map(k => [k, S(k, DEF[k])]), ...Object.entries(ms.settingsOut())]),
     resources: db.prepare('SELECT r.kind, r.name, r.area, r.note, r.days, r.open_from, r.open_to, r.slot_min, r.max_min, r.quantity, r.guest_fee_cents, r.outsiders, r.outsider_fee_cents, r.active, r.sort, r.partner_required, r.solo_label, r.as_partner, r.department_id FROM bk_resource r WHERE r.deleted = 0').all().map(({ department_id, ...r }) => ({ ...r, department: (departments().find(x => x.id === department_id) || {}).name || null })) });
   /* Import: gleicher Name (ohne Groß-/Kleinschreibung) → aktualisieren, sonst neu anlegen, nie löschen */
   ctx.hooks.importConfig = d => {
     if (!d || typeof d !== 'object') throw new Error('Leere Funktionsdatei.');
     const z = konfigio.zaehler(); let ungueltig = 0;
     db.transaction(() => {
-      for (const [k, v] of Object.entries(d.settings || {})) if (k in DEF && k !== 'blocked_fees' && typeof v === 'string') SET(k, v.slice(0, 2000));
+      for (const [k, v] of Object.entries(d.settings || {})) if ((k in DEF || k in ms.settingsOut()) && k !== 'blocked_fees' && typeof v === 'string') SET(k, v.slice(0, 2000));   // Mitspielersuche: ungültige Werte fallen beim Lesen auf die Vorgabe zurück
       const res = new Map(db.prepare('SELECT * FROM bk_resource WHERE deleted = 0').all().map(r => [r.name.toLowerCase(), r]));
       const deps = departments();
       for (const r of konfigio.liste(d.resources, 100)) {

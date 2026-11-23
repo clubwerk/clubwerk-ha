@@ -443,10 +443,10 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
       id: './', related_applications: [{ platform: 'webapp', url: `${req.get('x-forwarded-proto') || req.protocol}://${req.get('host')}${req.baseUrl}/manifest.json` }], icons: [{ src: 'icon.png', sizes: '192x192 512x512', type: 'image/png', purpose: 'any' },   /* Vereinsbild für beide Größen (Whitelabel), Installierbarkeit verlangt 192 und 512 */
         { src: 'icon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] });   /* Android: rund zugeschnitten, Logo in der Sicherheitszone */
   });
-  // Seiten der Module (public/member.js)
+  // Seiten der Module (public/member.js, weitere Skripte; .min.js = unveränderte Fremddatei wie jsQR beim Mitgliedsausweis)
   app.get('/m/:id/:file', (req, res) => {
     const m = modules.get(req.params.id);
-    if (!m || !m.isActive() || !m.dir || !/^[a-z0-9_-]+\.js$/.test(req.params.file) || ['admin.js'].includes(req.params.file)) return res.status(404).end();
+    if (!m || !m.isActive() || !m.dir || !/^[a-z0-9_-]+(\.min)?\.js$/.test(req.params.file) || ['admin.js'].includes(req.params.file)) return res.status(404).end();
     const f = path.join(m.publicDir || path.join(m.dir, 'public'), req.params.file);
     if (!fs.existsSync(f)) return res.status(404).end();
     res.type('application/javascript').set('Cache-Control', versioned(req) ? IMMUTABLE : 'no-cache').sendFile(f);
@@ -462,12 +462,14 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   const photos = require('./photos');
   const meOr403 = (req, res) => { const w = who(req); if (!w) res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet.', device: true }); return w; };
   const modOn = id => { try { return require('./plugins').isActive(id); } catch (e) { return false; } };
+  // Verwendungen des Profilbilds: Modul aktiv – „Mitgliedsausweis“ nur, solange die Mitgliederverwaltung ihn anbietet (Hook photoUseOn)
+  const useOn = (id, use) => modOn(id) && require('./plugins').withHook('photoUseOn').filter(p => p.meta.id === id).every(p => { try { return p.hooks.photoUseOn(use) !== false; } catch (e) { return false; } });
   api.get('/privacy', (req, res) => { if (meOr403(req, res)) res.json(require('./datenschutz').notice()); });   // Datenschutzhinweis des Vereins
-  api.get('/photo', (req, res) => { const w = meOr403(req, res); if (w) res.json(photos.info(w.memberId, modOn)); });
+  api.get('/photo', (req, res) => { const w = meOr403(req, res); if (w) res.json(photos.info(w.memberId, useOn)); });
   api.put('/photo', rateLimit('appphoto', 20, 3600000), (req, res) => {
     const w = meOr403(req, res); if (!w) return;
     const b = req.body || {};
-    try { if (b.data) photos.save(w.memberId, b.data, b.use, { username: 'app', name: w.name }); else photos.setUse(w.memberId, b.use); res.json(photos.info(w.memberId, modOn)); }
+    try { if (b.data) photos.save(w.memberId, b.data, b.use, { username: 'app', name: w.name }); else photos.setUse(w.memberId, b.use); res.json(photos.info(w.memberId, useOn)); }
     catch (e) { res.status(400).json({ error: e.message }); }
   });
   api.delete('/photo', (req, res) => { const w = meOr403(req, res); if (!w) return; photos.remove(w.memberId, { username: 'app', name: w.name }); res.json({ ok: true }); });
@@ -577,7 +579,8 @@ function apiStart({ api, dev, who, rateLimit }) {
     baseUrl: req => appUrl() || `${req.protocol}://${req.get('host')}`, localOnly: () => !appUrl(),
     publicRouter: router => registerPublic('kalender', { router, isActive: () => true, dir: path.join(__dirname, 'kein-ordner') }) });
   /* „Für mich“: Zeilen der freigeschalteten Bereiche (Hook forMe) – alle gleichzeitig, je Modul höchstens FORME_TIMEOUT_MS; nur eigene Daten des gekoppelten Mitglieds.
-     Vier Karten: news (einmalige Hinweise, bis zum Quittieren), next (meine Termine), todo (was ich selbst tun muss, optional mit Knöpfen), money (Mein Konto) */
+     Vier Karten: news (einmalige Hinweise, bis zum Quittieren), next (meine Termine), todo (was ich selbst tun muss, optional mit Knöpfen), money (Mein Konto);
+     darunter links: dauerhafte Kurzwege eines Bereichs (z. B. „Mitgliedsausweis zeigen“), keine Aufgabe */
   api.get('/forme', async (req, res) => {
     const w = who(req);
     if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet. Bitte beim Vorstand einen neuen QR-Code holen.', device: true });
@@ -608,10 +611,12 @@ function apiStart({ api, dev, who, rateLimit }) {
     const seen = new Set(db.prepare('SELECT key FROM app_forme_seen WHERE member_id = ?').all(w.memberId).map(r => r.key));
     const news = fair(got.map(g => list(g.r, 'news').filter(x => /^[A-Za-z0-9:_.-]{1,120}$/.test(String(x.key || ''))).map(x => ({ ...pick(x, g.id), key: `${g.id}:${x.key}` })).filter(x => !seen.has(x.key))), FORME_NEWS);
     const money = got.flatMap(g => list(g.r, 'money').slice(0, 2).map(x => pick(x, g.id)));
+    // Kurzwege (z. B. „Mitgliedsausweis zeigen“): dauerhafte Zeile unten, keine Aufgabe – höchstens eine je Bereich, nur mit Ziel (focus)
+    const links = got.flatMap(g => list(g.r, 'links').filter(x => x.focus).slice(0, 1).map(x => pick(x, g.id)));
     // Thekenkonto (Verkauf im Kern): nur, wenn der Verein es eingeschaltet hat – noch nicht abgerechnete Buchungen (wie memberBalance am Tablet)
     const k = getSetting('app_forme_konto', '0') === '1' && kontoOf && require('./plugins').isActive('getraenke') ? kontoOf(w.memberId) : null;
     if (k && k.cents > 0) money.unshift({ section: '', title: 'Thekenkonto', sub: 'noch nicht abgerechnet', chip: '', focus: '', value: euro(k.cents), tr: true });
-    res.json({ news, next, todo, money, push: push.forMe(w.deviceId) });
+    res.json({ news, next, todo, money, links, push: push.forMe(w.deviceId) });
   });
   /** Neuigkeit quittiert (angetippt): erscheint nicht wieder – nur für das eigene Mitglied, ohne Protokoll; alte Einträge räumen sich nach 180 Tagen auf */
   api.post('/forme/seen', rateLimit('appfms', 60, 60000), (req, res) => {

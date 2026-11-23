@@ -17,7 +17,8 @@ function register(sh) {
   const { need, bad, int } = C;
   const db = C.db, admin = C.admin, M = C.member;
   // Tresor gesperrt (nach einem Neustart): eigene Daten erst wieder nach dem Entsperren – sonst sähe das Mitglied leere Felder
-  M.use((req, res, next) => (C.require('./vault').locked() ? res.status(423).json({ error: 'Deine Daten sind gerade verschlossen (nach einem Neustart im Vereinsheim). Bitte später noch einmal versuchen.' }) : next()));
+  // Ausnahme: Ausweise prüfen braucht nur den öffentlichen Schlüssel und Namen/Nummer (nicht verschlüsselt) – das geht auch gesperrt (lib/ausweis.js)
+  M.use((req, res, next) => (C.require('./vault').locked() && req.path !== '/ausweis/pruefen' ? res.status(423).json({ error: 'Deine Daten sind gerade verschlossen (nach einem Neustart im Vereinsheim). Bitte später noch einmal versuchen.' }) : next()));
   const P = need('mitglieder');
   /* Arbeitsstunden in der App ausgeblendet (Dienste & Termine › Einstellungen): Posten der Art „Arbeitsstunden“ erscheinen weder in der Liste noch in „Offen“ noch im Überweisungsbetrag */
   const noHours = () => C.isModuleActive('arbeitseinsatz') && C.callHooksSync('appStundenAus').some(x => x.result === true);
@@ -104,7 +105,8 @@ function register(sh) {
     if (miss.length && !wait.has('daten')) todo.push({ title: 'Kontaktdaten ergänzen', sub: `Es fehlt: ${miss.join(', ')}`, focus: 'kontakt', tr: true });
     const ms = d.isHead && E.bank && p.payment === 'lastschrift' && !wait.has('bank') ? mandateState(bankRow(id)) : { ok: true };
     if (!ms.ok) todo.push({ title: 'Lastschrift-Mandat fehlt', sub: ms.reason[0].toUpperCase() + ms.reason.slice(1), focus: 'bank', tr: true });
-    return { money, todo };
+    const link = sh.cardLink ? sh.cardLink(id) : null;   // Kurzweg „Mitgliedsausweis zeigen“ (lib/ausweis.js)
+    return { money, todo, ...(link ? { links: [link] } : {}) };
   };
   const maskMail = m => String(m).replace(/^(.)[^@]*(@.*)$/, '$1…$2');
   const openOf = (id, kind) => db.prepare("SELECT id FROM mv_change WHERE member_id = ? AND kind = ? AND status = 'offen'").get(id, kind);
@@ -134,7 +136,7 @@ function register(sh) {
   M.get('/me', (req, res) => {
     const d = me(req.member.id);
     if (!d) return res.json({ none: true, club: club().name });
-    res.json(d);
+    res.json({ ...d, ausweis: Boolean(sh.cardOn && sh.cardOn()), ausweisPruefen: Boolean(sh.cardCheck && sh.cardCheck(req)) });   // Reiter „Ausweis“ und „Prüfen“ (lib/ausweis.js)
   });
   M.post('/change', C.rateLimit('mvchange', 10, 3600000), ar(async (req, res) => {
     const id = req.member.id; const p = personRow(id); const b = req.body || {};

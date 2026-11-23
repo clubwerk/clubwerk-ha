@@ -1,0 +1,6 @@
+jsQR (github.com/cozmo/jsQR), Version 1.4.0, Apache-2.0 (Datei jsqr-LICENSE.txt).
+Quelle: npm-Paket jsqr 1.4.0, Datei dist/jsQR.js, mit terser 5.31.0 verkleinert (-c -m, ohne Kommentare) und mit einer Kopfzeile versehen.
+Wozu: QR-Codes der Mitgliedsausweise mit der Kamera lesen, wo der Browser keinen BarcodeDetector hat (iPad/iPhone-Safari).
+Geladen wird die Datei nur in der Mitglieder-App unter „Meine Daten“ › „Prüfen“ und erst, wenn die Kamera startet – nie aus einem CDN.
+Aktualisieren: neue Version von jsqr laden, dist/jsQR.js wieder so verkleinern, Version und Prüfsumme hier eintragen.
+SHA-256 der Quelle dist/jsQR.js: bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859

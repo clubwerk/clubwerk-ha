@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.57';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.58';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -344,12 +344,13 @@
     };
     const dateBox = x => `<span class="vh-date${x.accent ? ' acc' : x.at === today ? ' today' : ''}"><b>${esc(x.at.slice(8, 10))}.${esc(x.at.slice(5, 7))}.</b><span>${esc(WD[new Date(x.at + 'T12:00:00').getDay()])}</span></span>`;
     const icoBox = x => `<span class="vh-fm-ico">${ti(x.section || 'konto')}</span>`;
-    const card = (h, rows, lead, news) => (rows.length ? `<div class="vh-card${news ? ' vh-fm-news' : ''}"><h3>${h}</h3><div class="vh-rows">${rows.map(x => line(x, lead(x), news)).join('')}</div></div>` : '');
+    const card = (h, rows, lead, news) => (rows.length ? `<div class="vh-card${news ? ' vh-fm-news' : ''}">${h && `<h3>${h}</h3>`}<div class="vh-rows">${rows.map(x => line(x, lead(x), news)).join('')}</div></div>` : '');
     const first = me.sections.find(s => s.ok);
     const pc = grussCard() + pushCard(d.push);
     el.innerHTML = pc + (!d.news.length && !d.next.length && !d.todo.length && !d.money.length
       ? `<div class="vh-empty">Gerade steht nichts an.${first ? ` <button type="button" class="vh-link" data-go="${esc(first.id)}">${first.id === 'buchung' ? 'Platz buchen' : `${esc(first.title)} öffnen`}</button>` : ''}</div>`
-      : card('Neu für dich', d.news, icoBox, true) + card('Als Nächstes', d.next, dateBox) + card('Zu erledigen', d.todo, icoBox) + card('Mein Konto', d.money, icoBox));
+      : card('Neu für dich', d.news, icoBox, true) + card('Als Nächstes', d.next, dateBox) + card('Zu erledigen', d.todo, icoBox) + card('Mein Konto', d.money, icoBox))
+      + card('', d.links, icoBox);   // Kurzwege, ohne Überschrift
     wirePushCard(el); wireGruss(el);
     el.querySelectorAll('[data-go]').forEach(b => { b.onclick = () => {
       if (b.dataset.seen) call('forme/seen', 'POST', { key: b.dataset.seen }).catch(() => {});   // Neuigkeit gesehen: erscheint nicht wieder

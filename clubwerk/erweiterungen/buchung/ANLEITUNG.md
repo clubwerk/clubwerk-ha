@@ -3,7 +3,7 @@
 
 ## Wofür ist das Modul? {#wofuer}
 
-Mitglieder buchen Tennisplätze, Padelplätze, Hallen oder Geräte wie die Ballmaschine – in der Mitglieder-App oder am Tablet im Vereinsheim. Clubwerk achtet auf Öffnungszeiten, Zeitraster, Höchstdauer und das Kontingent je Mitglied, kennt Mitspieler und Gäste (mit Gastgebühr) und führt eine Warteliste. In der Verwaltung seht ihr den Belegungsplan, tragt Training, Mannschaften und Platzsperren ein, übernehmt den Spielplan vom Verband und wertet die Auslastung aus.
+Mitglieder buchen Tennisplätze, Padelplätze, Hallen oder Geräte wie die Ballmaschine – in der Mitglieder-App oder am Tablet im Vereinsheim. Clubwerk achtet auf Öffnungszeiten, Zeitraster, Höchstdauer und das Kontingent je Mitglied, kennt Mitspieler und Gäste (mit Gastgebühr) und führt eine Warteliste. Über die Mitspielersuche finden Mitglieder in der App Mitspieler aus dem Verein und kommen mit einem Tipp vom Gesuch zur Buchung. In der Verwaltung seht ihr den Belegungsplan, tragt Training, Mannschaften und Platzsperren ein, übernehmt den Spielplan vom Verband und wertet die Auslastung aus.
 
 Das Modul läuft allein. Ohne die Mitgliederverwaltung kennt es nur Vor- und Nachname und hat keine Zahlungsverfolgung der Gebühren; ohne den Verkauf lassen sich keine Gebühren von Hand aufs Konto buchen.
 
@@ -17,7 +17,7 @@ Das Modul läuft allein. Ohne die Mitgliederverwaltung kennt es nur Vor- und Nac
 
 ## Verwaltung {#verwaltung}
 
-Im Menü „Plätze“ gibt es sieben Reiter: **Belegung**, **Serien & Sperren**, **Buchungen**, **Gebühren**, **Auswertung**, **Plätze & Geräte** und **Einstellungen**. Der Reiter „Einstellungen“ erscheint nur mit dem Recht „Plätze, Buchungsarten & Einstellungen“.
+Im Menü „Plätze“ gibt es acht Reiter: **Belegung**, **Serien & Sperren**, **Buchungen**, **Gebühren**, **Auswertung**, **Mitspielersuche**, **Plätze & Geräte** und **Einstellungen**. Der Reiter „Einstellungen“ erscheint nur mit dem Recht „Plätze, Buchungsarten & Einstellungen“.
 
 ### Reiter „Belegung“ {#bk-belegung}
 
@@ -183,6 +183,30 @@ Je Wochentag und Uhrzeit ein Kreis: je größer und dunkler, desto mehr gebuchte
 
 ![„Wann wird gespielt?“: Größe und Farbe zeigen die gebuchten Stunden je Wochentag und Uhrzeit.](bild: seite=bk-auswertung; klick=.bk-bub > .bc:last-child; ziel=.bk-bub)
 
+### Reiter „Mitspielersuche“ {#bk-mitspieler}
+
+![Der Reiter „Mitspielersuche“ mit den offenen Gesuchen.](bild: seite=bk-mitspieler; hoehe=460)
+
+Mitglieder stellen in der App unter Plätze › Mitspieler **Gesuche** ein („Doppel, Do 18–20 Uhr, Platz 3 schon gebucht“). Hier seht ihr alle Gesuche mit Mitglied, Spielform und Spielstärke, Termin und Platz, Zusagen („2 von 3“ mit Namen) und Status. Die Filter **Offen** (auch volle), **Gemeldet**, **Erledigt** (Platz gebucht) und **Beendet** (zurückgezogen, abgelaufen, ausgeblendet) grenzen die Liste ein. Ein Gesuch endet zur Startzeit oder wenn die zugehörige Buchung storniert wird.
+
+#### Gesuch ansehen, ausblenden, sperren
+
+![Ein Gesuch mit „Ausblenden“ und „Mitglied für die Mitspielersuche sperren“.](bild: seite=bk-mitspieler; klick=tr[data-ms]; ziel=dialog)
+
+Eine Zeile anklicken zeigt das Gesuch mit Hinweis, Zusagen und Meldungen. Mitglieder können ein Gesuch in der App **melden**; gemeldete Gesuche stehen als Hinweis in der Übersicht. **Ausblenden** nimmt das Gesuch aus der App („Wieder zeigen“ macht das rückgängig). **Mitglied für die Mitspielersuche sperren** blendet dessen offene Gesuche aus; es kann danach keine Gesuche mehr einstellen und nicht mehr zusagen, buchen bleibt möglich. Beides braucht das Recht „Buchungen anderer stornieren“ und steht im Protokoll.
+
+![Die Karte „Gesperrt für die Mitspielersuche“.](bild: seite=bk-mitspieler; ziel=[data-card="ms-gesperrt"])
+
+Die Karte **Gesperrt für die Mitspielersuche** listet gesperrte Mitglieder; „Sperre aufheben“ gibt sie wieder frei.
+
+#### Einstellungen der Mitspielersuche
+
+![Die Einstellungen der Mitspielersuche.](bild: seite=bk-mitspieler; ziel=[data-card="ms-einstellungen"])
+
+Der Haken schaltet die Mitspielersuche in der App an oder aus. Dazu kommen die Grenzen **Offene Gesuche je Mitglied** (Vorgabe 3) und **Zusagen je Mitglied und Tag** (Vorgabe 10), die **Spielformen** (eine je Zeile mit der Zahl der gesuchten Mitspieler, z. B. „Doppel: 3“ oder „Training: 1–3“ zum Auswählen) und die **Spielstärken** von niedrig bis hoch (Vorgabe Einsteiger, Freizeit, Mannschaft, Turnier). So passt die Mitspielersuche auch für Padel, Badminton oder Tischtennis. Es gibt keine Einschränkung nach Alter.
+
+> Gesuche und Zusagen werden 90 Tage nach dem Termin gelöscht; die Frist stellt ihr unter Einstellungen › Datenschutz ein.
+
 ### Reiter „Plätze & Geräte“ {#bk-plaetze}
 
 ![Der Reiter „Plätze & Geräte“ mit Name, Buchbarkeit, Raster, Gastgebühr und kommenden Buchungen.](bild: seite=bk-plaetze)
@@ -323,17 +347,29 @@ Plätze, Buchungsarten und Einstellungen als Datei exportieren und in einer ande
 - **Push:** Das Mitglied kann sich benachrichtigen lassen, wenn es als Mitspieler eingetragen wird, wenn eine Buchung geändert oder storniert wird (auch durch eine Platzsperre), wenn ein Platz von der Warteliste frei wird und kurz vor dem Spiel (Vorlauf 2 Stunden, einstellbar). Welche Anlässe es gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest.
 - Ist ein Mitglied gesperrt (Mitgliedschaft oder Beitragsart darf nicht buchen), steht oben der Hinweis, sich an den Vorstand zu wenden.
 
+![Der Reiter „Mitspieler“ in der App: eigenes Gesuch, Zusagen und offene Gesuche.](bild: app=buchung; klick=.bkm-tabs [data-tab="ms"])
+
+![Das Fenster „Mitspieler suchen“.](bild: app=buchung; klick=.bkm-tabs [data-tab="ms"]; klick2=#bkmMsNew)
+
+**Mitspieler (Reiter oben im Bereich „Plätze“):**
+- **Mitspieler suchen:** Spielform wählen (bei „Training“ auch, wie viele), dann eine eigene, schon gebuchte Buchung oder „noch kein Platz“ mit Tag und Uhrzeit. Spielstärke, LK-Bereich und ein Hinweis (höchstens 140 Zeichen, ohne Links) sind freiwillig. „Gesuch zeigen“ stellt es ein. Sichtbar ist es nur für Mitglieder, die „Plätze“ in der App nutzen dürfen – mit „Nachname, Vorname“ und Foto (wenn für die Platzbuchung freigegeben), nie mit Telefonnummer oder E-Mail.
+- **Ich spiele mit:** Die Zusage ist verbindlich, wer zuerst kommt, ist dabei. Hat das Gesuch einen Platz, steht man sofort als Mitspieler in der Buchung (mit denselben Regeln wie beim Buchen, z. B. Kontingent). „Details“ zeigt, wer schon dabei ist, und bietet **Melden**. Eigene Zusagen stehen unter „Meine Zusagen“ mit „Zusage zurückziehen“.
+- **Mein Gesuch:** zeigt „2 von 3 gefunden“ und wer wann zugesagt hat („Entfernen“ nimmt eine Zusage heraus). „Bearbeiten“ ändert das Gesuch; gibt es schon Zusagen, bleiben Spielform, Zeit und Platz, wie zugesagt wurde. „Zurückziehen“ beendet es, eine gebuchte Buchung bleibt bestehen.
+- **Platz buchen:** Ist ein Gesuch ohne Platz voll, öffnet „Platz buchen“ das Buchungsfenster am richtigen Tag mit Dauer und allen Mitspielern; „Für mich“ erinnert daran. Ist zur Startzeit kein Platz frei, wählt das Mitglied selbst einen. Gebucht wird nach den normalen Regeln, danach ist das Gesuch erledigt.
+- **Ich suche auch Mitspieler:** Wer freiwillig Spielstärke und LK angibt, sieht passende Gesuche zuerst (gleiche oder benachbarte Stufe, LK im gesuchten Bereich). Andere sehen diese Angabe nicht; ausschalten löscht sie sofort.
+- **Push:** „Jemand spielt mit“ und „Dein Gesuch ist voll“ gehen an den Ersteller, wenn der Vorstand die Anlässe unter Mitglieder-App › Benachrichtigungen freigegeben hat. Für neue Gesuche gibt es keinen Push.
+
 **Am Tablet** (Reiter „Plätze“) sieht man denselben Plan. Eine freie Stelle antippen, den eigenen Namen suchen (erst ab zwei Buchstaben), die **PIN** eingeben und buchen; wer noch keine PIN hat, legt sie gleich fest. Eine Buchung antippen und „Stornieren“ geht ebenfalls mit PIN – für den Buchenden und für jeden eingetragenen Mitspieler. Bei Serien fragt das Tablet: „Nur heute“, „Heute und alle folgenden“ oder „Gesamte Serie“. Über dem Plan lassen sich wie in der App weitere Tage bis zum Vorlauf wählen; nach 2 Minuten ohne Eingabe springt das Tablet auf heute zurück.
 
 ## Rechte {#rechte}
 
 | Recht | Was es erlaubt |
 |---|---|
-| Plätze: Belegung ansehen | Belegung, Buchungen, Gebühren und Auswertung ansehen |
+| Plätze: Belegung ansehen | Belegung, Buchungen, Gebühren, Auswertung und Mitspielersuche ansehen |
 | Plätze: für Mitglieder buchen, Einzelbuchungen mit Buchungsart | Buchungen und Sperren eintragen und bearbeiten, Gebühren von Hand buchen und stornieren |
-| Plätze: Buchungen anderer stornieren | Buchungen und Sperren stornieren |
+| Plätze: Buchungen anderer stornieren | Buchungen und Sperren stornieren; Gesuche der Mitspielersuche ausblenden und Mitglieder dafür sperren |
 | Plätze: Serien & Sperren anlegen und beenden | Serien, Sperren und Spielplan-Import; Wiederholungen im Buchungsfenster |
-| Plätze: Plätze, Buchungsarten & Einstellungen | Reiter „Plätze & Geräte“ und „Einstellungen“ mit Buchungsarten und Sonderrechten |
+| Plätze: Plätze, Buchungsarten & Einstellungen | Reiter „Plätze & Geräte“ und „Einstellungen“ mit Buchungsarten und Sonderrechten, Einstellungen der Mitspielersuche |
 
 Mitglieder und Trainer buchen in der App und am Tablet ohne Verwaltungsrecht. Wer nur die Belegung sehen darf, sieht den Plan, kann aber nichts eintragen.
 

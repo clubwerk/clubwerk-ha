@@ -1112,6 +1112,76 @@ INSERT INTO "bank_entry"(id, stmt_id, account_id, uniq, ckey, has_ref, booking_d
 INSERT INTO "bank_entry"(id, stmt_id, account_id, uniq, ckey, has_ref, booking_date, value_date, cents, kind, name, iban, purpose, e2e, batch_ref, mandate_ref, ret_code, orig_cents, fee_cents, sure, status, assigned_cents, done_by, done_at, created_at) VALUES(13,3,1,'3e3b3cf291d07958b525023f23b66de085478987#1','3e3b3cf291d07958b525023f23b66de085478987#1',0,'2026-10-18','2026-10-18',-12995,'abbuchung','Sportfachhandel Muster','DE89370400440532013000','Sportfachhandel Muster Baelle Training',NULL,NULL,NULL,NULL,NULL,NULL,1,'offen',0,NULL,NULL,'2026-10-21 21:14:22');
 INSERT INTO "bank_match"(id, entry_id, module, key, label, cents, ref, by_user, created_at, undone_at, undone_by) VALUES(8,11,'buchhaltung','a:4','Ausgabe A-2026-0004 – Stadtwerke Musterstadt',-8600,'{"id":4,"entry":11}','Adminkonto','2026-10-21 21:14:22',NULL,NULL);
 INSERT INTO "bank_stmt"(id, account_id, format, file, period_from, period_to, total, added, by_user, created_at) VALUES(3,1,'Sparkasse CSV-CAMT','umsaetze-november.csv',NULL,NULL,0,3,'Adminkonto','2026-10-21 21:14:22');
+CREATE TABLE IF NOT EXISTS mv_card (
+    serial      INTEGER PRIMARY KEY AUTOINCREMENT,              -- Seriennummer; AUTOINCREMENT: nie erneut vergeben (auch nach dem Löschen)
+    member_id   INTEGER NOT NULL REFERENCES members(id),
+    issued_at   TEXT NOT NULL,
+    valid_until TEXT NOT NULL,                                  -- zuletzt ausgegebenes „gültig bis“ (JJJJ-MM-TT)
+    revoked_at  TEXT, revoked_by TEXT
+  );
+CREATE INDEX IF NOT EXISTS ix_mvcard_member ON mv_card(member_id);
+INSERT INTO "mv_person"(member_id, member_no, salutation, title, first_name, last_name, birth_date, gender, street, zip, city, country, address_extra, phone, mobile, email, letter_salutation, status, entry_date, exit_date, exit_reason, notice_date, payer_id, drinks_to_payer, payment, key_no, notes, consents, extra, anonymized_at, created_at, updated_at, sales_mode, family_of, dunning_block, dunning_block_until, debit_returns, debit_blocked) VALUES(48,'1004',NULL,NULL,'Lena','Lenz-Kraus','1990-03-17',NULL,'Lindenallee 12','12345','Musterstadt',NULL,NULL,NULL,'01712223333','lena.lenz@example.org',NULL,'aktiv','2014-01-28',NULL,NULL,NULL,NULL,1,'lastschrift',NULL,NULL,'{}','{}',NULL,'2026-10-21 15:55:17','2026-10-21 15:55:17','payer',NULL,NULL,NULL,0,NULL);
+INSERT INTO "mv_person"(member_id, member_no, salutation, title, first_name, last_name, birth_date, gender, street, zip, city, country, address_extra, phone, mobile, email, letter_salutation, status, entry_date, exit_date, exit_reason, notice_date, payer_id, drinks_to_payer, payment, key_no, notes, consents, extra, anonymized_at, created_at, updated_at, sales_mode, family_of, dunning_block, dunning_block_until, debit_returns, debit_blocked) VALUES(49,'1005',NULL,NULL,'Gerd','Kühn','1961-08-01',NULL,'Am Bach 3','12345','Musterstadt',NULL,NULL,NULL,'01705550123','gerd.kuehn@example.org',NULL,'aktiv','1998-02-28','2026-08-29','Umzug',NULL,NULL,1,'lastschrift',NULL,NULL,'{}','{}',NULL,'2026-10-21 15:55:17','2026-10-21 15:55:17','payer',NULL,NULL,NULL,0,NULL);
+INSERT INTO "mv_member_department"(id, member_id, department_id, entry_date, exit_date, status, federation_status, exit_reason, booked_until, fee_id, fee_free) VALUES(43,48,1,'2014-01-28',NULL,'aktiv',NULL,NULL,'2026-12-24',NULL,0);
+INSERT INTO "mv_member_department"(id, member_id, department_id, entry_date, exit_date, status, federation_status, exit_reason, booked_until, fee_id, fee_free) VALUES(44,49,1,'1998-02-28','2026-08-29','aktiv',NULL,NULL,'2026-12-24',NULL,0);
+INSERT INTO "mv_member_department"(id, member_id, department_id, entry_date, exit_date, status, federation_status, exit_reason, booked_until, fee_id, fee_free) VALUES(45,48,2,'2019-06-30',NULL,'aktiv',NULL,NULL,'2026-12-24',NULL,0);
+INSERT INTO "mv_member_fee"(id, member_id, fee_id, start_date, end_date, booked_until, cents, note) VALUES(45,48,4,'2014-01-28',NULL,'2026-12-24',NULL,NULL);
+INSERT INTO "mv_member_fee"(id, member_id, fee_id, start_date, end_date, booked_until, cents, note) VALUES(46,49,4,'1998-02-28','2026-08-29','2026-08-29',NULL,NULL);
+INSERT INTO "mv_history"(id, member_id, at, by_user, field, old, new) VALUES(656,48,'2026-10-21 15:55:17','Adminkonto','angelegt',NULL,'Lena Lenz-Kraus');
+INSERT INTO "mv_history"(id, member_id, at, by_user, field, old, new) VALUES(668,49,'2026-10-21 15:55:17','Adminkonto','angelegt',NULL,'Gerd Kühn');
+INSERT INTO "mv_history"(id, member_id, at, by_user, field, old, new) VALUES(673,49,'2026-10-21 15:55:17','Adminkonto','Austritt',NULL,'2026-08-29');
+INSERT INTO "mv_history"(id, member_id, at, by_user, field, old, new) VALUES(674,49,'2026-10-21 15:55:17','Adminkonto','Austrittsgrund',NULL,'Umzug');
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(1,12,'2026-08-13 19:20:00','2026-11-29','2026-10-02 10:15:00','Adminkonto');
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(2,3,'2026-10-03 18:13:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(3,4,'2026-10-04 18:14:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(4,5,'2026-10-05 18:15:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(5,6,'2026-10-06 18:16:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(6,7,'2026-10-07 18:17:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(7,8,'2026-10-08 18:18:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(8,9,'2026-09-30 18:19:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(9,10,'2026-10-01 18:20:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(10,11,'2026-10-02 18:21:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(11,12,'2026-10-03 18:22:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(12,14,'2026-10-05 18:24:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(13,15,'2026-10-06 18:25:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(14,16,'2026-10-07 18:26:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(15,17,'2026-10-08 18:27:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(16,18,'2026-09-30 18:28:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(17,19,'2026-10-01 18:29:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(18,20,'2026-10-02 18:30:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(19,21,'2026-10-03 18:31:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(20,22,'2026-10-04 18:32:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(21,23,'2026-10-05 18:33:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(22,24,'2026-10-06 18:34:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(23,25,'2026-10-07 18:35:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(24,26,'2026-10-08 18:36:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(25,27,'2026-09-30 18:37:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(26,28,'2026-10-01 18:38:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(27,29,'2026-10-02 18:39:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(28,30,'2026-10-03 18:40:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(29,32,'2026-10-05 18:42:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(30,33,'2026-10-06 18:43:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(31,34,'2026-10-07 18:44:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(32,35,'2026-10-08 18:45:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(33,36,'2026-09-30 18:46:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(34,37,'2026-10-01 18:47:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(35,38,'2026-10-02 18:48:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(36,39,'2026-10-03 18:49:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(37,41,'2026-10-05 18:51:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(38,42,'2026-10-06 18:52:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(39,43,'2026-10-07 18:53:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(40,44,'2026-10-08 18:54:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(41,45,'2026-09-30 18:55:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(42,46,'2026-10-01 18:56:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(43,48,'2026-10-19 18:42:00','2026-11-29',NULL,NULL);
+INSERT INTO "mv_card"(serial, member_id, issued_at, valid_until, revoked_at, revoked_by) VALUES(44,49,'2026-08-03 18:58:00','2026-08-29',NULL,NULL);
+INSERT INTO "settings"(key, value) VALUES('ext_mitglieder_card_on','1');
+INSERT INTO "settings"(key, value) VALUES('ext_mitglieder_card_photo','optional');
+INSERT INTO "settings"(key, value) VALUES('ext_mitglieder_card_valid','beitrag');
+INSERT INTO "settings"(key, value) VALUES('ext_mitglieder_card_fields','{"depts":true,"age":true,"since":true}');
+INSERT INTO "member_access"(member_id, module, profile, valid_until, blocked, created_at, away, flags) VALUES(3,'mitglieder',NULL,NULL,0,'2026-10-21 15:55:17',0,'{"ausweis_pruefen":true}');
+INSERT INTO "mv_charge"(id, member_id, for_member_id, kind, text, period_from, period_to, cents, due_date, status, paid_at, paid_via, collection_id, run_id, member_fee_id, ext_key, invoice_no, dunning_level, dunned_at, returns, note, created_by, created_at, member_dept_id, dunning_block, dunning_block_until) VALUES(901,48,48,'beitrag','Erwachsene 01/2026–12/2026','2025-12-25','2026-12-24',12000,'2025-12-25','bezahlt','2026-02-02','ueberweisung',NULL,NULL,45,NULL,NULL,0,NULL,0,NULL,'Adminkonto','2026-01-20 10:00:00',NULL,NULL,NULL);
+INSERT INTO "mv_charge"(id, member_id, for_member_id, kind, text, period_from, period_to, cents, due_date, status, paid_at, paid_via, collection_id, run_id, member_fee_id, ext_key, invoice_no, dunning_level, dunned_at, returns, note, created_by, created_at, member_dept_id, dunning_block, dunning_block_until) VALUES(902,49,49,'beitrag','Erwachsene 01/2026–09/2026','2025-12-25','2026-08-29',9000,'2025-12-25','bezahlt','2026-02-02','ueberweisung',NULL,NULL,46,NULL,NULL,0,NULL,0,NULL,'Adminkonto','2026-01-20 10:00:00',NULL,NULL,NULL);
 COMMIT;
 -- Beispiel: „Abgerechnet bis“ gesammelt gesetzt – Zusatzbeiträge waren im alten Programm bis 31.12.2025 abgerechnet (vor dem ersten Beitragslauf)
 CREATE TABLE IF NOT EXISTS "mv_booked_row" (

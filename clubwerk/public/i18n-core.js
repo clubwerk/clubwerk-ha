@@ -174,7 +174,8 @@
       var sm = /^(\s*·\s*)?([\s\S]*?)(\s*·\s*)?$/.exec(m[2]);
       if (sm && (sm[1] || sm[3]) && sm[2]) { var core = translate(d, sm[2]); if (core !== sm[2]) r = (sm[1] || '') + core + (sm[3] || ''); }
     }
-    return r === null ? s : m[1] + r + m[3];
+    // Ergebnis gleich bis auf Leerraum (gleichlautender Eintrag): Original behalten – sonst gingen geschützte Leerzeichen verloren und die Seite übersetzte endlos neu
+    return r === null || norm(r) === norm(m[2]) ? s : m[1] + r + m[3];
   }
 
   var ENT = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ' };

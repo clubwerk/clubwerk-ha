@@ -540,7 +540,7 @@
       if (!d) return null;
       if (!st.rows.length) await loadRows();
       const p = d.person, status = p.anonymized_at ? 'anonym' : p.exited ? 'ausgetreten' : p.status;
-      const tabs = [['stamm', 'Stammdaten'], ['mitgliedschaft', 'Mitgliedschaft'], ...(SC() ? [] : [['zahlung', 'Zahlung & Familie'], ['konto', 'Konto & Mandat']]), ...(d.documents ? [['dokumente', `Dokumente${d.documents.length ? ' (' + d.documents.length + ')' : ''}`]] : []), ['verlauf', 'Verlauf']];
+      const tabs = [['stamm', 'Stammdaten'], ['mitgliedschaft', 'Mitgliedschaft'], ...(SC() ? [] : [['zahlung', 'Zahlung & Familie'], ['konto', 'Konto & Mandat']]), ...(d.documents ? [['dokumente', `Dokumente${d.documents.length ? ' (' + d.documents.length + ')' : ''}`]] : []), ...(d.ausweis && !SC() && p.member_id ? [['ausweis', 'Ausweis']] : []), ['verlauf', 'Verlauf']];
       const lead = [p.member_no ? `${GK.T('Nr.')} ${p.member_no}` : '', p.age != null ? `${p.age} ${GK.T('Jahre')}` : '', status ? GK.T((STATUS[status] || ['', status])[1]) : '',
         p.exit_date && !p.exited ? `${GK.T('Austritt zum')} ${deDate(p.exit_date)}` : '', d.payer ? `${GK.T('zahlt über')} ${GK.lastFirst(d.payer.name)}` : '', d.familyHead ? `${GK.T('Familie von')} ${GK.lastFirst(d.familyHead.name)}` : '',
         d.changes.length ? `${d.changes.length} ${GK.T(d.changes.length === 1 ? 'Änderung aus der App' : 'Änderungen aus der App')}` : ''].filter(Boolean).join(' · ');
@@ -553,6 +553,7 @@
       else if (k === 'zahlung') subPayment(body, d, again);
       else if (k === 'konto') subBank(body, d, again);
       else if (k === 'dokumente') subDocs(body, d, again);
+      else if (k === 'ausweis') subCard(body, d, again).catch(fail);
       else if (k === 'verlauf') subHistory(body, d);
       missingBanner(body, d);
     },
@@ -953,6 +954,23 @@
     el.querySelectorAll('[data-dx]').forEach(b => { b.onclick = () => docDialog(d.documents.find(y => y.id === +b.dataset.dx)); });
   }
 
+  /** Reiter „Ausweis“: Stand der Mitgliedsausweise (lib/ausweis.js) und „Ausweis sperren / neu ausstellen“ (z. B. verlorenes Handy) */
+  async function subCard(el, d, again) {
+    const p = d.person, a = await api(`member/${p.id}/ausweis`);
+    const cur = a.cards.find(c => !c.revoked_at);
+    const STATE = { pending: 'Der Mitgliedsantrag ist noch offen – den Ausweis gibt es nach der Bestätigung.', exited: 'Ausgetreten – der Ausweis gilt nicht mehr, und die App zeigt keinen QR-Code.', none: 'Ohne Mitgliedsdaten gibt es keinen Ausweis.' };
+    el.innerHTML = `<div class="card"><h3>Mitgliedsausweis</h3>
+        <p class="muted s" style="margin-top:0">${esc(STATE[a.state] || (cur ? 'Das Handy des Mitglieds erneuert den Ausweis von selbst (der QR-Code gilt 30 Tage). Prüfungen werden nicht gespeichert.' : 'Noch kein Ausweis ausgestellt – er entsteht, sobald das Mitglied in der App „Meine Daten“ › „Ausweis“ öffnet.'))}</p>
+        <p style="margin:0">${a.photo ? 'Foto auf dem Ausweis: ja – vom Mitglied gewählt.' : 'Foto auf dem Ausweis: nein.'}</p></div>
+      <div class="card"><h3>Ausgestellte Ausweise</h3>${a.cards.length ? `<table class="tbl kompakt"><tr><th>Seriennummer</th><th>Ausgestellt am</th><th>Gültig bis</th><th>Stand</th></tr>
+        ${a.cards.map(c => `<tr><td class="num">${c.serial}</td><td class="num nw">${deDate(c.issued_at.slice(0, 10))}</td><td class="num nw">${deDate(c.valid_until)}</td><td>${c.revoked_at ? `<span class="pill">${esc(GK.T('gesperrt am {0}', [deDate(c.revoked_at.slice(0, 10))]))}</span> <span class="muted s">${esc(c.revoked_by || '')}</span>` : a.state === 'exited' ? '<span class="pill">ungültig (ausgetreten)</span>' : '<span class="pill g">gültig</span>'}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Ausweis ausgestellt.</p>'}</div>`;
+    GK.tabTools(`<button class="btn" id="awRevoke" ${cur && a.state === 'ok' ? '' : 'disabled'}>Ausweis sperren / neu ausstellen …</button>`, el);
+    const b = $('awRevoke');
+    if (b) b.onclick = async () => {
+      if (!await ask(`Ausweis von ${GK.lastFirst(p.name)} sperren?\n\nDie Seriennummer ${cur.serial} gilt sofort nicht mehr. Beim nächsten Öffnen der App mit Netz bekommt das Mitglied einen neuen Ausweis.\n\nVerlorenes Handy: das Mitglied zusätzlich neu zur App einladen – das alte Handy verliert dann den Zugang.`, { ok: 'Sperren' })) return;
+      try { await api(`member/${p.id}/ausweis/sperren`, 'POST', {}); toast('Ausweis gesperrt.'); again(); } catch (e) { fail(e); }
+    };
+  }
   function subHistory(el, d) {
     const app = d.app || {};
     el.innerHTML = `<div class="card"><h3>Mitglieder-App</h3><p style="margin:0">${app.device ? `Handy <b>${esc(app.device.status)}</b>${app.device.last_used ? ` · zuletzt ${deTime(app.device.last_used)}` : ''}` : 'Kein Handy freigeschaltet.'}
@@ -2116,6 +2134,7 @@
       <div class="card" id="eWel" data-set="willkommen"></div>
       <div class="card" id="eAus" data-set="austritt"></div>
       <div class="card" id="eApp" data-set="meinedaten"></div>
+      <div class="card" id="eAusweis" data-set="ausweis"></div>
       <div class="card" data-set="benachrichtigung"><h3>Benachrichtigungen</h3><div class="mv-grid" style="--c:2">
         <label class="f">Neue Anträge & App-Änderungen melden an<input id="eNotify" value="${esc(s.notify_to)}" placeholder="vorstand@verein.de"></label></div>
         <p class="muted s" style="margin:8px 0 0">Mehrere Adressen mit Komma trennen.</p>${foot('eSaveNot')}</div>
@@ -2126,6 +2145,7 @@
       <div id="eFunc" data-set="uebertragen"></div>`;
     GK.watch(el);
     appDataCard($('eApp')).catch(fail);
+    cardSettings($('eAusweis')).catch(fail);
     tplCard($('eWel'), 'welcome').catch(fail);
     tplCard($('eAus'), 'exit').catch(fail);
     congratsCard($('eCg')).catch(fail);
@@ -2453,6 +2473,31 @@
       try { await api('settings', 'PUT', { app_perms: { view: Object.fromEntries([...el.querySelectorAll('[data-apv]')].map(c => [c.dataset.apv, c.checked])), edit: Object.fromEntries([...el.querySelectorAll('[data-ape]')].map(c => [c.dataset.ape, c.checked])) } }); GK.clean(); toast('Gespeichert.'); await loadMeta(); } catch (e) { fail(e); }
     });
   }
+  /* Einstellungen › Karte „Mitgliedsausweis“ (lib/ausweis.js) */
+  async function cardSettings(el) {
+    const c = await api('ausweis/settings');
+    el.innerHTML = `<h3>Mitgliedsausweis</h3><p class="muted s" style="margin-top:0">Jedes Mitglied hat in der Mitglieder-App unter „Meine Daten“ einen Ausweis mit signiertem QR-Code. Er ist auf dem Handy gespeichert und geht auch ohne Netz; der Code gilt 30 Tage. Prüfen können Mitglieder, denen du in der Verwaltung unter „Mitglieder-App“ beim Mitglied den Schalter „Ausweise prüfen“ gibst (z. B. Thekendienst, Trainer) – in ihrer App mit der Kamera.</p>
+      <div class="mv-cons"><label class="chk"><input type="checkbox" id="awOn" ${c.on ? 'checked' : ''}> Mitgliedsausweis in der App anbieten</label></div>
+      <div class="mv-grid" style="--c:2;margin-top:14px">
+        <label class="f">Foto auf dem Ausweis<select id="awPhoto">${opt('optional', 'wenn das Mitglied es für den Ausweis wählt', c.photo)}${opt('nie', 'nie', c.photo)}</select></label>
+        <label class="f">Gültig bis<select id="awValid">${opt('beitrag', 'Ende des Beitragsjahres', c.valid)}${opt('geschaeft', 'Ende des Geschäftsjahres', c.valid)}</select></label></div>
+      <div class="mv-sub" style="margin-top:14px">Auf dem Ausweis zeigen</div>
+      <div class="mv-cons">${Object.entries(c.labels).map(([k, l]) => `<label class="chk"><input type="checkbox" data-awf="${k}" ${c.fields[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div>
+      <p class="muted s" style="margin:10px 0 0">Das Foto erscheint nur, wenn das Mitglied es in der App selbst für den Mitgliedsausweis freigibt. Bei einem Austritt gilt der Ausweis bis zum Austrittstag.</p>
+      <div class="row" style="margin-top:14px"><button class="btn" id="awAll" ${c.active ? '' : 'disabled'}>Alle Ausweise sperren …</button><button class="btn" id="awKey" ${c.kid ? '' : 'disabled'}>Schlüssel wechseln …</button><span style="flex:1"></span><button class="btn primary" id="awSave">Speichern</button></div>`;
+    $('awSave').onclick = () => GK.busy($('awSave'), async () => {
+      try { await api('ausweis/settings', 'PUT', { on: $('awOn').checked, photo: $('awPhoto').value, valid: $('awValid').value, fields: Object.fromEntries([...el.querySelectorAll('[data-awf]')].map(x => [x.dataset.awf, x.checked])) }); GK.clean(); toast('Gespeichert.'); } catch (e) { fail(e); }
+    });
+    $('awAll').onclick = async () => {
+      if (!await ask(`Alle ${c.active} Mitgliedsausweise sperren?\n\nKein bisheriger Code gilt dann noch. Jedes Handy holt beim nächsten Öffnen der App mit Netz einen neuen Ausweis.`, { ok: 'Alle sperren' })) return;
+      try { const r = await api('ausweis/alle-sperren', 'POST', {}); toast(GK.T('{0} Ausweise gesperrt.', [r.n])); cardSettings(el).catch(fail); } catch (e) { fail(e); }
+    };
+    $('awKey').onclick = async () => {
+      if (!await ask('Neuen Schlüssel für die Ausweise erzeugen?\n\nNeue Ausweise bekommen eine neue Kennung. Bisherige Codes gelten bis zu ihrem Ablauf weiter (höchstens 30 Tage) – für sofortige Ungültigkeit zusätzlich „Alle Ausweise sperren“.', { ok: 'Schlüssel wechseln' })) return;
+      try { await api('ausweis/schluessel', 'POST', {}); toast('Neuer Schlüssel erzeugt.'); cardSettings(el).catch(fail); } catch (e) { fail(e); }
+    };
+  }
+
   /* Menü „Mitglieder“: Mitglieder · Anträge (n) · Beiträge & Abteilungen · Auswertung · Einstellungen */
   GK.registerPage({ key: 'mitglieder', title: 'Mitglieder', perm: 'mitglieder', render, group: G });
   GK.registerPage({ key: 'mv-antraege', title: 'Anträge & Änderungen', perm: 'mitglieder', render: pageRender('mv-antraege', showApplications), group: G, tab: 'Anträge' });

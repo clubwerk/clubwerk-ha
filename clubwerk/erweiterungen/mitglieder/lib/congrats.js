@@ -260,7 +260,8 @@ function register(sh) {
 
   // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit) – Code der Beitrittserklärung (lib/applications.js), gesammelter Dokumente-Export
   C.hooks.securityEvents = () => [{ id: 'antragscode', label: 'Beitrittserklärung: viele falsche Codes', level: 'r', push: 'Beitrittserklärung: viele falsche Codes am Tablet.' },
-    { id: 'dokumente_zip', label: 'Dokumente gesammelt exportiert', level: 'r', push: 'Dokumente mehrerer Mitglieder wurden gesammelt exportiert.' }];   // lib/dokzip.js
+    { id: 'dokumente_zip', label: 'Dokumente gesammelt exportiert', level: 'r', push: 'Dokumente mehrerer Mitglieder wurden gesammelt exportiert.' },   // lib/dokzip.js
+    { id: 'ausweis_faelschung', label: 'Mitgliedsausweis: viele ungültige Codes', level: 'r', push: 'Mitgliedsausweis: viele ungültige Codes beim Prüfen.' }];   // lib/ausweis.js
   C.hooks.pushEvents = () => [{ id: 'gratulation', label: 'Gratulation steht an', desc: 'Nur für Verwaltungsnutzer mit dem Recht „Gratulationen“, deren Konto mit einem Mitglied verknüpft ist – einige Tage vor Geburtstagen und Jubiläen.', default: true }];
   setTimeout(() => remind().catch(() => {}), process.env.CW_TEST_FAST ? 1500 : 20000).unref();
   setInterval(() => remind().catch(() => {}), process.env.CW_TEST_FAST ? 1500 : 60 * 60000).unref();

@@ -1,13 +1,13 @@
 /* Service Worker der Mitglieder-App: Push-Benachrichtigungen und der Hinweis „Keine Verbindung“ (planung/leitfaeden-2.md).
    Zwischengespeichert wird NUR die Hinweisseite offline.html mit ihren statischen Dateien – nie API-Antworten, Mitgliederdaten oder die
-   App selbst. Ausnahme: das Hintergrundbild eines Sonderdesigns (sonder/<id>-<hell|dunkel>?v=…, ändert sich nie unter seiner Adresse) liegt
+   App selbst. Den Mitgliedsausweis zeigt die Hinweisseite aus dem Speicher der App (IndexedDB, ausweis.js), nicht aus diesem Speicher. Ausnahme: das Hintergrundbild eines Sonderdesigns (sonder/<id>-<hell|dunkel>?v=…, ändert sich nie unter seiner Adresse) liegt
    im Speicher „cw-sonder“ – so lädt es nicht bei jedem Öffnen neu und erscheint auch ohne Netz. app.js leert ihn, wenn kein Sonderdesign mehr gilt. Alles geht zuerst ans Netz; der Speicher springt nur ein, wenn das Netz scheitert (oder der Tunnel meldet, dass Clubwerk
    nicht antwortet). Je Version (sw.js?v=…) ein eigener Speicher, alte werden beim Aktivieren gelöscht. */
 'use strict';
 const V = new URL(self.location.href).searchParams.get('v') || '0';
 const PREFIX = 'cw-offline-', CACHE = PREFIX + V;
 const SONDER = 'cw-sonder';   // Hintergrundbilder der Sonderdesigns (versioniert, siehe oben)
-const FILES = ['offline.html', 'offline.js', 'style.css', 'kit.css', 'theme.css', 'theme-init.js', 'fonts/jakarta-latin.woff2', 'fonts/barlow-condensed-600.woff2'];
+const FILES = ['offline.html', 'offline.js', 'ausweis.js', 'style.css', 'kit.css', 'theme.css', 'theme-init.js', 'fonts/jakarta-latin.woff2', 'fonts/barlow-condensed-600.woff2'];
 // Antworten des Tunnels (Cloudflare), wenn Clubwerk selbst nicht erreichbar ist – sonst stünde dort eine fremde Fehlerseite
 const GATEWAY = new Set([502, 503, 504, 520, 521, 522, 523, 524, 530]);
 

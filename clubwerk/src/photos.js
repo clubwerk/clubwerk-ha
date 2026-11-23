@@ -2,7 +2,7 @@
 /**
  * Profilbilder der Mitglieder
  * Das Mitglied lädt sein Bild in der Mitglieder-App hoch (im Handy auf 400 × 400 Pixel verkleinert, JPEG) und
- * entscheidet selbst, wo es erscheint: im Verkauf am Tablet, bei der Platzbuchung, bei den Helferdiensten.
+ * entscheidet selbst, wo es erscheint: im Verkauf am Tablet, bei der Platzbuchung, bei den Helferdiensten, auf dem Mitgliedsausweis.
  * Die Verwaltung sieht das Bild beim Mitglied und kann es entfernen. Gespeichert wird nur die Bilddatei im Datenordner.
  */
 const fs = require('fs');
@@ -12,8 +12,8 @@ const { db, DATA_DIR, audit } = require('./db');
 
 const DIR = path.join(DATA_DIR, 'fotos');
 const MAX = 400 * 1024;
-const USES = { verkauf: 'Verkauf am Tablet', buchung: 'Platzbuchung', helfer: 'Helferdienste' };
-const MODULE_OF = { verkauf: 'getraenke', buchung: 'buchung', helfer: 'arbeitseinsatz' };
+const USES = { verkauf: 'Verkauf am Tablet', buchung: 'Platzbuchung', helfer: 'Helferdienste', ausweis: 'Mitgliedsausweis' };
+const MODULE_OF = { verkauf: 'getraenke', buchung: 'buchung', helfer: 'arbeitseinsatz', ausweis: 'mitglieder' };
 
 { const cols = db.prepare('PRAGMA table_info(members)').all().map(c => c.name);
   if (!cols.includes('photo')) db.exec('ALTER TABLE members ADD COLUMN photo TEXT');
@@ -33,7 +33,7 @@ function version(id, use) {
 }
 function info(id, isActive) {
   const r = row(id); if (!r) return null;
-  return { has: Boolean(r.photo), v: version(r), use: J(r.photo_use), uses: Object.entries(USES).filter(([k]) => !isActive || isActive(MODULE_OF[k])).map(([k, l]) => ({ k, l })) };
+  return { has: Boolean(r.photo), v: version(r), use: J(r.photo_use), uses: Object.entries(USES).filter(([k]) => !isActive || isActive(MODULE_OF[k], k)).map(([k, l]) => ({ k, l })) };
 }
 /** data:image/jpeg;base64,… → speichern (ersetzt ein altes Bild) */
 function save(id, dataUrl, use, who) {
@@ -60,19 +60,23 @@ function remove(id, who) {
   if (f) try { fs.unlinkSync(f); } catch (e) { /* schon gelöscht */ }
   audit(who || null, 'Profilbild entfernt', r.name);
 }
-/** Bild ausliefern (use = Zweck, den das Mitglied freigegeben haben muss; null = Verwaltung/eigenes Bild) */
-function send(res, id, use) {
-  const r = row(id), f = file(r);
-  if (!f || (use && !J(r.photo_use).includes(use))) return res.status(404).end();
-  let buf;
+/** Bilddatei lesen (use = Zweck, den das Mitglied freigegeben haben muss; null = ohne Prüfung) → Buffer oder null (keins, nicht freigegeben, Tresor gesperrt) */
+function read(id, use) {
+  const r = typeof id === 'object' ? id : row(id), f = file(r);
+  if (!f || (use && !J(r.photo_use).includes(use))) return null;
   if (!fs.existsSync(f)) {   // Demo: Beispielbilder (clubwerk/demo/fotos) liegen im Paket, nicht im Datenordner
     const d = path.join(__dirname, '..', 'demo', 'fotos', path.basename(f));
-    if (!fs.existsSync(d) || !db.prepare("SELECT 1 FROM settings WHERE key = 'demo_build'").get()) return res.status(404).end();
-    buf = fs.readFileSync(d);
-  } else try { buf = require('./vault').readFile(f, { cacheIt: true }); } catch (e) { return res.status(404).end(); }   // gesperrt: Initialen statt Bild
+    return fs.existsSync(d) && db.prepare("SELECT 1 FROM settings WHERE key = 'demo_build'").get() ? fs.readFileSync(d) : null;
+  }
+  try { return require('./vault').readFile(f, { cacheIt: true }); } catch (e) { return null; }   // gesperrt: Initialen statt Bild
+}
+/** Bild ausliefern (use = Zweck, den das Mitglied freigegeben haben muss; null = Verwaltung/eigenes Bild) */
+function send(res, id, use) {
+  const r = row(id), buf = read(r, use);
+  if (!buf) return res.status(404).end();
   // Kennung (?v=) ist Teil des Dateinamens: passt sie, ändert sich das Bild unter dieser Adresse nie
   res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': res.req && res.req.query && r.photo && res.req.query.v === r.photo.slice(-16, -4) ? 'private, max-age=31536000, immutable' : 'private, max-age=86400', 'Content-Security-Policy': "default-src 'none'", 'X-Content-Type-Options': 'nosniff' });
   res.end(buf);
 }
 
-module.exports = { version, info, save, setUse, remove, send, DIR };
+module.exports = { version, info, save, setUse, remove, send, read, DIR };

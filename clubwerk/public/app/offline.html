@@ -6,7 +6,8 @@
   <title>Keine Verbindung</title>
   <meta name="theme-color" content="#1f6b3a">
   <!-- Hinweisseite der Mitglieder-App ohne Netz (sw.js zeigt sie nur, wenn das Netz scheitert). Liegt mit ihren Dateien im Zwischenspeicher,
-       darum keine Daten, keine Anfragen an die API und nur Dateien aus der Liste in sw.js (FILES). -->
+       darum keine Anfragen an die API und nur Dateien aus der Liste in sw.js (FILES). Einzige Daten: der Mitgliedsausweis, den die App
+       selbst im Gerät gespeichert hat (ausweis.js) – „Mitgliedsausweis zeigen“ erscheint nur, wenn einer da ist. -->
   <script src="theme-init.js"></script>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="theme.css">
@@ -16,6 +17,8 @@
     .off-ico { width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 32px; background: var(--brand-soft); color: var(--brand-ink); display: flex; align-items: center; justify-content: center; }
     .off-ico svg { width: 30px; height: 30px; }
     .off-wrap h1 { margin: 0 0 6px; font-size: 20px; line-height: 26px; }
+    .off-wrap { flex-direction: column; gap: 12px; }
+    .off-card { width: 100%; max-width: 420px; }
   </style>
 </head>
 <body class="vh-page">
@@ -25,8 +28,11 @@
     <h1 id="offT">Keine Verbindung</h1>
     <p id="offD" aria-live="polite">Der Verein ist gerade nicht erreichbar. Prüfe WLAN oder mobile Daten und versuche es dann noch einmal.</p>
     <button type="button" class="vh-btn vh-wide" id="offRetry">Erneut versuchen</button>
+    <button type="button" class="vh-btn sec vh-wide hidden" id="offCard" style="margin-top:10px">Mitgliedsausweis zeigen</button>
   </div>
+  <div class="off-card hidden" id="offCardBox"></div>
 </main>
+<script src="ausweis.js"></script>
 <script src="offline.js"></script>
 </body>
 </html>

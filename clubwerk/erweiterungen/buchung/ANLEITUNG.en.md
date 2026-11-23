@@ -3,7 +3,7 @@
 
 ## What is this module for? {#wofuer}
 
-Members book tennis courts, padel courts, halls or equipment such as the ball machine – in the member app or on the tablet in the clubhouse. Clubwerk looks after opening hours, time grids, maximum duration and each member's quota, knows about playing partners and guests (with a guest fee) and keeps a waiting list. In the admin area you see the occupancy plan, enter training, teams and court blocks, import the fixture list from the league and analyse utilisation.
+Members book tennis courts, padel courts, halls or equipment such as the ball machine – in the member app or on the tablet in the clubhouse. Clubwerk looks after opening hours, time grids, maximum duration and each member's quota, knows about playing partners and guests (with a guest fee) and keeps a waiting list. With the partner search, members find players from the club in the app and get from a request to a booking with one tap. In the admin area you see the occupancy plan, enter training, teams and court blocks, import the fixture list from the league and analyse utilisation.
 
 The module works on its own. Without the Members module it only knows first and last names and has no payment tracking for fees; without Sales, fees cannot be booked to an account by hand.
 
@@ -17,7 +17,7 @@ The module works on its own. Without the Members module it only knows first and 
 
 ## Admin area {#verwaltung}
 
-The “Courts” menu has seven tabs: **Occupancy**, **Recurring bookings & blocks**, **Bookings**, **Fees**, **Statistics**, **Courts & equipment** and **Settings**. The “Settings” tab only appears with the permission “Courts: courts, booking types & settings”.
+The “Courts” menu has eight tabs: **Occupancy**, **Recurring bookings & blocks**, **Bookings**, **Fees**, **Statistics**, **Partner search**, **Courts & equipment** and **Settings**. The “Settings” tab only appears with the permission “Courts: courts, booking types & settings”.
 
 ### Tab “Occupancy” {#bk-belegung}
 
@@ -183,6 +183,30 @@ One circle per weekday and hour: the bigger and darker, the more hours booked du
 
 ![“When do people play?”: size and colour show the booked hours per weekday and time.](bild: seite=bk-auswertung; klick=.bk-bub > .bc:last-child; ziel=.bk-bub)
 
+### Tab “Partner search” {#bk-mitspieler}
+
+![The “Partner search” tab with the open requests.](bild: seite=bk-mitspieler; hoehe=460)
+
+In the app, under Courts › Playing partners, members post **requests** (“Doubles, Thu 18:00–20:00, court 3 already booked”). Here you see all requests with member, format and playing level, date and court, replies (“2 of 3” with names) and status. The filters **Open** (including full ones), **Reported**, **Done** (court booked) and **Ended** (withdrawn, expired, hidden) narrow the list. A request ends at its start time or when the linked booking is cancelled.
+
+#### View, hide or block a request
+
+![A request with “Hide” and “Block member from the partner search”.](bild: seite=bk-mitspieler; klick=tr[data-ms]; ziel=dialog)
+
+Click a row to see the request with its note, replies and reports. Members can **report** a request in the app; reported requests appear as a note in the overview. **Hide** removes the request from the app (“Show again” undoes it). **Block member from the partner search** hides their open requests; they can no longer post requests or reply, but can still book. Both need the permission “Courts: cancel other people's bookings” and are recorded in the log.
+
+![The card “Blocked from the partner search”.](bild: seite=bk-mitspieler; ziel=[data-card="ms-gesperrt"])
+
+The card **Blocked from the partner search** lists blocked members; “Lift block” lets them take part again.
+
+#### Partner search settings
+
+![The partner search settings.](bild: seite=bk-mitspieler; ziel=[data-card="ms-einstellungen"])
+
+The tick switches the partner search in the app on or off. Then there are the limits **Open requests per member** (default 3) and **Replies per member and day** (default 10), the **formats** (one per line with the number of players wanted, e.g. “Doubles: 3” or “Training: 1–3” to choose from) and the **playing levels** from low to high (default Beginner, Casual, Team, Tournament). This way the partner search also fits padel, badminton or table tennis. There is no restriction by age.
+
+> Requests and replies are deleted 90 days after the date; you set the period under Settings › Data protection.
+
 ### Tab “Courts & equipment” {#bk-plaetze}
 
 ![The tab “Courts & equipment” with name, bookable times, grid, guest fee and upcoming bookings.](bild: seite=bk-plaetze)
@@ -323,17 +347,29 @@ Export courts, booking types and settings as a file and import them into another
 - **Push:** members can be notified when they are added as a playing partner, when a booking is changed or cancelled (also because of a court block), when a court from the waiting list becomes free and shortly before the match (2 hours ahead, adjustable). The board decides which occasions exist under Member app › Notifications.
 - If a member is barred (their membership or fee type may not book), a note at the top tells them to contact the board.
 
+![The “Playing partners” tab in the app: own request, replies and open requests.](bild: app=buchung; klick=.bkm-tabs [data-tab="ms"])
+
+![The “Find players” window.](bild: app=buchung; klick=.bkm-tabs [data-tab="ms"]; klick2=#bkmMsNew)
+
+**Playing partners (tab at the top of the “Courts” area):**
+- **Find players:** choose the format (for “Training” also how many), then one of your own bookings or “no court yet” with day and time. Playing level, LK range and a note (up to 140 characters, no links) are optional. “Post request” makes it visible. Only members allowed to use “Courts” in the app can see it – with “Last name, first name” and photo (if shared for court booking), never with phone number or email.
+- **I'm in:** the reply is binding, first come, first served. If the request has a court, you are added to the booking as a player straight away (with the same rules as when booking, e.g. quota). “Details” shows who has already joined and offers **Report**. Your own replies are listed under “My replies” with “Withdraw reply”.
+- **My request:** shows “2 of 3 found” and who replied when (“Remove” takes a reply out). “Edit” changes the request; once there are replies, format, time and court stay as agreed. “Withdraw” ends it; a booked court stays booked.
+- **Book a court:** when a request without a court is full, “Book a court” opens the booking window on the right day with the duration and all players; “For me” reminds you. If no court is free at the start time, the member picks one. Booking follows the normal rules; afterwards the request is done.
+- **I'm looking for players too:** members who voluntarily enter their playing level and LK see matching requests first (same or neighbouring level, LK within the range wanted). Others do not see these details; switching off deletes them at once.
+- **Push:** “Someone is in” and “Your request is full” go to the creator if the board has enabled these occasions under Member app › Notifications. There is no push for new requests.
+
 **On the tablet** (tab “Courts”) you see the same plan. Tap a free slot, search for your own name (from two letters on), enter your **PIN** and book; anyone without a PIN sets one right there. Tapping a booking and “Cancel” also needs the PIN – for the person who booked and for every playing partner entered. For recurring bookings the tablet asks: “Only today”, “Today and all following” or “Entire series”. As in the app, further days up to the booking window can be chosen above the plan; after 2 minutes without input the tablet jumps back to today.
 
 ## Permissions {#rechte}
 
 | Permission | What it allows |
 |---|---|
-| Courts: view occupancy | View occupancy, bookings, fees and statistics |
+| Courts: view occupancy | View occupancy, bookings, fees, statistics and partner search |
 | Courts: book for members, single bookings with booking type | Enter and edit bookings and blocks, book and cancel fees by hand |
-| Courts: cancel other people's bookings | Cancel bookings and blocks |
+| Courts: cancel other people's bookings | Cancel bookings and blocks; hide partner search requests and block members from it |
 | Courts: create and end recurring bookings & blocks | Recurring bookings, blocks and schedule import; repeating in the booking window |
-| Courts: courts, booking types & settings | Tabs “Courts & equipment” and “Settings” with booking types and special rights |
+| Courts: courts, booking types & settings | Tabs “Courts & equipment” and “Settings” with booking types and special rights, partner search settings |
 
 Members and coaches book in the app and on the tablet without any admin permission. Someone who may only view the occupancy sees the plan but cannot enter anything.
 

@@ -240,6 +240,14 @@ Bei Familienmitgliedern und Mitgliedern mit abweichendem Zahler ist der Reiter g
 
 Hier liegen Beitrittserklärung, SEPA-Mandat, Kündigung, Nachweise und Schriftverkehr als Dateien. Mit **Dokument ablegen** wählt ihr die Art, optional eine Bezeichnung und die Datei (PDF, Foto, Word oder Text, bis 15 MB). In der **Ablage** öffnet „Öffnen …“ die Datei oder löscht sie. **Alle Dokumente als ZIP** (rechts über der Ablage) lädt alle Dokumente dieses Mitglieds auf einmal herunter, mit einer Übersicht als Excel; das steht im Protokoll. Die Dokumente liegen nur auf dem Vereinsrechner und sind in der Datensicherung enthalten. Bei Familienmitgliedern liegen Beitrittserklärung und Mandat beim Oberhaupt.
 
+### Mitglied › Ausweis {#mitglied-ausweis}
+
+![Der Reiter „Ausweis“: Stand und ausgestellte Ausweise, einer davon gesperrt.](bild: seite=mitglieder/mitglied/12; tab=ausweis; tabkey=detail_mitglied)
+
+Den Reiter gibt es, wenn der Mitgliedsausweis eingeschaltet ist (Einstellungen › Mitgliedsausweis). Oben steht, ob der Ausweis gilt und ob ein Foto darauf ist. Ein Foto erscheint nur, wenn das Mitglied sein Profilbild in der App selbst für den Mitgliedsausweis freigibt. Die Liste **Ausgestellte Ausweise** zeigt je Ausweis die Seriennummer, wann er ausgestellt wurde, bis wann er gilt und ob er gültig oder gesperrt ist. Den Ausweis stellt das Handy des Mitglieds selbst aus, sobald es in der App „Meine Daten“ › „Ausweis“ öffnet, und erneuert ihn von selbst.
+
+**Ausweis sperren / neu ausstellen …** (oben rechts) macht die Seriennummer sofort ungültig, etwa nach einem verlorenen Handy. Öffnet das Mitglied die App wieder mit Netz, bekommt es einen neuen Ausweis mit neuer Seriennummer. Bei einem verlorenen Handy das Mitglied zusätzlich neu zur App einladen, dann verliert das alte Handy den Zugang. Sperren steht im Protokoll und im Verlauf des Mitglieds. Nach einem Austritt gilt der Ausweis ab dem Tag nach dem Austritt nicht mehr, ohne dass ihr etwas tun müsst.
+
 ### Mitglied › Verlauf {#mitglied-verlauf}
 
 ![Die Karte „Änderungsverlauf“.](bild: seite=mitglieder/mitglied/7; tab=verlauf; tabkey=detail_mitglied; ziel=.detbody > div:nth-child(2))
@@ -427,6 +435,20 @@ Betreff und Text der Mail, die ein Mitglied zum Austritt bekommt – wenn ihr ei
 ![Karte „Meine Daten“ in der App.](bild: seite=mv-einstellungen; ziel=#eApp)
 
 Legt fest, was Mitglieder in der App **sehen** (Beitrag, Posten, Anschrift, Kontakt, Geburtsdatum, Bankverbindung, Einwilligungen) und was sie **ändern** dürfen (Anschrift, Kontakt, Bankverbindung, Einwilligungen, Kündigung). Änderungen an Daten bestätigt immer der Vorstand. Sind die Einwilligungen in der App ausgeblendet, widerrufen Mitglieder sie formlos beim Vorstand.
+
+#### Mitgliedsausweis
+
+![Karte „Mitgliedsausweis“ in den Einstellungen.](bild: seite=mv-einstellungen; ziel=#eAusweis)
+
+**Mitgliedsausweis in der App anbieten** schaltet den Ausweis für alle Mitglieder ein. Jeder Ausweis hat einen signierten QR-Code. Er liegt auf dem Handy und geht auch ohne Netz; der Code gilt 30 Tage, dann holt die App mit Netz einen neuen. Name oder Geburtsdatum stehen nicht im Code.
+
+- **Foto auf dem Ausweis:** „wenn das Mitglied es für den Ausweis wählt“ oder „nie“.
+- **Gültig bis:** Ende des Beitragsjahres oder des Geschäftsjahres. Bei einer Kündigung gilt der Ausweis nur bis zum Austrittstag.
+- **Auf dem Ausweis zeigen:** Abteilungen, Altersstufe (die Beitragsart) und „Mitglied seit“.
+- **Alle Ausweise sperren …** macht alle bisherigen Codes sofort ungültig; jedes Handy holt beim nächsten Öffnen einen neuen Ausweis.
+- **Schlüssel wechseln …** erzeugt einen neuen Signaturschlüssel. Bisherige Codes gelten bis zu ihrem Ablauf weiter. Der Schlüssel liegt im Tresor; ist der Tresor nach einem Neustart gesperrt, gelten die Ausweise weiter, nur neue warten, bis sich ein Admin anmeldet.
+
+Prüfen können Mitglieder, denen ihr unter **Mitglieder-App** beim Mitglied den Schalter **Ausweise prüfen** gebt (Bereich „Meine Daten“), zum Beispiel Thekendienst oder Trainer. Prüfungen werden nicht gespeichert.
 
 #### Benachrichtigungen
 
@@ -625,6 +647,14 @@ Unterschriften, Kündigung und Änderungen, die Geld oder E-Mail betreffen, verl
 
 ![Das Fenster „Neue Bankverbindung“ mit Unterschriftsfeld.](bild: app=mitglieder; klick=#mdBank)
 
+**Mitgliedsausweis:** Ist er eingeschaltet, hat „Meine Daten“ die Reiter **Mitgliedschaft** und **Ausweis**. Die Karte zeigt Vereinsname, Foto (nur wenn freigegeben), „Nachname, Vorname“, Nummer, „Mitglied seit“, Abteilungen, Altersstufe, Status, „gültig bis“, den QR-Code und eine laufende Uhr mit Sekunden. Uhr und wandernder Glanzstreifen zeigen, dass es kein Bildschirmfoto ist. Die Karte liegt auf dem Handy: Ohne Netz zeigt die Seite „Keine Verbindung“ den Knopf **Mitgliedsausweis zeigen**. In „Für mich“ führt die Zeile **Mitgliedsausweis zeigen** direkt zur Karte. Wer ausgetreten ist, sieht „Deine Mitgliedschaft ist am … beendet“ ohne Code; „Abmelden“ löscht die Karte vom Handy.
+
+![Der Mitgliedsausweis in der App.](bild: app=mitglieder; klick=[data-tab="ausweis"])
+
+**Ausweise prüfen:** Mit dem Schalter „Ausweise prüfen“ kommt der Reiter **Prüfen** dazu. **Kamera starten** und den QR-Code des anderen Handys davor halten. Das Ergebnis steht groß da, mit Symbol und Text: **Gültig** (mit Foto, Name, Nummer, Status, Abteilungen, „gültig bis“), **Abgelaufen**, **Nicht mehr Mitglied**, **Ausweis gesperrt** oder **Ungültiger Code**. Stimmt das Foto mit der Person überein, gilt der Ausweis. Eine Mitgliedsnummer lässt sich bewusst nicht eintippen. Nach vielen ungültigen Codes sperrt die Prüfung eine Weile und der Vorstand bekommt eine Sicherheitswarnung. Die Kamera geht nur, wenn die App über https geöffnet ist (Adresse des Vereins).
+
+![Der Reiter „Prüfen“ in der App.](bild: app=mitglieder; klick=[data-tab="pruefen"])
+
 **Am Tablet** erscheint der Reiter „Mitglied werden“, wenn er eingeschaltet ist. Interessierte füllen die Beitrittserklärung selbst aus und unterschreiben mit dem Finger, oder geben den **Code** der Verwaltung ein. Aus Datenschutzgründen löscht das Tablet nach 4 Minuten ohne Eingabe und 25 Sekunden nach dem Absenden alles. Wer schon Mitglied ist, bucht am Tablet wie bisher mit seiner PIN; die PIN setzt die Verwaltung beim Mitglied zurück.
 
 **Online:** Über die Adresse der Mitglieder-App (`/p/mitglieder/`) gibt es den gleichen Antrag fürs Handy, wenn „Online-Antrag“ eingeschaltet ist.
@@ -639,6 +669,7 @@ Unterschriften, Kündigung und Änderungen, die Geld oder E-Mail betreffen, verl
 | Einzug | Menü „Beiträge & Zahlungen“: Beitragslauf, Lastschriften, Offene Posten, Rechnungen & Mahnungen, Einstellungen, Forderungen, Mahnsperren |
 | Dokumente | Reiter „Dokumente“ am Mitglied: ansehen und hochladen |
 | Gratulationen | Reiter „Gratulationen“, Abhaken und Erinnerungen |
+| Schalter „Ausweise prüfen“ (Mitglieder-App › Mitglied, Bereich „Meine Daten“) | in der eigenen App Mitgliedsausweise anderer mit der Kamera prüfen – kein Recht in der Verwaltung |
 
 ## Zusammenspiel mit anderen Modulen {#zusammenspiel}
 
@@ -648,7 +679,7 @@ Unterschriften, Kündigung und Änderungen, die Geld oder E-Mail betreffen, verl
 - **Plätze:** Gebühren für Plätze und Gäste werden zu Forderungen und wie ein Beitrag eingezogen. Ämter aus diesem Modul können Rechte beim Platzbuchen bestimmen.
 - **Spielbetrieb:** Geburtsjahr und Geschlecht kommen von hier (für Altersklassen).
 - **Nachrichten:** Empfänger lassen sich nach Abteilung, Amt oder Beitragsart wählen.
-- **Mitglieder-App:** „Meine Daten“ und der Online-Antrag.
+- **Mitglieder-App:** „Meine Daten“, der Mitgliedsausweis (mit der Zeile „Mitgliedsausweis zeigen“ in „Für mich“) und der Online-Antrag. Das Profilbild aus „Mein Konto“ erscheint auf dem Ausweis, wenn das Mitglied „Mitgliedsausweis“ ankreuzt.
 - **Kontoauszug und Bankkonten (Kern):** Eingelesene Kontoauszüge buchen Posten als bezahlt und erfassen Rücklastschriften. Das Konto für Lastschriften wählt ihr aus den Bankkonten.
 - **Datenschutz (Kern):** Die Datenauskunft sammelt die Daten aller Module. Anonymisierte Mitglieder bleiben in der Statistik, Buchungen laufen unter „Anonym …“.
 - **Einrichtung und Übersicht (Kern):** Die Einrichtung führt durch die ersten Schritte. Die Übersicht warnt vor neuen Anträgen, fehlendem Mandat, anstehenden Altersstufen, lange ausgetretenen Mitgliedern und vor Lastschriften, die noch als bezahlt zu buchen sind.

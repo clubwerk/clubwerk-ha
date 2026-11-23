@@ -1,6 +1,10 @@
 'use strict';
-/* Bereich „Meine Daten“ in der Mitglieder-App: Mitgliedschaft, Beiträge, Zahlungen, Kontaktdaten, Bankverbindung, Kündigung */
+/* Bereich „Meine Daten“ in der Mitglieder-App: Mitgliedschaft, Beiträge, Zahlungen, Kontaktdaten, Bankverbindung, Kündigung – und der Reiter „Ausweis“ */
 (() => {
+  const VQ = (document.currentScript && new URL(document.currentScript.src).search) || '';   // ?v=… wie dieses Skript
+  /* app/ausweis.js lädt erst hier (nicht beim Start der App); ohne Netz die Fassung ohne ?v= aus dem Speicher des Service Workers (sw.js) */
+  const awScript = src => new Promise(res => { const sc = document.createElement('script'); sc.src = src; sc.onload = () => res(true); sc.onerror = () => { sc.remove(); res(false); }; document.body.appendChild(sc); });
+  const awReady = async () => window.CWAusweis || ((await awScript('ausweis.js' + VQ)) || (VQ && await awScript('ausweis.js')), window.CWAusweis || null);
   if (!document.getElementById('mdStyle')) {
     const s = document.createElement('style'); s.id = 'mdStyle';
     s.textContent = `
@@ -25,10 +29,28 @@
         sh.innerHTML = `<div class="vh-box">${html}</div>`; sh.classList.add('show');
         return sh;
       };
-      ctx.onLeave(closeSheet);
+      /* Reiter „Ausweis“ (Mitgliedsausweis, app/ausweis.js): nur, wenn der Verein ihn anbietet – oder wenn ein gespeicherter da ist und der
+         Verein gerade nicht antwortet (Tresor nach einem Neustart gesperrt, kein Netz) */
+      let tab = focus === 'ausweis' ? 'ausweis' : 'daten', stored = null, stopClock = () => {}, stopCheck = () => {};
+      let AW = window.CWAusweis || null;
+      ctx.onLeave(() => { closeSheet(); stopClock(); stopCheck(); });
+      /* Reiter: Mitgliedschaft · Ausweis · Prüfen (nur mit dem Schalter „Ausweise prüfen“ aus der Verwaltung) */
+      const segHtml = check => `<div class="vh-seg" role="tablist">${[['daten', 'Mitgliedschaft'], ['ausweis', 'Ausweis'], ...(check ? [['pruefen', 'Prüfen']] : [])].map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${tab === k ? 'on' : ''}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>`;
+      const wireSeg = () => el.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { if (tab === b.dataset.tab) return; tab = b.dataset.tab; stopClock(); stopCheck(); load(); }; });
 
       async function load() {
-        try { d = await ctx.api('me'); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
+        let err = null;
+        try { d = await ctx.api('me'); } catch (e) { d = null; err = e; }
+        if (!AW && (!d || d.ausweis)) AW = await awReady();
+        if (err && err.device && AW) await AW.clear();   // Handy gesperrt: gespeicherten Ausweis löschen
+        stored = AW ? await AW.load() : null;
+        const withCard = AW && ((d && d.ausweis) || (!d && stored));
+        if (!withCard && stored) AW.clear();   // Verein bietet keinen Ausweis mehr an
+        const check = Boolean(d && d.ausweisPruefen);
+        if (tab === 'pruefen' && withCard && check) { el.innerHTML = segHtml(check) + '<div id="mdAwp"><div class="vh-empty">Lade …</div></div>'; wireSeg(); checkView(); return; }
+        if (tab === 'pruefen') tab = 'ausweis';
+        if (withCard && tab === 'ausweis') { el.innerHTML = segHtml(check) + '<div id="mdAw"><div class="vh-empty">Lade …</div></div>'; wireSeg(); showCard(d ? '' : err.status === 423 ? 'Dein Ausweis wird erneuert, sobald sich der Vorstand in der Verwaltung angemeldet hat.' : err.message); return; }
+        if (!d) { el.innerHTML = (withCard ? segHtml(false) : '') + `<div class="vh-empty">${esc(err.message)}</div>`; wireSeg(); return; }
         if (d.none) { el.innerHTML = '<div class="vh-empty">Für dich sind noch keine Mitgliedsdaten hinterlegt.</div>'; return; }
         const p = d.person;
         // Name und Initialen: aus Vor-/Nachname, sonst aus dem Kontonamen („Muster, Max“) – nie eine leere Karte
@@ -37,7 +59,7 @@
         const open = d.charges.filter(c => c.status === 'offen' || c.status === 'eingezogen');
         const V = (d.perms && d.perms.view) || {}, E = (d.perms && d.perms.edit) || {};
         const showFees = V.beitraege !== false || d.departments.length || d.family.length > 1 || (d.familyMembership && d.familyMembership.length > 1);
-        el.innerHTML = `
+        el.innerHTML = `${withCard ? segHtml(check) : ''}
           ${d.pending.length ? `<div class="vh-bar a">Beim Vorstand in Bearbeitung: ${d.pending.map(x => esc(x.label)).join(', ')}</div>` : ''}
           ${p.exit_date ? `<div class="vh-bar a">Deine Mitgliedschaft endet zum ${deD(p.exit_date)}.</div>` : ''}
           <div class="vh-card"><div class="md-head"><span class="md-av">${esc(ini)}</span><div style="min-width:0"><b>${esc(full)}</b><span>${p.member_no ? `Mitgliedsnummer ${esc(p.member_no)} · ` : ''}${esc(T(p.status || 'Mitglied'))}${p.entry_date ? esc(' ' + T('seit {0}', [deD(p.entry_date)])) : ''}</span></div></div></div>
@@ -60,11 +82,52 @@
           ${V.einwilligungen !== false && d.consents.length ? `<div class="vh-card"><h3>Einwilligungen ${E.einwilligungen !== false ? '<button id="mdCons">Ändern</button>' : ''}</h3><div class="vh-rows">${d.consents.map(c => `<div><span>${esc(c.short)}</span><b>${c.given ? 'ja' : 'nein'}</b></div>`).join('')}</div></div>` : ''}
           ${d.auskunft ? `<div class="vh-card"><h3>Datenauskunft <button id="mdAusk">Anfordern</button></h3><div class="vh-rows"><div><span>Alles, was der Verein zu dir gespeichert hat – als PDF per E-Mail<small>${d.auskunft.to ? `an ${esc(d.auskunft.to)}` : 'Dafür braucht der Verein deine E-Mail-Adresse.'}</small></span></div></div></div>` : ''}
           ${p.exit_date || !E.kuendigung ? '' : '<button class="vh-danger" id="mdQuit">Mitgliedschaft kündigen …</button>'}`;
+        wireSeg();
         const on = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
         on('mdEdit', editContact); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit); on('mdAusk', requestData); on('mdPay', transfer);
         if (focus === 'kontakt' && document.getElementById('mdEdit')) editContact(); else if (focus === 'bank' && document.getElementById('mdBank')) editBank(); else if (focus === 'ueberweisen' && document.getElementById('mdPay')) transfer();
         focus = '';
         void open;
+      }
+
+      /* ---------- Mitgliedsausweis: gespeicherte Karte sofort zeigen, höchstens einmal am Tag still beim Verein erneuern ---------- */
+      const box = () => el.querySelector('#mdAw');
+      const HINT = '<p class="vh-note" style="text-align:left;margin:0">Zeig den Ausweis im Vereinsheim, beim Turnier oder bei Partnervereinen vor. Er ist auf diesem Handy gespeichert und geht auch ohne Netz. Die laufende Uhr zeigt, dass es kein Bildschirmfoto ist.</p>';
+      function paint(c, note) {
+        const b = box(); if (!b) return;
+        stopClock();
+        b.innerHTML = (note ? `<div class="vh-bar a">${esc(note)}</div>` : '') + AW.html(c) + HINT;
+        stopClock = AW.clock(b);
+      }
+      const STATE = { exited: x => `Deine Mitgliedschaft ist am ${deD(x.exit_date)} beendet. Der Mitgliedsausweis gilt nicht mehr.`, pending: () => 'Dein Mitgliedsantrag ist noch in Bearbeitung. Den Ausweis gibt es, sobald der Vorstand ihn angenommen hat.',
+        none: () => 'Für dich ist keine Mitgliedschaft eingetragen – darum gibt es keinen Ausweis.', off: () => 'Der Verein bietet keinen Mitgliedsausweis an.' };
+      /** Vereinslogo als kleines Bild für die gespeicherte Karte (ohne Netz lädt die Adresse „logo“ nicht) */
+      const logoData = () => new Promise(res => {
+        const i = new Image();
+        i.onload = () => { try { const cv = document.createElement('canvas'), k = Math.min(1, 96 / Math.max(i.naturalWidth || 96, i.naturalHeight || 96)); cv.width = Math.round((i.naturalWidth || 96) * k); cv.height = Math.round((i.naturalHeight || 96) * k); cv.getContext('2d').drawImage(i, 0, 0, cv.width, cv.height); res(cv.toDataURL('image/png')); } catch (e) { res(''); } };
+        i.onerror = () => res(''); i.src = 'logo';
+      });
+      async function showCard(note) {
+        if (stored) paint(stored, note);
+        if (note || (stored && stored.fetched === AW.today())) return;
+        try {
+          const r = await ctx.api('ausweis');
+          if (r.state !== 'ok') { await AW.clear(); stored = null; const b = box(); if (b) b.innerHTML = `<div class="vh-empty">${esc((STATE[r.state] || STATE.none)(r))}</div>`; return; }
+          const card = { ...r.card, logo: (await logoData()) || (stored && stored.logo) || '' };
+          await AW.save(card); stored = card; paint(card);
+        } catch (e) {
+          const msg = e.status === 423 ? 'Dein Ausweis wird erneuert, sobald sich der Vorstand in der Verwaltung angemeldet hat.' : e.message;
+          if (stored) paint(stored, msg); else { const b = box(); if (b) b.innerHTML = `<div class="vh-empty">${esc(msg)}</div>`; }
+        }
+      }
+
+      /* ---------- Ausweise prüfen (Kamera; ausweis-pruefen.js und jsQR laden erst hier) ---------- */
+      const loadCheck = () => (window.AusweisPruefen ? Promise.resolve() : new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'm/mitglieder/ausweis-pruefen.js'; sc.onload = res; sc.onerror = () => rej(new Error('Die Prüfung lässt sich gerade nicht laden – bitte gleich noch einmal versuchen.')); document.body.appendChild(sc); }));
+      async function checkView() {
+        const b = el.querySelector('#mdAwp');
+        try { await loadCheck(); } catch (e) { if (b) b.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
+        if (!b || !b.isConnected) return;
+        stopCheck = window.AusweisPruefen.mount(b, { post: body => ctx.api('ausweis/pruefen', 'POST', body), base: 'm/mitglieder/', box: 'vh-card', btn: 'vh-btn wide' });
       }
 
       /* Überweisen: QR-Code für die Banking-App (am Rechner oder auf einem zweiten Gerät scannen) und alle Angaben zum Kopieren */
