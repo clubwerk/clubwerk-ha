@@ -1,5 +1,10 @@
 # Änderungen
 
+## 2026.11.63
+
+### Verbessert
+- Installationsanleitung: neuer Abschnitt „Tablet wecken, wenn jemand kommt“ – Bildschirm einschalten über eine Kamera mit Personenerkennung oder einen Bewegungsmelder in Home Assistant.
+
 ## 2026.11.62
 
 ### Neu

@@ -180,6 +180,32 @@ actions:
 
 ---
 
+## 8b. Tablet wecken, wenn jemand kommt (optional)
+
+Das Tablet darf in den Ruhezustand gehen und schaltet den Bildschirm ein, sobald jemand davorsteht. Ihr braucht dafür eine Kamera oder einen Bewegungsmelder, der in Home Assistant erscheint (z. B. eine Kamera mit Personenerkennung), und Fully Kiosk mit Plus-Lizenz.
+
+1. Kamera oder Melder in Home Assistant einbinden (**Einstellungen → Geräte & Dienste → Integration hinzufügen**, Hersteller wählen). Hängt die Kamera an einem Hub des Herstellers, bindet ihr den Hub ein; die Kameras erscheinen dann darunter. Gibt es einen Sensor „Person“, nehmt ihn statt „Bewegung“ – er löst nicht bei Schatten oder Lichtwechsel aus. Ist er ausgegraut, unter dem Sensor → Zahnrad → **Aktiviert** einschalten.
+2. Fully Kiosk in Home Assistant einbinden (wie in Abschnitt 8, Schritt 2). Danach gibt es einen Schalter für den Bildschirm.
+3. In Fully Kiosk unter **Device Management → Screen Off Timer** z. B. 120 Sekunden eintragen – das Tablet geht nach zwei Minuten ohne Berührung wieder aus.
+4. Automatisierung (**Einstellungen → Automatisierungen → Automatisierung erstellen → Neue Automatisierung → ⋮ → In YAML bearbeiten**, alles ersetzen, speichern); die Entitätsnamen an eure anpassen:
+
+```yaml
+alias: Tablet wecken bei Person
+mode: single
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.kamera_theke_person
+    to: "on"
+actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.tablet_theke_bildschirm
+```
+
+Testen: vor die Kamera treten und in der Automatisierung unter **⋮ → Ablaufverfolgung** nachsehen, ob sie ausgelöst hat. Die Automatisierung läuft in Home Assistant und braucht Clubwerk nicht.
+
+---
+
 ## 9. Kennzahlen in Home Assistant (optional)
 
 Offener Betrag, heute gebuchte Getränke, knappe Artikel und laufende Veranstaltung als Sensoren – das YAML-Beispiel steht in der **DOCS.md** (Abschnitt „Kennzahlen in Home Assistant“).
