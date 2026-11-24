@@ -5,6 +5,7 @@
  *  - Änderungen melden (Adresse, Telefon, E-Mail, Einwilligungen) → Vorstand bestätigt
  *  - neue Bankverbindung mit Unterschrift auf dem Handy (neues SEPA-Mandat als PDF)
  *  - Kündigung einreichen (mit Termin nach Satzung)
+ *  - Namensänderung melden (Hochzeit, Scheidung) → Vorstand bestätigt, der bisherige Name bleibt als „früherer Name“
  * In der Verwaltung: Liste der Änderungswünsche, Übernehmen / Ablehnen (das Mitglied bekommt eine E-Mail).
  */
 const pdf = require('./pdf');
@@ -26,7 +27,7 @@ function register(sh) {
   const club = () => { const { street, city } = C.clubAddress(); return { name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street, city, ci: S('creditor_id') }; };
   const { sigOk } = C.util;   // Unterschrift: PNG (App und Formular liefern 600 px Breite), Maße begrenzt (src/util.js)
   const CHANGE_FIELDS = ['street', 'zip', 'city', 'address_extra', 'phone', 'mobile', 'email'];
-  const KIND = { daten: 'Datenänderung', bank: 'Neue Bankverbindung', kuendigung: 'Kündigung', eintritt: 'Eintritt (Abteilung)', austritt: 'Austritt (Abteilung)', rueckkehr: 'Rückkehr (Abteilung)', bescheinigung: 'Bescheinigung angefordert' };
+  const KIND = { daten: 'Datenänderung', bank: 'Neue Bankverbindung', kuendigung: 'Kündigung', eintritt: 'Eintritt (Abteilung)', austritt: 'Austritt (Abteilung)', rueckkehr: 'Rückkehr (Abteilung)', bescheinigung: 'Bescheinigung angefordert', name: 'Namensänderung' };
   const SCOPE_KINDS = ['eintritt', 'austritt', 'rueckkehr'];
 
   /** frühester Austritt: Ende des Geschäftsjahres (Kern-Einstellung) unter Einhaltung der Kündigungsfrist – nicht das Beitragsjahr */
@@ -178,6 +179,25 @@ function register(sh) {
     C.audit(null, 'Mitglieder-App: Daten geändert', `${p.name}${consents ? ' (Einwilligungen)' : ''}${Object.keys(want).length ? ' – wartet auf Bestätigung' : ''}`);
     res.json({ ok: true, pending: Object.keys(want).length > 0 });
   }));
+  /* Namensänderung (Hochzeit, Scheidung): nur der eigene Vor- und Nachname, wie bei den Kontaktdaten – der Vorstand bestätigt, ohne PIN */
+  M.post('/name', C.rateLimit('mvname', 10, 3600000), ar(async (req, res) => {
+    if (!store.appPerms().edit.name) return bad(res, 'Eine Namensänderung bitte direkt beim Vorstand melden – in der App ist das nicht freigeschaltet.', 403);
+    const id = req.member.id; const p = personRow(id); const b = req.body || {};
+    if (!p || p.anonymized_at) return bad(res, 'Für dich sind keine Vereinsdaten hinterlegt.');
+    const first = one(b.first_name, 60), last = one(b.last_name, 60);
+    if (!first || !last) return bad(res, 'Bitte Vor- und Nachnamen eintragen.');
+    const cur = store.splitName(p), want = {};
+    if (first !== (cur.first || '')) want.first_name = first;
+    if (last !== (cur.last || '')) want.last_name = last;
+    if (!Object.keys(want).length) return bad(res, 'Du hast nichts geändert.');
+    const ex = openOf(id, 'name');
+    if (ex) db.prepare('UPDATE mv_change SET data = ?, created_at = ? WHERE id = ?').run(JSON.stringify(want), nowTs(), ex.id);
+    else db.prepare("INSERT INTO mv_change(member_id, kind, data) VALUES (?, 'name', ?)").run(id, JSON.stringify(want));
+    const was = { first_name: cur.first, last_name: cur.last };
+    notifyBoard(`Mitglieder-App: Namensänderung von ${p.name}`, [`${p.name} hat in der Mitglieder-App einen neuen Namen gemeldet:`, '', ...Object.entries(want).map(([k, v]) => `${LABEL[k]}: ${was[k] || '–'} → ${v}`), '', 'Bitte in der Verwaltung unter Mitglieder → Anträge übernehmen.']);
+    C.audit(null, 'Mitglieder-App: Namensänderung gemeldet', `${p.name} – wartet auf Bestätigung`);
+    res.json({ ok: true, pending: true });
+  }));
   /* Datenauskunft (Art. 15 DSGVO) aus der App: mit PIN, an die beim Verein hinterlegte E-Mail-Adresse – als PDF zum Lesen und als Datei zum
      Weiterverwenden. Die IBAN steht in der Mail nur gekürzt (vollständig unter „Meine Daten“ bzw. beim Verein). Höchstens zweimal am Tag. */
   const sentAusk = new Map();   // Mitglied → Zeitpunkte der letzten Auskünfte (nur nach richtiger PIN gezählt; Fehlversuche zählen in die PIN-Sperre)
@@ -255,6 +275,14 @@ function register(sh) {
     const bankPerm = user.perms.includes('mitglieder_bank');
     let rows = [];
     if (c.kind === 'daten') rows = Object.entries(d).map(([k, v]) => ({ field: k, old: p[k] || null, new: v }));
+    let holder = null, names = null;   // Namensänderung: Kontoinhaber heißt bisher genau so → Frage „auch ändern?“ (nur mit dem Recht „Bankdaten“)
+    if (c.kind === 'name') {
+      const cur = store.splitName(p), old = { first_name: cur.first, last_name: cur.last };
+      rows = Object.entries(d).map(([k, v]) => ({ field: k, old: old[k] || null, new: v }));
+      const b = bankPerm ? bankRow(c.member_id) : null, now = { first: d.first_name || cur.first, last: d.last_name || cur.last };
+      names = { old: { first: cur.first, last: cur.last }, new: now };
+      if (b && sh.holderIs(b.holder, p)) holder = { old: b.holder, new: [now.first, now.last].filter(Boolean).join(' ') };
+    }
     if (c.kind === 'bank') {
       const b = bankRow(c.member_id) || {};
       rows = [['holder', b.holder, d.holder], ['iban', bankPerm ? sepa.fmtIban(b.iban) : sepa.maskIban(b.iban), bankPerm ? sepa.fmtIban(d.iban) : sepa.maskIban(d.iban)], ['bic', b.bic, d.bic], ['bank', b.bank, d.bank]].map(([field, o, n]) => ({ field, old: o || null, new: n || null }));
@@ -264,7 +292,7 @@ function register(sh) {
     if (c.kind === 'bescheinigung') rows = [{ field: 'Jahr', old: null, new: String(d.year) }, ...(d.note ? [{ field: 'Hinweis', old: null, new: d.note }] : [])];
     if (c.kind === 'rueckkehr') rows = [{ field: 'Rückkehr', old: deD(p.exit_date) ? `Austritt ${deD(p.exit_date)}` : null, new: p.exit_date && p.exit_date < today() ? 'Wiedereintritt (neue Mitgliedsnummer)' : 'Austritt zurücknehmen' }];
     return { id: c.id, kind: c.kind, label: KIND[c.kind], member_id: c.member_id, created_by: c.created_by || null, scope: SCOPE_KINDS.includes(c.kind), exit_date: d.exit_date || null, notice_date: d.notice_date || null, with: c.kind === 'austritt' && d.withDependents ? db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(c.member_id, c.member_id, c.member_id, d.exit_date).map(x => x.member_id) : [], name: p.name, member_no: p.member_no, created_at: c.created_at, status: c.status, reason: c.reason, reviewed_by: c.reviewed_by, reviewed_at: c.reviewed_at,
-      rows, kuendigung: c.kind === 'kuendigung' ? d : null, cert: c.kind === 'bescheinigung' ? sh.certificateView(c, user, scoped) : null, signed_at: d.signed_at || null, hasSignature: Boolean(c.signature) };
+      rows, holder, names, kuendigung: c.kind === 'kuendigung' ? d : null, cert: c.kind === 'bescheinigung' ? sh.certificateView(c, user, scoped) : null, signed_at: d.signed_at || null, hasSignature: Boolean(c.signature) };
   }
   admin.get('/changes', P, (req, res) => {
     const st = req.query.status === 'alle' ? null : 'offen';
@@ -307,6 +335,13 @@ function register(sh) {
       if (fields.email && !mailOk(fields.email)) return bad(res, 'Die E-Mail-Adresse ist ungültig.');
       savePerson(c.member_id, fields, `${by} (aus der App)`);
       mailLines = ['Ihre neuen Kontaktdaten haben wir übernommen. Danke für die Mitteilung!'];
+    } else if (c.kind === 'name') {
+      const fields = {};
+      for (const k of ['first_name', 'last_name']) if (d[k]) fields[k] = one(d[k], 60);
+      const before = personRow(c.member_id);
+      savePerson(c.member_id, fields, `${by} (aus der App)`);
+      sh.afterNameChange(c.member_id, before, { mode: b.name_change, holder: Boolean(b.holder_follow), bankPerm: req.user.perms.includes('mitglieder_bank'), by: `${by} (aus der App)`, user: req.user });
+      mailLines = ['Ihren neuen Namen haben wir übernommen. Danke für die Mitteilung!'];
     } else if (c.kind === 'bank') {
       if (!req.user.perms.includes('mitglieder_bank')) return bad(res, 'Bankverbindungen übernehmen darf nur, wer das Recht „Bankdaten“ hat.', 403);
       const no = p.member_no || String(c.member_id);
@@ -330,7 +365,7 @@ function register(sh) {
     }
     db.prepare("UPDATE mv_change SET status = 'übernommen', reviewed_by = ?, reviewed_at = ?, signature = CASE WHEN kind = 'bank' THEN NULL ELSE signature END WHERE id = ?").run(by, nowTs(), c.id);
     const mailed = c.kind === 'kuendigung' ? Boolean(mailRes && mailRes.sent) : await mailMember(c.member_id, `${KIND[c.kind]} bestätigt – ${club().name}`, mailLines, attachments, { art: 'antrag', by: req.user, perm: c.kind === 'bank' ? 'mitglieder_bank' : undefined });   // Bankwechsel: im Verlauf nur mit dem Recht „Bankdaten“
-    C.audit(req.user, `Mitglied: ${KIND[c.kind]} aus der App übernommen`, p.name);
+    C.audit(req.user, `Mitglied: ${KIND[c.kind]} aus der App übernommen`, c.kind === 'name' ? (personRow(c.member_id) || p).name : p.name);   // Namensänderung: der heutige Name, nicht der frühere
     res.json({ ok: true, mailed, ...(c.kind === 'kuendigung' ? { mail: mailRes } : {}) });
   }));
   admin.post('/changes/:id/reject', P, ar(async (req, res) => {

@@ -111,6 +111,12 @@ CREATE TABLE IF NOT EXISTS mv_booked_row (
   row_id INTEGER NOT NULL, member_id INTEGER NOT NULL, old TEXT, new TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_mvbr_row ON mv_booked_row(kind, row_id);
+-- frühere Namen (Hochzeit, Scheidung …): bisheriger Vor- und Nachname, gültig bis zum Tag der Änderung; Anonymisieren löscht sie
+CREATE TABLE IF NOT EXISTS mv_former_name (
+  id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL REFERENCES members(id), first_name TEXT, last_name TEXT, until TEXT NOT NULL, by_user TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_mvfn_member ON mv_former_name(member_id);
 CREATE TABLE IF NOT EXISTS mv_change (
   id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL REFERENCES members(id), kind TEXT NOT NULL,   -- daten | bank | kuendigung
   data TEXT NOT NULL, signature TEXT, status TEXT NOT NULL DEFAULT 'offen', reviewed_by TEXT, reviewed_at TEXT, reason TEXT,
@@ -189,7 +195,7 @@ function familyFromPayers(memberIds = null, day = today()) {
 }
 /** Mitglieder-App „Meine Daten“: was Mitglieder sehen und ändern dürfen (Einstellung der Verwaltung) */
 const APP_VIEW = { anschrift: 'Anschrift', kontakt: 'Telefon & E-Mail', geburt: 'Geburtsdatum', abteilungen: 'Abteilungen', beitraege: 'Beiträge', familie: 'Familie', posten: 'Forderungen & Zahlungen', bank: 'Bankverbindung & Mandat', einwilligungen: 'Einwilligungen' };
-const APP_EDIT = { anschrift: 'Anschrift ändern', kontakt: 'Telefon & E-Mail ändern', bank: 'Bankverbindung ändern (neues SEPA-Mandat mit Unterschrift)', kuendigung: 'Kündigen (Austritt beantragen)', einwilligungen: 'Einwilligungen ändern (erteilen und widerrufen)', bescheinigung: 'Mitgliedsbescheinigung anfordern (z. B. für die Krankenkasse)' };
+const APP_EDIT = { anschrift: 'Anschrift ändern', kontakt: 'Telefon & E-Mail ändern', bank: 'Bankverbindung ändern (neues SEPA-Mandat mit Unterschrift)', kuendigung: 'Kündigen (Austritt beantragen)', einwilligungen: 'Einwilligungen ändern (erteilen und widerrufen)', bescheinigung: 'Mitgliedsbescheinigung anfordern (z. B. für die Krankenkasse)', name: 'Namensänderung melden (z. B. nach Hochzeit oder Scheidung)' };
 function appPerms() {
   let cur = {}; try { cur = JSON.parse(S('app_perms', '{}')) || {}; } catch (e) { cur = {}; }
   const pick = (defs, have) => Object.fromEntries(Object.keys(defs).map(k => [k, have && have[k] !== undefined ? Boolean(have[k]) : true]));
@@ -240,6 +246,16 @@ function ensurePerson(memberId) {
 function splitName(m) {
   if (m.first_name || m.last_name) return { first: m.first_name || '', last: m.last_name || '' };
   return splitPersonName(m.name);
+}
+/** frühere Namen eines Mitglieds, neueste zuerst */
+const formerNames = id => db.prepare('SELECT id, first_name, last_name, until FROM mv_former_name WHERE member_id = ? ORDER BY until DESC, id DESC').all(id);
+/** bisherigen Namen merken (was = { first, last } aus splitName) – ein leerer Name wird nicht gemerkt */
+function rememberName(id, was, user) {
+  if (!was.first && !was.last) return null;
+  const label = [was.first, was.last].filter(Boolean).join(' ');
+  db.prepare('INSERT INTO mv_former_name(member_id, first_name, last_name, until, by_user) VALUES (?,?,?,?,?)').run(id, was.first || null, was.last || null, today(), user || null);
+  hist(id, user, 'Früherer Name', null, label);
+  return label;
 }
 /** Name im Kern nachziehen (Tablet, App, Getränke zeigen ihn) */
 function syncCore(memberId) {
@@ -408,7 +424,7 @@ module.exports = {
     ({ db, getSetting, setSetting, bank } = o); createTables(); migrate();
     noteMemberNo(db.prepare("SELECT MAX(CAST(member_no AS INTEGER)) n FROM mv_person WHERE member_no GLOB '[0-9]*'").get().n);   // Bestand: höchste Nummer gilt als vergeben
   },
-  S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, fillNames, splitName, syncCore, nextMemberNo, noteMemberNo, mandateRefFor, hist,
+  S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, fillNames, splitName, syncCore, formerNames, rememberName, nextMemberNo, noteMemberNo, mandateRefFor, hist,
   relations, payerOf, payerGroup, familyOf, familyHead, familyFee, familyMembers, familyFromPayers, isAdult, childMax, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, mailOwners, mailOwnerFor, fullName, sepa, fees,
   sha256: b => crypto.createHash('sha256').update(b).digest('hex'),
 };

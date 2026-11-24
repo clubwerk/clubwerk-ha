@@ -39,7 +39,7 @@ Auch ein **fehlendes Geburtsdatum** steht in der Liste als Hinweis „Geburtsdat
 
 Zum Suchen und Filtern gibt es:
 
-- die **Suche** nach Name, Nummer, E-Mail oder Ort,
+- die **Suche** nach Name, Nummer, E-Mail oder Ort. Sie findet auch frühere Namen: Wer nach „Müller“ sucht, findet Anna Schmidt, die früher Müller hieß – der Treffer zeigt „Schmidt, Anna (früher Müller)“. Das gilt auch für die Suche oben in der Verwaltung,
 - die **Filter** „Aktuell“, „Mit Hinweis“, „Ausgetreten“ und „Alle“ (jeweils mit der Anzahl) sowie je ein Auswahlfeld für **Abteilung** und **Beitrag**.
 
 Ein Klick auf eine Zeile öffnet das Mitglied. „← Alle Mitglieder“ führt zurück, mit den zuletzt gesetzten Filtern.
@@ -107,7 +107,7 @@ Auf einem breiten Bildschirm (ab 1500 Pixel, etwa ein großer Monitor) steht rec
 
 ![Ein geöffnetes Mitglied: oben Name und Eckdaten, darunter „← Alle Mitglieder“ und die Reiter.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detailrow)
 
-Über dem Reiter steht der Name; darunter eine Zeile mit Nummer, Alter, Status, geplantem Austritt, „zahlt über …“ oder „Familie von …“ und dem Hinweis, wenn Änderungswünsche aus der App vorliegen. Die Reiter heißen **Stammdaten**, **Mitgliedschaft**, **Zahlung & Familie**, **Konto & Mandat**, **Dokumente** und **Verlauf**. Wer nur eine Abteilung betreut, sieht nur „Stammdaten“, „Mitgliedschaft“, „Dokumente“ und „Verlauf“.
+Über dem Reiter steht der Name; darunter eine Zeile mit Nummer, Alter, Status, geplantem Austritt, „zahlt über …“ oder „Familie von …“ und dem Hinweis, wenn Änderungswünsche aus der App vorliegen. Hatte das Mitglied früher einen anderen Namen, steht dort zuerst „früher …“. Die Reiter heißen **Stammdaten**, **Mitgliedschaft**, **Zahlung & Familie**, **Konto & Mandat**, **Dokumente** und **Verlauf**. Wer nur eine Abteilung betreut, sieht nur „Stammdaten“, „Mitgliedschaft“, „Dokumente“ und „Verlauf“.
 
 Fehlen Pflichtangaben, steht oben ein roter Kasten. Bei einer Person, die gar kein Vereinsmitglied ist (etwa ein Trainer), wandelt der Knopf **In „Kein Mitglied“ umwandeln …** sie um. Ihr Konto bleibt im Verkauf, in der Mitgliederliste erscheint sie nicht mehr.
 
@@ -120,6 +120,11 @@ Der erste Reiter hat drei Karten und darunter einen gemeinsamen „Speichern“-
 ![Karte „Person“.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detbody > div:nth-child(1))
 
 Anrede, Titel, Vorname, Nachname, Geburtsdatum, Geschlecht (männlich oder weiblich), Mitgliedsnummer und **Status**: aktiv, passiv/fördernd, Ehrenmitglied oder ruhend.
+
+**Namensänderung:** Ändert ihr Vor- oder Nachnamen, fragt Clubwerk beim Speichern, ob es eine **Namensänderung** ist (etwa nach Hochzeit oder Scheidung) oder nur eine **Korrektur** (Tippfehler). Bei einer Namensänderung merkt sich Clubwerk den bisherigen Namen mit Datum; bei einer Korrektur nicht. Heißt der Kontoinhaber der Bankverbindung bisher genau wie das Mitglied, steht im Fenster zusätzlich „Kontoinhaber auch auf den neuen Namen ändern?“ (vorausgewählt). Mandatsreferenz und Mandat bleiben dabei gültig, es braucht kein neues Mandat. Die Frage sieht nur, wer das Recht „Bankdaten“ hat. Es ist dasselbe Fenster wie beim Übernehmen einer Namensänderung aus der App (Bild im Reiter „Anträge“).
+
+
+Frühere Namen stehen unten in der Karte unter **Frühere Namen** („Nachname, Vorname“ und „bis“ mit Datum). Ist einer versehentlich entstanden oder soll der Name nicht mehr erscheinen, entfernt ihn **Entfernen …**. Der Name verschwindet dann ganz: aus der Suche, dem Verlauf, erledigten Änderungswünschen, der Datenauskunft und dem Protokoll. Im Verlauf steht nur „Früherer Name entfernt“. Das lässt sich nicht rückgängig machen. Unterschriebene Dokumente (etwa ein Mandat unter dem alten Namen) und schon gesendete E-Mails bleiben, wie sie sind.
 
 #### Anschrift & Kontakt
 
@@ -145,8 +150,8 @@ Je Einwilligung ein Häkchen mit Datum („seit …“), z. B. für Fotos. Welch
 ![Karte „Willkommens-E-Mail“ am Mitglied.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=#sWel)
 
 - **Profilbild:** erscheint, wenn das Mitglied in der App eines hochgeladen hat. „Profilbild entfernen …“ löscht es.
-- **Vorsicht:** „Löschen …“ geht nur, wenn nichts mehr am Mitglied hängt (gedacht für versehentlich oder doppelt angelegte). „Anonymisieren …“ gibt es erst nach dem Austritt. Es löscht Name, Anschrift, Konto, Dokumente und Verlauf unwiderruflich; für die Statistik bleiben Geburtsjahr, Geschlecht, Ein- und Austritt und Abteilungen. Zur Sicherheit tippt ihr dabei das Wort ANONYMISIEREN.
-- **Datenauskunft** (Knopf rechts in der Reiterzeile): lädt eine Datei mit allem, was Clubwerk über die Person gespeichert hat, auch aus anderen Modulen. Ohne das Recht „Bankdaten“ bleibt die IBAN darin unkenntlich.
+- **Vorsicht:** „Löschen …“ geht nur, wenn nichts mehr am Mitglied hängt (gedacht für versehentlich oder doppelt angelegte). „Anonymisieren …“ gibt es erst nach dem Austritt. Es löscht Name, frühere Namen, Anschrift, Konto, Dokumente und Verlauf unwiderruflich; für die Statistik bleiben Geburtsjahr, Geschlecht, Ein- und Austritt und Abteilungen. Zur Sicherheit tippt ihr dabei das Wort ANONYMISIEREN.
+- **Datenauskunft** (Knopf rechts in der Reiterzeile): lädt eine Datei mit allem, was Clubwerk über die Person gespeichert hat, auch frühere Namen und Daten aus anderen Modulen. Ohne das Recht „Bankdaten“ bleibt die IBAN darin unkenntlich.
 
 ### Mitglied › Mitgliedschaft {#mitglied-mitgliedschaft}
 
@@ -287,10 +292,13 @@ Anträge mit Code, die noch nicht unterschrieben sind. „Neuer Code“ erzeugt 
 Wünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen:
 
 - **Datenänderung** (z. B. neue Anschrift): „Übernehmen“ zeigt alt und neu zur Bestätigung, „Ablehnen“ schickt dem Mitglied auf Wunsch eine E-Mail mit Grund.
+- **Namensänderung:** das Mitglied meldet einen neuen Vor- oder Nachnamen. „Übernehmen“ zeigt bisher und neu und fragt wie in den Stammdaten nach Namensänderung oder Korrektur und gegebenenfalls nach dem Kontoinhaber. Der bisherige Name bleibt als früherer Name; das Mitglied bekommt eine Bestätigung per E-Mail.
 - **Neue Bankverbindung:** mit der Unterschrift des Mitglieds. Beim Übernehmen entsteht ein neues Mandat (Erstlastschrift); das unterschriebene Mandat wird als PDF abgelegt und dem Mitglied geschickt.
 - **Kündigung:** Clubwerk schlägt den frühestmöglichen Austrittstag vor: das Ende des Geschäftsjahres unter Einhaltung der Kündigungsfrist (Frist 0 und Geschäftsjahr = Kalenderjahr: Kündigung bis 31.12. → Austritt zum 31.12.; Frist 3 Monate: Eingang bis 30.09.). Dasselbe Datum nennt die App beim Kündigen und die Eingangsbestätigung per E-Mail. Ein angefangenes Beitragsjahr wird voll berechnet; ihr bestätigt oder ändert ihn. Beim Bestätigen wählt ihr wie beim Austritt: Standardtext senden, vor dem Versenden anpassen oder keine E-Mail.
 - **Ein-, Austritt und Rückkehr in eine Abteilung** meldet die Abteilungsleitung; „Bestätigen“ übernimmt sie. Beim Austritt wählt ihr dabei die Bestätigung an das Mitglied.
 - **Bescheinigung angefordert:** ein Mitglied möchte eine Mitgliedsbescheinigung, etwa für das Bonusprogramm der Krankenkasse. In der Zeile stehen das Jahr, der Hinweis des Mitglieds und – bei Familien – wer sie angefordert hat und an wen sie geht. „Unterschreiben …“ öffnet das Fenster dazu (siehe unten), „Ablehnen“ fragt nach einem Grund für die E-Mail.
+
+![Fenster „Namensänderung von …“: bisher und neu, Namensänderung oder Korrektur, darunter der Kontoinhaber.](bild: seite=mv-antraege; klick=[data-cok="16"]; ziel=dialog)
 
 #### Mitgliedsbescheinigung unterschreiben
 
@@ -298,7 +306,7 @@ Wünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen:
 
 Rechts seht ihr die Bescheinigung als PDF-Vorschau. Sie enthält nur, was der Verein kennt: Name, Geburtsdatum, Anschrift, „Mitglied seit“, Status (aktiv, passiv …), die Abteilungen in diesem Jahr und den Zeitraum der Mitgliedschaft im gewählten Jahr – keine Aussage über Training oder Teilnahme. Oben steht euer Briefkopf aus Einstellungen › Verein (Logo, Name, Anschrift; Telefon, E-Mail und Webseite in der Fußzeile).
 
-Links tragt ihr **Name** und **Funktion** ein (Clubwerk merkt sich eure Funktion für das nächste Mal) und unterschreibt mit Finger oder Maus im Feld; „Löschen“ fängt neu an. Die Unterschrift steht nur auf dieser Bescheinigung und wird sonst nirgends gespeichert. **Unterschreiben & senden** erzeugt das PDF mit Ort, Datum, Vereinsstempel und Unterschrift, legt es unter Dokumente des Mitglieds ab, schickt es per E-Mail und zeigt es in der App. Bei einer Familie geht die E-Mail an das Familienoberhaupt. Ohne Vereinsstempel lässt sich nicht unterschreiben – das Fenster weist darauf hin.
+Links tragt ihr **Name** und **Funktion** ein (Clubwerk merkt sich eure Funktion für das nächste Mal) und unterschreibt mit Finger oder Maus im Feld; „Löschen“ fängt neu an. Die Unterschrift steht nur auf dieser Bescheinigung und wird sonst nirgends gespeichert. **Unterschreiben & senden** erzeugt das PDF mit Ort, Datum, Vereinsstempel und Unterschrift, legt es unter Dokumente des Mitglieds ab, schickt es per E-Mail und zeigt es in der App. Bei einer Familie geht die E-Mail an das Familienoberhaupt. Ohne Vereinsstempel lässt sich nicht unterschreiben – das Fenster weist darauf hin. Name, Funktion und Unterschrift sind Pflicht: Fehlt etwas, steht die Meldung rot direkt am Feld. Lässt sich die E-Mail nicht senden, sagt das Fenster es; die Bescheinigung liegt dann trotzdem in der App.
 
 Unterschreiben dürft ihr nur mit dem Recht „Mitglieder“ ohne Einschränkung auf eine Abteilung. Abteilungsleitungen sehen die Anfragen ihrer Abteilung mit Vorschau, unterschreiben und ablehnen aber nicht.
 
@@ -445,7 +453,7 @@ Betreff und Text der Mail, die ein Mitglied zum Austritt bekommt – wenn ihr ei
 
 ![Karte „Meine Daten“ in der App.](bild: seite=mv-einstellungen; ziel=#eApp)
 
-Legt fest, was Mitglieder in der App **sehen** (Beitrag, Posten, Anschrift, Kontakt, Geburtsdatum, Bankverbindung, Einwilligungen) und was sie **ändern** oder anfordern dürfen (Anschrift, Kontakt, Bankverbindung, Einwilligungen, Kündigung, Mitgliedsbescheinigung). Änderungen an Daten bestätigt immer der Vorstand. Sind die Einwilligungen in der App ausgeblendet, widerrufen Mitglieder sie formlos beim Vorstand.
+Legt fest, was Mitglieder in der App **sehen** (Beitrag, Posten, Anschrift, Kontakt, Geburtsdatum, Bankverbindung, Einwilligungen) und was sie **ändern** oder anfordern dürfen (Anschrift, Kontakt, Bankverbindung, Einwilligungen, Kündigung, Mitgliedsbescheinigung, Namensänderung). Änderungen an Daten bestätigt immer der Vorstand. Sind die Einwilligungen in der App ausgeblendet, widerrufen Mitglieder sie formlos beim Vorstand.
 
 #### Bescheinigung für die Krankenkasse
 
@@ -654,6 +662,7 @@ Wie im Reiter „Einstellungen“ unter „Mitglieder“: die Einstellungen als 
 **In der App** („Meine Daten“, oben rechts über den Profil-Knopf unter „Mein Konto“) sieht jedes Mitglied seine Mitgliedschaft mit Beiträgen und Abteilungen, die Familie, seine Zahlungen mit Stand (offen, wird abgebucht, bezahlt), Anschrift, Kontakt und Bankverbindung. Was sichtbar ist und was geändert werden darf, legt ihr unter „Einstellungen“ fest. Das Mitglied kann:
 
 - **Kontaktdaten ändern.** Der Vorstand bestätigt die Änderung. Eine neue E-Mail-Adresse bestätigt das Mitglied mit seiner PIN.
+- **Eine Namensänderung melden** („Mein Name hat sich geändert“ in der Karte „Kontakt“), etwa nach Hochzeit oder Scheidung: neuer Vor- und Nachname. Der Vorstand bestätigt die Änderung, bis dahin steht oben „Beim Vorstand in Bearbeitung: Namensänderung“. Das gilt für jedes Mitglied selbst, auch für Familienmitglieder.
 - **Eine neue Bankverbindung** auf dem Handy per Unterschrift als neues SEPA-Mandat erteilen. Der Vorstand übernimmt es.
 - **Einwilligungen** erteilen oder widerrufen (gilt sofort, mit PIN).
 - **Die Datenauskunft** anfordern: Sie kommt als PDF per E-Mail.
@@ -666,6 +675,8 @@ Unterschriften, Kündigung und Änderungen, die Geld oder E-Mail betreffen, verl
 ![Das Fenster „Neue Bankverbindung“ mit Unterschriftsfeld.](bild: app=mitglieder; klick=#mdBank)
 
 ![Das Blatt „Bescheinigung anfordern“ mit Jahr und Hinweis.](bild: app=mitglieder; klick=#mdCert)
+
+![Das Blatt „Mein Name hat sich geändert“ mit Vor- und Nachname.](bild: app=mitglieder; klick=#mdName)
 
 **Mitgliedsausweis:** Ist er eingeschaltet, hat „Meine Daten“ die Reiter **Mitgliedschaft** und **Ausweis**. Die Karte zeigt Vereinsname, Foto (nur wenn freigegeben), „Nachname, Vorname“, Nummer, „Mitglied seit“, Abteilungen, Altersstufe, Status, „gültig bis“, den QR-Code und eine laufende Uhr mit Sekunden. Uhr und wandernder Glanzstreifen zeigen, dass es kein Bildschirmfoto ist. Die Karte liegt auf dem Handy: Ohne Netz zeigt die Seite „Keine Verbindung“ den Knopf **Mitgliedsausweis zeigen**. In „Für mich“ führt die Zeile **Mitgliedsausweis zeigen** direkt zur Karte. Wer ausgetreten ist, sieht „Deine Mitgliedschaft ist am … beendet“ ohne Code; „Abmelden“ löscht die Karte vom Handy.
 

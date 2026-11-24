@@ -107,7 +107,7 @@ function register(sh) {
     } catch (e) { if (inv) inv.revoke(); throw e; }
     const by = user ? uname({ user }) : null;
     store.hist(id, by, FIELD, null, `an ${stt.to}${inv ? ' · mit Einladung zur Mitglieder-App' : ''}`);
-    C.audit(user || null, 'Mitglieder: Willkommens-E-Mail gesendet', `${p.name} · an ${stt.to}${stt.via ? ` (Oberhaupt ${stt.via})` : ''}${inv ? ' · mit Einladung zur Mitglieder-App' : ''} · ${why}`);
+    C.audit(user || null, 'Mitglieder: Willkommens-E-Mail gesendet', `${p.name} · per E-Mail${stt.via ? ` an das Oberhaupt ${stt.via}` : ''}${inv ? ' · mit Einladung zur Mitglieder-App' : ''} · ${why}`);
     return { to: stt.to, app: Boolean(inv) };
   }
 

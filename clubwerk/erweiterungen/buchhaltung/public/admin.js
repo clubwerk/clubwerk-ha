@@ -601,7 +601,7 @@
         const fl = await window.CWPick.file(capture ? 'image/*' : 'image/jpeg,image/png,image/heic,image/heif,application/pdf,.heic,.pdf', capture ? { capture: 'environment' } : {});
         if (!fl) return;
         $('axErr').textContent = 'Wird hochgeladen …';
-        try { const r = await uploadBeleg(fl); token = { id: r.token, label: `${fl.name || 'Foto'} (${Math.max(1, Math.round(r.size / 1024))} KB)` }; $('axErr').textContent = ''; bel(); } catch (e) { $('axErr').textContent = e.message; }
+        try { const r = await uploadBeleg(fl); token = { id: r.token, label: `${fl.name || 'Foto'} (${Math.max(1, Math.round(r.size / 1024))} KB)` }; $('axErr').textContent = ''; bel(); } catch (e) { GK.formError($('axErr'), e.message); }
       };
       if ($('axCam')) $('axCam').onclick = () => pick(true);
       if ($('axFile')) $('axFile').onclick = () => pick(false);
@@ -618,7 +618,7 @@
         beleg: token ? token.id : null, eigenbeleg: eigen && $('axE') ? $('axE').value.trim() : '', delivery_id: pre.delivery ? pre.delivery.id : null, bank_entry_id: pre.debit ? pre.debit.id : null,
         partner_id: (m.partners.find(p => p.name === $('axP').value.trim()) || {}).id || null };
       $('axErr').textContent = '';
-      try { const r = await api('expenses', 'POST', body); closeDialog(); toast(`Ausgabe ${r.no} gespeichert.`); after(); } catch (e) { $('axErr').textContent = e.message; }
+      try { const r = await api('expenses', 'POST', body); closeDialog(); toast(`Ausgabe ${r.no} gespeichert.`); after(); } catch (e) { GK.formError($('axErr'), e.message); }
     });
   }
 
@@ -708,13 +708,13 @@
     let soll = null;
     const counted = () => [...document.querySelectorAll('[data-coin]')].reduce((s, i) => s + (parseInt(i.value, 10) || 0) * Number(i.dataset.coin), 0);
     const paint = () => { const c = counted(); $('ksSum').textContent = euro(c); $('ksSoll').textContent = soll == null ? '–' : euro(soll); const d = soll == null ? null : c - soll; $('ksDiff').textContent = d == null ? '–' : euro(d); $('ksRL').style.display = d ? '' : 'none'; };
-    const loadSoll = async () => { try { const r = await api(`cash/${cash.id}/soll?date=${$('ksD').value}`); soll = r.soll; $('ksErr').textContent = r.closed ? GK.T('Dieser Tag liegt in einem festgeschriebenen Monat.') : ''; } catch (e) { soll = null; } paint(); };
+    const loadSoll = async () => { try { const r = await api(`cash/${cash.id}/soll?date=${$('ksD').value}`); soll = r.soll; GK.formError($('ksErr'), r.closed ? GK.T('Dieser Tag liegt in einem festgeschriebenen Monat.') : ''); } catch (e) { soll = null; } paint(); };
     document.querySelectorAll('[data-coin]').forEach(i => { i.oninput = paint; });
     $('ksD').onchange = loadSoll; loadSoll();
     $('c').onclick = closeDialog;
     $('ksOk').onclick = () => GK.busy($('ksOk'), async () => {
       const coins = {}; document.querySelectorAll('[data-coin]').forEach(i => { const n = parseInt(i.value, 10); if (n > 0) coins[i.dataset.coin] = n; });
-      try { const r = await api(`cash/${cash.id}/count`, 'POST', { date: $('ksD').value, coins, reason: $('ksR').value.trim() }); closeDialog(); toast(r.diff ? `Gespeichert – Differenz ${euro(r.diff)} gebucht.` : 'Gespeichert – die Kasse stimmt.'); after(); } catch (e) { $('ksErr').textContent = e.message; }
+      try { const r = await api(`cash/${cash.id}/count`, 'POST', { date: $('ksD').value, coins, reason: $('ksR').value.trim() }); closeDialog(); toast(r.diff ? `Gespeichert – Differenz ${euro(r.diff)} gebucht.` : 'Gespeichert – die Kasse stimmt.'); after(); } catch (e) { GK.formError($('ksErr'), e.message); }
     });
   }
 
@@ -738,7 +738,7 @@
     $('c').onclick = closeDialog;
     $('mvOk').onclick = () => GK.busy($('mvOk'), async () => {
       const body = { date: $('mvD').value, cents: toCents($('mvC').value || '0'), text: $('mvN').value.trim(), ...(kind === 'kasse' ? { kind: 'umbuchung', other_cash_id: +$('mvO').value } : { kind: 'transit', direction: kind, account_id: +$('mvA').value || null }) };
-      try { await api(`cash/${cash.id}/move`, 'POST', body); closeDialog(); toast('Gebucht.'); after(); } catch (e) { $('mvErr').textContent = e.message; }
+      try { await api(`cash/${cash.id}/move`, 'POST', body); closeDialog(); toast('Gebucht.'); after(); } catch (e) { GK.formError($('mvErr'), e.message); }
     });
   }
 
@@ -809,7 +809,7 @@
       $('cdOk').onclick = () => GK.busy($('cdOk'), async () => {
         const body = { name: $('cdN').value.trim(), start_date: $('cdD').value, start_cents: toCents($('cdC').value || '0') };
         if (c) { body.is_default = $('cdH').checked && !c.is_default ? true : undefined; body.active = $('cdA').checked; }
-        try { await api(c ? `cash/${c.id}` : 'cash', c ? 'PUT' : 'POST', body); closeDialog(); toast('Gespeichert.'); again(); } catch (e) { $('cdErr').textContent = e.message; }
+        try { await api(c ? `cash/${c.id}` : 'cash', c ? 'PUT' : 'POST', body); closeDialog(); toast('Gespeichert.'); again(); } catch (e) { GK.formError($('cdErr'), e.message); }
       });
     };
     $('bscAdd').onclick = () => cashDlg(null);

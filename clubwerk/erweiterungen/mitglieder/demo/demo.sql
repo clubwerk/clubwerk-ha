@@ -1245,3 +1245,16 @@ INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUE
 INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(37,1,'md',37,41,NULL,'2025-12-31');
 INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(38,1,'md',38,42,NULL,'2025-12-31');
 INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(39,1,'md',39,43,NULL,'2025-12-31');
+-- Beispiel: frühere Namen (Hochzeit, Scheidung) – langer Doppelname, zwei frühere Namen, einer mit Verlauf; offener Namenswunsch aus der App (Kontoinhaber heißt wie das Mitglied)
+CREATE TABLE IF NOT EXISTS mv_former_name (
+  id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL REFERENCES members(id), first_name TEXT, last_name TEXT, until TEXT NOT NULL, by_user TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_mvfn_member ON mv_former_name(member_id);
+INSERT INTO "mv_former_name"(id, member_id, first_name, last_name, until, by_user, created_at) VALUES(1,7,'Peter','von Wiesenthaler-Brückenhausen','2014-06-14','Adminkonto','2014-06-16 18:05:00');
+INSERT INTO "mv_former_name"(id, member_id, first_name, last_name, until, by_user, created_at) VALUES(2,47,'Maximiliane','Huber','2012-05-04','Adminkonto','2012-05-07 19:30:00');
+INSERT INTO "mv_former_name"(id, member_id, first_name, last_name, until, by_user, created_at) VALUES(3,47,'Maximiliane','Huber-Schwarzenberger','2021-09-18','Adminkonto','2021-09-20 20:10:00');
+INSERT INTO "mv_former_name"(id, member_id, first_name, last_name, until, by_user, created_at) VALUES(4,48,'Lena','Kraus','2023-08-26','Adminkonto','2023-08-28 18:45:00');
+INSERT INTO "mv_history"(id, member_id, at, by_user, field, old, new) VALUES(900,48,'2023-08-28 18:45:00','Adminkonto (aus der App)','Nachname','Kraus','Lenz-Kraus');
+INSERT INTO "mv_history"(id, member_id, at, by_user, field, old, new) VALUES(901,48,'2023-08-28 18:45:00','Adminkonto (aus der App)','Früherer Name',NULL,'Lena Kraus');
+INSERT INTO "mv_change"(id, member_id, kind, data, status, created_at) VALUES(16,23,'name','{"last_name":"Jäger-Brandstetter"}','offen','2026-10-18 19:42:00');

@@ -29,7 +29,7 @@
     // 401 mit pwWrong = falsches Passwort bei einer Bestätigung: angemeldet bleiben, nur die Meldung zeigen
     if (r.status === 401 && !data.pwWrong && !url.startsWith('login') && !url.startsWith('setup')) { showLogin(); throw new Error(data.error || 'Bitte anmelden.'); }
     if (r.status === 423 && data.vaultLocked) throw Object.assign(new Error(data.error), { status: 423, vaultLocked: true });
-    if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status, odd: data.odd, links: data.links, needPassword: Boolean(data.needPassword) });
+    if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status, odd: data.odd, links: data.links, needPassword: Boolean(data.needPassword), field: data.field });
     // Jede Änderung frischt die Zähler an Reitern und Menü auf (zentral statt an jeder Stelle eines Moduls; gebündelt, falls mehrere Aufrufe kurz nacheinander kommen). Suche und GoBD-Prüfung sind nur Abfragen per POST.
     if (method !== 'GET' && !/^(login|logout|setup|suche$|gobd\/pruefen$)/.test(url)) { clearTimeout(api.zaehler); api.zaehler = setTimeout(() => refreshBadges().catch(() => { /* Zähler sind nur Anzeige */ }), 300); }
     return data;
@@ -62,6 +62,31 @@
     if (btn) btn.disabled = true;
     try { return await fn(); }
     finally { if (btn && btn.isConnected) btn.disabled = false; }
+  }
+
+  /** Fehler in einem Fenster sichtbar machen – nie stilles Nichtstun nach einem Klick auf den Hauptknopf. Nennt der Fehler ein Feld
+   *  (e.field vom Server oder field; Wert von data-feld am Feld), steht die Meldung direkt am Feld: rot umrandet, in den Blick gescrollt, mit Fokus.
+   *  Sonst steht sie im Kasten box (.err) und wird in den Blick gescrollt. Leere Meldung räumt auf.
+   *  Verwendung: catch (e) { GK.formError($('xErr'), e); } bzw. GK.formError($('xErr'), 'Bitte … eintragen.', 'role') */
+  function formError(box, e, field) {
+    const msg = typeof e === 'string' ? e : (e && e.message) || '';
+    const root = (box && box.closest('.dialog')) || $('dialog');
+    root.querySelectorAll('.f-bad').forEach(c => { c.classList.remove('f-bad'); c.querySelectorAll('.f-err').forEach(x => x.remove()); c.querySelectorAll('[aria-invalid]').forEach(x => x.removeAttribute('aria-invalid')); });
+    if (box) box.textContent = '';
+    if (!msg) return;
+    const k = field || (e && e.field), t = k && root.querySelector(`[data-feld="${k}"]`);
+    if (!t) {
+      if (!box) { toast(msg, true); return; }
+      box.setAttribute('role', 'alert'); box.textContent = msg; box.scrollIntoView({ block: 'nearest' }); return;
+    }
+    const c = t.closest('label.f') || t, inp = t.matches('input, select, textarea') ? t : c.querySelector('input, select, textarea');
+    const m = document.createElement('span'); m.className = 'f-err'; m.setAttribute('role', 'alert'); m.textContent = msg;
+    c.classList.add('f-bad'); c.append(m);
+    if (inp) { inp.setAttribute('aria-invalid', 'true'); m.id = (inp.id || k) + 'Fehler'; inp.setAttribute('aria-describedby', m.id); }
+    const weg = () => { c.classList.remove('f-bad'); m.remove(); if (inp) inp.removeAttribute('aria-invalid'); };
+    c.addEventListener(inp ? 'input' : 'pointerdown', weg, { once: true });
+    c.scrollIntoView({ block: 'center' });
+    if (inp) inp.focus({ preventScroll: true });
   }
 
   /** Mitglied löschen – derselbe Weg in „Mitglieder & Konten“ und in der Mitgliederverwaltung. Hängt es noch irgendwo
@@ -1261,7 +1286,7 @@
     /** Selbst wachsendes einzeiliges Textfeld (<textarea data-grow rows="1">) nach einer Wertänderung per Skript anpassen */
     fit: growFit,
     haOptions, sortKit, $, esc, euro, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
-    scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, lastFirst, busy, klebend, invite: (...a) => appInvite(...a), go: p => go(p),
+    scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, lastFirst, busy, formError, klebend, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
     /** Antwort von api/admin/status beim Start der Verwaltung (spart eine zweite Anfrage) */
     startStatus: () => startStatus,
@@ -2456,7 +2481,7 @@
         $('lc').onclick = () => { closeDialog(); res(null); };
         $('lo').onclick = () => {
           const m = people.find(x => x.name.toLocaleLowerCase('de') === $('lnk').value.trim().toLocaleLowerCase('de'));
-          if (!m) { $('lnkErr').textContent = 'Bitte ein Mitglied aus der Liste wählen.'; return; }
+          if (!m) { formError($('lnkErr'), 'Bitte ein Mitglied aus der Liste wählen.'); return; }
           closeDialog(); res(m);
         };
       });
@@ -2595,21 +2620,21 @@
         const f = q('#aImg').files[0]; if (!f) return;
         q('#aErr').textContent = '';
         try { look.blob = await shrinkImage(f); if (look.previewUrl) URL.revokeObjectURL(look.previewUrl); look.previewUrl = URL.createObjectURL(look.blob); q('#aImgName').textContent = f.name; drawLook(); }
-        catch (err) { look.blob = null; q('#aErr').textContent = err.message; q('#aImg').value = ''; }
+        catch (err) { look.blob = null; formError(q('#aErr'), err.message); q('#aImg').value = ''; }
       });
       box.onclick = async e => {
         const b = e.target.closest('[data-a]'); if (!b) return;
         if (b.dataset.a === 'cancel') return done(null);
         if (b.dataset.a === 'delete') {
           if (!await ask(`„${a.name}“ löschen?\n\nDer Artikel verschwindet aus allen Listen und vom Tablet. Wurde er schon verkauft oder geliefert, bleiben diese alten Buchungen für Bestand und Abrechnung erhalten.`)) return;
-          try { await api('articles/' + a.id, 'DELETE'); await loadArticles(); toast('Artikel gelöscht.'); done(a.id); } catch (err) { box.querySelector('#aErr').textContent = err.message; }
+          try { await api('articles/' + a.id, 'DELETE'); await loadArticles(); toast('Artikel gelöscht.'); done(a.id); } catch (err) { formError(box.querySelector('#aErr'), err.message); }
           return;
         }
         const f = n => box.querySelector(`[name=${n}]`);
         const body = { name: f('name').value, category: f('category').value, price_cents: toCents(f('price').value || '0'), crate_size: Number(f('crate_size').value),
           min_stock: Number(f('min_stock').value) || 0, target_stock: Number(f('target_stock').value) || 0, track_stock: f('track_stock').checked, active: f('active').checked,
           icon: look.mode === 'icon' ? look.icon : look.mode === 'none' ? null : (look.icon || null) };
-        if (look.mode === 'image' && !look.blob && !x.image) { box.querySelector('#aErr').textContent = 'Bitte ein Bild wählen – oder „Symbol“ bzw. „Ohne“.'; return; }
+        if (look.mode === 'image' && !look.blob && !x.image) { formError(box.querySelector('#aErr'), 'Bitte ein Bild wählen – oder „Symbol“ bzw. „Ohne“.'); return; }
         try {
           const r = a ? await api('articles/' + a.id, 'PUT', body) : await api('articles', 'POST', body);
           const id = a ? a.id : r.id;
@@ -2621,7 +2646,7 @@
           await loadArticles();
           toast('Artikel gespeichert.');
           done(a ? a.id : r.id);
-        } catch (err) { box.querySelector('#aErr').textContent = err.message; }
+        } catch (err) { formError(box.querySelector('#aErr'), err.message); }
       };
     });
   }
@@ -3791,7 +3816,7 @@
           toast(`Angelegt – Benutzername „${r.username}“.`);
         }
         closeDialog(); if (u) toast('Gespeichert.'); RENDER.benutzer();
-      } catch (e) { $('uErr').textContent = e.message; }
+      } catch (e) { formError($('uErr'), e.message); }
     });
   }
 
@@ -3807,7 +3832,7 @@
     if ($('rDel')) $('rDel').onclick = async () => { if (!await ask(`Rolle „${r.name}“ löschen?`)) return; try { await api('roles/' + r.id, 'DELETE'); closeDialog(); RENDER.benutzer(); } catch (e) { fail(e); } };
     $('rOk').onclick = () => busy($('rOk'), async () => {
       const body = { name: $('rNm').value, description: $('rDs').value, dept_scope: $('rSc').checked, perms: [...document.querySelectorAll('[data-rp]:checked')].map(x => x.dataset.rp) };
-      try { if (r) await api('roles/' + r.id, 'PUT', body); else await api('roles', 'POST', body); closeDialog(); toast('Gespeichert.'); RENDER.benutzer(); } catch (e) { $('rErr').textContent = e.message; }
+      try { if (r) await api('roles/' + r.id, 'PUT', body); else await api('roles', 'POST', body); closeDialog(); toast('Gespeichert.'); RENDER.benutzer(); } catch (e) { formError($('rErr'), e.message); }
     });
     void opt;
   }

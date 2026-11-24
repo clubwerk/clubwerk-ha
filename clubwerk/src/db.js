@@ -252,8 +252,12 @@ customArticleId();
 
 /** Lesbare Änderungsliste fürs Protokoll – nie interne Schlüssel: „Vorlauf (Tage): 7 → 14 · Gastgebühr: 5,00 € → 6,00 €“.
  *  labels: { schlüssel: 'Bezeichnung' | ['Bezeichnung', 'bool'|'euro'|'text'|'list'] } – Schlüssel ohne Bezeichnung erscheinen nicht. */
-function auditDiff(labels, before = {}, after = {}) {
+/** opt.tresor = Tabelle: deren Tresor-Spalten (vault.SPEC) erscheinen nur als „… geändert“ – das Protokoll steht im Klartext auf der Platte.
+ *  Einzelne Felder ebenso mit der Art 'tresor' in labels. */
+function auditDiff(labels, before = {}, after = {}, opt = {}) {
+  const secret = new Set(opt.tresor ? ((require('./vault').SPEC.find(x => x.t === opt.tresor) || {}).c || []) : []);
   const fmt = (v, kind, k) => {
+    if (kind === 'tresor' || secret.has(k)) return null;
     if (v === undefined || v === null || v === '') return '–';
     if (kind === 'bool' || typeof v === 'boolean') return [true, 1, '1', 'true'].includes(v) ? 'ja' : 'nein';
     if (kind === 'euro' || /_cents$/.test(k)) return (Number(v) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';

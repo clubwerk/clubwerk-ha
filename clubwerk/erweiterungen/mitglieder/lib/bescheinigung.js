@@ -146,10 +146,11 @@ function register(sh) {
   sh.signCertificate = async (req, res, c) => {
     if (req.mvScope) return bad(res, 'Bescheinigungen unterschreibt die Vereinsverwaltung.', 403);
     const b = req.body || {}, d = JSON.parse(c.data || '{}');
-    if (!sigOk(b.signature)) return bad(res, 'Bitte unterschreiben.');
+    const badF = (msg, field) => res.status(400).json({ error: msg, field });   // field: die Verwaltung zeigt die Meldung direkt am Feld (GK.formError)
     const signer = one(b.signer, 70), role = one(b.role, 60);
-    if (signer.length < 3) return bad(res, 'Bitte den Namen des Unterschreibenden eintragen.');
-    if (!role) return bad(res, 'Bitte die Funktion eintragen (z. B. 1. Vorsitzende).');
+    if (signer.length < 3) return badF('Bitte den Namen des Unterschreibenden eintragen.', 'signer');
+    if (!role) return badF('Bitte die Funktion eintragen (z. B. 1. Vorsitzende).', 'role');
+    if (!sigOk(b.signature)) return badF('Bitte unterschreiben.', 'signature');
     const st = stamp(); if (!st) return bad(res, 'Bitte zuerst den Vereinsstempel hochladen (Mitglieder › Einstellungen › Bescheinigung).');
     const x = content(c.member_id, d.year); if (!x) return bad(res, 'Für dieses Jahr lässt sich keine Mitgliedschaft bescheinigen (Eintritt/Austritt prüfen).');
     const at = nowTs();
@@ -168,17 +169,17 @@ function register(sh) {
     store.hist(c.member_id, by, 'Bescheinigung', null, `${d.year} unterschrieben (${signer}, ${role})`);
     C.audit(req.user, 'Mitglied: Bescheinigung unterschrieben und gesendet', `${lastFirst(x.person.name)} (${d.year})`);
     const rid = recipientOf(c.member_id), r = personRow(rid) || {};
-    let mailed = false;
-    if (r.email && C.mail.ready()) {
+    let mail = !r.email ? 'keine-adresse' : !C.mail.ready() ? 'nicht-eingerichtet' : 'fehler';
+    if (mail === 'fehler') {
       try {
         await C.mail.send({ to: r.email, subject: `Mitgliedsbescheinigung ${d.year} – ${club().name}`,
           text: [`Guten Tag ${full(r)},`, '', rid !== c.member_id ? `anbei die Mitgliedsbescheinigung ${d.year} für ${x.name} zur Vorlage bei der Krankenkasse.` : `anbei Ihre Mitgliedsbescheinigung ${d.year} zur Vorlage bei der Krankenkasse.`, 'Sie ist auch in der Mitglieder-App unter „Meine Daten“ abrufbar.', '', 'Viele Grüße', club().name].join('\n'),
           attachments: [{ filename: fname, content: buf, contentType: 'application/pdf' }], log: { art: 'antrag', by: req.user, memberId: rid, name: r.name, via: rid !== c.member_id ? 'Familienoberhaupt' : undefined } });
-        mailed = true;
+        mail = 'gesendet';
       } catch (e) { console.error('Bescheinigung – E-Mail:', e.message); }
     }
     C.push.send([...new Set([rid, c.member_id])], KIND, { title: 'Deine Mitgliedsbescheinigung ist da', body: 'Du findest sie in der App unter „Meine Daten“.', url: './#mitglieder', tag: `bescheinigung-${c.id}` }).catch(e => console.error('Bescheinigung – Push:', e.message));
-    res.json({ ok: true, mailed, document_id: docId });
+    res.json({ ok: true, mailed: mail === 'gesendet', mail, document_id: docId });
   };
   /** Ablehnen – Aufruf aus POST /changes/:id/reject: E-Mail an Mitglied bzw. Oberhaupt mit Grund */
   sh.rejectCertificate = async (req, c, reason) => {

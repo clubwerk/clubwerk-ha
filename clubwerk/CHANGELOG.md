@@ -1,5 +1,26 @@
 # Änderungen
 
+## 2026.11.62
+
+### Neu
+- Mitglieder: Namensänderung, etwa nach Hochzeit oder Scheidung. In der Mitglieder-App meldet jedes Mitglied unter „Meine Daten“ mit „Mein Name hat sich geändert“ seinen neuen Vor- und Nachnamen; der Vorstand bestätigt ihn unter Mitglieder › Anträge und bekommt dazu eine E-Mail.
+- Mitglieder: Ändert sich der Name (in der Verwaltung oder über den bestätigten Wunsch), merkt sich Clubwerk den bisherigen Namen mit Datum. Er steht beim Mitglied unter dem Namen („früher Müller“) und in den Stammdaten unter „Frühere Namen“, wo er sich auch entfernen lässt.
+- Mitglieder: Beim Speichern eines geänderten Namens fragt die Verwaltung, ob es eine Namensänderung ist oder nur eine Korrektur. Bei einer Korrektur bleibt kein früherer Name zurück.
+- Mitglieder: Heißt der Kontoinhaber bisher wie das Mitglied, fragt Clubwerk, ob er den neuen Namen bekommen soll. Mandatsreferenz und Mandat bleiben gültig.
+- Die Mitgliedersuche und die Suche oben in der Verwaltung finden Mitglieder auch unter früheren Namen, etwa „Schmidt, Anna (früher Müller)“.
+- Frühere Namen stehen in der Datenauskunft, liegen verschlüsselt im Tresor und werden beim Anonymisieren gelöscht. In den Funktionsexport kommen sie nicht.
+- Mitglieder › Einstellungen: Unter „Meine Daten“ in der App lässt sich die Namensänderung ein- und ausschalten.
+- Mitglieder: „Entfernen …“ eines früheren Namens tilgt ihn ganz – aus Suche, Verlauf, erledigten Änderungswünschen, Datenauskunft und Protokoll. Im Verlauf steht nur „Früherer Name entfernt“.
+
+### Verbessert
+- Das Protokoll nennt verschlüsselte Angaben wie Anschriften nicht mehr im Klartext, sondern nur „Straße geändert“. Bei Namensänderungen nennt es nur den heutigen Namen.
+- Das Protokoll nennt auch beim Versand von Rechnungen, Spendenquittungen, Willkommens- und Austrittsmails keine E-Mail-Adressen und keine Spendernamen mehr, sondern die Belegnummer bzw. „per E-Mail“. Beim Schlüssel heißt eine Person ohne Konto im Protokoll und in der Sicherheitswarnung „Person ohne Konto“ mit Belegnummer.
+### Verbessert
+- Verwaltung: Fehlermeldungen in Fenstern stehen rot und direkt am betroffenen Feld. Das Feld wird markiert, in den Blick gerückt und bekommt den Cursor – auch am Handy, wenn das Feld weiter oben liegt. Das gilt auch für Artikel, Benutzer, Rollen, Ausgaben und Kassen.
+- Mitglieder › Anträge: Beim Unterschreiben einer Mitgliedsbescheinigung sind Name und Funktion als Pflichtfelder gekennzeichnet. Lässt sich die E-Mail nicht senden, sagt die Verwaltung das deutlich; ebenso, wenn keine E-Mail-Adresse hinterlegt oder der E-Mail-Versand nicht eingerichtet ist.
+### Behoben
+- Mitglieder › Anträge: „Unterschreiben & senden“ ohne Funktion oder ohne Unterschrift schien am Handy nichts zu tun – die Meldung stand unauffällig unter dem Unterschriftsfeld. Jetzt erscheint sie am Feld.
+
 ## 2026.11.61
 
 ### Verbessert

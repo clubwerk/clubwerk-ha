@@ -65,7 +65,7 @@ function register(sh) {
     const m = build(p, x, t);
     try { await C.mail.send({ raw: true, to: stt.to, subject: m.subject, text: m.text, log: { art: 'austritt', memberId: id, by: user || null, name: p.name, via: stt.via } }); } catch (e) { return { sent: false, error: `Die Bestätigung konnte nicht gesendet werden: ${e.message}` }; }
     store.hist(id, user ? uname({ user }) : null, FIELD, null, `an ${stt.to}${mode === 'custom' ? ' · angepasst' : ''}`);
-    C.audit(user || null, 'Mitglieder: Austrittsbestätigung gesendet', `${p.name} · an ${stt.to}${stt.via ? ` (Oberhaupt ${stt.via})` : ''}${mode === 'custom' ? ' · angepasster Text' : ''} · ${why}`);
+    C.audit(user || null, 'Mitglieder: Austrittsbestätigung gesendet', `${p.name} · per E-Mail${stt.via ? ` an das Oberhaupt ${stt.via}` : ''}${mode === 'custom' ? ' · angepasster Text' : ''} · ${why}`);
     return { sent: true, to: stt.to };
   }
 

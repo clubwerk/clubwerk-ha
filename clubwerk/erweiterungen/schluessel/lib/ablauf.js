@@ -6,6 +6,8 @@ const path = require('path');
 function register(sh) {
   const { ctx, A, T, P, db, S, SET, cfg, send, fail, txt, one, euro, mailOk, ageAt, memberRow, personName, personBirth, memberInfo, stateOf, emailOf, clubInfo, itemsOf, pieceText, nextNo,
     renderTerms, savePdf, fileOk, hashOf, sigsOf, vault, DIR, pdf, mitgl, hook1, lastFirst, today, nowTs, deD, isDate, sigOk } = sh;
+  /** Name fürs Protokoll: Mitglieder mit Namen, Personen ohne Konto nicht – deren Name liegt im Tresor (sl_issue.ext_first/ext_last) */
+  const who = i => (i && i.member_id ? personName(i) : 'Person ohne Konto');
   const { bad, int, audit } = ctx;
   const ar = fn => (req, res) => Promise.resolve(fn(req, res)).catch(e => { if (!res.headersSent) bad(res, e.message, e.code || 400); });
 
@@ -152,7 +154,7 @@ function register(sh) {
         return Number(db.prepare("INSERT INTO sl_protocol(no, kind, issue_id, at, terms, data, sig_a, sig_b, sig_c, sha256, file, by_user) VALUES (?, 'ausgabe', ?,?,?,?,?,?,?,?,?,?)")
           .run(no, id, at, terms, JSON.stringify(data), sigs[0], sigs[1], sigs[2] || null, sha, file, by || null).lastInsertRowid);
       })();
-      audit(null, 'Schlüssel: Ausgabe', `${person}: ${items.map(pieceText).join(', ')} (${no}, ${via === 'tablet' ? 'am Tablet' : 'in der Verwaltung'})`);
+      audit(null, 'Schlüssel: Ausgabe', `${who(i)}: ${items.map(pieceText).join(', ')} (${no}, ${via === 'tablet' ? 'am Tablet' : 'in der Verwaltung'})`);
       mailProtocol(i, { no }, buf, 'Schlüsselübergabe', `Sie haben vom ${ctx.getSetting('club_name', 'Verein')} folgende Schlüssel erhalten: ${items.map(pieceText).join(', ')}.`).catch(() => {});
       return { id, no, protocol: pid, sha256: sha };
     } catch (e) {
@@ -165,7 +167,7 @@ function register(sh) {
     const b = req.body || {};
     if (b.how === 'tablet') {
       const r = await createIssue(req, 'wartet');
-      audit(req.user, 'Schlüssel: Übergabe zur Unterschrift ans Tablet', personName(db.prepare('SELECT * FROM sl_issue WHERE id = ?').get(r.id)));
+      audit(req.user, 'Schlüssel: Übergabe zur Unterschrift ans Tablet', who(db.prepare('SELECT * FROM sl_issue WHERE id = ?').get(r.id)));
       return { id: r.id, code: r.code, expires_in_min: 180, minor: r.minor };
     }
     // gleich hier: Haken und Unterschriften vorab prüfen, bevor etwas reserviert wird
@@ -187,7 +189,7 @@ function register(sh) {
   A.delete('/issues/:id', P, send(req => {
     const i = db.prepare("SELECT * FROM sl_issue WHERE id = ? AND status = 'wartet'").get(int(req.params.id)); if (!i) throw fail('Nur Ausgaben, die noch auf die Unterschrift warten, lassen sich verwerfen.');
     db.transaction(() => { release(i.id); db.prepare('DELETE FROM sl_issue WHERE id = ?').run(i.id); })();
-    audit(req.user, 'Schlüssel: Übergabe verworfen', personName(i));
+    audit(req.user, 'Schlüssel: Übergabe verworfen', who(i));
     return { ok: true };
   }));
 
@@ -241,7 +243,7 @@ function register(sh) {
         }
         if (back) db.prepare('UPDATE sl_issue SET deposit_state = ? WHERE id = ?').run(back, i.id);
       } });
-    audit(req.user, 'Schlüssel: Rücknahme', `${personName(i)}: ${items.map(pieceText).join(', ')} (${r.no})`);
+    audit(req.user, 'Schlüssel: Rücknahme', `${who(i)}: ${items.map(pieceText).join(', ')} (${r.no})`);
     return r;
   }));
   A.post('/issues/:id/lost', P, send(async req => {
@@ -260,8 +262,8 @@ function register(sh) {
       } });
     const sensitive = items.some(x => x.sensitive);
     const what = items.map(pieceText).join(', ');
-    ctx.securityAlert(sensitive ? 'verlust_sicher' : 'verlust', `${sensitive ? 'Sicherheitsrelevanter Schlüssel' : 'Schlüssel'} als verloren gemeldet: ${what}, zuletzt bei ${personName(i)}. ${sensitive ? 'Bitte prüfen, ob das Schloss getauscht werden muss.' : ''}`.trim(), { key: `${i.id}:${items.map(x => x.id).join(',')}`, member: i.member_id || undefined });
-    audit(req.user, 'Schlüssel: Verlust', `${personName(i)}: ${what} (${r.no})`);
+    ctx.securityAlert(sensitive ? 'verlust_sicher' : 'verlust', `${sensitive ? 'Sicherheitsrelevanter Schlüssel' : 'Schlüssel'} als verloren gemeldet: ${what}, zuletzt bei ${who(i)} (${r.no}). ${sensitive ? 'Bitte prüfen, ob das Schloss getauscht werden muss.' : ''}`.trim(), { key: `${i.id}:${items.map(x => x.id).join(',')}`, member: i.member_id || undefined });
+    audit(req.user, 'Schlüssel: Verlust', `${who(i)}: ${what} (${r.no})`);
     return r;
   }));
   A.post('/issues/:id/cancel', P, send(async req => {
@@ -276,7 +278,7 @@ function register(sh) {
         db.prepare(`UPDATE sl_piece SET status = 'vorraetig' WHERE id IN (${items.map(() => '?').join(',')})`).run(...items.map(x => x.id));
         if (ref.id) db.prepare("UPDATE sl_protocol SET status = 'storniert' WHERE id = ?").run(ref.id);
       } });
-    audit(req.user, 'Schlüssel: Ausgabe storniert', `${personName(i)}: ${reason} (${r.no})`);
+    audit(req.user, 'Schlüssel: Ausgabe storniert', `${who(i)}: ${reason} (${r.no})`);
     return r;
   }));
   A.post('/issues/:id/remind', P, send(async req => {
@@ -287,7 +289,7 @@ function register(sh) {
     await ctx.mail.send({ to, subject: `Erinnerung: Schlüssel zurückgeben – ${club}`, text: [`Guten Tag ${personName(i).split(', ').reverse().join(' ')},`, '',
       `bitte geben Sie folgende Schlüssel des ${club} zurück: ${items.map(pieceText).join(', ')}.`, i.due ? `Vereinbart war die Rückgabe bis ${deD(i.due)}.` : '', 'Melden Sie sich gern beim Vorstand, wenn Sie Fragen haben.', '', 'Viele Grüße', club].filter(x => x !== '').join('\n') });
     db.prepare('UPDATE sl_issue SET remind_at = ? WHERE id = ?').run(nowTs(), i.id);
-    audit(req.user, 'Schlüssel: Erinnerung geschickt', personName(i));
+    audit(req.user, 'Schlüssel: Erinnerung geschickt', who(i));
     return { ok: true };
   }));
 

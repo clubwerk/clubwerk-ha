@@ -93,7 +93,8 @@ function listRows(q = {}) {
       (SELECT COUNT(*) FROM mv_person c WHERE c.family_of = m.id AND c.member_id != m.id) AS family_count,
       (SELECT COALESCE(SUM(cents),0) FROM mv_charge c WHERE c.member_id = m.id AND c.status = 'offen') AS open_cents,
       (SELECT COUNT(*) FROM mv_age_notice a WHERE a.member_id = m.id AND a.status = 'offen') AS age_open,
-      (SELECT group_concat(kind) FROM mv_change x WHERE x.member_id = m.id AND x.status = 'offen' AND x.kind IN ('eintritt','austritt','rueckkehr')) AS pend
+      (SELECT group_concat(kind) FROM mv_change x WHERE x.member_id = m.id AND x.status = 'offen' AND x.kind IN ('eintritt','austritt','rueckkehr')) AS pend,
+      (SELECT json_group_array(json_object('id', f.id, 'first_name', f.first_name, 'last_name', f.last_name, 'until', f.until)) FROM mv_former_name f WHERE f.member_id = m.id) AS former
     FROM members m LEFT JOIN mv_person p ON p.member_id = m.id LEFT JOIN mv_bank b ON b.member_id = m.id
     WHERE m.kind = 'mitglied' AND m.deleted = 0 ORDER BY name_key(m.name, m.kind)`).all(day, day, day, day);
   return rows.map(r => {
@@ -103,7 +104,7 @@ function listRows(q = {}) {
       status: r.anonymized_at ? 'anonym' : exited ? 'ausgetreten' : r.status || 'aktiv', entry_date: r.entry_date, exit_date: r.exit_date, leaving: Boolean(r.exit_date && !exited),
       depts: r.depts || '', dept_ids: r.dept_ids ? r.dept_ids.split(',').map(Number) : [], fees: r.fees || '', fee_ids: r.fee_ids ? r.fee_ids.split(',').map(Number) : [],
       payer_id: r.payer_id, payer_name: r.payer_name, dependents: r.dependents, family_of: r.family_of, family_head_name: r.family_head_name, family_count: r.family_count, payment: r.payment || 'lastschrift', email: r.email, mobile: r.mobile || r.phone, city: r.city,
-      complete: Boolean(r.complete), pending: Boolean(r.pending), open_cents: r.open_cents,
+      complete: Boolean(r.complete), pending: Boolean(r.pending), open_cents: r.open_cents, former: r.former ? formerList(r.id, r, JSON.parse(r.former).sort((a, b) => String(b.until).localeCompare(String(a.until)) || b.id - a.id)) : [],
       issues: [r.family_of && r.fee_ids && 'eigener Beitrag trotz Familienmitgliedschaft', !r.complete && 'ohne Mitgliedsdaten', r.complete && !exited && !r.anonymized_at && sepaRequired() && payNeedsSepa(r) && r.payment !== 'lastschrift' && 'Zahlart nicht Lastschrift', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', !exited && ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', !exited && !r.anonymized_at && !r.birth_date && 'Geburtsdatum fehlt', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
   }).filter(r => {
     if (q.status === 'aktuell' && (r.status === 'ausgetreten' || r.status === 'anonym')) return false;
@@ -113,7 +114,7 @@ function listRows(q = {}) {
     if (q.issue === '1' && !r.issues.length) return false;
     if (q.q) {
       const s = String(q.q).toLowerCase();
-      if (![r.name, r.member_no, r.email, r.city].some(v => v && String(v).toLowerCase().includes(s))) return false;
+      if (![r.name, r.member_no, r.email, r.city, ...r.former.map(f => [f.first_name, f.last_name].filter(Boolean).join(' '))].some(v => v && String(v).toLowerCase().includes(s))) return false;
     }
     return true;
   });
@@ -135,7 +136,8 @@ function detail(id, user) {
   try { if (C.drinks.active()) { const o = C.drinks.open().rows.find(r => r.id === id); drinksOpen = o ? o.total_cents : 0; } } catch (e) { drinksOpen = null; }
   return {
     person: { ...p, ...(!p.first_name && !p.last_name ? (x => ({ first_name: x.first || null, last_name: x.last || null }))(store.splitName({ name: p.name })) : {}), consents: JSON.parse(p.consents || '{}'), extra: JSON.parse(p.extra || '{}'), age: fees.ageAt(p.birth_date, today()), exited: store.isExited(p), complete: Boolean(p.member_id), photo: C.require('./photos').version(id) },
-    bank: bank ? (perms.includes('mitglieder_bank') ? { ...bank, state: mandateState(bank) } : { masked: sepa.maskIban(bank.iban), mandate_ref: bank.mandate_ref, mandate_date: bank.mandate_date, state: mandateState(bank), hidden: true }) : null,
+    former: formerList(id, p),
+    bank: bank ? (perms.includes('mitglieder_bank') ? { ...bank, state: mandateState(bank), holder_is_name: holderIs(bank.holder, p) } : { masked: sepa.maskIban(bank.iban), mandate_ref: bank.mandate_ref, mandate_date: bank.mandate_date, state: mandateState(bank), hidden: true }) : null,
     missing: missingOf(p, bank, feeRows(id).some(f => !f.end_date || f.end_date >= today())),
     departments: deptRows(id), fees: feeRows(id), payerGroup: payerRows, payer: p.payer_id ? (x => x ? { id: x.id, name: x.name } : null)(personRow(store.payerOf(id))) : null,   // nur Name – der Zahler kann außerhalb der eigenen Abteilung liegen
     family: famRows, familyHead: famHead && famHead !== id ? (x => x ? { id: x.id, name: x.name } : null)(personRow(famHead)) : null, familyFee: Boolean(store.familyFee(id)),
@@ -205,6 +207,77 @@ function savePerson(id, fields, user) {
   C.db.prepare(`UPDATE mv_person SET ${keys.map(k => `${k} = ?`).join(', ')}, updated_at = ? WHERE member_id = ?`).run(...keys.map(k => fields[k]), nowTs(), id);
   if (keys.includes('member_no')) store.noteMemberNo(fields.member_no);
   if (keys.includes('first_name') || keys.includes('last_name')) store.syncCore(id);
+}
+
+/** früherer Name neben dem heutigen: nur der Nachname, wenn der Vorname gleich blieb („Müller“), sonst „Nachname, Vorname“ */
+function formerLabel(f, cur) {
+  const first = f.first_name || '', last = f.last_name || '';
+  return !first || first === (cur.first || '') ? last || first : `${last}${last ? ', ' : ''}${first}`;
+}
+/** frühere Namen mit Anzeige (neueste zuerst); cur = Personenzeile oder { first_name, last_name } */
+const formerList = (id, cur, rows = store.formerNames(id)) => rows.map(f => ({ ...f, label: formerLabel(f, store.splitName(cur)) }));
+/** letzter früherer Name zur Anzeige (Suche) */
+const formerOf = (id, name) => (formerList(id, { name })[0] || {}).label || '';
+/** Kontoinhaber = Name der Person? Wortweise ohne Groß/Klein, Satzzeichen und Reihenfolge („Müller, Anna“ = „Anna Müller“), Titel davor darf dabeistehen */
+function holderIs(holder, p) {
+  const words = v => String(v || '').toLowerCase().split(/[\s,.]+/).filter(Boolean).sort().join(' ');
+  const n = store.splitName(p), h = words(holder);
+  return Boolean(h) && [[n.first, n.last], [p.title, n.first, n.last]].some(x => words(x.filter(Boolean).join(' ')) === h);
+}
+/** Nach dem Speichern eines geänderten Vor- oder Nachnamens (Verwaltung oder bestätigter Wunsch aus der App):
+ *  bisherigen Namen merken – außer bei einer Korrektur (o.mode 'korrektur') – und auf Wunsch (o.holder, nur mit dem Recht „Bankdaten“) den
+ *  Kontoinhaber mitnehmen, wenn er bisher genau so hieß. Mandatsreferenz und Mandat bleiben gültig: kein neues Mandat, keine Erstlastschrift.
+ *  old = Personenzeile vor dem Speichern → { remembered, holder } */
+function afterNameChange(id, old, o) {
+  const was = store.splitName(old), now = store.splitName(personRow(id) || {});
+  if (was.first === now.first && was.last === now.last) return {};
+  const out = {};
+  if (o.mode !== 'korrektur') out.remembered = store.rememberName(id, was, o.by);
+  if (o.holder && o.bankPerm) {
+    const b = bankRow(id);
+    if (b && holderIs(b.holder, old)) {
+      const h = [now.first, now.last].filter(Boolean).join(' ');
+      C.db.prepare('UPDATE mv_bank SET holder = ?, updated_at = ? WHERE member_id = ?').run(h, nowTs(), id);
+      store.hist(id, o.by, LABEL.holder, b.holder, h);
+      out.holder = h;
+    }
+  }
+  // Protokoll nur mit dem heutigen Namen: der bisherige liegt im Tresor (Verlauf, frühere Namen), das Protokoll steht im Klartext auf der Platte
+  const which = [was.first !== now.first && LABEL.first_name, was.last !== now.last && LABEL.last_name].filter(Boolean).join(' und ');
+  C.audit(o.user, o.mode === 'korrektur' ? 'Mitglied: Name korrigiert' : 'Mitglied: Name geändert', `${(personRow(id) || {}).name}: ${which} ${o.mode === 'korrektur' ? 'korrigiert' : 'geändert'}${out.remembered ? ' (früherer Name gemerkt)' : ''}${out.holder ? '; Kontoinhaber angepasst' : ''}`);
+  return out;
+}
+
+/** Früheren Namen ganz tilgen (Wunsch des Mitglieds, z. B. „der Name soll nicht mehr erscheinen“): die Zeile in mv_former_name, jede Zeile
+ *  im Verlauf und jeden erledigten Änderungswunsch, der ihn nennt, und im Protokoll den vollen Namen (ersetzt durch den heutigen – nur wenn
+ *  kein anderes Konto so heißt, denn das Protokoll kennt keine Kennungen). Im Verlauf bleibt nur „Früherer Name entfernt“, ohne Namen.
+ *  Teile, die noch zum heutigen oder einem anderen früheren Namen gehören (z. B. der gleich gebliebene Vorname), bleiben unberührt. */
+function forgetFormerName(id, f, user) { C.db.transaction(() => forgetTx(id, f, user))(); }
+function forgetTx(id, f, user) {
+  const db = C.db, cur = store.splitName(personRow(id)), now = [cur.first, cur.last].filter(Boolean).join(' ');
+  db.prepare('DELETE FROM mv_former_name WHERE id = ?').run(f.id);
+  const keep = new Set([cur.first, cur.last, ...store.formerNames(id).flatMap(x => [x.first_name, x.last_name])].filter(Boolean));
+  const parts = [f.first_name, f.last_name].filter(x => x && !keep.has(x));
+  const full = [...new Set([[f.first_name, f.last_name].filter(Boolean).join(' '), [f.last_name, f.first_name].filter(Boolean).join(', ')])].filter(x => x && x !== now && x.includes(' '));
+  const reEsc = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const word = x => new RegExp(`(?<![\\p{L}\\p{N}-])${reEsc(x)}(?![\\p{L}\\p{N}-])`, 'giu');
+  // voller Name überall; ein einzelner Teil („Müller“) nur in Namensfeldern bzw. Namenswünschen – sonst träfe er Fremdes („zahlt über Peter Müller“)
+  const hits = (v, partsToo) => v != null && [...full, ...(partsToo ? parts : [])].some(x => word(x).test(String(v)));
+  const NAME_FIELDS = [LABEL.first_name, LABEL.last_name];
+  for (const h of db.prepare('SELECT id, field, old, new FROM mv_history WHERE member_id = ?').all(id)) {
+    const p2 = NAME_FIELDS.includes(h.field);
+    if (hits(h.old, p2) || hits(h.new, p2)) db.prepare('DELETE FROM mv_history WHERE id = ?').run(h.id);
+  }
+  for (const c of db.prepare("SELECT id, kind, data FROM mv_change WHERE member_id = ? AND status != 'offen'").all(id)) {
+    let vals = []; try { vals = Object.values(JSON.parse(c.data || '{}')).filter(v => typeof v === 'string'); } catch (e) { vals = [String(c.data)]; }
+    if (vals.some(v => hits(v, c.kind === 'name'))) db.prepare('DELETE FROM mv_change WHERE id = ?').run(c.id);
+  }
+  const twin = full.length && db.prepare("SELECT 1 FROM members WHERE id != ? AND deleted = 0 AND lower(name) IN (" + full.map(() => '?').join(',') + ')').get(id, ...full.map(x => x.toLowerCase()));
+  if (!twin) for (const a of db.prepare(`SELECT id, detail FROM audit_log WHERE ${full.map(() => 'COALESCE(instr(lower(detail), ?), 0) > 0').join(' OR ') || '0'}`).all(...full.map(x => x.toLowerCase()))) {
+    let d = a.detail; for (const x of full) d = d.replace(word(x), x.includes(',') ? [cur.last, cur.first].filter(Boolean).join(', ') : now);
+    if (d !== a.detail) db.prepare('UPDATE audit_log SET detail = ? WHERE id = ?').run(d, a.id);
+  }
+  db.prepare('INSERT INTO mv_history(member_id, by_user, field) VALUES (?,?,?)').run(id, user || null, 'Früherer Name entfernt');   // ohne vorher/nachher (hist schreibt leere Änderungen nicht)
 }
 
 /** neue Person (Kern + Vereinsdaten) → id */
@@ -298,6 +371,7 @@ function anonymize(id, user) {
     for (const d of C.db.prepare('SELECT * FROM mv_document WHERE member_id = ?').all(id)) deleteDocumentFile(d);
     C.db.prepare('DELETE FROM mv_document WHERE member_id = ?').run(id);
     C.db.prepare('DELETE FROM mv_history WHERE member_id = ?').run(id);
+    C.db.prepare('DELETE FROM mv_former_name WHERE member_id = ?').run(id);   // frühere Namen
     C.db.prepare('DELETE FROM mv_change WHERE member_id = ?').run(id);
     shared.congratsForget(id);   // Gratulationen samt Notizen
     shared.cardsForget(id);   // Mitgliedsausweise (Seriennummern)
@@ -615,12 +689,23 @@ function activate(ctx) {
       const old = addrKey(p), same = new Set(sameAddress(id).map(x => x.id));
       for (const x of moveIds) { if (!old || !same.has(x)) return bad(res, `${(personRow(x) || {}).name || 'Ein Mitglied'} wohnt nicht (mehr) unter der bisherigen Anschrift – nichts wurde geändert.`); targets.push(personRow(x)); }
     }
-    const diffOf = (cur, next) => ctx.auditDiff(Object.fromEntries(ADDR_KEYS.map(k => [k, LABEL[k]])), cur, next);
+    const diffOf = (cur, next) => ctx.auditDiff(Object.fromEntries(ADDR_KEYS.map(k => [k, LABEL[k]])), cur, next, { tresor: 'mv_person' });   // Anschrift liegt im Tresor: nur „Straße geändert“
     const next = Object.fromEntries(moveKeys.map(k => [k, pi.fields[k]]));
     savePerson(id, pi.fields, uname(req));
+    // Vor- oder Nachname geändert: Namensänderung (früheren Namen merken, Standard) oder Korrektur (name_change: 'korrektur'); Kontoinhaber auf Wunsch mit
+    const nm = afterNameChange(id, p, { mode: b.name_change, holder: Boolean(b.holder_follow), bankPerm: req.user.perms.includes('mitglieder_bank'), by: uname(req), user: req.user });
     if (moveKeys.length) { const d = diffOf(p, next); if (d) ctx.audit(req.user, 'Mitglied: Anschrift geändert', `${p.name}: ${d}`); }
     for (const t of targets) { savePerson(t.member_id, next, uname(req)); const d = diffOf(t, next); if (d) ctx.audit(req.user, `Mitglied: Anschrift geändert (Umzug mit ${p.name})`, `${t.name}: ${d}`); }
-    res.json({ ok: true, moved: targets.length });
+    res.json({ ok: true, moved: targets.length, ...(nm.remembered ? { remembered: nm.remembered } : {}), ...(nm.holder ? { holder: nm.holder } : {}) });
+  });
+  /* früheren Namen entfernen (z. B. versehentlich gemerkt) – steht im Verlauf und im Protokoll */
+  admin.delete('/member/:id/former-name/:fid', P, (req, res) => {
+    const id = int(req.params.id), p = personRow(id); if (!p) return bad(res, 'Mitglied nicht gefunden.', 404);
+    const f = ctx.db.prepare('SELECT * FROM mv_former_name WHERE id = ? AND member_id = ?').get(int(req.params.fid), id);
+    if (!f) return bad(res, 'Dieser frühere Name ist schon entfernt.', 404);
+    forgetFormerName(id, f, uname(req));
+    ctx.audit(req.user, 'Mitglied: früheren Namen entfernt', personRow(id).name);   // ohne den Namen selbst
+    res.json({ ok: true });
   });
   /** Andere aktive Mitglieder unter derselben Anschrift (Straße, PLZ, Ort; Groß-/Kleinschreibung und Leerzeichen egal) – nur Name und Nummer, nie Kontakt- oder Bankdaten */
   function sameAddress(id) {
@@ -998,7 +1083,7 @@ function activate(ctx) {
     const module = {};
     for (const r of await ctx.callHooks('memberData', id)) if (r.result && Object.values(r.result).some(v => v && (!Array.isArray(v) || v.length))) module[r.name] = r.result;
     return { erstellt: nowTs(), verein: ctx.getSetting('club_name', ''), hinweis: 'Auskunft nach Art. 15 DSGVO – alle zu dieser Person gespeicherten Daten.',
-      konto: core, vereinsdaten: { ...d.person, consents: d.person.consents }, bankverbindung: d.bank, abteilungen: d.departments, beitraege: d.fees, zahlergruppe: d.payerGroup, familienmitgliedschaft: d.family,
+      konto: core, vereinsdaten: { ...d.person, consents: d.person.consents }, fruehere_namen: d.former.map(f => ({ first_name: f.first_name, last_name: f.last_name, until: f.until })), bankverbindung: d.bank, abteilungen: d.departments, beitraege: d.fees, zahlergruppe: d.payerGroup, familienmitgliedschaft: d.family,
       ehrungen: d.honors, aemter: d.functions, gratulationen: { keine_gewuenscht: d.no_congrats, anlaesse: shared.congratsOf(id) }, mitgliedsausweise: shared.cardsOf(id), bescheinigungen: shared.certificatesOf ? shared.certificatesOf(id) : [], forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
       aenderungsverlauf: d.history, mitglieder_app: d.app, nachrichten_in_der_app: (ctx.messagesOf ? ctx.messagesOf(id) : []), automatische_mails: (ctx.autoMailsOf ? ctx.autoMailsOf(id) : []), sicherheitswarnungen: ctx.require('./security').ofMember(id), getraenke_je_monat: drinks, weitere_bereiche: module };
   }
@@ -1209,7 +1294,7 @@ function activate(ctx) {
   });
 
   /* ---------- weitere Teile ---------- */
-  shared = { auskunft, LABEL, C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope, reenterMember };
+  shared = { auskunft, LABEL, C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope, reenterMember, afterNameChange, holderIs };
   Object.assign(shared, { DOC_KIND, docDir: () => DOC_DIR, otherDocuments, docFile: d => { const f = path.join(DOC_DIR, path.basename(d.file)); return fs.existsSync(f) ? f : null; } });
   require('./lib/dokzip').register(shared);   // Dokumente als ZIP (je Mitglied und gesammelt)
   require('./lib/money').register(shared);
@@ -1499,13 +1584,16 @@ function activate(ctx) {
   ctx.hooks.search = s => {
     const scope = (s.user.deptOnly || []).includes('mitglieder') ? (s.user.depts || []) : null;
     if (s.locked || (scope && !scope.length)) return [];
-    const w = s.where('m.name', 'p.member_no'), day = today(), lf = ctx.require('./db').lastFirst;
-    const rows = ctx.db.prepare(`SELECT m.id, m.name, p.member_no, p.exit_date,
+    const FORMER = "(SELECT group_concat(COALESCE(f.first_name, '') || ' ' || COALESCE(f.last_name, ''), ' ') FROM mv_former_name f WHERE f.member_id = m.id)";   // frühere Namen finden ihn auch
+    const w = s.where('m.name', 'p.member_no', `COALESCE(${FORMER}, '')`), day = today(), { lastFirst: lf, deKey } = ctx.require('./db');
+    const rows = ctx.db.prepare(`SELECT m.id, m.name, p.member_no, p.exit_date, ${FORMER} AS former,
         (SELECT group_concat(d.name, ', ') FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id WHERE md.member_id = m.id AND (md.exit_date IS NULL OR md.exit_date >= ?)) AS depts
       FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.kind = 'mitglied' AND m.deleted = 0 AND p.anonymized_at IS NULL AND ${w.sql}`).all(day, ...w.args)
       .filter(r => !scope || inScope(r.id, scope));
-    return [{ group: 'Mitglieder', art: 'mitglied', page: 'mitglieder', detail: true, hits: s.pick(rows, r => [lf(r.name), r.member_no]).map(r => ({
-      id: r.id, label: lf(r.name), person: true, score: r._score,
+    // Treffer über einen früheren Namen: „Schmidt, Anna (früher Müller)“
+    const old = r => (r.former && s.toks.some(t => !deKey(r.name).includes(t)) ? formerOf(r.id, r.name) : '');
+    return [{ group: 'Mitglieder', art: 'mitglied', page: 'mitglieder', detail: true, hits: s.pick(rows, r => [lf(r.name), r.member_no, r.former]).map(r => ({
+      id: r.id, label: lf(r.name) + (old(r) ? ` (${ctx.T('früher {0}', [old(r)])})` : ''), person: true, score: r._score,
       sub: [r.member_no ? `${ctx.T('Nr.')} ${r.member_no}` : '', r.depts, r.exit_date && r.exit_date < day ? 'ausgetreten' : ''] })) }];
   };
   /* Beitrag einer Person = ihr Hauptbeitrag (kein Abteilungs-Zusatzbeitrag, keine einmalige Gebühr); bei gleichem Beginn der zuletzt eingetragene.

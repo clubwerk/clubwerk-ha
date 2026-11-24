@@ -39,7 +39,7 @@ A **missing date of birth** also appears in the list as the note “Geburtsdatum
 
 For searching and filtering there are:
 
-- the **search** by name, number, email or town,
+- the **search** by name, number, email or town. It also finds former names: searching for “Müller” finds Anna Schmidt, who used to be called Müller – the result shows “Schmidt, Anna (formerly Müller)”. The same applies to the search at the top of the admin area,
 - the **filters** “Current”, “With note”, “Left” and “All” (each with its count) plus a selection field each for **department** and **fee**.
 
 Clicking a row opens the member. “← All members” takes you back, with the filters you last set.
@@ -107,7 +107,7 @@ On a wide screen (from 1500 pixels, such as a large monitor) a card sits to the 
 
 ![An opened member: name and key facts at the top, below them “← All members” and the tabs.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detailrow)
 
-Above the tabs is the name; below it a line with number, age, status, planned leaving date, “pays via …” or “Family of …” and a note if change requests from the app are waiting. The tabs are **Master data**, **Membership**, **Payment & family**, **Account & mandate**, **Documents** and **History**. Anyone who looks after just one department only sees “Master data”, “Membership”, “Documents” and “History”.
+Above the tabs is the name; below it a line with number, age, status, planned leaving date, “pays via …” or “Family of …” and a note if change requests from the app are waiting. If the member used to have a different name, “formerly …” comes first. The tabs are **Master data**, **Membership**, **Payment & family**, **Account & mandate**, **Documents** and **History**. Anyone who looks after just one department only sees “Master data”, “Membership”, “Documents” and “History”.
 
 If required details are missing, a red box appears at the top. For a person who is not a club member at all (for example a coach), the button **Convert to “Not a member” …** converts them. Their account stays in sales; they no longer appear in the member list.
 
@@ -120,6 +120,11 @@ The first tab has three cards and one common “Save” button below them.
 ![The “Person” card.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detbody > div:nth-child(1))
 
 Salutation, title, first name, last name, date of birth, gender (male or female), member number and **status**: active, passive/supporting, honorary member or dormant.
+
+**Change of name:** if you change the first name or last name, Clubwerk asks when you save whether it is a **change of name** (for example after marriage or divorce) or just a **correction** (typo). For a change of name Clubwerk keeps the previous name with the date; for a correction it does not. If the account holder of the bank details has exactly the member's previous name, the window also asks “Change the account holder to the new name as well?” (preselected). The mandate reference and mandate remain valid; no new mandate is needed. Only users with the “Bank details” permission see this question. It is the same window as when applying a change of name from the app (picture in the “Applications” tab).
+
+
+Former names appear at the bottom of the card under **Former names** (“last name, first name” and “until” with the date). If one was created by mistake or the name should no longer appear, **Remove …** deletes it. The name then disappears completely: from the search, the history, completed change requests, the data access request and the log. The history only shows “Former name removed”. This cannot be undone. Signed documents (such as a mandate under the old name) and emails already sent stay as they are.
 
 #### Address & contact
 
@@ -145,8 +150,8 @@ One tick box per consent with its date (“since …”), e.g. for photos. Which
 ![“Welcome email” card on the member.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=#sWel)
 
 - **Profile picture:** appears when the member has uploaded one in the app. “Remove profile picture …” deletes it.
-- **Caution:** “Delete …” only works if nothing is attached to the member any more (meant for members created by mistake or twice). “Anonymize …” only exists after leaving. It permanently deletes name, address, account, documents and history; for the statistics, birth year, gender, joining and leaving and departments remain. For safety you type the word ANONYMISIEREN.
-- **Data access request** (button on the right of the tab bar): downloads a file with everything Clubwerk has stored about the person, including data from other modules. Without the “Bank details” permission the IBAN in it is masked.
+- **Caution:** “Delete …” only works if nothing is attached to the member any more (meant for members created by mistake or twice). “Anonymize …” only exists after leaving. It permanently deletes name, former names, address, account, documents and history; for the statistics, birth year, gender, joining and leaving and departments remain. For safety you type the word ANONYMISIEREN.
+- **Data access request** (button on the right of the tab bar): downloads a file with everything Clubwerk has stored about the person, including former names and data from other modules. Without the “Bank details” permission the IBAN in it is masked.
 
 ### Member › Membership {#mitglied-mitgliedschaft}
 
@@ -287,10 +292,13 @@ Applications with a code that have not been signed yet. “New code” creates a
 Requests from the member app and reports from department heads:
 
 - **Data change** (e.g. new address): “Apply” shows old and new for confirmation, “Reject” sends the member an email with the reason if you want.
+- **Change of name:** the member reports a new first or last name. “Apply” shows old and new and, as in the master data, asks whether it is a change of name or a correction and, if relevant, about the account holder. The previous name is kept as a former name; the member gets a confirmation by email.
 - **New bank details:** with the member's signature. On applying, a new mandate is created (first-time debit); the signed mandate is filed as a PDF and sent to the member.
 - **Cancellation:** Clubwerk suggests the earliest possible leaving date: the end of the financial year, keeping to the notice period (notice 0 and financial year = calendar year: cancel by 31.12. → leave on 31.12.; notice 3 months: received by 30.09.). The app shows the same date when cancelling, and so does the confirmation of receipt by email. A fee year that has started is charged in full; you confirm or change it. When confirming, you choose as for a leaving: send default text, edit before sending or no email.
 - **Joining, leaving and return to a department** are reported by the department head; “Confirm” applies them.
 - **Certificate requested:** a member would like a membership certificate, for example for their health insurer's bonus scheme. The row shows the year, the member's note and – for families – who requested it and who it goes to. “Sign …” opens the window for it (see below), “Decline” asks for a reason for the email.
+
+![Window “Change of name from …”: old and new, change of name or correction, with the account holder below.](bild: seite=mv-antraege; klick=[data-cok="16"]; ziel=dialog)
 
 #### Signing a membership certificate
 
@@ -298,7 +306,7 @@ Requests from the member app and reports from department heads:
 
 On the right you see the certificate as a PDF preview. It only contains what the club knows: name, date of birth, address, “Member since”, status (active, passive …), the departments in that year and the period of membership in the chosen year – nothing about training or attendance. At the top is your letterhead from Settings › Club (logo, name, address; phone, email and website in the footer).
 
-On the left you enter **Name** and **Role** (Clubwerk remembers your role for next time) and sign in the field with your finger or mouse; “Delete” starts again. The signature appears only on this certificate and is not stored anywhere else. **Sign & send** creates the PDF with place, date, club stamp and signature, files it under the member's documents, sends it by email and shows it in the app. For a family, the email goes to the head of family. Without a club stamp you cannot sign – the window points this out.
+On the left you enter **Name** and **Role** (Clubwerk remembers your role for next time) and sign in the field with your finger or mouse; “Delete” starts again. The signature appears only on this certificate and is not stored anywhere else. **Sign & send** creates the PDF with place, date, club stamp and signature, files it under the member's documents, sends it by email and shows it in the app. For a family, the email goes to the head of family. Without a club stamp you cannot sign – the window points this out. Name, role and signature are required: if something is missing, the message appears in red right at the field. If the email cannot be sent, the window says so; the certificate is still available in the app.
 
 Only users with the “Members” permission without a restriction to a department may sign. Department heads see their department's requests with the preview, but cannot sign or decline them.
 
@@ -445,7 +453,7 @@ Subject and text of the email a member receives on leaving – when you record a
 
 ![The “My data” card in the app.](bild: seite=mv-einstellungen; ziel=#eApp)
 
-Sets what members can **view** in the app (fee, items, address, contact, date of birth, bank details, consents) and what they may **change** or request (address, contact, bank details, consents, cancellation, membership certificate). The board always confirms changes to data. If the consents are hidden in the app, members withdraw them informally with the board.
+Sets what members can **view** in the app (fee, items, address, contact, date of birth, bank details, consents) and what they may **change** or request (address, contact, bank details, consents, cancellation, membership certificate, change of name). The board always confirms changes to data. If the consents are hidden in the app, members withdraw them informally with the board.
 
 #### Certificate for the health insurer
 
@@ -654,6 +662,7 @@ As on the “Settings” tab under “Members”: save the settings as a file or
 **In the app** (“My data”, top right via the profile button under “My account”) every member sees their membership with fees and departments, the family, their payments with status (open, being debited, paid), address, contact and bank details. What is visible and what may be changed is set under “Settings”. The member can:
 
 - **Change contact details.** The board confirms the change. A new email address is confirmed by the member with their PIN.
+- **Report a change of name** (“My name has changed” in the “Contact” card), for example after marriage or divorce: new first and last name. The board confirms the change; until then the top shows “Being processed by the board: Change of name”. This applies to every member for themselves, family members included.
 - **Give new bank details** on the phone with a signature as a new SEPA mandate. The board applies it.
 - **Give or withdraw consents** (takes effect at once, with PIN).
 - **Request the data access:** it arrives as a PDF by email.
@@ -666,6 +675,8 @@ Signatures, cancellation and changes that concern money or email require the mem
 ![The “New bank details” window with the signature field.](bild: app=mitglieder; klick=#mdBank)
 
 ![The “Request certificate” sheet with year and note.](bild: app=mitglieder; klick=#mdCert)
+
+![The “My name has changed” sheet with first and last name.](bild: app=mitglieder; klick=#mdName)
 
 **Membership card:** When it is switched on, “My data” has the tabs **Membership** and **Card**. The card shows the club name, photo (only if released), “Last name, First name”, number, “Member since”, departments, age group, status, “valid until”, the QR code and a running clock with seconds. The clock and the moving shine show that it is not a screenshot. The card is stored on the phone: without a connection the “No connection” page shows the button **Show membership card**. In “For me” the line **Show membership card** leads straight to the card. Anyone who has left sees “Your membership ended on …” without a code; “Log out” deletes the card from the phone.
 

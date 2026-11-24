@@ -349,7 +349,7 @@ function activate(ctx) {
       log: { art: reminder ? 'mahnung' : 'rechnung', memberId: r.member_id || null, by: req.user, name: v.recipient.name || '' } });
     if (reminder) db.prepare('UPDATE bh_invoice SET reminders = ?, reminded_at = ? WHERE id = ?').run(n, ctx.nowTs(), r.id);
     else db.prepare('UPDATE bh_invoice SET sent_at = ? WHERE id = ?').run(ctx.nowTs(), r.id);
-    ctx.audit(req.user, reminder ? 'Zahlungserinnerung verschickt' : 'Rechnung verschickt', `${r.no} an ${v.recipient.email}`);
+    ctx.audit(req.user, reminder ? 'Zahlungserinnerung verschickt' : 'Rechnung verschickt', r.no);   // ohne Adresse: Empfänger liegen im Tresor
     return { sent: true, to: v.recipient.email };
   }
   admin.post('/invoices/:id/send', P, ar(async (req, res) => {
@@ -468,7 +468,7 @@ function activate(ctx) {
       id = Number(db.prepare('INSERT INTO bh_donation(no, year, donor_type, member_id, partner_id, donor, kind, date, cents, item, sach_origin, sach_docs, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
         .run(no, year, type, memberId, partnerId, JSON.stringify(donor), kind, b.date, cents, item || null, kind === 'sach' ? (['betrieb', 'privat'].includes(b.sach_origin) ? b.sach_origin : 'unbekannt') : null, b.sach_docs ? 1 : 0, uname(req)).lastInsertRowid);
     })();
-    ctx.audit(req.user, 'Spendenquittung erstellt', `${no}: ${donor.name} ${euro(cents)}`);
+    ctx.audit(req.user, 'Spendenquittung erstellt', `${no}: ${euro(cents)}`);   // ohne Spendernamen (Tresor)
     try { await donationPdf(db.prepare('SELECT * FROM bh_donation WHERE id = ?').get(id)); } catch (e) { console.error('Buchhaltung – Quittung einfrieren:', e.message); }
     res.json({ id, no });
   }));
@@ -490,7 +490,7 @@ function activate(ctx) {
       attachments: [{ filename: fileName('Zuwendungsbestaetigung', d.no), content: await donationPdf(d) }],
       log: { art: 'spende', memberId: d.member_id || null, by: req.user, name: v.donor.name || '' } });
     db.prepare('UPDATE bh_donation SET sent_at = ? WHERE id = ?').run(ctx.nowTs(), d.id);
-    ctx.audit(req.user, 'Spendenquittung verschickt', `${d.no} an ${v.donor.email}`);
+    ctx.audit(req.user, 'Spendenquittung verschickt', d.no);   // ohne Adresse (Tresor)
     res.json({ sent: true, to: v.donor.email });
   }));
   admin.post('/donations/:id/cancel', P, (req, res) => {

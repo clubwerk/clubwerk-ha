@@ -1,5 +1,5 @@
 'use strict';
-/* Bereich „Meine Daten“ in der Mitglieder-App: Mitgliedschaft, Beiträge, Zahlungen, Kontaktdaten, Bankverbindung, Kündigung – und der Reiter „Ausweis“ */
+/* Bereich „Meine Daten“ in der Mitglieder-App: Mitgliedschaft, Beiträge, Zahlungen, Kontaktdaten, Namensänderung, Bankverbindung, Kündigung – und der Reiter „Ausweis“ */
 (() => {
   const VQ = (document.currentScript && new URL(document.currentScript.src).search) || '';   // ?v=… wie dieses Skript
   /* app/ausweis.js lädt erst hier (nicht beim Start der App); ohne Netz die Fassung ohne ?v= aus dem Speicher des Service Workers (sw.js) */
@@ -58,6 +58,7 @@
         const ini = full.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
         const open = d.charges.filter(c => c.status === 'offen' || c.status === 'eingezogen');
         const V = (d.perms && d.perms.view) || {}, E = (d.perms && d.perms.edit) || {};
+        const nameOk = E.name !== false && !d.pending.some(x => x.kind === 'name');   // Namensänderung melden (Hochzeit, Scheidung) – nicht, solange eine offen ist
         const showFees = V.beitraege !== false || d.departments.length || d.family.length > 1 || (d.familyMembership && d.familyMembership.length > 1);
         el.innerHTML = `${withCard ? segHtml(check) : ''}
           ${d.pending.length ? `<div class="vh-bar a">Beim Vorstand in Bearbeitung: ${d.pending.map(x => esc(x.label)).join(', ')}</div>` : ''}
@@ -73,10 +74,10 @@
           ${d.isHead && V.posten !== false ? `<div class="vh-card"><h3>Zahlungen${d.open_cents ? `<span class="vh-chip a">offen ${euro(d.open_cents)}</span>` : ''}</h3><div class="vh-rows">
             ${d.charges.slice(0, 12).map(c => `<div><span><span translate="no">${esc(c.text)}</span><small>${c.status === 'eingezogen' && c.collection_date ? `Lastschrift am ${deD(c.collection_date)}` : c.status === 'bezahlt' ? `bezahlt ${deD(c.paid_at)}` : `fällig ${deD(c.due_date)}`}<span class="vh-chip ${(ST[c.status] || [''])[0]}">${esc((ST[c.status] || ['', c.status])[1])}</span></small></span><b>${euro(c.cents)}</b></div>`).join('') || '<p class="vh-none">Noch keine Zahlungen.</p>'}
           </div>${d.transfer ? '<button class="vh-btn sec wide" id="mdPay" style="margin-top:12px">Überweisen</button>' : ''}</div>` : ''}
-          ${V.anschrift !== false || V.kontakt !== false || V.geburt !== false ? `<div class="vh-card"><h3>Kontakt ${E.anschrift || E.kontakt ? '<button id="mdEdit">Ändern</button>' : ''}</h3><dl class="vh-kv">
+          ${V.anschrift !== false || V.kontakt !== false || V.geburt !== false || nameOk ? `<div class="vh-card"><h3>Kontakt ${E.anschrift || E.kontakt ? '<button id="mdEdit">Ändern</button>' : ''}</h3><dl class="vh-kv">
             ${V.anschrift !== false ? `<dt>Anschrift</dt><dd>${esc(p.street || '–')}<br>${esc([p.zip, p.city].filter(Boolean).join(' '))}</dd>` : ''}
             ${V.kontakt !== false ? `<dt>E-Mail</dt><dd>${esc(p.email || '–')}</dd><dt>Handy</dt><dd>${esc(p.mobile || p.phone || '–')}</dd>` : ''}
-            ${V.geburt !== false && p.birth_date ? `<dt>Geburtsdatum</dt><dd>${deD(p.birth_date)}</dd>` : ''}</dl></div>` : ''}
+            ${V.geburt !== false && p.birth_date ? `<dt>Geburtsdatum</dt><dd>${deD(p.birth_date)}</dd>` : ''}</dl>${nameOk ? '<button class="vh-btn sec wide" id="mdName" style="margin-top:12px">Mein Name hat sich geändert</button>' : ''}</div>` : ''}
           ${d.isHead && V.bank !== false ? `<div class="vh-card"><h3>Bankverbindung ${E.bank ? '<button id="mdBank">Neue Bankverbindung</button>' : ''}</h3>${d.bank ? `<dl class="vh-kv"><dt>Konto</dt><dd>${esc(d.bank.iban)}</dd><dt>Inhaber/in</dt><dd>${esc(d.bank.holder || '–')}</dd>
             <dt>Mandatsreferenz</dt><dd>${esc(d.bank.mandate_ref || '–')}</dd>${d.creditor.ci ? `<dt>Gläubiger-ID</dt><dd>${esc(d.creditor.ci)}</dd>` : ''}</dl>` : `<dl class="vh-kv"><dt>Zahlungsart</dt><dd>${esc(p.payment || '–')}</dd></dl>`}</div>` : ''}
           ${V.einwilligungen !== false && d.consents.length ? `<div class="vh-card"><h3>Einwilligungen ${E.einwilligungen !== false ? '<button id="mdCons">Ändern</button>' : ''}</h3><div class="vh-rows">${d.consents.map(c => `<div><span>${esc(c.short)}</span><b>${c.given ? 'ja' : 'nein'}</b></div>`).join('')}</div></div>` : ''}
@@ -85,7 +86,7 @@
           ${p.exit_date || !E.kuendigung ? '' : '<button class="vh-danger" id="mdQuit">Mitgliedschaft kündigen …</button>'}`;
         wireSeg();
         const on = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
-        on('mdEdit', editContact); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit); on('mdAusk', requestData); on('mdPay', transfer); on('mdCert', requestCert);
+        on('mdEdit', editContact); on('mdName', editName); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit); on('mdAusk', requestData); on('mdPay', transfer); on('mdCert', requestCert);
         el.querySelectorAll('[data-cert]').forEach(b => { b.onclick = () => showCert(+b.dataset.cert); });
         if (focus === 'kontakt' && document.getElementById('mdEdit')) editContact(); else if (focus === 'bank' && document.getElementById('mdBank')) editBank(); else if (focus === 'ueberweisen' && document.getElementById('mdPay')) transfer();
         focus = '';
@@ -202,6 +203,19 @@
             const r = mailChanged ? await ctx.withPin('Neue E-Mail-Adresse bestätigen', pin => ctx.api('change', 'POST', { ...body, pin })) : await ctx.api('change', 'POST', body);
             if (r) { closeSheet(); ctx.toast('Gesendet – der Vorstand bestätigt die Änderung.'); load(); }
           } catch (e) { sh.querySelector('#mdErr').textContent = e.message; }
+        };
+      }
+      /* Namensänderung (z. B. nach Hochzeit oder Scheidung): Vor- und Nachname, der Vorstand bestätigt – der bisherige Name bleibt beim Verein als „früherer Name“ */
+      function editName() {
+        const p = d.person;
+        const f = (k, l) => `<label>${l}</label><input class="vh-input" data-k="${k}" autocomplete="${k === 'first_name' ? 'given-name' : 'family-name'}" maxlength="60" value="${esc(p[k] || '')}">`;
+        const sh = sheet(`<h2>Mein Name hat sich geändert</h2><p>Zum Beispiel nach einer Hochzeit oder Scheidung. Der Vorstand bestätigt die Änderung.</p>${f('first_name', 'Vorname')}${f('last_name', 'Nachname')}
+          <div class="vh-err" id="mdErr"></div><div class="vh-row"><button class="no" id="mdNo">Abbrechen</button><button class="ok" id="mdOk">Senden</button></div>`);
+        sh.querySelector('#mdNo').onclick = closeSheet;
+        sh.querySelector('#mdOk').onclick = async () => {
+          const body = {}; sh.querySelectorAll('[data-k]').forEach(i => { body[i.dataset.k] = i.value.trim(); });
+          try { await ctx.api('name', 'POST', body); closeSheet(); ctx.toast('Gesendet – der Vorstand bestätigt die Änderung.'); load(); }
+          catch (e) { sh.querySelector('#mdErr').textContent = e.message; }
         };
       }
       function editConsents() {

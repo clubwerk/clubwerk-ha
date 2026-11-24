@@ -57,6 +57,7 @@ const SPEC = [
   { t: 'mv_application', k: 'id', c: ['data', 'sig_member', 'sig_mandate'], ph: { data: PH_JSON } },
   { t: 'mv_change', k: 'id', c: ['data', 'signature'], ph: { data: PH_JSON } },
   { t: 'mv_history', k: 'id', c: ['old', 'new'] },
+  { t: 'mv_former_name', k: 'id', c: ['first_name', 'last_name'] },   // frühere Namen (Hochzeit, Scheidung) – wie der Verlauf, in dem der alte Name auch steht
   { t: 'mv_collection', k: 'id', c: ['xml'] },
   { t: 'mail_recipient', k: 'id', c: ['email'] },
   { t: 'bh_partner', k: 'id', c: ['contact', 'street', 'zip', 'city', 'email', 'phone', 'note'] },

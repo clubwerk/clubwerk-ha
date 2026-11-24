@@ -17,7 +17,7 @@
   const KIND = { beitrag: 'Beitrag', getraenke: 'Verkauf', arbeitsstunden: 'Arbeitsstunden', aufnahme: 'Aufnahme', ruecklastschrift: 'Rücklastschrift', mahngebuehr: 'Mahngebühr', sonstiges: 'Sonstiges' };
   const CSTAT = { offen: ['a', 'offen'], eingezogen: ['b', 'im Einzug'], bezahlt: ['g', 'bezahlt'], storniert: ['', 'storniert'] };
   const DOCK = { antrag: 'Beitrittserklärung', mandat: 'SEPA-Mandat', kuendigung: 'Kündigung', bescheinigung: 'Bescheinigung', nachweis: 'Nachweis', schriftverkehr: 'Schriftverkehr', sonstiges: 'Sonstiges' };
-  const FIELD = { street: 'Straße', zip: 'PLZ', city: 'Ort', address_extra: 'Adresszusatz', phone: 'Telefon (Festnetz)', mobile: 'Handy', email: 'E-Mail', holder: 'Kontoinhaber', iban: 'IBAN', bic: 'BIC', bank: 'Kreditinstitut' };
+  const FIELD = { first_name: 'Vorname', last_name: 'Nachname', street: 'Straße', zip: 'PLZ', city: 'Ort', address_extra: 'Adresszusatz', phone: 'Telefon (Festnetz)', mobile: 'Handy', email: 'E-Mail', holder: 'Kontoinhaber', iban: 'IBAN', bic: 'BIC', bank: 'Kreditinstitut' };
   /** Kennzeichen erklären (Seitenkarte): was gemeint ist und was zu tun ist (planung/ui-review.md Punkt 12) */
   const ISSUE_WHY = i => Object.entries({ '^Altersstufe prüfen': 'Das Alter passt nicht mehr zur Beitragsart – bitte unter „Mitgliedschaft“ eine passende wählen.', '^Mandat widerrufen': 'Das SEPA-Mandat wurde widerrufen – es wird nichts eingezogen, bis ein neues vorliegt.', '^Mandat verfallen': 'Das Mandat wurde 36 Monate nicht genutzt und ist verfallen – bitte ein neues einholen.', '^Geburtsdatum fehlt': 'Ohne Geburtsdatum fehlt die Person in der LSB-Meldung und gilt bei Altersstufen als erwachsen.', '^ohne Mitgliedsdaten': 'Anschrift, E-Mail oder Handy fehlen – bitte bei „Stammdaten“ ergänzen.', '^kein Beitrag': 'Es ist keine Beitragsart zugeordnet – so fehlt das Mitglied im Beitragslauf.', '^Zahlart nicht Lastschrift': 'Die Zahlart ist nicht Lastschrift, obwohl der Verein Lastschrift verlangt.', '^keine Bankverbindung': 'Für die Lastschrift fehlen Kontoinhaber und IBAN.', '^IBAN ungültig': 'Die IBAN ist nicht gültig – bitte prüfen.', '^kein SEPA-Mandat': 'Es liegt kein SEPA-Mandat vor – ohne Mandat kann nicht eingezogen werden.' }).find(([k]) => new RegExp(k).test(i)) ?.[1] || '';
   const can = p => GK.can(p);
@@ -127,7 +127,9 @@
       .mv-tkopts { display: flex; flex-direction: column; gap: 10px; margin: 0 0 4px; } .mv-tkopts label.chk { align-items: flex-start; line-height: 1.4; } .mv-tkopts input { margin-top: 2px; flex: none; }
       .mv-tkopts label.off { opacity: .55; cursor: default; }
       .mv-move { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin: 0 0 14px; } .mv-move > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; } .mv-move b { overflow-wrap: anywhere; }
-      @media (max-width: 560px) { .mv-move { grid-template-columns: 1fr; } }`;
+      @media (max-width: 560px) { .mv-move { grid-template-columns: 1fr; } }
+      .mv-former { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+      .mv-former .row { gap: 6px 10px; align-items: center; } .mv-former b { overflow-wrap: anywhere; }`;
     document.head.appendChild(s);
   }
 
@@ -241,7 +243,8 @@
     if (window.ResizeObserver) new ResizeObserver(() => einzeilig()).observe($('mvTbl').parentNode);
     const draw = () => {
       const q = st.f.q.toLowerCase();
-      const match = r => (!q || [r.name, GK.lastFirst(r.name), r.member_no, r.email, r.city].some(v => v && String(v).toLowerCase().includes(q)))
+      const oldHit = r => (q && !(r.name || '').toLowerCase().includes(q) && !GK.lastFirst(r.name).toLowerCase().includes(q) ? (r.former || []).find(f => [f.first_name, f.last_name].filter(Boolean).join(' ').toLowerCase().includes(q) || [f.last_name, f.first_name].filter(Boolean).join(', ').toLowerCase().includes(q)) : null);   // Treffer nur über einen früheren Namen
+      const match = r => (!q || [r.name, GK.lastFirst(r.name), r.member_no, r.email, r.city].some(v => v && String(v).toLowerCase().includes(q)) || Boolean(oldHit(r)))
         && (!st.f.dept || r.dept_ids.includes(+st.f.dept)) && (!st.f.fee || r.fee_ids.includes(+st.f.fee));
       Object.keys(F).forEach(k => { const c = el.querySelector(`[data-cnt="${k}"]`); if (c) c.textContent = st.rows.filter(r => F[k](r) && match(r)).length; });
       const rows = sk.sort(st.rows.filter(r => F[st.f.status](r) && match(r)));
@@ -249,7 +252,7 @@
       if (st.sel && !rows.some(r => r.id === st.sel)) { st.sel = null; showCard(null); }   // Karte zeigt nie ein Mitglied, das nach Suche oder Filter nicht in der Liste steht
       $('mvTbl').innerHTML = rows.length ? `<tr>${sk.th('name', 'Name')}${sk.th('no', 'Nr.', 'style="width:90px"')}${sk.th('age', 'Alter', 'class="r" style="width:70px"')}<th>Abteilungen</th><th>Beitrag</th><th>Zahlung</th></tr>`
         + rows.map(r => `<tr data-sel="${r.id}" data-row tabindex="0" class="${r.status === 'ausgetreten' || r.status === 'anonym' ? 'off' : ''}${st.sel === r.id ? ' on' : ''}">
-          <td class="k-1z"><span class="who"><span class="av">${ini(r.name)}</span><span><b>${esc(GK.lastFirst(r.name))}</b>${r.leaving ? `<div class="muted s">Austritt ${deDate(r.exit_date)}</div>` : r.status !== 'aktiv' ? `<div class="muted s">${esc((STATUS[r.status] || ['', r.status])[1])}</div>` : ''}${r.issues.length ? `<div class="mv-hw">${r.issues.map(i => `<span class="pill a">${esc(i)}</span>`).join(' ')}</div>` : ''}</span></span></td>
+          <td class="k-1z"><span class="who"><span class="av">${ini(r.name)}</span><span><b>${esc(GK.lastFirst(r.name))}</b>${(h => (h ? ` <span class="muted">(${esc(GK.T('früher {0}', [h.label]))})</span>` : ''))(oldHit(r))}${r.leaving ? `<div class="muted s">Austritt ${deDate(r.exit_date)}</div>` : r.status !== 'aktiv' ? `<div class="muted s">${esc((STATUS[r.status] || ['', r.status])[1])}</div>` : ''}${r.issues.length ? `<div class="mv-hw">${r.issues.map(i => `<span class="pill a">${esc(i)}</span>`).join(' ')}</div>` : ''}</span></span></td>
           <td class="muted nw num k-lbl" data-label="Nr.">${esc(r.member_no || '')}</td>
           <td class="r k-lbl" data-label="Alter">${r.age ?? ''}</td><td class="mv-nw" translate="no" title="${esc(r.depts)}">${esc(r.depts)}</td>
           <td class="mv-nw">${r.family_of ? `<span class="muted s">Familie ${esc(GK.lastFirst(r.family_head_name))}</span>` : `<span translate="no">${esc(r.fees)}</span>`}</td>
@@ -301,7 +304,7 @@
     const addr = [p.street, [p.zip, p.city].filter(Boolean).join(' ')].filter(Boolean).map(esc).join('<br>');   // Straße, darunter PLZ und Ort – feste Zeilen statt zufälligem Umbruch
     const fact = (l, v, cls = '') => v ? `<div><dt>${esc(GK.T(l))}</dt><dd class="${cls}">${v}</dd></div>` : '';
     const tabs = [['mitgliedschaft', 'Mitgliedschaft'], ...(SC() ? [] : [['zahlung', 'Zahlung & Familie'], ['konto', 'Konto & Mandat']]), ['verlauf', 'Verlauf']];
-    $('mvDetail').innerHTML = `<div class="mhead"><span class="av lg mv-pic">${p.photo ? `<img src="api/admin/photo/${p.id}?v=${esc(p.photo)}" alt="">` : ini(p.name)}</span><div style="min-width:0"><h3>${esc(GK.lastFirst(p.name))}</h3><div class="muted">${esc(sub)}</div></div></div>
+    $('mvDetail').innerHTML = `<div class="mhead"><span class="av lg mv-pic">${p.photo ? `<img src="api/admin/photo/${p.id}?v=${esc(p.photo)}" alt="">` : ini(p.name)}</span><div style="min-width:0"><h3>${esc(GK.lastFirst(p.name))}</h3>${(d.former || []).length ? `<div class="muted s">${esc(GK.T('früher {0}', [d.former[0].label]))}</div>` : ''}<div class="muted">${esc(sub)}</div></div></div>
       ${(r.issues || []).length ? `<div class="mv-khw">${r.issues.filter(i => typeof i === 'string').map(i => `<div class="mv-khr"><span class="pill a">${esc(GK.T(i))}</span>${ISSUE_WHY(i) ? ` <span class="muted s">${esc(GK.T(ISSUE_WHY(i)))}</span>` : ''}</div>`).join('')}</div>` : ''}
       <dl class="facts">
         ${fact('Geburtsdatum', p.birth_date ? deDate(p.birth_date) : '')}${fact('Eintritt', p.entry_date ? deDate(p.entry_date) : '')}
@@ -393,6 +396,23 @@
         <div class="btns"><button class="btn ghost" id="mvX" type="button">Abbrechen</button><button class="btn primary" id="mvOk" type="button">Speichern</button></div>`);
       $('mvX').onclick = () => { closeDialog(); resolve(null); };
       $('mvOk').onclick = () => { const ids = [...$('dialog').querySelectorAll('[data-mv]:checked')].map(i => +i.dataset.mv); closeDialog(); resolve(ids); };
+    });
+  }
+
+  /** Vor- oder Nachname geändert (Stammdaten speichern, Namensänderung aus der App übernehmen): Namensänderung – der bisherige Name bleibt als
+   *  „früherer Name“ – oder nur eine Korrektur? Heißt der Kontoinhaber bisher genau so (holder, nur mit dem Recht „Bankdaten“): „auch ändern?“
+   *  was/now: { first, last } – angezeigt als „Nachname, Vorname“ (Bisher | Neu wie beim Umzug) · → { name_change, holder_follow } oder null bei Abbruch */
+  function askName(title, was, now, holder, okLabel = 'Speichern') {
+    return new Promise(resolve => {
+      const lf = n => [n.last, n.first].filter(Boolean).join(', ') || '–', newName = [now.first, now.last].filter(Boolean).join(' ');
+      dialog(`<h2>${esc(GK.T(title))}</h2>
+        <div class="mv-move"><div><span class="muted s">Bisher</span><b translate="no">${esc(lf(was))}</b></div><div><span class="muted s">Neu</span><b translate="no">${esc(lf(now))}</b></div></div>
+        <div class="mv-tkopts"><label class="chk"><input type="radio" name="nmKind" value="aenderung" checked><span><b>Namensänderung</b><br><span class="muted s">Zum Beispiel nach Hochzeit oder Scheidung. Der bisherige Name bleibt als „früherer Name“ beim Mitglied, die Suche findet es auch darunter.</span></span></label>
+          <label class="chk"><input type="radio" name="nmKind" value="korrektur"><span><b>Korrektur</b><br><span class="muted s">Nur ein Tippfehler. Es wird kein früherer Name gemerkt. Soll ein bisheriger Name gar nicht mehr erscheinen: als Namensänderung speichern und danach unter „Frühere Namen“ entfernen.</span></span></label></div>
+        ${holder ? `<h4 class="mv-sub" style="margin-top:18px">Konto &amp; Mandat</h4><div class="mv-tkopts"><label class="chk"><input type="checkbox" id="nmHolder" checked><span><b>Kontoinhaber auch auf den neuen Namen ändern?</b><br><span class="muted s" translate="no">${esc(holder)} → ${esc(newName)}</span><br><span class="muted s">Mandatsreferenz und Mandat bleiben gültig, es braucht kein neues Mandat.</span></span></label></div>` : ''}
+        <div class="btns"><button class="btn ghost" id="nmX" type="button">Abbrechen</button><button class="btn primary" id="nmOk" type="button">${esc(GK.T(okLabel))}</button></div>`);
+      $('nmX').onclick = () => { closeDialog(); resolve(null); };
+      $('nmOk').onclick = () => { const r = { name_change: ($('dialog').querySelector('[name=nmKind]:checked') || {}).value || 'aenderung', holder_follow: Boolean($('nmHolder') && $('nmHolder').checked) }; closeDialog(); resolve(r); };
     });
   }
 
@@ -542,7 +562,7 @@
       if (!st.rows.length) await loadRows();
       const p = d.person, status = p.anonymized_at ? 'anonym' : p.exited ? 'ausgetreten' : p.status;
       const tabs = [['stamm', 'Stammdaten'], ['mitgliedschaft', 'Mitgliedschaft'], ...(SC() ? [] : [['zahlung', 'Zahlung & Familie'], ['konto', 'Konto & Mandat']]), ...(d.documents ? [['dokumente', `Dokumente${d.documents.length ? ' (' + d.documents.length + ')' : ''}`]] : []), ...(d.ausweis && !SC() && p.member_id ? [['ausweis', 'Ausweis']] : []), ['verlauf', 'Verlauf']];
-      const lead = [p.member_no ? `${GK.T('Nr.')} ${p.member_no}` : '', p.age != null ? `${p.age} ${GK.T('Jahre')}` : '', status ? GK.T((STATUS[status] || ['', status])[1]) : '',
+      const lead = [(d.former || []).length ? GK.T('früher {0}', [d.former[0].label]) : '', p.member_no ? `${GK.T('Nr.')} ${p.member_no}` : '', p.age != null ? `${p.age} ${GK.T('Jahre')}` : '', status ? GK.T((STATUS[status] || ['', status])[1]) : '',
         p.exit_date && !p.exited ? `${GK.T('Austritt zum')} ${deDate(p.exit_date)}` : '', d.payer ? `${GK.T('zahlt über')} ${GK.lastFirst(d.payer.name)}` : '', d.familyHead ? `${GK.T('Familie von')} ${GK.lastFirst(d.familyHead.name)}` : '',
         d.changes.length ? `${d.changes.length} ${GK.T(d.changes.length === 1 ? 'Änderung aus der App' : 'Änderungen aus der App')}` : ''].filter(Boolean).join(' · ');
       return { title: GK.lastFirst(p.name), lead, tabs, d };
@@ -602,7 +622,7 @@
         <label class="f">Geschlecht<select id="sGen">${opt('', '–', p.gender)}${Object.entries(GENDER).map(([k, l]) => opt(k, l, p.gender)).join('')}</select></label>
         <label class="f">Mitgliedsnummer<input id="sNo" value="${esc(p.member_no || '')}"></label>
         <label class="f">Status<select id="sStatus">${opt('aktiv', 'aktiv', p.status)}${opt('passiv', 'passiv / fördernd', p.status)}${opt('ehren', 'Ehrenmitglied', p.status)}${opt('ruhend', 'ruhend', p.status)}</select></label>
-      </div></div>
+      </div>${(d.former || []).length ? `<div class="mv-former"><span class="muted s">Frühere Namen</span>${d.former.map(f => `<div class="row"><b translate="no">${esc([f.last_name, f.first_name].filter(Boolean).join(', '))}</b><span class="muted s">${esc(GK.T('bis {0}', [deDate(f.until)]))}</span>${ro || SC() ? '' : `<button class="btn small" type="button" data-fn="${f.id}">Entfernen …</button>`}</div>`).join('')}</div>` : ''}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Anschrift & Kontakt</h3>${ro ? '' : '<button class="btn small" id="mvTake" type="button">Von Mitglied übernehmen …</button>'}</div><div id="sRel" style="display:none;margin-bottom:14px"></div><div class="mv-grid" style="--c:4">
         <label class="f w2">Straße und Hausnummer<input id="sStreet" value="${esc(p.street || '')}"></label>
         <label class="f">PLZ<input id="sZip" value="${esc(p.zip || '')}" inputmode="numeric"></label>
@@ -636,6 +656,11 @@
       try { await GK.api(`members/${p.id}/reset-pin`, 'POST', {}); toast('PIN zurückgesetzt.'); again(); } catch (e) { fail(e); }
     };
     if ($('mvPh')) $('mvPh').onclick = async () => { if (!await ask(`Profilbild von ${p.name} entfernen?\n\nDas Mitglied kann in der App jederzeit ein neues hochladen.`, { ok: 'Entfernen', danger: true })) return; try { await GK.api('photo/' + p.id, 'DELETE'); toast('Profilbild entfernt.'); again(); } catch (e) { fail(e); } };
+    el.querySelectorAll('[data-fn]').forEach(b => { b.onclick = async () => {
+      const f = d.former.find(x => x.id === +b.dataset.fn); if (!f) return;
+      if (!await ask(GK.T('Früheren Namen „{0}“ entfernen?\n\nZum Beispiel, wenn der Name nicht mehr erscheinen soll. Er verschwindet ganz: aus der Suche, dem Verlauf, erledigten Änderungswünschen, der Datenauskunft und dem Protokoll. Im Verlauf steht nur „Früherer Name entfernt“. Das lässt sich nicht rückgängig machen.', [[f.first_name, f.last_name].filter(Boolean).join(' ')]), { ok: 'Entfernen', danger: true })) return;
+      try { await api(`member/${p.id}/former-name/${f.id}`, 'DELETE'); toast('Entfernt.'); again(); } catch (e) { fail(e); }
+    }; });
     if ($('mvDel')) $('mvDel').onclick = () => GK.deleteMember({ id: p.id, name: p.name, kind: 'mitglied' }, () => GK.closeDetail());
     if ($('mvAnon')) $('mvAnon').onclick = async () => {
       const t = await askText('Mitglied anonymisieren?\nName, Anschrift, Kontakt, Bankverbindung, Dokumente und Verlauf werden unwiderruflich gelöscht. Für die Statistik bleiben Geburtsjahr, Geschlecht, Ein-/Austritt und Abteilungen; Buchungen bleiben unter „Anonym …“. Zur Bestätigung ANONYMISIEREN eingeben:', '', { ok: 'Anonymisieren' });
@@ -669,6 +694,12 @@
       try {
         // Umzug: wohnen andere aktive Mitglieder unter der bisherigen Anschrift, fragen wir je Person, ob sie ebenfalls umziehen
         const next = { street: val('sStreet'), zip: val('sZip'), city: val('sCity'), address_extra: val('sExtra'), country: val('sCountry') };
+        // Vor- oder Nachname geändert: Namensänderung (früheren Namen merken) oder Korrektur? Kontoinhaber auf Wunsch mit
+        let nm = {};
+        if (val('sFirst') !== (p.first_name || '') || val('sLast') !== (p.last_name || '')) {
+          nm = await askName('Name geändert', { first: p.first_name, last: p.last_name }, { first: val('sFirst'), last: val('sLast') }, d.bank && d.bank.holder_is_name ? d.bank.holder : null);
+          if (nm === null) return;
+        }
         let move = [];
         if (!SC() && ADDR.some(k => (next[k] || '') !== (p[k] || ''))) {
           const same = await api(`member/${p.id}/same-address`).catch(() => ({ rows: [] }));
@@ -677,7 +708,7 @@
         await api('member/' + p.id, 'PUT', { salutation: val('sSal'), title: val('sTitle'), first_name: val('sFirst'), last_name: val('sLast'), birth_date: val('sBirth') || null, gender: val('sGen'), member_no: val('sNo'),
           status: val('sStatus'), street: val('sStreet'), zip: val('sZip'), city: val('sCity'), address_extra: val('sExtra'), country: val('sCountry'), email: val('sMail'), mobile: val('sMobile'), phone: val('sPhone'),
           letter_salutation: val('sLetter'), entry_date: val('sEntry') || null, key_no: $('sKey') ? val('sKey') : (p.key_no || ''), notes: $('sNotes').value,
-          consents: Object.fromEntries([...el.querySelectorAll('[data-cons]')].map(c => [c.dataset.cons, c.checked])), ...(move.length ? { move_address_ids: move } : {}) });
+          consents: Object.fromEntries([...el.querySelectorAll('[data-cons]')].map(c => [c.dataset.cons, c.checked])), ...(move.length ? { move_address_ids: move } : {}), ...nm });
         if (rel) {
           try { await (rel.kind === 'family' ? api(`member/${p.id}/family`, 'PUT', { family_of: rel.id }) : api(`member/${p.id}/payer`, 'PUT', { payer_id: rel.id })); }
           catch (e) { GK.clean(); toast(`${GK.T('Die Stammdaten sind gespeichert, die Zuordnung nicht:')} ${e.message}`, true); again(); return; }
@@ -1493,8 +1524,8 @@
             x.mail ? (x.to ? `geht per E-Mail und in die App an ${esc(x.to)} (Familienoberhaupt)` : 'geht per E-Mail und in die App') : (x.to ? `geht in die App an ${esc(x.to)} (Familienoberhaupt) – keine E-Mail-Adresse hinterlegt` : 'geht in die App – keine E-Mail-Adresse hinterlegt')].filter(Boolean).join('<br>')}</p></dl>
         ${!can ? '<p class="muted s">Unterschreiben und senden kann nur die Vereinsverwaltung.</p>' : `
         ${x.stamp ? '' : '<div class="banner a" id="ceNoStamp">Es ist noch kein Vereinsstempel hinterlegt. Bitte zuerst unter Mitglieder › Einstellungen › Bescheinigung hochladen – er kommt auf jede Bescheinigung.</div>'}
-        <div class="mv-grid" style="--c:2"><label class="f">Name<input id="ceName" value="${esc(x.signer)}" maxlength="70" autocomplete="name"></label><label class="f">Funktion<input id="ceRole" value="${esc(x.role)}" maxlength="60" placeholder="z. B. 1. Vorsitzende"></label></div>
-        <div style="margin-top:14px">${window.CWSign.field({ id: 'ceSig', label: 'Unterschrift' })}</div>
+        <div class="mv-grid" style="--c:2"><label class="f">Name<input id="ceName" data-feld="signer" value="${esc(x.signer)}" maxlength="70" autocomplete="name" required></label><label class="f">Funktion<input id="ceRole" data-feld="role" value="${esc(x.role)}" maxlength="60" placeholder="z. B. 1. Vorsitzende" required></label></div>
+        <div style="margin-top:14px" data-feld="signature">${window.CWSign.field({ id: 'ceSig', label: 'Unterschrift' })}</div>
         <p class="muted s">Die Unterschrift steht nur auf dieser Bescheinigung und wird nicht gespeichert. Danach liegt das PDF unter Dokumente des Mitglieds.</p>
         <div class="err" id="ceErr"></div>`}
       </div></div>
@@ -1510,10 +1541,14 @@
       $('cfX').onclick = () => certDialog(c, after);
       $('cfOk').onclick = () => GK.busy($('cfOk'), async () => { try { const r = await api(`changes/${c.id}/reject`, 'POST', { reason: val('ceWhy') }); closeDialog(); toast(r.mailed ? 'Abgelehnt – das Mitglied hat eine E-Mail bekommen.' : 'Abgelehnt.'); after(); } catch (e) { fail(e); } });
     };
+    // Pflichtfelder vorab prüfen: Meldung direkt am Feld (GK.formError) – gleiche Texte wie am Server. Gelesen wird der Feldwert selbst, auch nach Autofill ohne input-Ereignis.
+    const miss = () => (val('ceName').length < 3 ? ['Bitte den Namen des Unterschreibenden eintragen.', 'signer'] : !val('ceRole') ? ['Bitte die Funktion eintragen (z. B. 1. Vorsitzende).', 'role'] : !pad.ok() ? ['Bitte unterschreiben.', 'signature'] : null);
+    const MAIL = { gesendet: 'Unterschrieben und gesendet.', 'keine-adresse': 'Unterschrieben – keine E-Mail-Adresse hinterlegt, das Mitglied findet die Bescheinigung in der App.', 'nicht-eingerichtet': 'Unterschrieben – der E-Mail-Versand ist nicht eingerichtet, das Mitglied findet die Bescheinigung in der App.', fehler: 'Unterschrieben, aber die E-Mail ließ sich nicht senden – das Mitglied findet die Bescheinigung in der App. Bitte den E-Mail-Versand prüfen.' };
     $('ceOk').onclick = () => GK.busy($('ceOk'), async () => {
-      if (!pad.ok()) { $('ceErr').textContent = GK.T('Bitte unterschreiben.'); return; }
-      try { const r = await api(`changes/${c.id}/accept`, 'POST', { signature: pad.png(), signer: val('ceName'), role: val('ceRole') }); closeDialog(); toast(r.mailed ? 'Unterschrieben und gesendet.' : 'Unterschrieben – das Mitglied findet die Bescheinigung in der App.'); after(); }
-      catch (e) { $('ceErr').textContent = e.message; }
+      const m = miss(); if (m) { GK.formError($('ceErr'), GK.T(m[0]), m[1]); return; }
+      GK.formError($('ceErr'), '');
+      try { const r = await api(`changes/${c.id}/accept`, 'POST', { signature: pad.png(), signer: val('ceName'), role: val('ceRole') }); closeDialog(); toast(MAIL[r.mail] || MAIL.gesendet, r.mail === 'fehler'); after(); }
+      catch (e) { GK.formError($('ceErr'), e); }
     });
   }
   async function acceptChange(c, after) {
@@ -1537,6 +1572,12 @@
     if (c.kind === 'daten') {
       if (!await ask(`Änderung von ${c.name} übernehmen?\n\n${c.rows.map(r => `${FIELD[r.field] || r.field}: ${r.old || '–'} → ${r.new || '–'}`).join('\n')}`, { ok: 'Übernehmen', danger: false })) return;
       try { await api(`changes/${c.id}/accept`, 'POST', {}); toast('Übernommen.'); after(); } catch (e) { fail(e); }
+      return;
+    }
+    if (c.kind === 'name') {
+      const nm = await askName(GK.T('Namensänderung von {0}', [GK.lastFirst(c.name)]), c.names.old, c.names.new, c.holder && c.holder.old, 'Übernehmen');
+      if (nm === null) return;
+      try { await api(`changes/${c.id}/accept`, 'POST', nm); toast('Übernommen.'); after(); } catch (e) { fail(e); }
       return;
     }
     if (c.kind === 'bank') {

@@ -452,14 +452,14 @@ function certificate(club, o) {
 
 /* ===================================================================== Datenauskunft (Art. 15 DSGVO)
    out = Auskunft wie in der Verwaltung (JSON); lesbar als Abschnitte mit „Bezeichnung: Wert“, Listen je Eintrag eine Zeile. Interne Kennungen bleiben weg. */
-const AUSK_HEAD = { konto: 'Konto', vereinsdaten: 'Vereinsdaten', bankverbindung: 'Bankverbindung', abteilungen: 'Abteilungen', beitraege: 'Beiträge', zahlergruppe: 'Zahlergruppe',
+const AUSK_HEAD = { konto: 'Konto', vereinsdaten: 'Vereinsdaten', fruehere_namen: 'Frühere Namen', bankverbindung: 'Bankverbindung', abteilungen: 'Abteilungen', beitraege: 'Beiträge', zahlergruppe: 'Zahlergruppe',
   familienmitgliedschaft: 'Familienmitgliedschaft', ehrungen: 'Ehrungen', aemter: 'Ämter', gratulationen: 'Gratulationen', forderungen: 'Forderungen', dokumente: 'Dokumente',
   aenderungsverlauf: 'Änderungsverlauf', bescheinigungen: 'Mitgliedsbescheinigungen', mitglieder_app: 'Mitglieder-App', getraenke_je_monat: 'Verkauf je Monat' };
 const AUSK_KEY = { name: 'Name', first_name: 'Vorname', last_name: 'Nachname', salutation: 'Anrede', title: 'Titel', birth_date: 'Geburtsdatum', gender: 'Geschlecht', street: 'Straße', zip: 'PLZ', city: 'Ort',
   address_extra: 'Adresszusatz', phone: 'Telefon', mobile: 'Handy', email: 'E-Mail', member_no: 'Mitgliedsnummer', entry_date: 'Eintritt', exit_date: 'Austritt', exit_reason: 'Austrittsgrund', notice_date: 'Kündigung',
   status: 'Status', key_no: 'Schlüsselnummer', notes: 'Notizen', payment: 'Zahlungsart', consents: 'Einwilligungen', holder: 'Kontoinhaber', iban: 'IBAN', bic: 'BIC', bank: 'Bank', mandate_ref: 'Mandatsreferenz',
   mandate_date: 'Mandat vom', created_at: 'Angelegt', kind: 'Art', active: 'Aktiv', hat_pin: 'PIN vergeben', text: 'Text', cents: 'Betrag (Cent)', due_date: 'Fällig', paid_at: 'Bezahlt', date: 'Datum',
-  start_date: 'Beginn', end_date: 'Ende', from_date: 'Von', to_date: 'Bis', field: 'Feld', old_value: 'Vorher', new_value: 'Nachher', by_user: 'Von', at: 'Zeitpunkt' };
+  start_date: 'Beginn', end_date: 'Ende', from_date: 'Von', to_date: 'Bis', field: 'Feld', old_value: 'Vorher', new_value: 'Nachher', by_user: 'Von', at: 'Zeitpunkt', until: 'Bis' };
 const SKIP = k => k === 'id' || /_id$|_hash$|^token|signature|^sha256|^extra$/.test(k);
 const aval = v => (v === true ? 'ja' : v === false ? 'nein' : /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/.test(String(v)) ? deD(v) + (String(v).length > 10 ? ' ' + String(v).slice(11, 16) : '') : String(v));
 const alabel = k => AUSK_KEY[k] || (k.charAt(0).toUpperCase() + k.slice(1)).replace(/_/g, ' ');
