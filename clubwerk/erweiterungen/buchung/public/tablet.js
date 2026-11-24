@@ -218,14 +218,26 @@
     $('ok').onclick = async () => {
       try {
         const res = await call('x/buchung/book', { ...body(), accept: $('acc') ? $('acc').checked : true });
-        closeDlg(); toast(`Gebucht: ${r.name} ${hhmm(s)}–${hhmm(s + sel)} Uhr${res.fee_cents ? ` · ${euro(res.fee_cents)}` : ''}`); load();
+        load();
+        if (!res.platzcode) { closeDlg(); toast(`Gebucht: ${r.name} ${hhmm(s)}–${hhmm(s + sel)} Uhr${res.fee_cents ? ` · ${euro(res.fee_cents)}` : ''}`); return; }
+        // Platzcode fürs Tor: im Fenster zeigen, bis er notiert ist (auch Gäste brauchen ihn vom Buchenden)
+        const v = res.platzcode;
+        dlg(`<h2>Gebucht ✓</h2><div class="sub">${esc(r.name)} · ${hhmm(s)}–${hhmm(s + sel)} Uhr${res.fee_cents ? ` · ${euro(res.fee_cents)}` : ''}</div>
+          <div class="bk-code"><small>Platzcode fürs Tor</small>${v.code ? `<b>${esc(v.code)}</b><small>gültig ${esc(v.from)}–${esc(v.to)} Uhr${v.doors.length ? ' · ' + esc(v.doors.join(', ')) : ''}</small>` : '<small>Der Code steht gleich in der Mitglieder-App.</small>'}</div>
+          <div class="pin-note">Bitte notieren – er steht auch in der Mitglieder-App und gilt für alle Mitspieler und Gäste.</div>
+          <div class="dlg-btns" style="grid-template-columns:1fr"><button class="ok" id="x">Fertig</button></div>`);
+        $('x').onclick = closeDlg;
       } catch (e) { $('perr').textContent = e.message; if (e.status === 401) setTimeout(closeDlg, 1500); }
     };
   }
 
   GKTab.gate(load, closeDlg);
   let idle = 0; document.addEventListener('pointerdown', () => { idle = 0; }, true);
-  setInterval(() => { idle += 30; if (idle >= 120 && day) { day = null; pastOpen = false; } if ($('overlay').classList.contains('hidden')) load(); }, 30000);   // nach 2 Minuten ohne Eingabe wieder „heute“
+  setInterval(() => {   // nach 2 Minuten ohne Eingabe wieder „heute“
+    idle += 30; if (idle >= 120 && day) { day = null; pastOpen = false; }
+    if (idle >= 60 && $('dialog').querySelector('.bk-code')) closeDlg();   // Platzcode nicht für den Nächsten am Tablet stehen lassen (Plätze als Start-Reiter springt nicht zurück)
+    if ($('overlay').classList.contains('hidden')) load();
+  }, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   { const last = GKMerk.holen('buchung'); if (last && last.plan) { state = last; draw(); } }   // letzter Stand sofort, danach frisch (nav.js, GKMerk)
   load();

@@ -36,6 +36,13 @@ async function states(maxAge = 3000) {
   return r.p;
 }
 
+/** Zustand eines einzelnen Geräts (Codetastatur im Zugang: häufige Abfrage, deshalb nicht die ganze Liste) → Zustand oder null */
+async function state(entityId) {
+  if (!/^[a-z_]+\.[a-z0-9_]+$/.test(String(entityId))) return null;
+  const s = await call('GET', '/states/' + entityId);
+  return s && typeof s === 'object' && !Array.isArray(s) && s.entity_id ? s : null;
+}
+
 /** Geräte einer Integration (z. B. 'nuki') – integration ist immer ein fester Name aus der Geräteliste des Moduls */
 const integrationEntities = integration => call('POST', '/template', { template: `{{ integration_entities('${integration}') | tojson }}` });
 
@@ -46,4 +53,4 @@ async function notify(service, title, message) {
   try { await call('POST', '/services/notify/' + svc, { title, message }); } catch (e) { console.error(`${title}: Benachrichtigung fehlgeschlagen:`, e.message); }
 }
 
-module.exports = { available, call, states, integrationEntities, notify };
+module.exports = { available, call, states, state, integrationEntities, notify };

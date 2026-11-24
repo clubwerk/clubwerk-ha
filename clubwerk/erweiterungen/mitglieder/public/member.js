@@ -80,11 +80,13 @@
           ${d.isHead && V.bank !== false ? `<div class="vh-card"><h3>Bankverbindung ${E.bank ? '<button id="mdBank">Neue Bankverbindung</button>' : ''}</h3>${d.bank ? `<dl class="vh-kv"><dt>Konto</dt><dd>${esc(d.bank.iban)}</dd><dt>Inhaber/in</dt><dd>${esc(d.bank.holder || '–')}</dd>
             <dt>Mandatsreferenz</dt><dd>${esc(d.bank.mandate_ref || '–')}</dd>${d.creditor.ci ? `<dt>Gläubiger-ID</dt><dd>${esc(d.creditor.ci)}</dd>` : ''}</dl>` : `<dl class="vh-kv"><dt>Zahlungsart</dt><dd>${esc(p.payment || '–')}</dd></dl>`}</div>` : ''}
           ${V.einwilligungen !== false && d.consents.length ? `<div class="vh-card"><h3>Einwilligungen ${E.einwilligungen !== false ? '<button id="mdCons">Ändern</button>' : ''}</h3><div class="vh-rows">${d.consents.map(c => `<div><span>${esc(c.short)}</span><b>${c.given ? 'ja' : 'nein'}</b></div>`).join('')}</div></div>` : ''}
+          ${certCard()}
           ${d.auskunft ? `<div class="vh-card"><h3>Datenauskunft <button id="mdAusk">Anfordern</button></h3><div class="vh-rows"><div><span>Alles, was der Verein zu dir gespeichert hat – als PDF per E-Mail<small>${d.auskunft.to ? `an ${esc(d.auskunft.to)}` : 'Dafür braucht der Verein deine E-Mail-Adresse.'}</small></span></div></div></div>` : ''}
           ${p.exit_date || !E.kuendigung ? '' : '<button class="vh-danger" id="mdQuit">Mitgliedschaft kündigen …</button>'}`;
         wireSeg();
         const on = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
-        on('mdEdit', editContact); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit); on('mdAusk', requestData); on('mdPay', transfer);
+        on('mdEdit', editContact); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit); on('mdAusk', requestData); on('mdPay', transfer); on('mdCert', requestCert);
+        el.querySelectorAll('[data-cert]').forEach(b => { b.onclick = () => showCert(+b.dataset.cert); });
         if (focus === 'kontakt' && document.getElementById('mdEdit')) editContact(); else if (focus === 'bank' && document.getElementById('mdBank')) editBank(); else if (focus === 'ueberweisen' && document.getElementById('mdPay')) transfer();
         focus = '';
         void open;
@@ -144,6 +146,37 @@
         const svg = sh.querySelector('svg'); if (svg) { svg.setAttribute('width', '100%'); svg.removeAttribute('height'); svg.style.display = 'block'; svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'QR-Code für die Überweisung'); }
         sh.querySelector('#mdNo').onclick = closeSheet;
         sh.querySelectorAll('[data-cp]').forEach(b => { b.onclick = async () => { try { await navigator.clipboard.writeText(vals[b.dataset.cp]); ctx.toast('Kopiert.'); } catch (e) { ctx.toast('Kopieren geht hier nicht – bitte von Hand übernehmen.', true); } }; });
+      }
+      /* Mitgliedsbescheinigung (z. B. für die Krankenkasse): anfordern, der Vorstand unterschreibt; fertige Bescheinigungen hier ansehen */
+      const CST = { offen: ['a', 'beim Vorstand'], fertig: ['g', 'fertig'], abgelehnt: ['', 'abgelehnt'] };
+      function certCard() {
+        const c = d.certificates; if (!c || (!c.list.length && !(c.can && c.people.length))) return '';
+        const many = c.people.length > 1 || c.list.some(x => !x.me);
+        return `<div class="vh-card"><h3>Bescheinigung für die Krankenkasse ${c.can && c.people.length ? '<button id="mdCert">Anfordern</button>' : ''}</h3><div class="vh-rows">
+          ${c.list.map(x => `<div><span>Mitgliedsbescheinigung ${esc(x.year)}<small>${x.status === 'fertig' && x.signed_at ? (many ? `für ${esc(x.name)} · unterschrieben am ${deD(x.signed_at.slice(0, 10))}` : `unterschrieben am ${deD(x.signed_at.slice(0, 10))}`) : many ? `für ${esc(x.name)} · angefordert am ${deD(x.created_at.slice(0, 10))}` : `angefordert am ${deD(x.created_at.slice(0, 10))}`}<span class="vh-chip ${(CST[x.status] || [''])[0]}">${esc((CST[x.status] || ['', x.status])[1])}</span></small>${x.reason ? `<small>Grund: <span translate="no">${esc(x.reason)}</span></small>` : ''}</span>${x.pdf ? `<button type="button" class="vh-link" data-cert="${x.id}">Ansehen</button>` : ''}</div>`).join('')
+            || '<div><span>Für das Bonusprogramm deiner Krankenkasse: Der Vorstand unterschreibt die Bescheinigung und schickt sie dir.</span></div>'}</div></div>`;
+      }
+      async function showCert(id) {
+        const x = d.certificates.list.find(c => c.id === id);
+        try { await ctx.view(await ctx.blob(`bescheinigung/${id}/pdf`), `Mitgliedsbescheinigung ${x ? x.year : ''}`.trim(), 'pdf'); } catch (e) { ctx.toast(e.message, true); }
+      }
+      function requestCert() {
+        const c = d.certificates, people = c.people;
+        const sh = sheet(`<h2>Bescheinigung anfordern</h2><p>Der Vorstand bestätigt die Mitgliedschaft mit Unterschrift und Vereinsstempel. Du bekommst sie per E-Mail und findest sie danach hier.</p>
+          ${people.length > 1 ? `<label>Für</label><select class="vh-input" id="mcW">${people.map(p => `<option value="${p.id}">${esc(p.name)}${p.me ? ' (ich)' : ''}</option>`).join('')}</select>` : ''}
+          <label>Jahr</label><select class="vh-input" id="mcY"></select>
+          <label>Hinweis (freiwillig)</label><input class="vh-input" id="mcN" maxlength="120" placeholder="z. B. Name der Krankenkasse">
+          <div class="vh-err" id="mdErr"></div><div class="vh-row"><button class="no" id="mdNo">Abbrechen</button><button class="ok" id="mdOk">Anfordern</button></div>`);
+        const who = () => people.find(p => p.id === +(sh.querySelector('#mcW') || { value: people[0].id }).value) || people[0];
+        const years = () => { sh.querySelector('#mcY').innerHTML = who().years.map(y => `<option value="${y}">${y}</option>`).join(''); };
+        years(); if (sh.querySelector('#mcW')) sh.querySelector('#mcW').onchange = years;
+        sh.querySelector('#mdNo').onclick = closeSheet;
+        sh.querySelector('#mdOk').onclick = async () => {
+          try {
+            await ctx.api('bescheinigung', 'POST', { member_id: who().id, year: +sh.querySelector('#mcY').value, note: sh.querySelector('#mcN').value.trim() });
+            closeSheet(); ctx.toast('Angefordert – der Vorstand schickt dir die Bescheinigung.'); load();
+          } catch (e) { sh.querySelector('#mdErr').textContent = e.message; }
+        };
       }
       /* Auskunft nach Art. 15 DSGVO: mit PIN anfordern, kommt als PDF (und Datei) an die hinterlegte E-Mail-Adresse */
       async function requestData() {

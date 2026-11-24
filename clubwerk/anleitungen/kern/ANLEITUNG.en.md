@@ -511,6 +511,7 @@ Everything that applies to the whole club. The areas are tabs at the top. What y
 ![Card “Club”: name, colours and address.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#clubColor))
 
 - **Club name, street, postcode and town, email, phone:** appear on invoices, membership documents and certificates. All modules read them from here. The **club name is mandatory**: the setup assistant asks for it when creating the account. If it is missing, data quality reports “Club name missing” in red, and no emails or notifications go out to members until it is entered.
+- **Website (optional):** appears with phone and email in the footer of all letters, invoices and certificates; if empty, it is left out.
 - **Club colour** and **second colour** (optional): The club colour applies to tablet, admin area, member app, irrigation and Excel. If it is too light for text, Clubwerk darkens it automatically (and lightens it in dark mode). The preview shows light and dark.
 
 ![Card “Club logo”.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#logoPrev))

@@ -55,6 +55,8 @@
       .bk-pl { list-style: none; margin: 0; padding: 0; font-weight: 600; } .bk-pl li { padding: 1px 0; }
       @media (max-width: 560px) { .bk-facts { grid-template-columns: 1fr; gap: 0; } .bk-facts dt { margin-top: 10px; font-size: 13px; } .bk-facts dt:first-child { margin-top: 0; } }
       .bk-grid { display: grid; grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr)); gap: 14px 16px; }
+      .bk-klick { cursor: pointer; }
+      .bk-code { margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: var(--field); border: 1px solid var(--line); font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; user-select: all; color: var(--ink); }
       .bk-rights { display: grid; gap: 6px; padding-top: 4px; } .bk-sub { margin: 20px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
       .bk-grid .w2 { grid-column: span 2; } .bk-grid .w3 { grid-column: span 3; } .bk-grid .wall { grid-column: 1 / -1; } .bk-grid .dim { opacity: .45; }
       /* Buchungsfenster der Verwaltung */
@@ -121,7 +123,7 @@
       .bk-ord { display: inline-flex; gap: 4px; margin-right: 8px; vertical-align: middle; } .bk-ord .btn { width: 34px; min-width: 34px; padding: 0; justify-content: center; font-size: 15px; } .bk-ord .btn:disabled { opacity: .35; }
       .bk-hl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; padding: 0 !important; margin-bottom: 16px; }
       .bk-hlt { display: flex; flex-direction: column; gap: 2px; padding: 16px 20px; border-left: 1px solid var(--line-soft); min-width: 0; } .bk-hlt:first-child { border-left: 0; }
-      .bk-hlt span { font-size: 12.5px; font-weight: 600; color: var(--muted); } .bk-hlt b { font-family: var(--num); font-size: 22px; font-weight: 600; line-height: 26px; overflow-wrap: break-word; } .bk-hlt small { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .bk-hlt span { font-size: 12.5px; font-weight: 600; color: var(--muted); } .bk-hlt b { font-family: var(--num); font-size: 22px; font-weight: 600; line-height: 26px; overflow-wrap: break-word; } .bk-hlt small { font-size: 12.5px; color: var(--muted); overflow-wrap: break-word; }   /* bricht um statt „…“ (z. B. „gebucht 2,4 Tage vorher“ am Handy) */
       .bk-donut { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 24px; align-items: center; }
       .bk-dring { position: relative; width: 180px; height: 180px; } .bk-dc { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
       .bk-dc b { font-family: var(--num); font-size: 30px; line-height: 30px; font-weight: 600; font-variant-numeric: tabular-nums; } .bk-dc span { font-size: 12px; color: var(--muted); }
@@ -210,7 +212,7 @@
       }
       .bk-fees td.nw { white-space: nowrap; } .bk-fees td.nw b { font-family: var(--num); font-size: 17px; font-weight: 600; letter-spacing: .01em; }
       .bk-lg .mo { display: none; } .bk-lg td.k-lbl-n { color: inherit; }
-      @media (max-width: 700px) { .bk-lg .hm { display: none; } .bk-lg .mo { display: inline; } .bk-lg td:not(:first-child) > div { display: inline; margin-left: 6px; } .bk-lg .bk-lgt { display: none; } }
+      @media (max-width: 700px) { .bk-lg .hm { display: none; } .bk-lg .mo { display: inline; } .bk-lg .bk-lgp > div { min-height: 0; } .bk-lg td:not(:first-child) > div { display: inline; margin-left: 6px; } .bk-lg .bk-lgt { display: none; } }
       .bk-rl { font-size: 13.5px; color: var(--muted); }
       .bk-ch .btn { flex: none; }`;
     document.head.appendChild(s);
@@ -222,6 +224,7 @@
     'bk-protokoll': ['Buchungen', 'Alle Buchungen des Jahres, auch stornierte und Sperren.'],
     'bk-auswertung': ['Auswertung', 'Auslastung je Platz, beliebte Zeiten und Vergleich mit dem Vorjahr.'],
     'bk-gebuehren': ['Gebühren', 'Gast- und Platzgebühren aus Buchungen: offen, bezahlt oder storniert.'],
+    'bk-gaeste': ['Gäste', 'Nichtmitglieder buchen freigegebene Plätze auf der Buchungsseite und zahlen mit PayPal oder Karte.'],
     'bk-mitspieler': ['Mitspielersuche', 'Gesuche aus der Mitglieder-App: offen, voll, gemeldet. Ausblenden, sperren und die Regeln festlegen.'],
     'bk-plaetze': ['Plätze & Geräte', 'Was gebucht werden kann, mit Zeiten, Raster, Höchstdauer und Gastgebühr.'],
     'bk-einstellungen': ['Einstellungen', 'Regeln und Rechte fürs Buchen von Plätzen.'],
@@ -428,12 +431,18 @@
         ${b.type === 'buchung' ? `<dt>Spieler</dt><dd>${playersHtml(b)}</dd>${b.title && b.member_id ? `<dt>Titel</dt><dd>${esc(b.title)}</dd>` : ''}` : `<dt>${b.type === 'sperre' ? 'Grund' : 'Titel'}</dt><dd><b>${esc(b.title || '')}</b></dd>`}
         ${b.fee_cents ? `<dt>Gebühr</dt><dd>${euro(b.fee_cents)}${b.charge_id ? ' · offener Posten bei den Mitgliedern' : ''}</dd>` : ''}
         ${b.note ? `<dt>Notiz</dt><dd>${esc(b.note)}</dd>` : ''}
+        ${b.has_code && (can('buchung_buchen') || can('buchung_serien')) ? `<dt>Platzcode</dt><dd><span id="bxCode">verborgen</span> <button class="btn small" type="button" id="bxCodeShow">Zeigen</button></dd>` : ''}
         <dt>Eingetragen</dt><dd>${esc(b.created_by || '')}${b.booked_by ? ' (für ein anderes Mitglied gebucht)' : ''} · ${{ app: 'Mitglieder-App', tablet: 'Tablet', verwaltung: 'Verwaltung', import: 'Spielplan-Import' }[b.source] || ''} · ${deDate(String(b.created_at).slice(0, 10))} ${String(b.created_at).slice(11, 16)}</dd>
       </dl>
 
       ${(c => c ? `<div class="dz">${c}</div>` : '')(b.series_id ? (can('buchung_serien') ? `<button class="btn ghost danger" id="bxC">${b.type === 'sperre' ? 'Aufheben …' : 'Stornieren …'}</button>` : '') : (b.type === 'sperre' ? can('buchung_serien') || can('buchung_stornieren') : can('buchung_stornieren')) ? `<button class="btn ghost danger" id="bxC">${b.type === 'sperre' ? 'Sperre aufheben' : 'Stornieren'}</button>` : '')}
-      <div class="btns"><span style="flex:1"></span>${b.series_id ? (can('buchung_serien') ? '<button class="btn" id="bxE">Bearbeiten …</button>' : '') : (b.type === 'sperre' ? can('buchung_serien') : can('buchung_buchen')) ? '<button class="btn" id="bxE">Bearbeiten</button>' : ''}<button class="btn primary" id="c">Schließen</button></div>`);
+      ${b.guest ? '<p class="muted s">Gastbuchung über die Buchungsseite (bezahlt mit PayPal oder Karte). Ändern geht nicht; Stornieren erstattet dem Gast den Betrag – Einzelheiten unter Plätze › Gäste.</p>' : ''}
+      <div class="btns"><span style="flex:1"></span>${b.guest ? '' : b.series_id ? (can('buchung_serien') ? '<button class="btn" id="bxE">Bearbeiten …</button>' : '') : (b.type === 'sperre' ? can('buchung_serien') : can('buchung_buchen')) ? '<button class="btn" id="bxE">Bearbeiten</button>' : ''}<button class="btn primary" id="c">Schließen</button></div>`);
     $('c').onclick = closeDialog;
+    // Platzcode nur auf Knopfdruck (steht dann im Protokoll), z. B. um ihn einer Mannschaft ohne App weiterzugeben
+    if ($('bxCodeShow')) $('bxCodeShow').onclick = () => GK.busy($('bxCodeShow'), async () => {
+      try { const v = await api(`bookings/${b.id}/code`); $('bxCode').innerHTML = v.code ? `<b class="num">${esc(v.code)}</b> <span class="muted s">gültig ${esc(v.from)}–${esc(v.to)} Uhr${v.doors.length ? ' · ' + esc(v.doors.join(', ')) : ''}</span>` : '<span class="muted s">erscheint, sobald der Tresor entsperrt ist</span>'; $('bxCodeShow').remove(); } catch (e) { fail(e); }
+    });
     if (b.series_id) {   // Termin einer Serie oder Sperre: erst den Umfang wählen
       if ($('bxE')) $('bxE').onclick = async () => { const sc = await askScope('Serientermin bearbeiten', `${b.title || ''} · ${deDate(b.date)} ${b.start}–${b.end}`); if (sc) { closeDialog(); seriesEdit(b, sc, after); } };
       if ($('bxC')) $('bxC').onclick = async () => {
@@ -681,7 +690,7 @@
         r.guests.length ? `<span class="pill a" title="${esc(r.guests.join(', '))}">${r.guests.length} ${r.guests.length === 1 ? 'Gast' : 'Gäste'}</span>` : '', r.fee_cents ? `<span class="pill">${euro(r.fee_cents)}</span>` : ''].filter(Boolean).join('');
       const s0 = STS[r.status];
       return `${head}<tr class="bk-lgr${r.status === 'storniert' ? ' off' : ''}" data-b="${r.id}"><td style="box-shadow:inset 4px 0 0 ${col}">${who}</td>
-        <td><b>${esc(r.resource)}</b>${tags ? `<div class="bk-lgt">${tags}</div>` : ''}${r.title && r.people.length && (!r.label || r.title !== r.label.name) ? `<div class="muted s">${esc(r.title)}</div>` : ''}</td>
+        <td><b>${esc(r.resource)}</b>${tags ? `<div class="bk-lgt">${tags}</div>` : ''}${r.title && r.people.length && (!r.label || r.title !== r.label.name) ? `<div class="muted s k-weg">${esc(r.title)}</div>` : ''}</td>
         <td class="nw"><b class="num">${r.start}–${r.end}</b><div class="muted s">${esc(new Date(r.date + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }))}</div></td>
         <td>${pill(s0)}${r.status === 'storniert' ? `<div class="muted s">${esc(r.cancelled_by || '')}${r.cancelled_at ? ` · ${ago(r.cancelled_at)}` : ''}${r.cancel_reason ? `<br>${esc(r.cancel_reason)}` : ''}</div>` : ''}</td>
         <td class="r k-weg hide-md"><span title="${esc(deDate(String(r.created_at).slice(0, 10)) + ' ' + String(r.created_at).slice(11, 16))}">${ago(r.created_at)}</span><div class="muted s">${esc(SRC[r.source] || '')}${r.created_by ? ` · ${esc(r.created_by)}` : ''}</div></td></tr>`;
@@ -838,12 +847,175 @@
     el.querySelectorAll('tr[data-b]').forEach(tr => { tr.onclick = async () => { const day = await api('day?date=' + tr.dataset.d); const b = day.bookings.find(x => x.id === +tr.dataset.b); if (b) detail(b, again); }; });
   }
 
+  /* ---------------------------------------------------------------- Gäste (Online-Buchung mit PayPal, lib/gaeste.js) */
+  const GSTATUS = { reserviert: ['a', 'Zahlung läuft'], vorlaeufig: ['a', 'Zahlung in Prüfung'], bezahlt: ['g', 'bezahlt'], storno: ['a', 'Erstattung läuft'], storniert: ['', 'storniert'],
+    abgelaufen: ['', 'abgebrochen'], abgelehnt: ['', 'abgelehnt'], belegt: ['r', 'Platz war vergeben'], pruefen: ['r', 'bitte prüfen'] };
+  const GSTATE = {
+    verbunden: ['g', 'Verbunden mit der Buchungsseite.'],
+    demo: ['b', 'Beispieldaten: Die Gästebuchung ist nicht mit einer echten Buchungsseite verbunden.'], neu: ['b', 'Eingerichtet – der erste Abgleich läuft gleich.'],
+    aus: ['b', 'Die Gästebuchung ist ausgeschaltet. Gäste sehen auf der Buchungsseite „keine Online-Buchungen“.'],
+    einrichten: ['b', 'Noch nicht eingerichtet: Adresse der Buchungsseite und gemeinsamer Schlüssel fehlen.'],
+    paypal: ['a', 'Der PayPal-Zugang für die Prüfung fehlt – ohne ihn nimmt die Buchungsseite keine Buchungen an.'],
+    gesperrt: ['a', 'Der Tresor ist seit dem Neustart gesperrt – der Abgleich wartet, bis sich ein Admin anmeldet. Gäste können solange nicht buchen.'],
+    offline: ['a', 'Keine Verbindung zur Buchungsseite (Internet?). Gäste können gerade nicht buchen; alles andere läuft weiter.'],
+    signatur: ['r', 'Die Buchungsseite lehnt die Signatur ab – der gemeinsame Schlüssel stimmt nicht überein.'],
+    schnittstelle: ['r', 'Schnittstelle passt nicht – Buchungsseite und Clubwerk auf denselben Stand bringen.'],
+    umgebung: ['r', 'PayPal-Umgebung passt nicht (Sandbox/Live) – Buchungsseite und Clubwerk gleich einstellen.'],
+    fehler: ['r', 'Der letzte Abgleich ist fehlgeschlagen.'] };
+  const hm = ts => (ts ? String(ts).slice(11, 16) : '');
+  const DATENSCHUTZ_VORSCHLAG = c => `Verantwortlich für die Buchung ist ${c || 'der Verein'} (Anschrift und Kontakt siehe Impressum).
+Wir verarbeiten deine Angaben (Vor- und Nachname, E-Mail, Handynummer, gebuchte Zeit, Betrag), um die Platzbuchung durchzuführen, dir den Code fürs Tor zu schicken und bei Rückfragen erreichbar zu sein (Art. 6 Abs. 1 lit. b DSGVO), sowie für die Buchhaltung des Vereins (Art. 6 Abs. 1 lit. c DSGVO, Aufbewahrung der Belege 10 Jahre).
+Die Buchungsseite läuft bei Cloudflare, Inc. als Auftragsverarbeiter. Die Zahlung wickelt PayPal (Europe) S.à r.l. et Cie, S.C.A. in eigener Verantwortung ab; es gelten die Datenschutzhinweise von PayPal.
+Kontaktdaten löschen wir auf der Buchungsseite 30 Tage nach dem Termin, beim Verein nach der eingestellten Frist. Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Widerspruch und Beschwerde bei einer Datenschutz-Aufsichtsbehörde.`;
+  async function showGuests(el) {
+    st.gs = st.gs || { f: 'kommend' };
+    const d = await api('gaeste?f=' + st.gs.f), c = d.cfg, canG = d.can.gaeste;
+    const [tone, msg] = GSTATE[d.state] || GSTATE.fehler;
+    const ICO = { k: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>', e: '<path d="M4 12.5l5 5L20 6.5"/>', w: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/>' };
+    const ic = k => `<span class="bk-ki"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICO[k]}</svg></span>`;
+    const kpi = (k, label, v, sub, t = '') => `<div class="card bk-kpi ${t}"><div class="bk-kh">${ic(k)}<span>${esc(label)}</span></div><div class="bk-kv"><b>${v}</b><span class="bk-d n">${esc(sub)}</span></div></div>`;
+    const diffs = d.diffs.length + d.problems.length;
+    const when = g => `${WD[dow(g.date)]} ${deDate(g.date).slice(0, 6)} · ${g.start}–${g.end}`;   // ohne Jahr: am Handy einzeilig
+    el.innerHTML = `
+      <div class="banner ${tone}" style="margin:0 0 16px;font-weight:400" id="gsState">${esc(GK.T(msg))}${d.last_ok ? ` <span class="muted s">${esc(GK.T('Zuletzt abgeglichen: {0}', [`${deDate(d.last_ok.slice(0, 10))} ${hm(d.last_ok)}`]))}</span>` : ''}${d.error && d.state !== 'verbunden' ? `<br><span class="s">${esc(d.error)}</span>` : ''}${c.on ? ` <span class="pill ${c.env === 'live' ? 'r' : 'b'}">${c.env === 'live' ? 'PayPal Live' : 'PayPal Sandbox'}</span>` : ''}
+        ${d.queue ? `<br><span class="s">${esc(GK.T('Wartet: {0} Stornos und {1} Rückmeldungen an die Buchungsseite; neue Gastbuchungen kommen nach dem Entsperren.', [d.queue.stornos, d.queue.quittungen]))}</span>` : ''}</div>
+      ${canG ? `<div class="toolbar"><button class="btn primary" id="gsSync" type="button">Jetzt abgleichen</button><button class="btn" id="gsCfg" type="button">Einrichten</button><button class="btn" id="gsEmbed" type="button" ${c.url ? '' : 'disabled'}>Auf der Homepage einbinden</button></div>` : ''}
+      <div class="bk-kpis three">${kpi('k', 'Kommende Gastbuchungen', d.counts.kommend, GK.T('Buchungen'))}${kpi('e', 'Einnahmen diesen Monat', euro(d.month.cents), GK.T('{0} Buchungen', [d.month.count]), 'b')}${kpi('w', 'Offene Abweichungen', diffs, diffs ? GK.T('bitte klären') : GK.T('alles in Ordnung'), diffs ? 'r' : '')}</div>
+      ${diffs ? `<div class="card" data-card="abweichungen"><h3>Offene Abweichungen</h3><p class="muted s" style="margin-top:0">Clubwerk prüft jede Zahlung selbst bei PayPal und gleicht einmal am Tag alle Zahlungen ab. Hier steht, was nicht zusammenpasst.</p>
+        <table class="tbl kompakt">${d.problems.map(g => `<tr><td><b class="num">${esc(g.ref)}</b><div class="muted s k-weg">${esc(g.resource)} · ${when(g)}</div></td><td>${esc(g.problem)}</td>
+          <td class="r" style="white-space:nowrap">${canG ? `${g.status === 'pruefen' ? `<button class="btn small" type="button" data-gin="${g.id}">Trotzdem eintragen</button>` : ''}<button class="btn small" type="button" data-gpd="${g.id}">Erledigt</button>` : ''}</td></tr>`).join('')}
+        ${d.diffs.map(x => `<tr><td><b class="num">${esc(x.ref || '–')}</b><span class="muted s" style="display:block">${esc(GK.T('Abgleich {0}', [deDate(x.found_at.slice(0, 10))]))}</span></td><td>${esc(x.text)}</td><td class="r">${canG ? `<button class="btn small" type="button" data-gdd="${x.id}">Erledigt</button>` : ''}</td></tr>`).join('')}</table></div>` : ''}
+      <div class="filterbar"><div class="chips" id="gsF" role="group" aria-label="Filter">${[['kommend', 'Kommend'], ['alle', 'Alle'], ['storniert', 'Storniert'], ['abweichung', 'Mit Abweichung']].map(([k, t]) => `<button type="button" data-f="${k}" class="${st.gs.f === k ? 'on' : ''}" aria-pressed="${st.gs.f === k}">${esc(GK.T(t))}</button>`).join('')}</div></div>
+      <div class="card" style="padding:0 20px;overflow:auto">${d.list.length ? `<table class="tbl kompakt bk-fees"><tr><th>Gast</th><th>Wann</th><th class="k-weg">Platz</th><th class="k-weg">Nummer</th><th class="r">Betrag</th><th>Status</th></tr>
+        ${d.list.map(g => `<tr data-g="${g.id}" class="${canG ? 'bk-klick' : ''}"><td><b>${esc(g.name)}</b></td><td class="nw">${when(g)}</td><td class="k-weg nw">${esc(g.resource)}</td><td class="k-weg num nw">${esc(g.ref)}</td>
+          <td class="r nw"><b>${euro(g.amount_cents)}</b></td><td class="nw">${pill(GSTATUS[g.status] || ['', g.status])}</td></tr>`).join('')}</table>` : `<p class="empty">${esc(GK.T(st.gs.f === 'kommend' ? 'Keine kommenden Gastbuchungen.' : 'Keine Gastbuchungen in dieser Auswahl.'))}</p>`}</div>
+      <div class="card" data-card="plaetze"><h3>Plätze für Gäste</h3><p class="muted s" style="margin-top:0">Je Platz: ob Gäste ihn online buchen dürfen, in welchem Zeitfenster, zu welchem Preis und wie weit im Voraus. Belegte Zeiten (Mitglieder, Serien, Sperren) bietet die Buchungsseite nie an.</p>
+        ${d.courts.length ? `<table class="tbl kompakt"><tr><th>Platz</th><th>Für Gäste</th><th class="k-weg">Zeitfenster</th><th class="r">Preis je Stunde</th><th class="k-weg">Dauer</th><th class="k-weg">Vorlauf</th><th></th></tr>
+          ${d.courts.map(r => `<tr class="${r.guest_on ? '' : 'off'}"><td><b>${esc(r.name)}</b></td><td>${r.guest_on ? pill(['g', GK.T('buchbar')]) : pill(['', GK.T('nein')])}</td>
+            <td class="k-weg">${esc(r.guest_days === '1234567' ? GK.T('täglich') : r.guest_days.split('').map(x => WD[+x]).join(', '))} · ${r.guest_from}–${r.guest_to}</td><td class="r nw">${euro(r.guest_price_cents)}</td><td class="k-weg">${dur(r.guest_min)}</td>
+            <td class="k-weg">${esc(GK.T('{0} Tage', [r.guest_ahead]))}</td><td class="r">${canG ? `<button class="btn small" type="button" data-gc="${r.id}">Bearbeiten</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Plätze angelegt (Plätze › Plätze & Geräte).</p>'}</div>
+      ${d.tag ? `<p class="muted s">${esc(d.tag.fehler ? GK.T('Täglicher Abgleich mit PayPal fehlgeschlagen: {0}', [d.tag.fehler]) : GK.T('Täglicher Abgleich mit PayPal: {0} – {1} Zahlungen geprüft, {2} Abweichungen.', [`${deDate(d.tag.at.slice(0, 10))} ${hm(d.tag.at)}`, d.tag.geprueft, d.tag.funde]))}</p>` : ''}`;
+    const again = () => showGuests(el).catch(fail);
+    el.querySelectorAll('#gsF [data-f]').forEach(b => { b.onclick = () => { st.gs.f = b.dataset.f; again(); }; });
+    if ($('gsSync')) $('gsSync').onclick = () => GK.busy($('gsSync'), async () => { try { const r = await api('gaeste/abgleich', 'POST', {}); toast(r.state === 'verbunden' ? (r.error ? GK.T('Abgeglichen – mit Hinweis: {0}', [r.error]) : 'Abgeglichen.') : r.error || GK.T((GSTATE[r.state] || GSTATE.fehler)[1]), r.state !== 'verbunden'); again(); } catch (e) { fail(e); } });
+    if ($('gsCfg')) $('gsCfg').onclick = () => guestSetup(d, again);
+    if ($('gsEmbed')) $('gsEmbed').onclick = () => guestEmbed(c);
+    el.querySelectorAll('[data-gc]').forEach(b => { b.onclick = () => guestCourt(d.courts.find(r => r.id === +b.dataset.gc), again); });
+    if (canG) el.querySelectorAll('tr[data-g]').forEach(tr => { tr.onclick = () => guestDetail(+tr.dataset.g, again).catch(fail); });
+    el.querySelectorAll('[data-gdd]').forEach(b => { b.onclick = async () => { try { await api(`gaeste/abweichung/${b.dataset.gdd}/erledigt`, 'POST', { art: 'diff' }); again(); } catch (e) { fail(e); } }; });
+    el.querySelectorAll('[data-gpd]').forEach(b => { b.onclick = async () => { try { await api(`gaeste/abweichung/${b.dataset.gpd}/erledigt`, 'POST', { art: 'buchung' }); again(); } catch (e) { fail(e); } }; });
+    el.querySelectorAll('[data-gin]').forEach(b => { b.onclick = async () => {
+      if (!await ask('Trotzdem eintragen?\n\nClubwerk prüft die Zahlung noch einmal bei PayPal (bezahlt, Buchungsnummer, Euro) und trägt die Buchung dann trotz der Abweichung beim Betrag ein. Der Gast bekommt die Bestätigung.', { ok: 'Eintragen' })) return;
+      try { await api(`gaeste/${b.dataset.gin}/eintragen`, 'POST', {}); toast('Eingetragen.'); again(); } catch (e) { fail(e); }
+    }; });
+  }
+  async function guestDetail(id, after) {
+    const g = await api('gaeste/' + id);
+    const can0 = ['reserviert', 'vorlaeufig', 'bezahlt', 'pruefen'].includes(g.status);
+    dialog(`<h2>${esc(g.name)}</h2>
+      <p class="muted" style="margin-top:0">${esc(g.resource)} · ${WD[dow(g.date)]} ${deDate(g.date)} · ${g.start}–${g.end} · ${pill(GSTATUS[g.status] || ['', g.status])}</p>
+      <dl class="bk-facts">
+        <dt>Buchungsnummer</dt><dd class="num">${esc(g.ref)}</dd>
+        <dt>E-Mail</dt><dd>${esc(g.email || '–')}</dd><dt>Handy</dt><dd>${esc(g.phone || '–')}</dd>
+        <dt>Betrag</dt><dd>${euro(g.amount_cents)}${g.fee_cents ? ` · ${esc(GK.T('PayPal-Gebühr {0}', [euro(g.fee_cents)]))}` : ''}${g.refunded_cents ? ` · ${esc(GK.T('erstattet {0}', [euro(g.refunded_cents)]))}` : ''}</dd>
+        <dt>PayPal</dt><dd class="s">${esc([g.order_id && `Order ${g.order_id}`, g.capture_id && `Zahlung ${g.capture_id}`, g.refund_id && `Erstattung ${g.refund_id}`].filter(Boolean).join(' · ') || '–')}</dd>
+        ${g.problem ? `<dt>Abweichung</dt><dd>${esc(g.problem)}</dd>` : ''}
+        ${g.cancel_reason ? `<dt>Storno</dt><dd>${esc(g.cancel_reason)}${g.cancelled_at ? ` · ${deDate(g.cancelled_at.slice(0, 10))}` : ''}</dd>` : ''}
+        <dt>E-Mail an den Gast</dt><dd>${g.mailed ? esc(/^bestaetigt/.test(g.mailed) ? GK.T('Bestätigung verschickt') : /^storno/.test(g.mailed) ? GK.T('Storno verschickt') : GK.T('„Platz vergeben“ verschickt')) : '–'}</dd>
+      </dl>
+      ${can0 ? `<div class="dz"><label class="f" style="flex:1">Grund (steht in der Mail an den Gast)<input id="gxR" maxlength="160" placeholder="z. B. Platz gesperrt wegen Regen"></label><button class="btn ghost danger" id="gxC" type="button">Stornieren und erstatten</button></div>` : ''}
+      <div class="btns"><span style="flex:1"></span><button class="btn primary" id="c" type="button">Schließen</button></div>`);
+    $('c').onclick = closeDialog;
+    if ($('gxC')) $('gxC').onclick = async () => {
+      if (!await ask(GK.T('Gastbuchung {0} stornieren?\n\nDie Buchungsseite erstattet {1} über PayPal. Clubwerk prüft die Erstattung, trägt die Buchung aus und schreibt dem Gast.', [g.ref, euro(g.amount_cents)]), { ok: 'Stornieren', danger: true })) return;
+      try { await api(`gaeste/${g.id}/storno`, 'POST', { grund: val('gxR') }); closeDialog(); toast('Storniert – die Erstattung läuft.'); after(); } catch (e) { fail(e); }
+    };
+  }
+  function guestSetup(d, after) {
+    const c = d.cfg;
+    dialog(`<h2>Gästebuchung einrichten</h2>
+      <p class="muted" style="margin-top:0">Die Buchungsseite läuft außerhalb (Cloudflare). Clubwerk ruft sie nur selbst auf – Clubwerk wird dafür nicht von außen erreichbar. Schritt für Schritt: Anleitung „Plätze“, Kapitel Gästebuchung.</p>
+      <label class="chk"><input type="checkbox" id="gsOn" ${c.on ? 'checked' : ''}> Gästebuchung eingeschaltet</label>
+      <h4 class="bk-sub">Buchungsseite</h4>
+      <div class="bk-grid" style="--c:2">
+        <label class="f w2">Adresse der Buchungsseite<input id="gsUrl" placeholder="https://buchen.dein-verein.de/" value="${esc(c.url)}"></label>
+        <label class="f w2">Homepage, auf der sie eingebettet werden darf<input id="gsHome" placeholder="https://www.dein-verein.de" value="${esc(c.homepage)}"></label>
+        <label class="f">Impressum (Link)<input id="gsImp" placeholder="https://dein-verein.de/impressum" value="${esc(c.impressum)}"></label>
+        <label class="f">Datenschutz (Link)<input id="gsDs" placeholder="https://dein-verein.de/datenschutz" value="${esc(c.datenschutz)}"></label>
+        <label class="f">Stornieren mit Erstattung bis … Stunden vorher<input id="gsSto" inputmode="numeric" value="${c.storno_h}"></label>
+        <label class="f">Zeit reserviert, während der Gast bezahlt (Minuten)<input id="gsHalt" inputmode="numeric" value="${c.halten_min}"></label>
+        <label class="f w2">Hinweis zum Datenschutz auf der Buchungsseite<textarea id="gsHin" rows="5">${esc(c.hinweis)}</textarea></label>
+      </div>
+      <div class="btns" style="justify-content:flex-start;margin-top:8px"><button class="btn small" id="gsVor" type="button">Vorschlag einsetzen</button><label class="chk" style="margin-left:12px"><input type="checkbox" id="gsLogo" ${c.logo ? 'checked' : ''}> Vereinslogo zeigen</label></div>
+      <div id="gsZugang"><h4 class="bk-sub">Gemeinsamer Schlüssel</h4>
+      <p class="muted s" style="margin-top:0">${esc(GK.T(c.has_key ? 'Eingetragen. Ein neuer Schlüssel muss auch auf der Buchungsseite eingetragen werden (sonst ruht die Gästebuchung).' : 'Noch keiner. Erzeugen und auf der Buchungsseite als CLUBWERK_SCHLUESSEL eintragen.'))}</p>
+      <button class="btn" id="gsKey" type="button">${c.has_key ? 'Neuen Schlüssel erzeugen …' : 'Schlüssel erzeugen …'}</button>
+      <h4 class="bk-sub">PayPal (App „Clubwerk Prüfung“, nur lesend benutzt)</h4>
+      <div class="bk-grid" style="--c:2">
+        <label class="f">Umgebung<select id="gsEnv">${opt('sandbox', GK.T('Sandbox (Test)'), c.env)}${opt('live', GK.T('Live (echtes Geld)'), c.env)}</select></label>
+        <label class="f">Client-ID<input id="gsCid" autocomplete="off" value="${esc(c.pp_client)}"></label>
+        <label class="f w2">Secret<input id="gsSec" type="password" autocomplete="new-password" placeholder="${esc(GK.T(c.has_pp ? 'eingetragen – nur zum Ändern ausfüllen' : 'aus dem PayPal Developer Dashboard'))}"></label>
+      </div></div>
+      <div class="btns"><button class="btn ghost" id="gsTest" type="button" ${c.has_pp ? '' : 'disabled'}>PayPal prüfen</button><span style="flex:1"></span><button class="btn ghost" id="c" type="button">Abbrechen</button><button class="btn primary" id="gsOk" type="button">Speichern</button></div>`, true);
+    $('c').onclick = closeDialog;
+    $('gsVor').onclick = () => { $('gsHin').value = DATENSCHUTZ_VORSCHLAG($('clubName') ? $('clubName').textContent.trim() : ''); $('gsHin').focus(); };   // ersetzt den Text im Feld – gespeichert wird erst mit „Speichern“
+    $('gsKey').onclick = async () => {
+      try {
+        const r = await GK.withPassword(pw => api('gaeste/schluessel', 'POST', pw ? { myPassword: pw } : {}), GK.T('Schlüssel erzeugen\n\nBitte mit deinem Passwort bestätigen. Der Schlüssel erscheint nur jetzt einmal.'));
+        dialog(`<h2>Gemeinsamer Schlüssel</h2><p class="muted" style="margin-top:0">Nur jetzt sichtbar. Auf dem PC im Ordner <b>gaestebuchung</b> eintragen:</p>
+          <pre class="bk-code">npx wrangler secret put CLUBWERK_SCHLUESSEL</pre><p class="muted s">… und bei der Frage diesen Wert einfügen:</p>
+          <pre class="bk-code" id="gkV">${esc(r.key)}</pre>
+          <div class="btns"><button class="btn" id="gkCp" type="button">Kopieren</button><span style="flex:1"></span><button class="btn primary" id="c" type="button">Fertig</button></div>`);
+        $('c').onclick = () => { closeDialog(); after(); };
+        $('gkCp').onclick = () => { navigator.clipboard.writeText(r.key).then(() => toast('Kopiert.'), () => toast('Bitte von Hand markieren und kopieren.', true)); };
+      } catch (e) { fail(e); }
+    };
+    const body = () => ({ on: $('gsOn').checked, url: val('gsUrl'), homepage: val('gsHome'), impressum: val('gsImp'), datenschutz: val('gsDs'), storno_h: +val('gsSto'), halten_min: +val('gsHalt'), hinweis: $('gsHin').value,
+      logo: $('gsLogo').checked, env: val('gsEnv'), pp_client: val('gsCid'), pp_secret: $('gsSec').value });
+    $('gsTest').onclick = () => GK.busy($('gsTest'), async () => { try { const r = await api('gaeste/paypal-test', 'POST', {}); toast(GK.T('PayPal antwortet: {0} Zahlungen der letzten 3 Tage, {1} Abweichungen.', [r.geprueft || 0, r.funde || 0])); } catch (e) { fail(e); } });
+    $('gsOk').onclick = () => GK.busy($('gsOk'), async () => {
+      const b = body();
+      if (b.env === 'live' && c.env !== 'live' && !await ask('Auf PayPal Live umstellen?\n\nAb dann zahlen Gäste echtes Geld. Die Buchungsseite muss ebenfalls auf Live stehen (PAYPAL_ENV = "live").', { ok: 'Live einschalten', danger: true })) return;
+      try { await api('gaeste/einstellungen', 'PUT', b); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); }
+    });
+  }
+  function guestCourt(r, after) {
+    const durs = [30, 60, 90, 120, 180, 240].filter(m => m % (r.slot_min || 60) === 0);
+    dialog(`<h2>${esc(r.name)} – Gästebuchung</h2>
+      <p class="muted" style="margin-top:0">${esc(GK.T('Öffnungszeit des Platzes: {0}–{1} Uhr. Gäste sehen nur freie Zeiten in diesem Fenster.', [r.open_from, r.open_to]))}</p>
+      <label class="chk"><input type="checkbox" id="gcOn" ${r.guest_on ? 'checked' : ''}> Für Gäste (Nichtmitglieder) online buchbar</label>
+      <div class="f bkf" style="margin-top:14px"><span>Wochentage</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(x => `<label><input type="checkbox" data-gd="${x}" ${r.guest_days.includes(String(x)) ? 'checked' : ''}> ${WD[x]}</label>`).join('')}</div></div>
+      <div class="bk-grid" style="--c:3;margin-top:14px">
+        <label class="f">Von<input id="gcFrom" type="time" step="900" value="${r.guest_from}"></label><label class="f">Bis<input id="gcTo" type="time" step="900" value="${r.guest_to}"></label>
+        <label class="f">Preis je Stunde<input id="gcPrice" inputmode="decimal" value="${centsToInput(r.guest_price_cents)}"></label>
+        <label class="f">Dauer je Buchung<select id="gcMin">${durs.map(m => opt(m, dur(m), r.guest_min)).join('')}</select></label>
+        <label class="f">Vorlauf (Tage im Voraus)<input id="gcAhead" inputmode="numeric" value="${r.guest_ahead}"></label>
+      </div>
+      <div class="btns"><button class="btn ghost" id="c" type="button">Abbrechen</button><button class="btn primary" id="gcOk" type="button">Speichern</button></div>`);
+    $('c').onclick = closeDialog;
+    $('gcOk').onclick = () => GK.busy($('gcOk'), async () => {
+      const days = [...document.querySelectorAll('[data-gd]')].filter(x => x.checked).map(x => x.dataset.gd).join('');
+      try { await api(`gaeste/platz/${r.id}`, 'PUT', { guest_on: $('gcOn').checked, guest_days: days, guest_from: val('gcFrom'), guest_to: val('gcTo'), guest_price_cents: toCents(val('gcPrice')), guest_min: +val('gcMin'), guest_ahead: +val('gcAhead') }); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); }
+    });
+  }
+  function guestEmbed(c) {
+    const u = c.url.replace(/\/?$/, '/');
+    const frame = `<iframe src="${u}" title="Platz buchen" allow="payment" style="width:100%;border:0;min-height:600px"></iframe>\n<script src="${u}hoehe.js" async></script>`;
+    dialog(`<h2>Auf der Homepage einbinden</h2>
+      <p class="muted" style="margin-top:0">${esc(GK.T('Als Link oder als Rahmen. Den Rahmen zeigt die Buchungsseite nur auf der eingetragenen Homepage ({0}); am Handy öffnet sie sich zum Bezahlen groß.', [c.homepage || GK.T('noch keine eingetragen')]))}</p>
+      <h4 class="bk-sub">Link</h4><pre class="bk-code">${esc(u)}</pre>
+      <h4 class="bk-sub">Rahmen (iframe)</h4><pre class="bk-code">${esc(frame)}</pre>
+      <div class="btns"><button class="btn" id="geCp" type="button">Rahmen kopieren</button><span style="flex:1"></span><button class="btn primary" id="c" type="button">Fertig</button></div>`);
+    $('c').onclick = closeDialog;
+    $('geCp').onclick = () => { navigator.clipboard.writeText(frame).then(() => toast('Kopiert.'), () => toast('Bitte von Hand markieren und kopieren.', true)); };
+  }
+
   /* ---------------------------------------------------------------- Plätze & Geräte */
   async function showResources(el) {
     const list = await api('resources');
     el.innerHTML = `${can('buchung_einstellungen') ? '<div class="toolbar"><button class="btn primary" id="rsNew">+ Platz</button><button class="btn" id="rsNewA">+ Gerät</button></div>' : ''}
       <div class="card" style="padding:0 20px;overflow:auto">${list.length ? `<table class="tbl kompakt"><tr><th>Name</th><th class="k-weg">Buchbar</th><th class="k-weg">Raster</th><th class="k-weg">Gastgebühr</th><th class="r k-weg">kommende</th><th></th></tr>
-        ${list.map((r, i) => `<tr class="${r.active ? '' : 'off'}"><td><b>${esc(r.name)}</b><span class="muted s" style="display:block">${r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity} Stück` : ''}` : esc(r.area || 'Platz')}${r.department_id ? ` · Abteilung ${esc((st.meta.departments.find(x => x.id === r.department_id) || {}).name || '')}${r.outsiders === 'gesperrt' ? ' (nur Abteilung)' : ` (andere ${euro(r.outsider_fee_cents)})`}` : ''}${r.kind === 'platz' && r.partner_required ? ' · Mitspieler Pflicht' : ''}${r.kind === 'platz' && r.solo_label ? ` · allein: ${esc(r.solo_label)}` : ''}${r.kind === 'artikel' && r.as_partner ? ' · als Mitspieler buchbar' : ''}${r.active ? '' : ' · inaktiv'}</span></td>
+        ${list.map((r, i) => `<tr class="${r.active ? '' : 'off'}"><td><b>${esc(r.name)}</b><span class="muted s" style="display:block">${r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity} Stück` : ''}` : esc(r.area || 'Platz')}${r.department_id ? ` · Abteilung ${esc((st.meta.departments.find(x => x.id === r.department_id) || {}).name || '')}${r.outsiders === 'gesperrt' ? ' (nur Abteilung)' : ` (andere ${euro(r.outsider_fee_cents)})`}` : ''}${r.kind === 'platz' && r.partner_required ? ' · Mitspieler Pflicht' : ''}${r.kind === 'platz' && r.solo_label ? ` · allein: ${esc(r.solo_label)}` : ''}${r.kind === 'artikel' && r.as_partner ? ' · als Mitspieler buchbar' : ''}${r.kind === 'platz' && codeDoorNames(r).length ? ` · Platzcode: ${esc(codeDoorNames(r).join(', '))}` : ''}${r.active ? '' : ' · inaktiv'}</span></td>
           <td class="k-weg">${esc(r.days === '1234567' ? 'täglich' : r.days.split('').map(d => WD[+d]).join(', '))} · ${r.open_from}–${r.open_to}</td><td class="k-weg">${dur(r.slot_min)} · max. ${dur(r.max_min)}</td>
           <td class="k-weg">${r.guest_fee_cents == null ? `<span class="muted s">Standard (${euro(st.meta.settings.guest_fee_cents)})</span>` : euro(r.guest_fee_cents)}</td><td class="r k-weg">${r.future || '–'}</td>
           <td class="r" style="white-space:nowrap">${can('buchung_einstellungen') ? `<span class="bk-ord"><button class="btn small" data-mv="${i}:-1" ${i === 0 ? 'disabled' : ''} title="nach oben" aria-label="nach oben">↑</button><button class="btn small" data-mv="${i}:1" ${i === list.length - 1 ? 'disabled' : ''} title="nach unten" aria-label="nach unten">↓</button></span><button class="btn small" data-ed="${r.id}">Bearbeiten</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Noch nichts angelegt.</p>'}</div>
@@ -858,6 +1030,16 @@
       try { await api('resources/order', 'PUT', { ids }); await again(); const nb = el.querySelector(`[data-mv="${i + d}:${d}"]`) || el.querySelector(`[data-mv="${i + d}:${-d}"]`); if (nb) nb.focus(); } catch (e) { fail(e); }
     }; });
   }
+  /** Tore (Modul Zugang), die der Platzcode dieses Platzes öffnet */
+  const codeDoorIds = r => { try { return JSON.parse(r.code_doors || '[]'); } catch (e) { return []; } };
+  const codeDoorNames = r => (st.meta.codeDoors ? codeDoorIds(r).map(id => (st.meta.codeDoors.find(d => d.id === id) || {}).name).filter(Boolean) : []);
+  const codeDoorsHtml = d => {
+    const cd = st.meta.codeDoors; if (!cd) return '';
+    const kp = cd.filter(x => x.keypad), mine = codeDoorIds(d), can = st.meta.canCodeDoors;
+    return `<div class="f bkf wall rs-pl"><span>Platzcode öffnet diese Tore</span>${kp.length ? `<div class="bk-chips">${kp.map(x => `<label><input type="checkbox" data-cd="${esc(x.id)}" ${mine.includes(x.id) ? 'checked' : ''} ${can ? '' : 'disabled'}> ${esc(x.name)}</label>`).join('')}</div>
+      <small class="muted s">Jede Buchung bekommt einen 6-stelligen Code für die Tastatur am Tor – meist das Haupttor und genau dieses Platztor.${can ? '' : ' Ändern darf nur, wer auch das Recht „Zugang“ hat.'}</small>`
+      : '<small class="muted s">Noch keine Tür mit Codetastatur – im Modul Zugang unter „Türen“ einer Tür eine Codetastatur geben.</small>'}</div>`;
+  };
   function resDialog(r, after) {
     const isNew = !r.id, art = r.kind === 'artikel';
     const d = { days: '1234567', open_from: art ? '09:00' : '08:00', open_to: '22:00', slot_min: 60, max_min: art ? 120 : 120, quantity: 1, active: 1, ...r };
@@ -875,6 +1057,7 @@
         <label class="f rs-pl">Mitspieler<select id="rsPR">${opt(0, 'optional', d.partner_required ? 1 : 0)}${opt(1, 'Pflicht', d.partner_required ? 1 : 0)}</select></label>
         <label class="f rs-pl">Allein trainieren erlaubt, Bezeichnung<input id="rsSL" maxlength="30" value="${esc(d.solo_label || '')}" placeholder="z. B. Ballwand – leer = nein"></label>
         <label class="chk rs-ar w2" style="align-self:end;min-height:40px"><input type="checkbox" id="rsAP" ${d.as_partner ? 'checked' : ''}> Als Mitspieler buchbar (z. B. Ballmaschine – auf allen Plätzen)</label>
+        ${codeDoorsHtml(d)}
         <label class="f ${st.meta.departments.length ? 'w2' : 'wall'}">Hinweis für Mitglieder<input id="rsH" value="${esc(d.note || '')}" placeholder="z. B. Nach dem Spiel abziehen"></label>
         ${st.meta.departments.length ? `<label class="f w2">Gehört der Abteilung<select id="rsD">${opt('', '– ganzer Verein –', d.department_id)}${st.meta.departments.map(x => opt(x.id, x.name, d.department_id)).join('')}</select></label>
         <label class="f rs-dep">Andere Mitglieder<select id="rsO">${opt('gebuehr', 'buchen mit Platzgebühr', d.outsiders)}${opt('gesperrt', 'dürfen nicht buchen', d.outsiders)}</select></label>
@@ -893,6 +1076,7 @@
         open_from: val('rsF'), open_to: val('rsT') === '23:59' ? '24:00' : val('rsT'), slot_min: +val('rsS'), max_min: +val('rsM'), quantity: +val('rsQ') || 1,
         guest_fee_cents: val('rsG') === '' ? null : toCents(val('rsG')), note: val('rsH'),
         partner_required: +val('rsPR') === 1, solo_label: val('rsSL'), as_partner: $('rsAP').checked,
+        ...(st.meta.codeDoors && st.meta.canCodeDoors && val('rsK') === 'platz' ? { code_doors: [...$('dialog').querySelectorAll('[data-cd]:checked')].map(x => x.dataset.cd) } : {}),
         ...($('rsD') ? { department_id: +val('rsD') || null, outsiders: val('rsO'), outsider_fee_cents: toCents(val('rsOF') || '0') } : {}), ...(isNew ? {} : { active: $('rsAc').checked }) };
       try { if (isNew) await api('resources', 'POST', body); else await api('resources/' + r.id, 'PUT', body); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); }
     });
@@ -940,6 +1124,10 @@
         <div class="bk-grid" style="--c:4">${num('advance_days', 'Vorlauf (Tage im Voraus)')}${num('max_open_platz', 'Offene Platzbuchungen je Mitglied')}${num('max_open_artikel', 'Offene Gerätebuchungen je Mitglied')}
           <label class="f">Stornieren bis … vor Beginn<select id="bs_cancel_before_min">${[[0, 'bis zum Beginn'], [60, '1 Stunde'], [120, '2 Stunden'], [360, '6 Stunden'], [1440, '1 Tag']].map(([v, l]) => opt(v, l, s.cancel_before_min)).join('')}</select></label></div>
         ${save('bsOkBuchen')}</div>
+      ${st.meta.codeDoors ? `<div class="card" data-card="platzcode"><h3>Platzcode</h3>
+        <p class="muted s" style="margin-top:0">Jede Buchung auf einem Platz mit Toren (Plätze › Platz bearbeiten) bekommt einen 6-stelligen Code für die Codetastatur am Tor. Er gilt bis zum Ende der Buchung.</p>
+        <div class="bk-grid" style="--c:4"><label class="f">Code gilt ab … vor Beginn<select id="bs_code_lead_min">${[0, 5, 10, 15, 20, 30, 45, 60].map(v => opt(v, v ? `${v} Minuten` : 'zum Beginn', s.code_lead_min)).join('')}</select></label></div>
+        ${save('bsOkCode')}</div>` : ''}
       <div class="card" data-card="mitspieler"><h3>Mitspieler & Gäste</h3>
         <div class="bk-grid" style="--c:3">${num('max_partners', 'Mitspieler höchstens')}${num('max_guests', 'Gäste höchstens')}
           <label class="f">Gastgebühr je Gast (Standard)<input id="bs_guest_fee" inputmode="decimal" value="${centsToInput(s.guest_fee_cents)}"></label></div>
@@ -999,6 +1187,7 @@
     const nums = ks => Object.fromEntries(ks.map(k => [k, +val('bs_' + k)]));
     const flags = ks => Object.fromEntries(ks.map(k => [k, $('bs_' + k).checked]));
     saveCard($('bsOkBuchen'), () => ({ ...nums(['advance_days', 'max_open_platz', 'max_open_artikel']), cancel_before_min: +val('bs_cancel_before_min') }));
+    if ($('bsOkCode')) saveCard($('bsOkCode'), () => ({ code_lead_min: +val('bs_code_lead_min') }));
     saveCard($('bsOkGaeste'), () => ({ ...nums(['max_partners', 'max_guests']), guest_fee_cents: toCents(val('bs_guest_fee') || '0'), ...flags(['count_partners', 'notify_partners']) }));
     saveCard($('bsOkWarte'), () => ({ ...flags(['waitlist']), ...nums(['max_waits']) }));
     if ($('bsOkWer')) saveCard($('bsOkWer'), () => ({ allowed_status: [...el.querySelectorAll('[data-st]:checked')].map(x => x.dataset.st), blocked_fees: [...el.querySelectorAll('[data-bf]:checked')].map(x => +x.dataset.bf) }));
@@ -1060,11 +1249,12 @@
   }
 
   const G = { key: 'buchung', label: 'Plätze', icon: 'kalender', order: 2 };   // Menü: Verkauf 1 · Plätze 2 · Helferdienste 3 · Zeiterfassung 4 · Beregnung 5 · Zugang 6 · Mitgliederverwaltung 7 · Buchhaltung 8
-  const ANY = ['buchung', 'buchung_buchen', 'buchung_stornieren', 'buchung_serien', 'buchung_einstellungen'];
+  const ANY = ['buchung', 'buchung_buchen', 'buchung_stornieren', 'buchung_serien', 'buchung_einstellungen', 'buchung_gaeste'];
   GK.registerPage({ key: 'bk-belegung', title: 'Belegung', perm: ANY, render: pageRender('bk-belegung', showPlan), group: G });
   GK.registerPage({ key: 'bk-serien', title: 'Serien & Sperren', perm: ANY, render: pageRender('bk-serien', showSeries), group: G });
   GK.registerPage({ key: 'bk-protokoll', title: 'Buchungen', perm: ANY, render: pageRender('bk-protokoll', showLog), group: G });
   GK.registerPage({ key: 'bk-gebuehren', title: 'Gebühren', perm: ANY, render: pageRender('bk-gebuehren', showFees), group: G });
+  GK.registerPage({ key: 'bk-gaeste', title: 'Gäste', perm: ANY, render: pageRender('bk-gaeste', showGuests), group: G });
   GK.registerPage({ key: 'bk-auswertung', title: 'Auswertung', perm: ANY, render: pageRender('bk-auswertung', showStats), group: G });
   GK.registerPage({ key: 'bk-mitspieler', title: 'Mitspielersuche', perm: ANY, render: pageRender('bk-mitspieler', showMs), group: G });
   GK.registerPage({ key: 'bk-plaetze', title: 'Plätze & Geräte', perm: ANY, render: pageRender('bk-plaetze', showResources), group: G });

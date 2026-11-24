@@ -290,6 +290,17 @@ Requests from the member app and reports from department heads:
 - **New bank details:** with the member's signature. On applying, a new mandate is created (first-time debit); the signed mandate is filed as a PDF and sent to the member.
 - **Cancellation:** Clubwerk suggests the earliest possible leaving date: the end of the financial year, keeping to the notice period (notice 0 and financial year = calendar year: cancel by 31.12. → leave on 31.12.; notice 3 months: received by 30.09.). The app shows the same date when cancelling, and so does the confirmation of receipt by email. A fee year that has started is charged in full; you confirm or change it. When confirming, you choose as for a leaving: send default text, edit before sending or no email.
 - **Joining, leaving and return to a department** are reported by the department head; “Confirm” applies them.
+- **Certificate requested:** a member would like a membership certificate, for example for their health insurer's bonus scheme. The row shows the year, the member's note and – for families – who requested it and who it goes to. “Sign …” opens the window for it (see below), “Decline” asks for a reason for the email.
+
+#### Signing a membership certificate
+
+![The “Membership certificate” window: details, name and role and the signature field.](bild: seite=mv-antraege; klick=[data-cok="12"]; ziel=#ceForm)
+
+On the right you see the certificate as a PDF preview. It only contains what the club knows: name, date of birth, address, “Member since”, status (active, passive …), the departments in that year and the period of membership in the chosen year – nothing about training or attendance. At the top is your letterhead from Settings › Club (logo, name, address; phone, email and website in the footer).
+
+On the left you enter **Name** and **Role** (Clubwerk remembers your role for next time) and sign in the field with your finger or mouse; “Delete” starts again. The signature appears only on this certificate and is not stored anywhere else. **Sign & send** creates the PDF with place, date, club stamp and signature, files it under the member's documents, sends it by email and shows it in the app. For a family, the email goes to the head of family. Without a club stamp you cannot sign – the window points this out.
+
+Only users with the “Members” permission without a restriction to a department may sign. Department heads see their department's requests with the preview, but cannot sign or decline them.
 
 #### Archive
 
@@ -434,7 +445,13 @@ Subject and text of the email a member receives on leaving – when you record a
 
 ![The “My data” card in the app.](bild: seite=mv-einstellungen; ziel=#eApp)
 
-Sets what members can **view** in the app (fee, items, address, contact, date of birth, bank details, consents) and what they may **change** (address, contact, bank details, consents, cancellation). The board always confirms changes to data. If the consents are hidden in the app, members withdraw them informally with the board.
+Sets what members can **view** in the app (fee, items, address, contact, date of birth, bank details, consents) and what they may **change** or request (address, contact, bank details, consents, cancellation, membership certificate). The board always confirms changes to data. If the consents are hidden in the app, members withdraw them informally with the board.
+
+#### Certificate for the health insurer
+
+![The “Certificate for the health insurer” card with the club stamp.](bild: seite=mv-einstellungen; ziel=#eStamp)
+
+Upload the **club stamp** here once (PNG or JPG, 2 MB maximum; ideally a scanned stamp as a PNG with a transparent background). It appears on every membership certificate, because some health insurers require a stamp. “Upload a different stamp …” replaces it, “Remove” deletes it – then certificates can no longer be signed. Whether members may request the certificate in the app is set under “My data” in the app.
 
 #### Membership card
 
@@ -640,12 +657,15 @@ As on the “Settings” tab under “Members”: save the settings as a file or
 - **Give new bank details** on the phone with a signature as a new SEPA mandate. The board applies it.
 - **Give or withdraw consents** (takes effect at once, with PIN).
 - **Request the data access:** it arrives as a PDF by email.
+- **Request a membership certificate** (card “Certificate for the health insurer”): choose the year (current or previous, as far as they were a member then) and add a note if they like, e.g. the name of the health insurer. The head of family can also request it for family members. The card shows whether it is with the board, ready (with “View”) or was declined (with the reason). When it is ready, a push notification arrives if the club has enabled it.
 - **Pay by bank transfer:** Anyone who pays by invoice or cash, or has received a reminder, finds the button “Pay by transfer” under “Payments”. It shows a QR code for the banking app and the payee, IBAN, amount and payment reference to copy. Open items without an invoice number get one, so the bank statement recognises the payment. Members paying by direct debit do not see the button.
 - **Cancel**, if allowed. The app names the earliest leaving date; families choose who cancels too.
 
 Signatures, cancellation and changes that concern money or email require the member's PIN.
 
 ![The “New bank details” window with the signature field.](bild: app=mitglieder; klick=#mdBank)
+
+![The “Request certificate” sheet with year and note.](bild: app=mitglieder; klick=#mdCert)
 
 **Membership card:** When it is switched on, “My data” has the tabs **Membership** and **Card**. The card shows the club name, photo (only if released), “Last name, First name”, number, “Member since”, departments, age group, status, “valid until”, the QR code and a running clock with seconds. The clock and the moving shine show that it is not a screenshot. The card is stored on the phone: without a connection the “No connection” page shows the button **Show membership card**. In “For me” the line **Show membership card** leads straight to the card. Anyone who has left sees “Your membership ended on …” without a code; “Log out” deletes the card from the phone.
 
@@ -663,7 +683,7 @@ Signatures, cancellation and changes that concern money or email require the mem
 
 | Permission | What it allows |
 |---|---|
-| Members | See and change members, handle applications and change requests, plus fees & departments, statistics, settings, import, Excel, data access request, delete and anonymise |
+| Members | See and change members, handle applications and change requests, sign membership certificates (not with “Own department(s) only”), plus fees & departments, statistics, settings, import, Excel, data access request, delete and anonymise |
 | Tick box “Own department(s) only” (in the role) | Addition to “Members” for department heads: only their own department, only the “Members” and “Applications” tabs, on the member no “Payment & family” and “Account & mandate”, no import and Excel |
 | Bank details | See and change bank details and SEPA mandate in full (otherwise the IBAN is masked) |
 | Collection | “Fees & payments” menu: fee run, direct debits, open items, invoices & reminders, settings, claims, reminder holds |

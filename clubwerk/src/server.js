@@ -762,7 +762,7 @@ function settingsView(user) {
   const p = user.perms;   // Bestelldaten (Kundennummer, Adresse, Mail des Lieferanten) nur für „Bestellung“/„Einstellungen“
   return { clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), clubNameSet: require('./vereinsname').isSet(), lastSettlement: lastSettlement(),
     order: p.includes('bestellung') || p.includes('einstellungen') ? orderSettings() : undefined, clubColor: clubColor(), clubColor2: clubColor2(), tabletTheme: tabletTheme(), logo: logoUrl(), logoCustom: Boolean((logoInfo() || {}).custom),
-    clubStreet: getSetting('club_street', ''), clubCity: getSetting('club_city', ''), clubEmail: getSetting('club_email', ''), clubPhone: getSetting('club_phone', ''), fiscalMonth: require('./geschaeftsjahr').month(),
+    clubStreet: getSetting('club_street', ''), clubCity: getSetting('club_city', ''), clubEmail: getSetting('club_email', ''), clubPhone: getSetting('club_phone', ''), clubWeb: getSetting('club_web', ''), fiscalMonth: require('./geschaeftsjahr').month(),
     topN: topN(), topDays: topDays(), nurAnschreiben: nurAnschreiben(), tabletPw: p.includes('einstellungen') ? { on: gateOn(), since: getSetting('tablet_pw_at') } : undefined, tablet: tabletOn(), tabletChosen: getSetting('tablet_enabled', null) !== null,
     allowedHosts: p.includes('einstellungen') ? getSetting('allowed_hosts', '') : undefined };
 }
@@ -942,10 +942,11 @@ admin.put('/settings', need('einstellungen'), (req, res) => {
   if (b.tabletTheme !== undefined) setSetting('tablet_theme', b.tabletTheme);
   if (b.nurAnschreiben !== undefined) setSetting('nur_anschreiben', b.nurAnschreiben === true || b.nurAnschreiben === '1' ? '1' : '0');
   const addr = [];
-  for (const [k, key, max] of [['clubStreet', 'club_street', 80], ['clubCity', 'club_city', 80], ['clubPhone', 'club_phone', 40], ['clubEmail', 'club_email', 120]]) {
+  for (const [k, key, max] of [['clubStreet', 'club_street', 80], ['clubCity', 'club_city', 80], ['clubPhone', 'club_phone', 40], ['clubEmail', 'club_email', 120], ['clubWeb', 'club_web', 120]]) {
     if (b[k] === undefined) continue;
     const v = String(b[k] || '').replace(/\s+/g, ' ').trim().slice(0, max);
     if (k === 'clubEmail' && v && !require('./mail').mailOk(v)) return bad(res, 'Bitte eine gültige E-Mail-Adresse für den Verein eintragen.');
+    if (k === 'clubWeb' && v && !/^(https?:\/\/)?[a-z0-9äöü.-]+\.[a-z]{2,}(\/\S*)?$/i.test(v)) return bad(res, 'Bitte die Webseite des Vereins als Adresse eintragen, z. B. www.dein-verein.de.');
     setSetting(key, v); addr.push(key);
   }
   if (b.topN !== undefined) { const n = int(b.topN, -1); if (n < 0 || n > 60) return bad(res, '„Ich bin öfter hier“: Anzahl 0–60 (0 = ausblenden).'); setSetting('top_n', String(n)); }

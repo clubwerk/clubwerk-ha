@@ -88,7 +88,8 @@ function headSmall(doc, club, b, title) {
  * Fußzeile auf allen Seiten: Zeile 1 (Standard: Verein · Anschrift), optional eine zweite Zeile, Seitenzahl bei mehreren Seiten.
  * groups: [[erste Seite, Anzahl], …] je Brief (Sammel-PDF zählt je Brief); foot: Höhe der Fußzeile, wenn ein Modul sie tiefer setzt.
  */
-function footer(doc, club, { numbers = true, groups = null, line1 = null, line2 = '', foot = FOOT } = {}) {
+function footer(doc, club, { numbers = true, groups = null, line1 = null, line2 = null, foot = FOOT } = {}) {
+  if (line2 == null) line2 = contactLine(club);   // Standard: Telefon · E-Mail · Webseite
   const range = doc.bufferedPageRange();
   const text = line1 != null ? line1 : [club.name, club.street, club.city].filter(Boolean).join(' · ');
   for (const [start, count] of groups || [[range.start, range.count]]) for (let i = start; i < start + count; i++) {
@@ -100,6 +101,11 @@ function footer(doc, club, { numbers = true, groups = null, line1 = null, line2 
     if (numbers && count > 1) doc.text(`Seite ${i - start + 1} von ${count}`, R - 70, foot, { width: 70, align: 'right', lineBreak: false });
     doc.page.margins.bottom = mb;
   }
+}
+/** Kontaktzeile aller Briefe und Rechnungen: Telefon · E-Mail · Webseite (Einstellungen › Verein); leere Angaben fehlen. Fehlt ein Feld im club-Objekt, gilt die Kern-Einstellung. */
+function contactLine(club = {}) {
+  const g = k => (club[k] != null ? String(club[k]) : (() => { try { return core ? core.getSetting('club_' + k, '') : ''; } catch (e) { return ''; } })()).trim();
+  return [g('phone') && `Tel. ${g('phone')}`, g('email'), g('web')].filter(Boolean).join(' · ');
 }
 /** Falz- und Lochmarken am linken Rand (DIN 5008) */
 function foldMarks(doc) {
@@ -122,4 +128,4 @@ function letterTop(doc, club, b) {
   doc.moveTo(L, 137).lineTo(L + 240, 137).lineWidth(0.4).strokeColor(LINE).stroke();
 }
 
-module.exports = { PW, PH, L, R, W, TOP, BOTTOM, FOOT, INK, MUTED, SOFT, LINE, FAINT, euro, fmtIban, mix, imgFromData, isImg, collect, brand, newDoc, head, headSmall, footer, foldMarks, box, letterTop };
+module.exports = { PW, PH, L, R, W, TOP, BOTTOM, FOOT, INK, MUTED, SOFT, LINE, FAINT, euro, fmtIban, mix, imgFromData, isImg, collect, brand, newDoc, head, headSmall, footer, contactLine, foldMarks, box, letterTop };

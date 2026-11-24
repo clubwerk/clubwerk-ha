@@ -128,7 +128,12 @@
       .bkm-ms .vh-rows > div { gap: 10px; } .bkm-ms .vh-rows .bkm-av { width: 36px; height: 36px; font-size: 13px; }
       .bkm-ms .vh-bar { margin: 10px 0 0; }
       .bkm-msform .bkm-two .vh-input { margin-bottom: 12px; }
-      .bkm-msform p.bkm-req { margin: 0 0 12px; }`;
+      .bkm-msform p.bkm-req { margin: 0 0 12px; }
+      /* Platzcode fürs Tor: große Ziffern zum Abtippen an der Tastatur (Abstand links gleicht den Zeichenabstand hinter der letzten Ziffer aus) */
+      .bkm-code { margin: 12px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--brand-soft); color: var(--brand-ink); text-align: center; }
+      .bkm-code b { display: block; margin: 2px 0; padding-left: .2em; font-family: var(--num); font-size: 30px; font-weight: 800; letter-spacing: .2em; font-variant-numeric: tabular-nums; line-height: 1.2; }
+      .bkm-code small { display: block; font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+      .bkm-pc { font-family: var(--num); font-size: 19px; font-weight: 800; letter-spacing: .08em; color: var(--ink); flex: none; }`;
     document.head.appendChild(s);
   }
   const { euro, deD } = VA;
@@ -182,6 +187,12 @@
       const $id = id => el.querySelector('#' + id);
       const T = (t, v) => window.T(t, v);
       ctx.onLeave(() => { close(); clearInterval(timer); });
+      /** Platzcode fürs Tor (Buchende, Mitspieler, Trainer) – Kasten mit großen Ziffern bzw. kurzer Hinweis in der Liste */
+      const pcBox = v => `<div class="bkm-code"><small>Platzcode fürs Tor</small>${v.code ? `<b>${esc(v.code)}</b><small>gültig ${esc(v.from)}–${esc(v.to)} Uhr${v.doors.length ? ' · ' + esc(v.doors.join(', ')) : ''}</small>` : '<small>Der Code wird gerade nicht angezeigt – bitte später noch einmal öffnen.</small>'}</div>`;
+      /** Liste „Platzcodes fürs Tor“: eigene Buchungen und Serientermine von heute und morgen – links Platz und Zeit, rechts der Code (zwei Zeilen wie jede Liste) */
+      const pcRows = d => [...d.mine.filter(b => b.platzcode && b.date <= addDays(d.today, 1)).map(b => ({ ...b, title: b.resource })), ...(d.seriesCodes || [])]
+        .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
+        .map(x => `<div><span><strong>${esc(x.title || x.resource)} · <span class="num bkm-t">${x.start}–${x.end}</span></strong><small>${x.date === d.today ? 'heute' : 'morgen'}${x.title && x.title !== x.resource ? ` · ${esc(x.resource)}` : ''}${x.platzcode.code ? ` · gültig ab ${esc(x.platzcode.from)} Uhr` : ''}</small></span>${x.platzcode.code ? `<b class="bkm-pc">${esc(x.platzcode.code)}</b>` : '<small>folgt</small>'}</div>`).join('');
 
       async function load() {
         try { data = await ctx.api('me' + (day ? `?date=${day}` : '')); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
@@ -211,6 +222,7 @@
           <div class="vh-card"><h3>Meine Buchungen</h3><div class="vh-rows">${d.mine.length ? d.mine.map(b => `<div><span><strong>${esc(b.resource)} · <span class="num bkm-t">${b.start}–${b.end}</span></strong><small>${esc(wd(b.date).replace('.', ''))}, ${deD(b.date).slice(0, b.date.slice(0, 4) === d.today.slice(0, 4) ? 6 : 10)}${b.who && b.who.length > 1 ? ' · mit ' + esc(b.who.filter(w => w !== ctx.member).map(first).join(', ')) : ''}${b.partner_device_name ? ` + ${esc(b.partner_device_name)}` : ''}${b.solo_label ? ` · ${esc(b.solo_label)}` : ''}${b.fee_cents ? ` · Gebühr ${euro(b.fee_cents)}` : ''}${b.for_name ? ` · für ${esc(b.for_name)}` : b.own ? (b.booked_by ? ` · gebucht von ${esc(b.booked_by)}` : '') : ' · eingetragen als Mitspieler'}</small></span>
               <span class="bkm-acts"><a class="bkm-ical" href="${esc(b.ics)}" aria-label="In den Kalender" title="In den Kalender"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 13v5M9.5 15.5h5"/></svg></a>${b.canEdit ? `<button class="bkm-ical" data-e="${b.id}" aria-label="Ändern" title="Ändern"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button>` : ''}${b.canCancel ? `<button class="bkm-ical bkm-del" data-c="${b.id}" aria-label="Stornieren" title="Stornieren"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12.5a1.5 1.5 0 0 0 1.5 1.5h7a1.5 1.5 0 0 0 1.5-1.5L18 7M9 7V4.5h6V7"/></svg></button>` : ''}</span></div>`).join('') : '<p class="vh-none">Keine offenen Buchungen.</p>'}</div>
             ${d.series && d.series.length ? `<h3 style="margin-top:14px">Meine Serien</h3><div class="vh-rows">${d.series.map(x => `<div><span><strong>${esc(x.title)}</strong><small>${esc(x.resources.join(', '))} · ${esc(x.rule_text || x.weekdays.split('').map(n => ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][+n]).join(', '))} ${x.start}–${x.end} · bis ${deD(x.to_date)} · ${x.count} Termine</small></span><button class="vh-btn sm sec" data-se="${x.id}">Beenden</button></div>`).join('')}</div>` : ''}
+            ${pcRows(d) ? `<h3 style="margin-top:14px">Platzcodes fürs Tor</h3><div class="vh-rows">${pcRows(d)}</div>` : ''}
             ${d.waits.length ? `<h3 style="margin-top:14px">Warteliste</h3><div class="vh-rows">${d.waits.map(w => `<div><span><strong>${esc(w.resource)} · ${w.start} Uhr</strong><small>${deD(w.date)}${w.notified_at ? ' · frei geworden – schnell buchen!' : ''}</small></span><button class="vh-btn sm sec" data-w="${w.id}">Entfernen</button></div>`).join('')}</div>` : ''}</div>`;
         bindTabs();
         if ($id('bkmPickX')) $id('bkmPickX').onclick = () => { msPick = null; draw(); };
@@ -345,7 +357,8 @@
       /** eigener Serientermin: erst was (ändern/absagen), dann für wen (nur diesen · diesen und folgende · gesamte Serie) */
       function seriesSheet(r, b) {
         const sh = sheet();
-        const head = `<h2>${esc(b.title || r.name)}</h2><p>${esc(r.name)} · ${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)} · ${b.start}–${b.end} Uhr<br><small>Termin einer Serie</small></p>`;
+        const pcv = ((data.seriesCodes || []).find(x => x.id === b.id) || {}).platzcode;
+        const head = `<h2>${esc(b.title || r.name)}</h2><p>${esc(r.name)} · ${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)} · ${b.start}–${b.end} Uhr<br><small>Termin einer Serie</small></p>${pcv ? pcBox(pcv) : ''}`;
         const step1 = () => {
           sh.innerHTML = `<div class="vh-box">${head}<div class="vh-row"><button class="no" id="bkmX" style="color:var(--red)">Absagen</button><button class="ok" id="bkmEd">Ändern</button></div>
             <div class="vh-row" style="margin-top:8px"><button class="no" id="bkmNo">Schließen</button></div></div>`;
@@ -559,7 +572,7 @@
             const bd = body(); const res = await ctx.api('book', 'POST', { ...bd, accept: $q('bkmR') ? $q('bkmR').checked : true });
             if (bd.ms) { msPick = null; msData = null; }
             const s0 = start(), m = bd.minutes;
-            sh.innerHTML = `<div class="vh-box" style="text-align:center"><h2>${ed ? 'Gespeichert ✓' : 'Gebucht ✓'}</h2><p>${res.for_name ? `für <b>${esc(res.for_name)}</b><br>` : ''}${esc(r.name)} · ${esc(wd(day, { weekday: 'long' }))}, ${deD(day)}<br><b>${hhmm(s0)}–${hhmm(s0 + m)} Uhr</b>${lab ? `<br>${esc(lab.name)}` : ''}${device ? `<br>+ ${esc((devices.find(x => x.id === device) || {}).name || 'Gerät')}` : ''}${solo ? `<br>${esc(r.solo_label)} (allein)` : ''}${partners.length ? `<br>${ed ? 'Deine Mitspieler werden informiert.' : 'Deine Mitspieler bekommen eine E-Mail.'}` : ''}${res.fee_cents ? `<br>Gebühr ${euro(res.fee_cents)}` : ''}</p>
+            sh.innerHTML = `<div class="vh-box" style="text-align:center"><h2>${ed ? 'Gespeichert ✓' : 'Gebucht ✓'}</h2><p>${res.for_name ? `für <b>${esc(res.for_name)}</b><br>` : ''}${esc(r.name)} · ${esc(wd(day, { weekday: 'long' }))}, ${deD(day)}<br><b>${hhmm(s0)}–${hhmm(s0 + m)} Uhr</b>${lab ? `<br>${esc(lab.name)}` : ''}${device ? `<br>+ ${esc((devices.find(x => x.id === device) || {}).name || 'Gerät')}` : ''}${solo ? `<br>${esc(r.solo_label)} (allein)` : ''}${partners.length ? `<br>${ed ? 'Deine Mitspieler werden informiert.' : 'Deine Mitspieler bekommen eine E-Mail.'}` : ''}${res.fee_cents ? `<br>Gebühr ${euro(res.fee_cents)}` : ''}</p>${res.platzcode ? pcBox(res.platzcode) : ''}
               <div class="vh-row"><button class="no" id="bkmDone">Fertig</button><a class="ok bkm-cal" href="${esc(res.ics)}" id="bkmCal">In den Kalender</a></div></div>`;
             sh.querySelector('#bkmDone').onclick = close; sh.querySelector('#bkmCal').addEventListener('click', () => setTimeout(close, 400));
             load();
@@ -659,7 +672,7 @@
           <label class="l" for="bkmMh">Hinweis <span>(optional, höchstens 140 Zeichen)</span></label><input class="vh-input" id="bkmMh" maxlength="140" placeholder="z. B. Gern auch gemischtes Doppel" value="${esc(ed ? ed.note : '')}">
           <p class="vh-lead">Sichtbar für Mitglieder, die „Plätze“ in der App freigeschaltet haben – ohne Telefonnummer und E-Mail. Das Gesuch endet automatisch zur Startzeit.</p>
           <div class="vh-err" id="bkmME" aria-live="polite"></div>
-          <div class="vh-row"><button class="no" id="bkmMNo">Abbrechen</button><button class="ok" id="bkmMOk">${ed ? 'Speichern' : 'Gesuch zeigen'}</button></div></div>`;
+          <div class="vh-row"><button class="no" id="bkmMNo">Abbrechen</button><button class="ok" id="bkmMOk">${ed ? 'Speichern' : 'Gesuch einstellen'}</button></div></div>`;
         sh.classList.add('show');
         const $q = id => sh.querySelector('#' + id);
         const paintNeed = () => { const k = kOf(); if (!need || need < k.min || need > k.max) need = k.min;

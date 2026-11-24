@@ -215,7 +215,7 @@ function load({ app, admin, helpers }) {
         isActive: () => isActive(id), require: name => require(name), ...helpers,
         setting: (k, d = '') => getSetting(`ext_${id}_${k}`, d), setSetting2: (k, v) => setSetting(`ext_${id}_${k}`, v == null ? '' : String(v)),   // Einstellungen des Moduls: lesen (mit Vorgabe) · schreiben (immer als Text)
         calendarLink: ev => require('./kalender').eventLink(ev),   // Link auf die .ics-Datei eines einzelnen Termins für „In den Kalender“ (Mitglieder-App)
-        clubAddress: () => ({ street: getSetting('club_street', ''), city: getSetting('club_city', ''), email: getSetting('club_email', ''), phone: getSetting('club_phone', '') }),   // Anschrift und Kontakt des Vereins (Einstellungen › Verein)
+        clubAddress: () => ({ street: getSetting('club_street', ''), city: getSetting('club_city', ''), email: getSetting('club_email', ''), phone: getSetting('club_phone', ''), web: getSetting('club_web', '') }),   // Anschrift und Kontakt des Vereins (Einstellungen › Verein)
         // Zugangsdaten fremder Dienste (API-Schlüssel, Passwörter, Tokens): nur über ctx.geheim – liegen im Tresor, Name bekommt ext_<id>_ (planung/geheimnisse.md)
         geheim: require('./geheim').fuerModul(id),
         // Geschäftsjahr des Vereins (Kern-Einstellung): month() · yearOf(tag) · range(jahr) → { from, to } · startOf/endOf(tag) · label(jahr) → „2026/27“ · yearsOf(tage, heute)

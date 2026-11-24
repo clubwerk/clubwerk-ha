@@ -14,6 +14,7 @@ Das Modul läuft allein. Ohne die Mitgliederverwaltung kennt es nur Vor- und Nac
 3. **Plätze anlegen:** Reiter „Plätze & Geräte“ › „+ Platz“ oder „+ Gerät“. Namen, Öffnungszeiten, Zeitraster und Höchstdauer festlegen.
 4. **Regeln prüfen:** Reiter „Einstellungen“ – Vorlauf, Kontingent, Gäste und Gastgebühr sind mit Vorschlagswerten gefüllt. Dort legt ihr auch die **Buchungsarten** an (Training, Medenspiel …).
 5. **Tablet und App:** Mitglieder sehen den Bereich „Plätze“ sofort in der App. Am Tablet erscheint er, sobald „Am Tablet im Vereinsheim buchen“ an ist (Standard).
+6. **Gästebuchung (freiwillig):** Sollen auch Nichtmitglieder online buchen und mit PayPal oder Karte zahlen, richtet ihr die Buchungsseite ein – Schritt für Schritt im Reiter „Gäste“ weiter unten.
 
 ## Verwaltung {#verwaltung}
 
@@ -70,6 +71,7 @@ Ein Klick auf einen Block zeigt die Einzelheiten: Spieler, Titel, Gebühr, Notiz
 
 - **Stornieren** fragt nach einem Grund (freiwillig). Das Mitglied bekommt eine E-Mail, eine Gebühr entfällt. Nötig ist das Recht „Buchungen anderer stornieren“. Du findest es in den Einzelheiten und auch im Fenster „Bearbeiten“ (Knopf „Stornieren“ links unten).
 - **Bearbeiten** öffnet dasselbe Fenster wie beim Eintragen: Platz, Zeit, Mitglied, Mitspieler, Gäste und Buchungsart lassen sich ändern. Gastgebühren werden neu berechnet, neue Mitspieler bekommen die Mail.
+- **Platzcode „Zeigen“** (nur auf Plätzen mit Toren, mit dem Recht „für Mitglieder buchen“ oder „Serien & Sperren“): zeigt den Code für die Tastatur am Tor, z. B. um ihn einer Mannschaft ohne App weiterzugeben. Jedes Ansehen steht im Änderungsprotokoll (ohne den Code).
 
 Gehört der Termin zu einer Serie oder Sperre, fragt Clubwerk zuerst, was gemeint ist:
 
@@ -151,6 +153,100 @@ Von Hand gebuchte Gebühren haben in der Zeile den Knopf **Stornieren**; die Rü
 
 Gebühren für ein Familienmitglied oder jemanden mit eigenem Zahler („zahlt für“) stehen als offener Posten beim Zahler.
 
+### Reiter „Gäste“ {#bk-gaeste}
+
+![Der Reiter „Gäste“: Verbindung zur Buchungsseite, Kennzahlen, Abweichungen und die Gastbuchungen.](bild: seite=bk-gaeste; hoehe=620)
+
+Hier bucht ihr Plätze für **Nichtmitglieder**. Gäste buchen auf einer eigenen kleinen Buchungsseite (als Link oder Rahmen auf eurer Homepage) und zahlen mit **PayPal oder Debit-/Kreditkarte**. Die Buchungsseite läuft außerhalb des Vereinsheims bei Cloudflare. Clubwerk bleibt von außen unerreichbar: Es ruft die Buchungsseite etwa jede Minute selbst auf, schickt die freien Zeiten und holt neue Buchungen und Stornos ab. Die Buchungsseite kennt keine Mitgliederdaten.
+
+Jede Zahlung prüft Clubwerk danach **selbst bei PayPal** (bezahlt, Betrag, Euro, Buchungsnummer). Erst dann steht die Buchung im Platzplan als „Gastbuchung“, bekommt einen Platzcode für das Tor und der Gast eine Bestätigung per E-Mail mit Code und Storno-Link. Solange der Gast bei PayPal bezahlt, hält Clubwerk die Zeit als „Gastbuchung (Zahlung läuft)“, damit niemand sie in der Zwischenzeit bucht.
+
+Oben steht, ob die Verbindung steht: **verbunden** (grün, mit der Uhrzeit des letzten Abgleichs und „PayPal Sandbox“ bzw. „PayPal Live“), **keine Verbindung** (Internet weg – Gäste können dann nicht buchen, alles andere in Clubwerk läuft weiter), **Tresor gesperrt** (nach einem Neustart wartet der Abgleich, bis sich ein Admin anmeldet; darunter steht, was wartet) oder ein Fehler wie „Signatur“ (Schlüssel passt nicht) oder „PayPal-Umgebung passt nicht“. **Jetzt abgleichen** gleicht sofort ab, **Einrichten** öffnet das Fenster für die Einrichtung, **Auf der Homepage einbinden** zeigt den Link und den Code für den Rahmen.
+
+Darunter drei Kennzahlen: **kommende Gastbuchungen**, **Einnahmen diesen Monat** (abzüglich Erstattungen, mit der Zahl der Buchungen; die PayPal-Gebühr steht in jeder Gastbuchung) und **offene Abweichungen**.
+
+#### Abweichungen
+
+![Karte „Offene Abweichungen“ mit „Trotzdem eintragen“ und „Erledigt“.](bild: seite=bk-gaeste; ziel=[data-card="abweichungen"])
+
+Hier steht alles, was bei einer Zahlung nicht zusammenpasst – etwa ein anderer Betrag bei PayPal, eine Zahlung, die es bei PayPal nicht gibt, oder beim **täglichen Abgleich** mit PayPal (letzte 3 Tage) eine Zahlung ohne Gastbuchung in Clubwerk. Eine Buchung mit Abweichung trägt Clubwerk nicht ein; der Platz bleibt gehalten, bis ihr entscheidet:
+
+- **Trotzdem eintragen** (nur bei „bitte prüfen“): Clubwerk prüft noch einmal bei PayPal, dass bezahlt ist, und trägt die Buchung trotz des anderen Betrags ein – z. B. kurz nach einer Preisänderung. Stimmt der Betrag bei PayPal selbst nicht, lehnt Clubwerk ab.
+- **Stornieren** in der Gastbuchung (siehe unten) erstattet das Geld.
+- **Erledigt** blendet die Abweichung aus, wenn ihr sie geklärt habt. Das steht im Protokoll.
+
+Gibt es Abweichungen, zeigt auch die Übersicht einen roten Hinweis.
+
+#### Gastbuchungen
+
+![Die Liste der Gastbuchungen mit Filter, Name, Zeit, Platz, Buchungsnummer, Betrag und Status.](bild: seite=bk-gaeste; ziel=#bkBody > .card:has(table.bk-fees))
+
+Die Filter **Kommend**, **Alle**, **Storniert** und **Mit Abweichung** grenzen die Liste ein. Namen stehen als „Nachname, Vorname“. Der Status heißt **Zahlung läuft** (Gast ist gerade bei PayPal), **Zahlung in Prüfung** (PayPal prüft die Zahlung noch – der Platz ist gehalten, einen Code gibt es erst danach), **bezahlt** (mit Platzcode, wenn der Platz Tore hat), **Erstattung läuft**, **storniert**, **abgebrochen**, **Platz war vergeben** (die Zeit war in Clubwerk schon belegt – nichts abgebucht bzw. Geld erstattet) oder **bitte prüfen**.
+
+Eine Zeile anklicken öffnet die Gastbuchung:
+
+![Die geöffnete Gastbuchung mit Kontakt, Betrag, PayPal-Nummern und „Stornieren und erstatten“.](bild: seite=bk-gaeste; klick=tr[data-g]; ziel=dialog)
+
+Ihr seht E-Mail und Handynummer, Betrag und PayPal-Gebühr, die Nummern bei PayPal und welche Mail der Gast bekommen hat. Das Ansehen steht im Protokoll. **Stornieren und erstatten** mit einem Grund (er steht in der Mail an den Gast): Die Buchungsseite erstattet den Betrag über PayPal, Clubwerk prüft die Erstattung, trägt die Buchung aus, macht den Platzcode ungültig und schreibt dem Gast. Das gilt auch, wenn ihr eine Gastbuchung im Platzplan storniert oder eine Sperre sie verdrängt. Verschieben lässt sich eine Gastbuchung nicht – der Gast hat genau diese Zeit bezahlt.
+
+Gäste stornieren selbst über den Link in ihrer Bestätigung, bis zur Stornofrist (Standard 24 Stunden vor Beginn). Danach geht Storno nur über euch.
+
+#### Plätze für Gäste
+
+![Karte „Plätze für Gäste“.](bild: seite=bk-gaeste; ziel=[data-card="plaetze"])
+
+Je Platz legt ihr fest, ob Gäste ihn online buchen dürfen. **Bearbeiten** öffnet das Fenster:
+
+![Das Fenster eines Platzes: für Gäste buchbar, Wochentage, Zeitfenster, Preis je Stunde, Dauer und Vorlauf.](bild: seite=bk-gaeste; klick=[data-gc="3"]; ziel=dialog)
+
+- **Für Gäste (Nichtmitglieder) online buchbar** schaltet den Platz frei.
+- **Wochentage** und **Von/Bis**: Gäste sehen nur freie Zeiten in diesem Fenster und innerhalb der Öffnungszeit des Platzes.
+- **Preis je Stunde** (1 € bis 500 €) und **Dauer je Buchung** (im Raster des Platzes): Der Preis einer Buchung ist Preis je Stunde × Dauer.
+- **Vorlauf**: so viele Tage im Voraus ist der Platz buchbar (1 bis 60). Zeiten, die in weniger als 30 Minuten beginnen, bietet die Buchungsseite nicht mehr an.
+
+Belegte Zeiten – Mitglieder, Serien, Sperren, Turniere – bietet die Buchungsseite nie an.
+
+#### Einrichten
+
+![Das Fenster „Gästebuchung einrichten“: Buchungsseite, Homepage, Fristen und Hinweis zum Datenschutz.](bild: seite=bk-gaeste; klick=#gsCfg; ziel=dialog; hoehe=640)
+
+- **Gästebuchung eingeschaltet**: Ohne den Haken zeigt die Buchungsseite „keine Online-Buchungen“.
+- **Adresse der Buchungsseite** (nur `https`), **Homepage, auf der sie eingebettet werden darf** (der Rahmen erscheint nur dort), **Impressum** und **Datenschutz** (Links unten auf der Buchungsseite).
+- **Stornieren mit Erstattung bis … Stunden vorher** (0 bis 720) und **Zeit reserviert, während der Gast bezahlt** (5 bis 30 Minuten).
+- **Hinweis zum Datenschutz**: erscheint auf der Buchungsseite vor dem Bezahlen. **Vorschlag einsetzen** füllt einen Text mit Zweck, Rechtsgrundlage, PayPal und Cloudflare, Löschfristen und euren Rechten ein – bitte an euren Verein anpassen und von eurem Datenschutzbeauftragten prüfen lassen. **Vereinslogo zeigen** schickt das Logo an die Buchungsseite.
+![Unten im Fenster: gemeinsamer Schlüssel und PayPal-Zugang für die Prüfung.](bild: seite=bk-gaeste; klick=#gsCfg; ziel=#gsZugang)
+
+- **Gemeinsamer Schlüssel**: **Schlüssel erzeugen …** (mit eurem Passwort) zeigt den Schlüssel **ein einziges Mal** zum Kopieren; danach steht nur „eingetragen“. Er gehört auf die Buchungsseite (siehe unten). Ein neuer Schlüssel löst eine Sicherheitswarnung aus; bis er auch auf der Buchungsseite steht, ruht die Gästebuchung.
+- **PayPal (App „Clubwerk Prüfung“)**: **Umgebung** Sandbox (Test) oder Live (echtes Geld), **Client-ID** und **Secret** dieser App. Clubwerk benutzt sie **nur zum Lesen** (Zahlungen nachsehen, täglicher Abgleich), nie zum Abbuchen oder Erstatten. Das Secret liegt verschlüsselt im Tresor und wird nie angezeigt. **PayPal prüfen** testet den Zugang mit dem Abgleich der letzten 3 Tage. Die Umstellung auf Live fragt nach und löst eine Sicherheitswarnung aus.
+
+#### Auf der Homepage einbinden
+
+![Das Fenster „Auf der Homepage einbinden“ mit Link und Rahmen.](bild: seite=bk-gaeste; klick=#gsEmbed; ziel=dialog)
+
+Entweder einfach den **Link** auf die Homepage setzen oder den **Rahmen** (iframe) samt kleinem Skript für die Höhe einfügen (**Rahmen kopieren**). Am Handy öffnet „Weiter zur Buchung“ die Buchungsseite groß und leitet zum Bezahlen zu PayPal weiter – ohne Popup.
+
+#### Schritt für Schritt: Buchungsseite und PayPal-Sandbox einrichten
+
+Zuerst richtet ihr alles in der **PayPal-Sandbox** ein (Testgeld). Auf Live stellt ihr erst um, wenn alles klappt und der Vorstand zugestimmt hat. Ihr braucht: ein kostenloses Cloudflare-Konto, einen PayPal-Entwicklerzugang (mit dem PayPal-Geschäftskonto des Vereins anmelden), einen PC mit Node.js 22 (Windows, Mac oder WSL) und den Ordner **gaestebuchung** aus dem Clubwerk-Paket.
+
+1. **PayPal-App „Buchungsseite“:** <https://developer.paypal.com> → anmelden → **Apps & Credentials** → oben **Sandbox** wählen → **Create App**, Name „Buchungsseite“, Typ *Merchant*. Client-ID und Secret notieren – sie kommen auf die Buchungsseite.
+2. **PayPal-App „Clubwerk Prüfung“:** noch eine App mit demselben Sandbox-Geschäftskonto anlegen und darin unter *Features* **Transaction Search** einschalten. Client-ID und Secret dieser App kommen **nur** in Clubwerk.
+3. **Schlüssel erzeugen:** In Clubwerk unter Plätze › Gäste › **Einrichten** auf **Schlüssel erzeugen …** und den Schlüssel kopieren.
+4. **Cloudflare vorbereiten:** Auf dem PC im Ordner `gaestebuchung` eine Eingabeaufforderung öffnen und `npx wrangler login` eingeben (öffnet die Anmeldung bei Cloudflare im Browser).
+5. **Datenbank anlegen:** `npx wrangler d1 create gaestebuchung` – die angezeigte `database_id` in die Datei `wrangler.toml` eintragen, dann `npx wrangler d1 migrations apply gaestebuchung --remote`.
+6. **Client-ID eintragen:** In `wrangler.toml` bei `PAYPAL_CLIENT_ID` die Client-ID der App „Buchungsseite“ einsetzen. `PAYPAL_ENV` bleibt `"sandbox"`.
+7. **Geheimnisse nur per Befehl:** `npx wrangler secret put PAYPAL_CLIENT_SECRET` (Secret der App „Buchungsseite“) und `npx wrangler secret put CLUBWERK_SCHLUESSEL` (Schlüssel aus Schritt 3). Diese Werte gehören nie in eine Datei.
+8. **Sicherheitsprüfung (Turnstile) gegen Massen-Reservierungen:** Im Cloudflare-Dashboard links **Turnstile** › *Add widget*: Name „Buchungsseite“, als Hostnamen die Adresse der Buchungsseite (z. B. `gaestebuchung.dein-verein.workers.dev` und, falls angelegt, `buchen.dein-verein.de`), Modus *Managed*. Den **Site Key** in `wrangler.toml` bei `TURNSTILE_SITE_KEY` eintragen, den **Secret Key** mit `npx wrangler secret put TURNSTILE_SECRET`. Gäste sehen vor dem Bezahlen ein kleines Feld „Ich bin ein Mensch“, das sich meist von selbst abhakt. Ohne die Schlüssel nimmt die Buchungsseite keine Reservierungen an.
+9. **Hochladen:** `npx wrangler deploy` – am Ende steht die Adresse, z. B. `https://gaestebuchung.dein-verein.workers.dev`. Eine eigene Adresse wie `buchen.dein-verein.de` legt ihr bei Cloudflare unter *Workers › gaestebuchung › Settings › Domains & Routes* an.
+10. **Webhook bei PayPal:** In der App „Buchungsseite“ unter *Webhooks* → *Add Webhook* → Adresse `https://<eure-adresse>/api/v1/webhook`, Ereignisse *Checkout order approved* und *Payment capture completed, denied, pending, refunded, reversed*. Die **Webhook ID** in `wrangler.toml` bei `PAYPAL_WEBHOOK_ID` eintragen und noch einmal `npx wrangler deploy`.
+11. **Clubwerk verbinden:** Im Fenster **Einrichten** die Adresse der Buchungsseite, eure Homepage, Impressum und Datenschutz, Umgebung **Sandbox** sowie Client-ID und Secret der App „Clubwerk Prüfung“ eintragen, **Gästebuchung eingeschaltet** anhaken und speichern. **Jetzt abgleichen** muss „verbunden“ zeigen.
+12. **Plätze freigeben:** In der Karte „Plätze für Gäste“ je Platz **Bearbeiten** und „für Gäste buchbar“ einschalten.
+13. **Ausprobieren:** Die Buchungsseite öffnen, eine Zeit buchen und mit einem Sandbox-Käufer bezahlen (developer.paypal.com → *Testing Tools* › *Sandbox Accounts*, Typ *Personal*; Testkarten unter *Card Testing*). Nach höchstens einer Minute steht die Buchung im Platzplan und die Bestätigung ist im Postfach.
+
+> Auf Live umstellen: in developer.paypal.com oben **Live** wählen und beide Apps dort neu anlegen, in `wrangler.toml` `PAYPAL_ENV = "live"` sowie die neue Client-ID und Webhook ID eintragen, `npx wrangler secret put PAYPAL_CLIENT_SECRET` mit dem Live-Secret, `npx wrangler deploy`, in Clubwerk Umgebung **Live** mit der Live-App „Clubwerk Prüfung“. Passen die Umgebungen nicht zusammen, hält Clubwerk den Abgleich an.
+
+> PayPal berechnet je Zahlung eine Gebühr (in Deutschland etwa 2,49 % + 0,35 €, für gemeinnützige Vereine auf Antrag weniger). Bei einer Erstattung behält PayPal den festen Anteil. Beides bucht Clubwerk in der Buchführung mit (Zahlweg PayPal).
+
 ### Reiter „Auswertung“ {#bk-auswertung}
 
 Die Auslastung im Jahresvergleich. Oben wählt ihr **Jahr** und **Platz**; alles wird mit dem Vorjahr verglichen (grün besser, rot schlechter). Im laufenden Jahr zählt die Auslastung bis heute.
@@ -230,7 +326,11 @@ Beide öffnen dasselbe Fenster, das mit „Bearbeiten“ auch einen bestehenden 
 - **Gehört der Abteilung** (erscheint, sobald es Abteilungen gibt): Mitglieder der Abteilung buchen kostenlos; für **andere Mitglieder** wählt ihr „buchen mit Platzgebühr“ (Betrag je Person) oder „dürfen nicht buchen“.
 - **Aktiv:** inaktive Plätze sind nicht buchbar und nicht im Plan.
 
-Nur bei **Plätzen**: **Mitspieler** „optional“ oder „Pflicht“, und **Allein trainieren erlaubt, Bezeichnung** (z. B. „Ballwand“; leer = nein). Nur bei **Geräten**: **Als Mitspieler buchbar** – z. B. die Ballmaschine, die beim Buchen als „Mitspieler“ gewählt wird und im selben Zeitfenster mitgebucht ist.
+Nur bei **Plätzen** (sobald das Modul Zugang an ist): **Platzcode öffnet diese Tore** – die Türen mit Codetastatur aus dem Modul Zugang, die der Code einer Buchung auf diesem Platz öffnet, meist das Haupttor und genau das Tor dieses Platzes. Ein Tor kann mehrere Plätze bedienen. Ändern darf das nur, wer zusätzlich das Recht „Zugang“ hat; jede Änderung steht im Protokoll und der Vorstand bekommt eine Sicherheitswarnung. Ohne Tore bekommt der Platz keinen Code.
+
+![Im Fenster eines Platzes: welche Tore der Platzcode öffnet.](bild: seite=bk-plaetze; klick=[data-ed="4"]; ziel=#dialog .bkf:has([data-cd]))
+
+Nur bei **Plätzen** außerdem: **Mitspieler** „optional“ oder „Pflicht“, und **Allein trainieren erlaubt, Bezeichnung** (z. B. „Ballwand“; leer = nein). Nur bei **Geräten**: **Als Mitspieler buchbar** – z. B. die Ballmaschine, die beim Buchen als „Mitspieler“ gewählt wird und im selben Zeitfenster mitgebucht ist.
 
 „Löschen“ geht nur, wenn keine kommenden Buchungen, Serien oder Sperren mehr auf dem Platz liegen; vergangene bleiben im Protokoll und in der Auswertung erhalten. Sonst den Platz auf „inaktiv“ setzen.
 
@@ -249,6 +349,14 @@ Drei Zahlen und eine Auswahl:
 Vereinstermine (Training, Medenspiel) ignorieren Vorlauf und Kontingent, siehe „Buchungsarten“.
 
 ![Karte „Buchen“: Vorlauf, Kontingent und Stornierfrist.](bild: seite=bk-einstellungen; ziel=[data-card="buchen"])
+
+#### Platzcode
+
+Die Karte erscheint, sobald das Modul Zugang an ist. Jede Buchung auf einem Platz mit Toren – auch jeder einzelne Termin einer Serie oder eines Trainings – bekommt einen eigenen 6-stelligen Zufallscode. **Code gilt ab … vor Beginn** (Standard 15 Minuten) bis zum Ende der Buchung; nach dem Ende öffnet er von außen nicht mehr (innen öffnet der Drehknauf immer). Wird die Buchung verschoben, wandert das Zeitfenster mit. Wird sie storniert, gilt der Code sofort nicht mehr. Wird jemand ausgetragen oder der Platz gewechselt, gibt es einen neuen Code.
+
+![Karte „Platzcode“.](bild: seite=bk-einstellungen; ziel=[data-card="platzcode"])
+
+Den Code sehen nur die Beteiligten: der Buchende und die Mitspieler in der App und in der Mitspieler-Mail, bei Serien der eingetragene Trainer in der App, nach dem Buchen am Tablet der Buchende (dazu eine kurze Mail mit dem Code). Gäste haben keine eigene Adresse in Clubwerk – ihnen gibt der Buchende den Code weiter.
 
 #### Mitspieler & Gäste
 
@@ -342,6 +450,7 @@ Plätze, Buchungsarten und Einstellungen als Datei exportieren und in einer ande
 
 - **Buchen:** freie Stelle antippen, Dauer wählen (nur bis zur nächsten Buchung oder zur Höchstdauer), auf Wunsch Mitspieler, Gäste (mit Namen; der Haken „Mitglied in einem Partnerverein“ spart die Gebühr) oder ein Gerät („Ballmaschine“) bzw. „allein“ (z. B. Ballwand) hinzufügen. Wer das Sonderrecht hat, kann auch für ein anderes Mitglied buchen oder wiederholen. Ein Preisfeld zeigt vorab Gastgebühr und eventuelle Platzgebühr, dann die Platzordnung bestätigen und „Buchen“.
 - **Belegte Zeit antippen:** zeigt, wer gebucht hat (je nach Einstellung), und bietet „Vormerken“ für die Warteliste.
+- **Platzcode:** Nach dem Buchen zeigt die App den Code groß an („Platzcode fürs Tor“, mit Gültigkeit und Toren), unter „Platzcodes fürs Tor“ (unter „Meine Buchungen“) stehen die Codes aller eigenen Buchungen von heute und morgen, auch als Mitspieler, und bei Trainern die ihrer Serientermine – links Platz und Zeit, rechts der Code.
 - **Meine Buchungen:** mit Symbolen für Kalender (die Buchung landet im Handykalender), Ändern und Stornieren (auch im Fenster „Buchung ändern“ ganz unten: „Buchung stornieren“); darunter „Meine Serien“ mit „Beenden“ und „Warteliste“ mit „Entfernen“.
 - **Stornieren als Mitspieler:** Jeder eingetragene Mitspieler kann die ganze Buchung stornieren, mit derselben Frist wie der Buchende („Die Buchung von … wird für alle storniert.“). Ändern bleibt beim Buchenden. Eine Gebühr entfällt wie beim Storno durch den Buchenden; der Buchende und die anderen Mitspieler bekommen eine E-Mail und einen Push-Hinweis, das Protokoll nennt, wer storniert hat. Wer weder gebucht hat noch mitspielt, sieht „Gebucht hat … – nur er/sie oder ein Mitspieler kann stornieren.“
 - **Push:** Das Mitglied kann sich benachrichtigen lassen, wenn es als Mitspieler eingetragen wird, wenn eine Buchung geändert oder storniert wird (auch durch eine Platzsperre), wenn ein Platz von der Warteliste frei wird und kurz vor dem Spiel (Vorlauf 2 Stunden, einstellbar). Welche Anlässe es gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest.
@@ -352,14 +461,14 @@ Plätze, Buchungsarten und Einstellungen als Datei exportieren und in einer ande
 ![Das Fenster „Mitspieler suchen“.](bild: app=buchung; klick=.bkm-tabs [data-tab="ms"]; klick2=#bkmMsNew)
 
 **Mitspieler (Reiter oben im Bereich „Plätze“):**
-- **Mitspieler suchen:** Spielform wählen (bei „Training“ auch, wie viele), dann eine eigene, schon gebuchte Buchung oder „noch kein Platz“ mit Tag und Uhrzeit. Spielstärke, LK-Bereich und ein Hinweis (höchstens 140 Zeichen, ohne Links) sind freiwillig. „Gesuch zeigen“ stellt es ein. Sichtbar ist es nur für Mitglieder, die „Plätze“ in der App nutzen dürfen – mit „Nachname, Vorname“ und Foto (wenn für die Platzbuchung freigegeben), nie mit Telefonnummer oder E-Mail.
+- **Mitspieler suchen:** Spielform wählen (bei „Training“ auch, wie viele), dann eine eigene, schon gebuchte Buchung oder „noch kein Platz“ mit Tag und Uhrzeit. Spielstärke, LK-Bereich und ein Hinweis (höchstens 140 Zeichen, ohne Links) sind freiwillig. „Gesuch einstellen“ stellt es ein. Sichtbar ist es nur für Mitglieder, die „Plätze“ in der App nutzen dürfen – mit „Nachname, Vorname“ und Foto (wenn für die Platzbuchung freigegeben), nie mit Telefonnummer oder E-Mail.
 - **Ich spiele mit:** Die Zusage ist verbindlich, wer zuerst kommt, ist dabei. Hat das Gesuch einen Platz, steht man sofort als Mitspieler in der Buchung (mit denselben Regeln wie beim Buchen, z. B. Kontingent). „Details“ zeigt, wer schon dabei ist, und bietet **Melden**. Eigene Zusagen stehen unter „Meine Zusagen“ mit „Zusage zurückziehen“.
 - **Mein Gesuch:** zeigt „2 von 3 gefunden“ und wer wann zugesagt hat („Entfernen“ nimmt eine Zusage heraus). „Bearbeiten“ ändert das Gesuch; gibt es schon Zusagen, bleiben Spielform, Zeit und Platz, wie zugesagt wurde. „Zurückziehen“ beendet es, eine gebuchte Buchung bleibt bestehen.
 - **Platz buchen:** Ist ein Gesuch ohne Platz voll, öffnet „Platz buchen“ das Buchungsfenster am richtigen Tag mit Dauer und allen Mitspielern; „Für mich“ erinnert daran. Ist zur Startzeit kein Platz frei, wählt das Mitglied selbst einen. Gebucht wird nach den normalen Regeln, danach ist das Gesuch erledigt.
 - **Ich suche auch Mitspieler:** Wer freiwillig Spielstärke und LK angibt, sieht passende Gesuche zuerst (gleiche oder benachbarte Stufe, LK im gesuchten Bereich). Andere sehen diese Angabe nicht; ausschalten löscht sie sofort.
 - **Push:** „Jemand spielt mit“ und „Dein Gesuch ist voll“ gehen an den Ersteller, wenn der Vorstand die Anlässe unter Mitglieder-App › Benachrichtigungen freigegeben hat. Für neue Gesuche gibt es keinen Push.
 
-**Am Tablet** (Reiter „Plätze“) sieht man denselben Plan. Eine freie Stelle antippen, den eigenen Namen suchen (erst ab zwei Buchstaben), die **PIN** eingeben und buchen; wer noch keine PIN hat, legt sie gleich fest. Eine Buchung antippen und „Stornieren“ geht ebenfalls mit PIN – für den Buchenden und für jeden eingetragenen Mitspieler. Bei Serien fragt das Tablet: „Nur heute“, „Heute und alle folgenden“ oder „Gesamte Serie“. Über dem Plan lassen sich wie in der App weitere Tage bis zum Vorlauf wählen; nach 2 Minuten ohne Eingabe springt das Tablet auf heute zurück.
+**Am Tablet** (Reiter „Plätze“) sieht man denselben Plan. Eine freie Stelle antippen, den eigenen Namen suchen (erst ab zwei Buchstaben), die **PIN** eingeben und buchen; wer noch keine PIN hat, legt sie gleich fest. Auf einem Platz mit Tor zeigt das Tablet nach dem Buchen ein Fenster mit dem Platzcode, bis „Fertig“ getippt wird – ohne Eingabe schließt es nach etwa einer Minute von selbst, damit der Nächste am Tablet den Code nicht sieht. Eine Buchung antippen und „Stornieren“ geht ebenfalls mit PIN – für den Buchenden und für jeden eingetragenen Mitspieler. Bei Serien fragt das Tablet: „Nur heute“, „Heute und alle folgenden“ oder „Gesamte Serie“. Über dem Plan lassen sich wie in der App weitere Tage bis zum Vorlauf wählen; nach 2 Minuten ohne Eingabe springt das Tablet auf heute zurück.
 
 ## Rechte {#rechte}
 
@@ -369,7 +478,8 @@ Plätze, Buchungsarten und Einstellungen als Datei exportieren und in einer ande
 | Plätze: für Mitglieder buchen, Einzelbuchungen mit Buchungsart | Buchungen und Sperren eintragen und bearbeiten, Gebühren von Hand buchen und stornieren |
 | Plätze: Buchungen anderer stornieren | Buchungen und Sperren stornieren; Gesuche der Mitspielersuche ausblenden und Mitglieder dafür sperren |
 | Plätze: Serien & Sperren anlegen und beenden | Serien, Sperren und Spielplan-Import; Wiederholungen im Buchungsfenster |
-| Plätze: Plätze, Buchungsarten & Einstellungen | Reiter „Plätze & Geräte“ und „Einstellungen“ mit Buchungsarten und Sonderrechten, Einstellungen der Mitspielersuche |
+| Plätze: Plätze, Buchungsarten & Einstellungen | Reiter „Plätze & Geräte“ und „Einstellungen“ mit Buchungsarten und Sonderrechten, Einstellungen der Mitspielersuche; die Tore für den Platzcode nur zusammen mit dem Recht „Zugang“ |
+| Plätze: Gästebuchung (PayPal) einrichten, Gastbuchungen stornieren, Abweichungen klären | Reiter „Gäste“: Einrichten, Schlüssel, PayPal-Zugang, Plätze für Gäste, Gastbuchung mit Kontakt ansehen, stornieren mit Erstattung, Abweichungen klären. Ansehen dürfen den Reiter alle mit einem Recht der Plätze (ohne Kontaktdaten). |
 
 Mitglieder und Trainer buchen in der App und am Tablet ohne Verwaltungsrecht. Wer nur die Belegung sehen darf, sieht den Plan, kann aber nichts eintragen.
 
@@ -379,6 +489,9 @@ Mitglieder und Trainer buchen in der App und am Tablet ohne Verwaltungsrecht. We
 - **Verkauf:** Gebühren von Trainern und ohne Mitgliederverwaltung kommen aufs Verkaufskonto und werden dort abgerechnet.
 - **Spielbetrieb:** Der Spielplan-Import überträgt Spiele auch an den Spielbetrieb (Spieltage, Mannschaften).
 - **Turniere:** Das Modul bucht die Plätze für Spiele (Clubmeisterschaft) und sperrt sie an Turniertagen – mit Vorschau, welche Buchungen betroffen sind. Turnierspiele sind Vereinstermine ohne Gebühr.
+- **Zugang:** Türen mit Codetastatur lassen sich je Platz als Tore für den Platzcode wählen. Tippt jemand am Tor einen Code, fragt Zugang bei den Plätzen nach, ob gerade eine Buchung mit diesem Code dieses Tor öffnen darf, und öffnet dann wie aus der App. Ohne Zugang gibt es keine Codes; ohne Plätze öffnet keine Tastatur.
+- **Buchhaltung:** Einnahmen und PayPal-Gebühren der Gastbuchungen stehen in der Buchführung (Zahlweg PayPal, Erlösart „Gastbuchungen (PayPal)“), Erstattungen als eigene Buchung.
+- **Gästebuchung (Zugang):** Gastbuchungen auf Plätzen mit Toren bekommen einen Platzcode; er steht in der Bestätigungsmail des Gastes. Kontaktdaten der Gäste liegen verschlüsselt im Tresor, ihre Löschfrist steht unter Einstellungen › Datenschutz.
 - **Mängel:** Die Plätze und Geräte erscheinen dort automatisch als Orte.
 - **Einrichtung und Übersicht:** Der Einrichtungs-Assistent führt durch „Plätze anlegen“ und „Regeln fürs Buchen“. Die Übersicht zeigt offene Gebühren und die Buchungen von heute.
 - **Mitglieder-App:** Auf „Für mich“ stehen die eigenen nächsten Buchungen, frei gewordene Plätze von der Warteliste und Buchungen, die eine Platzsperre storniert hat.

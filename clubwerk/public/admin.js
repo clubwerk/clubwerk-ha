@@ -1344,6 +1344,7 @@
     { label: 'Zweitfarbe des Vereins', page: E, sec: SET('verein'), card: 'Verein', field: 'clubColor2', words: 'Farbe Zweitfarbe Akzent Logo', perm: E, in: 'Verein' },
     { label: 'Anschrift des Vereins', page: E, sec: SET('verein'), card: 'Verein', field: 'clubStreet', words: 'Adresse Straße PLZ Ort Anschrift Sitz Rechnung', perm: E, in: 'Verein' },
     { label: 'E-Mail und Telefon des Vereins', page: E, sec: SET('verein'), card: 'Verein', field: 'clubEmail', words: 'Kontakt Telefon Mail Rufnummer', perm: E, in: 'Verein' },
+    { label: 'Webseite des Vereins', page: E, sec: SET('verein'), card: 'Verein', field: 'clubWeb', words: 'Homepage Internet Web Adresse Briefkopf', perm: E, in: 'Verein' },
     { label: 'Vereinslogo', page: E, sec: SET('verein'), card: 'Vereinslogo', words: 'Logo Wappen Bild hochladen', perm: E, in: 'Verein' },
     { label: 'Vereinssprache', page: E, sec: SET('verein'), card: 'Vereinssprache', field: 'lgClub', words: 'Sprache Englisch', perm: E, in: 'Verein' },
     { label: 'Bankkonten des Vereins', page: E, sec: SET('bank'), card: 'Bankkonten', words: 'IBAN BIC Konto Bank Vereinskonto', in: 'Bankkonten' },
@@ -3803,7 +3804,7 @@
     mitglieder: 'Mitglieder', mitglieder_bank: 'Bankdaten', mitglieder_finanzen: 'Einzug', mitglieder_dokumente: 'Dokumente', gratulationen: 'Gratulationen', arbeitseinsatz: 'Helferdienste',
     zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', zugang_bedienen: 'Zugang bedienen', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen', flutlicht: 'Flutlicht', flutlicht_bedienen: 'Flutlicht bedienen', app: 'App einrichten', maengel: 'Mängel', schluessel: 'Schlüssel', turniere: 'Turniere',
     email: 'Nachrichten', kontoauszug: 'Kontoauszug', buchhaltung: 'Buchhaltung', ausgaben: 'Ausgaben & Kasse', kassenpruefung: 'Kassenprüfung', spielbetrieb: 'Spielbetrieb', benutzer: 'Benutzer', einstellungen: 'Einstellungen', sicherheit: 'Sicherheitswarnungen',
-    buchung: 'Belegung ansehen', buchung_buchen: 'Für andere buchen', buchung_stornieren: 'Buchungen stornieren', buchung_serien: 'Serien & Sperren', buchung_einstellungen: 'Buchung einrichten' };
+    buchung: 'Belegung ansehen', buchung_buchen: 'Für andere buchen', buchung_stornieren: 'Buchungen stornieren', buchung_serien: 'Serien & Sperren', buchung_einstellungen: 'Buchung einrichten', buchung_gaeste: 'Gästebuchung' };
   // Rechte von Erweiterungen ohne Kurzname: ihr Name aus erweiterung.json, nie der interne Schlüssel
   const permPills = (list, labels = {}) => list.map(p => `<span class="pill b" style="margin:1px">${esc(PERM_SHORT[p] || labels[p] || p)}</span>`).join(' ');
   RENDER.benutzer = async () => {
@@ -5157,8 +5158,9 @@
         <label class="f">Straße und Hausnummer<input id="clubStreet" maxlength="80" value="${esc(s.clubStreet)}" placeholder="z. B. Vereinsweg 1" autocomplete="off"></label>
         <label class="f">PLZ und Ort<input id="clubCity" maxlength="80" value="${esc(s.clubCity)}" placeholder="z. B. 12345 Musterstadt" autocomplete="off"></label>
         <label class="f">E-Mail des Vereins<input id="clubEmail" type="email" maxlength="120" value="${esc(s.clubEmail)}" placeholder="verein@beispiel.de" autocomplete="off"></label>
-        <label class="f">Telefon<input id="clubPhone" type="tel" maxlength="40" value="${esc(s.clubPhone)}" autocomplete="off"></label></div>
-        <p class="muted s">Anschrift und Kontakt stehen auf Rechnungen, Mitgliedsunterlagen und Bescheinigungen – alle Module lesen sie von hier. Die Vereinsfarbe gilt für Tablet, Verwaltung, Mitglieder-App, Beregnung und Excel-Export; ist sie für Schrift zu hell, dunkelt Clubwerk sie dort automatisch ab (im dunklen Modus hellt es sie auf). Die Zweitfarbe (z. B. aus dem Logo) gibt dem Hintergrund einen zweiten, leichten Schimmer – leer lassen für keine.</p>
+        <label class="f">Telefon<input id="clubPhone" type="tel" maxlength="40" value="${esc(s.clubPhone)}" autocomplete="off"></label>
+        <label class="f">Webseite (freiwillig)<input id="clubWeb" type="text" inputmode="url" maxlength="120" value="${esc(s.clubWeb || '')}" placeholder="z. B. www.dein-verein.de" autocomplete="off"></label></div>
+        <p class="muted s">Anschrift und Kontakt (mit Webseite) stehen auf Rechnungen, Mitgliedsunterlagen und Bescheinigungen – alle Module lesen sie von hier. Die Vereinsfarbe gilt für Tablet, Verwaltung, Mitglieder-App, Beregnung und Excel-Export; ist sie für Schrift zu hell, dunkelt Clubwerk sie dort automatisch ab (im dunklen Modus hellt es sie auf). Die Zweitfarbe (z. B. aus dem Logo) gibt dem Hintergrund einen zweiten, leichten Schimmer – leer lassen für keine.</p>
         <div class="btns"><button class="btn primary" id="saveClub">Speichern</button></div></div>
       <div class="card" id="tmCard"><h3>Tablet im Vereinsheim</h3>
         <div class="ugrid"><label class="chk ucard"><input type="radio" name="tmOn" value="1" ${s.tablet ? 'checked' : ''}> <span><b>Mit Tablet im Vereinsheim</b><br><span class="muted s">Verkauf, Plätze, Dienste und mehr am Tablet – geschützt mit dem Passwort für das Tablet</span></span></label>
@@ -5450,7 +5452,7 @@
     };
     if ($('saveClub')) $('saveClub').onclick = async () => {
       try {
-        await api('settings', 'PUT', { clubName: $('club').value, clubColor: $('clubColor').value, clubColor2: $('clubColor2').value.trim(), clubStreet: $('clubStreet').value, clubCity: $('clubCity').value, clubEmail: $('clubEmail').value, clubPhone: $('clubPhone').value });
+        await api('settings', 'PUT', { clubName: $('club').value, clubColor: $('clubColor').value, clubColor2: $('clubColor2').value.trim(), clubStreet: $('clubStreet').value, clubCity: $('clubCity').value, clubEmail: $('clubEmail').value, clubPhone: $('clubPhone').value, clubWeb: $('clubWeb').value });
         toast('Gespeichert.'); refreshIcon();
         document.querySelector('link[href^="theme.css"]').href = 'theme.css?' + Date.now();
       } catch (e) { fail(e); }

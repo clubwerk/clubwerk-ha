@@ -57,6 +57,10 @@
   .bk-past b { color: var(--ink); font-family: var(--num); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .bk-slot.past { opacity: .4; } .bk-slot.now { box-shadow: inset 4px 0 0 var(--brand); }
   .bk-empty { color: var(--muted); font-size: 16px; text-align: center; padding: 30px; }
+  /* Platzcode nach dem Buchen: große Ziffern zum Merken (Abstand links gleicht den Zeichenabstand hinter der letzten Ziffer aus) */
+  .bk-code { margin: 14px 0 0; padding: 16px; border-radius: 16px; background: var(--brand-soft); color: var(--brand-ink); text-align: center; }
+  .bk-code b { display: block; margin: 4px 0; padding-left: .2em; font-family: var(--num); font-size: 44px; font-weight: 800; letter-spacing: .2em; font-variant-numeric: tabular-nums; line-height: 1.15; }
+  .bk-code small { display: block; font-size: 15px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
   .dialog .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: left; }
   .dialog .durs { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 6px 0 4px; }
   .dialog .durs button { min-height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 16px; font-weight: 700; color: var(--ink); }

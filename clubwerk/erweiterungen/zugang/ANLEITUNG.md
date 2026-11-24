@@ -36,13 +36,13 @@ Vor jedem Befehl fragt Clubwerk nach. Danach wird die Tür sofort geschaltet und
 
 > Clubwerk schließt nie von selbst ab. Wer aufgeschlossen hat, schließt auch wieder zu. In der Übersicht erscheint ein Hinweis, solange ein Schloss offen ist.
 
-Gibt es noch keine Türen, führt ein Knopf direkt zum Reiter „Türen“. Fehlt die Verbindung zu Home Assistant, steht oben ein roter Hinweis mit einem Link zur Prüfung in den Einstellungen.
+Gibt es noch keine Türen, führt ein Knopf direkt zum Reiter „Türen“. Fehlt die Verbindung zu Home Assistant, steht oben ein roter Hinweis mit einem Link zur Prüfung in den Einstellungen. Ist eine Codetastatur nach falschen Codes gesperrt, steht oben ein roter Hinweis bis wann, mit dem Knopf **Sperre aufheben** (z. B. wenn sich ein Mitglied nur vertippt hat).
 
 #### Notfall
 
 ![Karte „Notfall“: „Sofort alle sperren“ stoppt das Öffnen für alle Mitglieder.](bild: seite=zugang; ziel=.card:has(#zBlockAll))
 
-„Sofort alle sperren“ stoppt das Öffnen in der App und am Tablet für alle Mitglieder, z. B. bei einem verlorenen Handy oder bei Missbrauch. Vorher fragt Clubwerk nach. Die Fernbedienung oben funktioniert weiter. Solange die Sperre gilt, steht auf der Seite ein roter Hinweis, und der Knopf heißt „Sperre für alle aufheben“. Jede Sperre steht im Verlauf (Aktion „Sperre“) und im Protokoll der Verwaltung.
+„Sofort alle sperren“ stoppt das Öffnen in der App, am Tablet und an den Codetastaturen für alle Mitglieder, z. B. bei einem verlorenen Handy oder bei Missbrauch. Vorher fragt Clubwerk nach. Die Fernbedienung oben funktioniert weiter. Solange die Sperre gilt, steht auf der Seite ein roter Hinweis, und der Knopf heißt „Sperre für alle aufheben“. Jede Sperre steht im Verlauf (Aktion „Sperre“) und im Protokoll der Verwaltung.
 
 ### Reiter „Freischaltungen“ {#zugang-freischaltungen}
 
@@ -105,6 +105,7 @@ Fehlt die Verbindung zu Home Assistant, steht oben ein roter Hinweis.
 - **Art:** **Schloss** (aufschließen und abschließen), **Türöffner (Impuls)** (ein Relais, das kurz schaltet) oder **Tor / Antrieb** (öffnen und schließen).
 - **Gerät in Home Assistant:** die Auswahl zeigt nur passende Geräte. Der Hersteller aus dem Reiter „Einstellungen“ filtert die Liste. Ein Gerät, das ein anderes Modul schon nutzt (z. B. die Beregnung), lässt sich nicht noch einmal verwenden.
 - **Türkontakt (optional):** ein Sensor, der meldet, ob die Tür offen steht. Damit klappt auch die Meldung „Tür zu lange offen“.
+- **Codetastatur für Platzcodes (optional):** das Gerät in Home Assistant, das den an der Tastatur eingetippten Code meldet (siehe „Codetastatur am Tor“ unten). In der Liste steht die Tür dann mit „mit Codetastatur“.
 - **Impuls (Sekunden):** nur bei Türöffnern. So lange bleibt das Relais an (1 bis 30 Sekunden, Standard 3). Lässt es sich danach nicht ausschalten, versucht Clubwerk es mehrmals und schickt dann eine Sicherheitswarnung. Steht ein Türöffner länger als seine Impulsdauer an (etwa nach einem Neustart oder von Hand in Home Assistant eingeschaltet), schaltet Clubwerk ihn aus und meldet es.
 
 ![Eine Tür vom Typ „Türöffner (Impuls)“ hat zusätzlich das Feld „Impuls (Sekunden)“.](bild: seite=zugang-tueren; klick=[data-de="2"]; ziel=dialog)
@@ -116,6 +117,21 @@ Beim Bearbeiten steht unten abgesetzt **Tür entfernen …**. Clubwerk fragt im 
 **Wer welche Geräte wählen darf:** Benutzer mit **allen Rechten** können jedes passende Gerät aus Home Assistant eintragen. Alle anderen (z. B. nur mit dem Recht „Zugang“) sehen und wählen nur Geräte des Herstellers, der im Reiter „Einstellungen“ gewählt ist. Steht dort „Gemischt / anderer Hersteller“, ordnen nur Benutzer mit allen Rechten Geräte zu. So kann niemand ohne alle Rechte z. B. die Alarmanlage oder ein fremdes Schloss als Tür eintragen.
 
 > Wenn ihr die Türen ändert, bekommt der Vorstand zur Sicherheit eine Mitteilung mit „vorher“ und „jetzt“. So fällt auf, wenn jemand unbefugt ein anderes Gerät einträgt.
+
+#### Codetastatur am Tor (Platzcode)
+
+![Fenster einer Tür mit Codetastatur.](bild: seite=zugang-tueren; klick=[data-de="3"]; ziel=dialog)
+
+Mit dem Modul **Plätze** bekommt jede Platzbuchung einen 6-stelligen Platzcode. Hat eine Tür eine Codetastatur, öffnet dieser Code die Tür – aber nur, wenn der gebuchte Platz diese Tür als Tor gewählt hat (Plätze › Plätze & Geräte › Platz bearbeiten) und nur im Zeitfenster der Buchung (ab dem Puffer vor Beginn bis zum Ende). Die Tastatur prüft nichts selbst: Clubwerk liest die Eingabe aus Home Assistant, fragt bei den Plätzen nach und öffnet die Tür wie aus der App. Das neue Gerät bestätigt ihr wie jedes andere mit eurem Passwort.
+
+- **Schutz gegen Durchprobieren:** Nach 5 falschen Codes in 10 Minuten ist die Tastatur 5 Minuten gesperrt, bei Wiederholung am selben Tag doppelt so lange (höchstens 1 Stunde). Über alle Tastaturen zusammen gilt zusätzlich: 10 falsche Codes in 10 Minuten sperren alle Tastaturen – mehrere Tore vervielfachen die Versuche also nicht. Sperren und Zähler überstehen einen Neustart von Clubwerk. Der Vorstand bekommt eine rote Sicherheitswarnung, die Seite „Bedienen“ zeigt die Sperre mit „Sperre aufheben“. Codes außerhalb ihrer Zeit oder für ein anderes Tor zählen nicht als Fehlversuch.
+- **Notfall-Sperre** („Sofort alle sperren“) sperrt auch die Tastaturen.
+- **Protokoll:** Jede Öffnung und jede Ablehnung steht im Verlauf – mit Buchung (Platz, Tag, Uhrzeit), Tor und dem Namen des Buchenden, nie mit dem Code.
+- **Ohne Home Assistant oder Netz öffnet nichts.** Deshalb gehört an jedes Tor ein mechanischer Notzylinder (Schlüssel für den Vorstand), und innen öffnet ein Drehknauf oder Panikgriff immer ohne Code.
+
+**Technik (Beispiel, herstellerneutral):** eine wetterfeste Codetastatur mit Wiegand-Ausgang (IP65 oder besser) an einem ESP32 mit ESPHome (am besten mit Netzwerkkabel und PoE statt WLAN), dazu ein Relais und ein elektrisches Torschloss bzw. ein Elektro-Riegel (12/24 V) mit Notzylinder. In ESPHome setzen die Bausteine `wiegand` und `key_collector` die Tasten zu einem Code zusammen (6 Ziffern, abschließen mit `#`, löschen mit `*`). Bei `on_result` schreibt ihr den Code in einen Text-Sensor (in Home Assistant `sensor.…`) und setzt ihn nach 2 Sekunden wieder auf leer.
+
+Das Relais bindet ihr als Schalter ein und tragt es in Clubwerk als **Türöffner (Impuls)** ein, den Text-Sensor als **Codetastatur**. Auch eine Ereignis-Entität (`event.*`) mit dem Merkmal `code` geht. Damit die Codes nicht im Verlauf von Home Assistant liegen bleiben, nehmt den Sensor in Home Assistant aus der Aufzeichnung (`recorder: exclude: entities:`). Clubwerk liest die Tastatur jede Sekunde direkt aus Home Assistant, nur solange eine Tür eine Tastatur hat.
 
 ### Reiter „Zeitprofile“ {#zugang-profile}
 
@@ -162,7 +178,7 @@ Der Verlauf zeigt, wer wann welche Tür geöffnet, geschlossen oder gesperrt hat
 
 - **Zeitpunkt**, **Tür** und **Wer** (Name des Mitglieds oder des Benutzers der Verwaltung).
 - **Aktion:** Aufgeschlossen, Abgeschlossen, Geöffnet, **Abgelehnt** (mit Grund in „Hinweis“, z. B. „Jetzt nicht – wieder möglich ab morgen 14:00 Uhr.“), **Fehler** (Tür hat nicht reagiert), **Freischaltung**, **Alarm** (Tür zu lange offen) und **Sperre** (Notfall-Sperre oder Abschaltung am Tablet).
-- **Hinweis:** z. B. „am Tablet“ oder „Fernbedienung aus der Verwaltung“.
+- **Hinweis:** z. B. „am Tablet“, „Fernbedienung aus der Verwaltung“ oder beim Platzcode „Platzcode (Buchung Padel 24.11.2026 18:00–19:30)“; abgelehnte Codes mit Grund wie „Falscher Platzcode“, „Platzcode noch nicht gültig …“ oder „Platzcode gilt nicht für dieses Tor …“, eine gesperrte Tastatur als „Sperre“.
 
 „Excel“ (oben rechts) lädt den gewählten Monat als Tabelle herunter. Die nächtliche Datensicherung legt den laufenden Monat ebenfalls als Excel-Datei bei.
 
@@ -220,7 +236,7 @@ Damit ein Mitglied den Bereich in der App überhaupt sieht, muss er freigeschalt
 | Recht | Was es erlaubt |
 |---|---|
 | Zugang | Alles im Menü „Zugang“: Freischaltungen, Türen, Zeitprofile, Sperrtage, Verlauf und Einstellungen; außerdem Fernöffnung und Notfall-Sperre |
-| Zugang bedienen | Nur die Seite „Bedienen“: Türen aus der Ferne öffnen und schließen, Notfall-Sperre setzen und aufheben. Nichts einrichten |
+| Zugang bedienen | Nur die Seite „Bedienen“: Türen aus der Ferne öffnen und schließen, Notfall-Sperre setzen und aufheben, Sperre einer Codetastatur aufheben. Nichts einrichten |
 
 Einstellungen › Erreichbarkeit (Vereinsnetz) ändert nur, wer das Recht „Einstellungen“ hat.
 
@@ -232,5 +248,6 @@ Einstellungen › Erreichbarkeit (Vereinsnetz) ändert nur, wer das Recht „Ein
 - **Übersicht:** Die Startseite zeigt Türen, Freigeschaltete, „Heute geöffnet“ und offene Türen, und warnt bei fehlender Verbindung, blockierten oder aufgeschlossenen Schlössern und bei der Notfall-Sperre.
 - **Tablet:** Der Schalter „am Tablet zeigen“ steht zentral unter Einstellungen › Tablet.
 - **Datenschutz:** Unter Einstellungen › Datenschutz stellt ihr ein, wie lange Türöffnungen gespeichert bleiben (7 bis 365 Tage, Standard 30). Danach löscht Clubwerk sie jeden Tag von selbst. Das Verzeichnis der Verarbeitungstätigkeiten enthält den Zweck „Zutritt zu Vereinsheim und Anlage“.
+- **Plätze:** Türen mit Codetastatur stehen dort je Platz als Tore für den Platzcode zur Auswahl. Ob ein eingetippter Code gerade gilt, entscheidet das Modul Plätze (Buchung, Zeitfenster, Tor); ohne Plätze öffnet keine Tastatur.
 - **Beregnung und andere Module mit Home Assistant:** Ein Gerät kann nur in einem Modul verwendet werden; Clubwerk lehnt doppelte Zuordnungen ab.
 - **Datensicherung:** Die nächtliche Sicherung legt das Türprotokoll des laufenden Monats als Excel-Datei bei.

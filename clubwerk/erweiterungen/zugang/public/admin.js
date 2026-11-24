@@ -59,10 +59,12 @@
       <p class="lead">Türen und Tore aus der Ferne öffnen. Mitglieder öffnen sie in der Mitglieder-App mit ihrer PIN.</p>
       ${r.error ? `<div class="banner r"><span>Keine Verbindung zu Home Assistant: ${esc(r.error)}</span>${GK.can('zugang') ? '<a href="#zugang-einstellungen" data-zgo="zugang-einstellungen">Einstellungen › Anbindung prüfen →</a>' : ''}</div>` : ''}
       ${blockAll ? '<div class="banner r">Zugang ist für alle gesperrt. Niemand kann über die App öffnen – nur die Fernbedienung hier.</div>' : ''}
+      ${r.doors.filter(x => x.keypadLockedUntil).map(x => `<div class="banner r"><span>${esc(x.name)}: Codetastatur nach falschen Codes gesperrt bis ${esc(x.keypadLockedUntil)} Uhr.</span><button class="btn small" type="button" data-kpu="${esc(x.id)}">Sperre aufheben</button></div>`).join('')}
       <div class="card"><h3>Türen</h3><div id="zRemote"><p class="muted">Lade …</p></div></div>
       <div class="card"><h3>Notfall</h3><div class="row" style="align-items:center"><button class="btn ${blockAll ? 'primary' : 'danger'}" id="zBlockAll">${blockAll ? 'Sperre für alle aufheben' : 'Sofort alle sperren'}</button>
         <span class="muted s" style="flex:1;min-width:220px">Sperrt die App für alle Mitglieder (z. B. bei Verlust oder Missbrauch). Die Fernbedienung oben funktioniert weiter.</span></div></div>`;
     bindGo($('main'));
+    $('main').querySelectorAll('[data-kpu]').forEach(b => { b.onclick = () => GK.busy(b, async () => { try { await api(`doors/${b.dataset.kpu}/keypad-unlock`, 'POST', {}); toast('Sperre aufgehoben.'); renderBedienen().catch(fail); } catch (e) { fail(e); } }); });
     $('zBlockAll').onclick = async () => {
       if (!blockAll && !await GK.ask('Zugang für alle sperren?\n\nNiemand kann dann über die App öffnen, bis du die Sperre aufhebst.', { ok: 'Alle sperren', danger: true })) return;
       try { await api('block-all', 'PUT', { on: !blockAll }); toast(blockAll ? 'Sperre aufgehoben.' : 'Zugang für alle gesperrt.'); renderBedienen().catch(fail); } catch (e) { fail(e); }
@@ -149,7 +151,7 @@
       ${haBanner(d.error)}
       <div class="card" id="zDoorsBox"><h3>Türen, Tore &amp; Schlösser</h3>
       ${c.doors.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Art</th><th>Gerät in Home Assistant</th><th>Türkontakt</th><th></th></tr>
-        ${c.doors.map((x, i) => `<tr><td class="k-1z"><b>${esc(x.name)}</b></td><td>${esc(TYPE[x.type] || '')}</td><td>${esc(devName(TDOM[x.type] || [], x.ref))}</td><td class="k-weg">${esc(devName(['binary_sensor'], x.sensor))}</td>
+        ${c.doors.map((x, i) => `<tr><td class="k-1z"><b>${esc(x.name)}</b></td><td>${esc(TYPE[x.type] || '')}${x.keypad ? '<span class="muted s" style="display:block">mit Codetastatur</span>' : ''}</td><td>${esc(devName(TDOM[x.type] || [], x.ref))}</td><td class="k-weg">${esc(devName(['binary_sensor'], x.sensor))}</td>
           <td class="r"><span class="acts"><button class="btn small" data-du="${i}" ${i === 0 ? 'disabled' : ''} aria-label="nach oben">↑</button><button class="btn small" data-dd="${i}" ${i === c.doors.length - 1 ? 'disabled' : ''} aria-label="nach unten">↓</button><button class="btn small" data-de="${i}">Bearbeiten</button></span></td></tr>`).join('')}</table>`
         : '<p class="empty">Noch keine Türen – oben auf „+ Tür“.</p>'}</div>`;
     GK.tabTools('<button class="btn primary" id="zDAdd">+ Tür</button>', $('zDoorsBox'));
@@ -162,26 +164,28 @@
   }
   function doorDialog(i, again) {
     const c = st.c, isNew = i === null;
-    const cur = isNew ? { id: '', name: `Tür ${c.doors.length + 1}`, type: 'lock', ref: '', sensor: '', pulseSec: 3 } : { ...c.doors[i] };
+    const cur = isNew ? { id: '', name: `Tür ${c.doors.length + 1}`, type: 'lock', ref: '', sensor: '', keypad: '', pulseSec: 3 } : { ...c.doors[i] };
     const form = () => {
       dialog(`<h2>${isNew ? 'Tür anlegen' : esc(cur.name)}</h2>
         <div class="row"><label class="f" style="flex:1;min-width:200px">Name<input id="zdN" maxlength="30" value="${esc(cur.name)}" placeholder="z. B. Haustür"></label>
           <label class="f" style="flex:1;min-width:200px">Art<select id="zdT">${Object.entries(TYPE).map(([k, v]) => `<option value="${k}" ${cur.type === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label></div>
         <div class="row" style="margin-top:12px"><label class="f" style="flex:1;min-width:200px">Gerät in Home Assistant<select id="zdR">${devOptions(TDOM[cur.type], cur.ref, '– Gerät wählen –')}</select></label>
           <label class="f" style="flex:1;min-width:200px">Türkontakt (optional)<select id="zdS">${devOptions(['binary_sensor'], cur.sensor, '– keiner –')}</select></label></div>
+        <div class="row" style="margin-top:12px"><label class="f" style="flex:1;min-width:200px">Codetastatur für Platzcodes (optional)<select id="zdK">${devOptions(['keypad'], cur.keypad, '– keine –')}</select></label></div>
+        <p class="muted s" style="margin:8px 0 0">Mit Codetastatur öffnet der Platzcode einer Buchung diese Tür – welche Plätze, stellt das Modul Plätze je Platz ein. Nach 5 falschen Codes in 10 Minuten ist die Tastatur gesperrt.</p>
         ${st.d.restricted ? `<p class="muted s" style="margin:8px 0 0">${st.d.cfg.vendor === 'other' ? 'Bei „Gemischt / anderer Hersteller“ ordnet nur ein Benutzer mit allen Rechten Geräte zu – oder unter Einstellungen den Hersteller der Schlösser wählen.' : 'Home Assistant nennt keine Geräte dieses Herstellers – Geräte zuordnen kann gerade nur ein Benutzer mit allen Rechten.'}</p>` : ''}
         <p class="muted s" style="margin:8px 0 0">Ein neues Gerät bestätigst du mit deinem Passwort; der Vorstand bekommt eine Sicherheitswarnung.</p>
         <div class="row" style="margin-top:12px${cur.type === 'impulse' ? '' : ';display:none'}" id="zdPw"><label class="f" style="width:160px">Impuls (Sekunden)<input id="zdP" inputmode="numeric" value="${cur.pulseSec || 3}"></label></div>
         ${isNew ? '' : '<div class="row" style="margin-top:18px"><button class="btn danger" id="zdDel">Tür entfernen …</button></div>'}
         <div class="btns"><button class="btn" id="zdX">Abbrechen</button><button class="btn primary" id="zdOk">Speichern</button></div>`);
       $('zdX').onclick = closeDialog;
-      $('zdT').onchange = () => { cur.name = $('zdN').value; cur.type = $('zdT').value; cur.ref = ''; cur.pulseSec = +$('zdP').value || 3; form(); };
+      $('zdT').onchange = () => { cur.name = $('zdN').value; cur.type = $('zdT').value; cur.ref = ''; cur.sensor = $('zdS').value; cur.keypad = $('zdK').value; cur.pulseSec = +$('zdP').value || 3; form(); };
       if (!isNew) $('zdDel').onclick = () => confirmIn(`„${cur.name}“ entfernen?`, 'Die Tür verschwindet aus der App und aus den Zeitprofilen.', 'Tür entfernen', async () => {
         c.doors.splice(i, 1);
         if (await saveCfg(['doors'], 'Tür entfernt.')) { closeDialog(); again(); }
       }, form);
       $('zdOk').onclick = () => GK.busy($('zdOk'), async () => {
-        const next = { ...cur, name: $('zdN').value, type: $('zdT').value, ref: $('zdR').value, sensor: $('zdS').value, pulseSec: +$('zdP').value || 3 };
+        const next = { ...cur, name: $('zdN').value, type: $('zdT').value, ref: $('zdR').value, sensor: $('zdS').value, keypad: $('zdK').value, pulseSec: +$('zdP').value || 3 };
         const prev = c.doors.slice();
         if (isNew) c.doors.push(next); else c.doors[i] = next;
         if (await saveCfg(['doors'])) { closeDialog(); again(); } else c.doors = prev;   // nicht gespeichert (z. B. Passwort abgebrochen): Liste wie vorher

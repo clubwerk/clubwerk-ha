@@ -12,7 +12,7 @@ const giro = require('../../../src/girocode');
 const { lastFirst } = require('../../../src/db');   // Namen immer „Nachname, Vorname“
 
 function register(sh) {
-  const { C, store, sepa, fees, one, txt, mailOk, euro, deD, uname, ar, personRow, bankRow, mandateState, savePerson, saveDocument, consentList, exitMember, zusatzFor } = sh;
+  const { LABEL, C, store, sepa, fees, one, txt, mailOk, euro, deD, uname, ar, personRow, bankRow, mandateState, savePerson, saveDocument, consentList, exitMember, zusatzFor } = sh;
   const { S, today, nowTs } = store;
   const { need, bad, int } = C;
   const db = C.db, admin = C.admin, M = C.member;
@@ -26,7 +26,7 @@ function register(sh) {
   const club = () => { const { street, city } = C.clubAddress(); return { name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street, city, ci: S('creditor_id') }; };
   const { sigOk } = C.util;   // Unterschrift: PNG (App und Formular liefern 600 px Breite), Maße begrenzt (src/util.js)
   const CHANGE_FIELDS = ['street', 'zip', 'city', 'address_extra', 'phone', 'mobile', 'email'];
-  const KIND = { daten: 'Datenänderung', bank: 'Neue Bankverbindung', kuendigung: 'Kündigung', eintritt: 'Eintritt (Abteilung)', austritt: 'Austritt (Abteilung)', rueckkehr: 'Rückkehr (Abteilung)' };
+  const KIND = { daten: 'Datenänderung', bank: 'Neue Bankverbindung', kuendigung: 'Kündigung', eintritt: 'Eintritt (Abteilung)', austritt: 'Austritt (Abteilung)', rueckkehr: 'Rückkehr (Abteilung)', bescheinigung: 'Bescheinigung angefordert' };
   const SCOPE_KINDS = ['eintritt', 'austritt', 'rueckkehr'];
 
   /** frühester Austritt: Ende des Geschäftsjahres (Kern-Einstellung) unter Einhaltung der Kündigungsfrist – nicht das Beitragsjahr */
@@ -80,7 +80,8 @@ function register(sh) {
       open_cents: V.posten ? charges.filter(c => c.status === 'offen').reduce((s, c) => s + c.cents, 0) : 0, charges: V.posten ? charges : [], transfer: Boolean(isHead && V.posten && transferList(id, p)),
       bank: b && V.bank ? { iban: sepa.maskIban(b.iban), holder: b.holder, mandate_ref: b.mandate_ref, mandate_date: b.mandate_date, ok: mandateState(b).ok } : null,
       consents: !V.einwilligungen ? [] : consentList().map(c => ({ key: c.key, short: c.short, text: c.text, required: Boolean(c.required), given: Boolean(consents[c.key]), date: consents[c.key] || null })),
-      pending: db.prepare("SELECT id, kind, created_at FROM mv_change WHERE member_id = ? AND status = 'offen' ORDER BY id").all(id).map(c => ({ ...c, label: KIND[c.kind] })),
+      pending: db.prepare("SELECT id, kind, created_at FROM mv_change WHERE member_id = ? AND status = 'offen' AND kind != 'bescheinigung' ORDER BY id").all(id).map(c => ({ ...c, label: KIND[c.kind] })),   // Bescheinigungen: eigene Karte
+      certificates: sh.certificatesFor(id),
       notice: { date: noticeDate(), months: parseInt(S('notice_months', '3'), 10) || 0, satzung: S('satzung_url') || null },
       creditor: { ci: S('creditor_id') || null, name: club().name },
       auskunft: { to: p.email ? maskMail(p.email) : null, ready: C.mail.ready() },   // „Meine Daten anfordern“ (Art. 15 DSGVO)
@@ -172,7 +173,7 @@ function register(sh) {
       const ex = openOf(id, 'daten');
       if (ex) db.prepare('UPDATE mv_change SET data = ?, created_at = ? WHERE id = ?').run(JSON.stringify(want), nowTs(), ex.id);
       else db.prepare("INSERT INTO mv_change(member_id, kind, data) VALUES (?, 'daten', ?)").run(id, JSON.stringify(want));
-      notifyBoard(`Mitglieder-App: Datenänderung von ${p.name}`, [`${p.name} hat in der Mitglieder-App neue Daten gemeldet:`, '', ...Object.entries(want).map(([k, v]) => `${k}: ${p[k] || '–'} → ${v || '–'}`), '', 'Bitte in der Verwaltung unter Mitglieder → Änderungen übernehmen.']);
+      notifyBoard(`Mitglieder-App: Datenänderung von ${p.name}`, [`${p.name} hat in der Mitglieder-App neue Daten gemeldet:`, '', ...Object.entries(want).map(([k, v]) => `${LABEL[k] || k}: ${p[k] || '–'} → ${v || '–'}`), '', 'Bitte in der Verwaltung unter Mitglieder → Änderungen übernehmen.']);
     }
     C.audit(null, 'Mitglieder-App: Daten geändert', `${p.name}${consents ? ' (Einwilligungen)' : ''}${Object.keys(want).length ? ' – wartet auf Bestätigung' : ''}`);
     res.json({ ok: true, pending: Object.keys(want).length > 0 });
@@ -248,7 +249,7 @@ function register(sh) {
   });
 
   /* ================================================================ Verwaltung: Änderungswünsche */
-  function changeView(c, user) {
+  function changeView(c, user, scoped) {
     const d = JSON.parse(c.data || '{}');
     const p = personRow(c.member_id) || {};
     const bankPerm = user.perms.includes('mitglieder_bank');
@@ -260,14 +261,15 @@ function register(sh) {
     }
     if (c.kind === 'eintritt') rows = [{ field: 'Abteilung', old: null, new: (db.prepare('SELECT name FROM mv_department WHERE id = ?').get(d.department_id) || {}).name || '–' }, { field: 'Eintritt', old: null, new: deD(d.entry_date) }];
     if (c.kind === 'austritt') rows = [{ field: 'Austritt zum', old: null, new: deD(d.exit_date) }, ...(d.reason ? [{ field: 'Grund', old: null, new: d.reason }] : []), ...(d.withDependents ? [{ field: 'Angehörige', old: null, new: 'treten mit aus' }] : [])];
+    if (c.kind === 'bescheinigung') rows = [{ field: 'Jahr', old: null, new: String(d.year) }, ...(d.note ? [{ field: 'Hinweis', old: null, new: d.note }] : [])];
     if (c.kind === 'rueckkehr') rows = [{ field: 'Rückkehr', old: deD(p.exit_date) ? `Austritt ${deD(p.exit_date)}` : null, new: p.exit_date && p.exit_date < today() ? 'Wiedereintritt (neue Mitgliedsnummer)' : 'Austritt zurücknehmen' }];
     return { id: c.id, kind: c.kind, label: KIND[c.kind], member_id: c.member_id, created_by: c.created_by || null, scope: SCOPE_KINDS.includes(c.kind), exit_date: d.exit_date || null, notice_date: d.notice_date || null, with: c.kind === 'austritt' && d.withDependents ? db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(c.member_id, c.member_id, c.member_id, d.exit_date).map(x => x.member_id) : [], name: p.name, member_no: p.member_no, created_at: c.created_at, status: c.status, reason: c.reason, reviewed_by: c.reviewed_by, reviewed_at: c.reviewed_at,
-      rows, kuendigung: c.kind === 'kuendigung' ? d : null, signed_at: d.signed_at || null, hasSignature: Boolean(c.signature) };
+      rows, kuendigung: c.kind === 'kuendigung' ? d : null, cert: c.kind === 'bescheinigung' ? sh.certificateView(c, user, scoped) : null, signed_at: d.signed_at || null, hasSignature: Boolean(c.signature) };
   }
   admin.get('/changes', P, (req, res) => {
     const st = req.query.status === 'alle' ? null : 'offen';
     const rows = db.prepare(`SELECT * FROM mv_change ${st ? "WHERE status = 'offen'" : "WHERE status != 'ersetzt'"} ORDER BY status = 'offen' DESC, id DESC LIMIT 300`).all();
-    res.json(rows.map(c => changeView(c, req.user)));
+    res.json(rows.map(c => changeView(c, req.user, Boolean(req.mvScope))));
   });
   admin.get('/changes/:id/signature', P, (req, res) => {
     const c = db.prepare('SELECT signature FROM mv_change WHERE id = ?').get(int(req.params.id));
@@ -278,6 +280,7 @@ function register(sh) {
   admin.post('/changes/:id/accept', P, ar(async (req, res) => {
     const c = db.prepare("SELECT * FROM mv_change WHERE id = ? AND status = 'offen'").get(int(req.params.id));
     if (!c) return bad(res, 'Dieser Änderungswunsch ist schon erledigt.', 404);
+    if (c.kind === 'bescheinigung') return sh.signCertificate(req, res, c);   // lib/bescheinigung.js
     const d = JSON.parse(c.data || '{}'); const b = req.body || {}; const by = uname(req);
     const p = personRow(c.member_id); if (!p) return bad(res, 'Mitglied nicht gefunden.', 404);
     let mailLines, attachments, mailRes;
@@ -334,9 +337,11 @@ function register(sh) {
     const c = db.prepare("SELECT * FROM mv_change WHERE id = ? AND status = 'offen'").get(int(req.params.id));
     if (!c) return bad(res, 'Dieser Änderungswunsch ist schon erledigt.', 404);
     if (c.kind === 'bank' && !req.user.perms.includes('mitglieder_bank')) return bad(res, 'Bankverbindungen bearbeiten darf nur, wer das Recht „Bankdaten“ hat.', 403);
+    if (c.kind === 'bescheinigung' && req.mvScope) return bad(res, 'Bescheinigungen bearbeitet die Vereinsverwaltung.', 403);
     const reason = txt((req.body || {}).reason, 300);
     db.prepare("UPDATE mv_change SET status = 'abgelehnt', reviewed_by = ?, reviewed_at = ?, reason = ?, signature = NULL WHERE id = ?").run(uname(req), nowTs(), reason || null, c.id);
     const p = personRow(c.member_id) || {};
+    if (c.kind === 'bescheinigung') return res.json({ ok: true, mailed: await sh.rejectCertificate(req, c, reason) });
     if (SCOPE_KINDS.includes(c.kind)) {   // Meldung der Abteilungsleitung abgelehnt – keine Mail ans Mitglied
       if (c.kind === 'eintritt') { db.prepare('UPDATE members SET deleted = 1, active = 0 WHERE id = ?').run(c.member_id); }
       store.hist(c.member_id, uname(req), `${KIND[c.kind]} abgelehnt`, null, reason || null);

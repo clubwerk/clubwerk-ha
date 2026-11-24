@@ -11,3 +11,7 @@ Die modulare Vereinsverwaltung für Home Assistant: Getränke am Tablet statt St
 Neue Versionen zeigt Home Assistant automatisch an („Aktualisieren“). Die ausführliche Anleitung steht im Reiter **Dokumentation** des Add-ons.
 
 In diesem Repository liegen keine Passwörter oder Vereinsdaten – die bleiben ausschließlich in der eigenen Home-Assistant-Installation.
+
+## Buchungsseite für Gäste (optional)
+
+Der Ordner `gaestebuchung/` enthält eine kleine eigene Webseite, auf der Nichtmitglieder Plätze buchen und mit PayPal oder Karte bezahlen (Modul „Plätze“, Reiter „Gäste“). Sie läuft bei Cloudflare, nicht in Home Assistant; Clubwerk ruft sie nur selbst auf und wird dafür nicht von außen erreichbar. Einrichtung mit `npx wrangler deploy` – Schritt für Schritt in `gaestebuchung/README.md` und in der Anleitung des Moduls „Plätze“. Die Prüfsumme des Ordners steht in `gaestebuchung/PRUEFSUMME.txt`.

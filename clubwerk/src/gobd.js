@@ -28,7 +28,7 @@ const ANCHOR_FILE = path.join(DATA_DIR, 'gobd-anker.json');
 const SEP = '\x1f';
 const sha = (...a) => crypto.createHash('sha256').update(a.map(x => (x == null ? '' : String(x))).join(SEP)).digest('hex');
 const SPHERES = { ideell: 'Ideeller Bereich', verm: 'Vermögensverwaltung', zweck: 'Zweckbetrieb', wgb: 'Wirtschaftlicher Geschäftsbetrieb' };
-const VIAS = { bar: 'Bar (Kasse)', karte: 'Karte', lastschrift: 'Lastschrift', ueberweisung: 'Überweisung', verrechnung: 'Verrechnung' };
+const VIAS = { bar: 'Bar (Kasse)', karte: 'Karte', lastschrift: 'Lastschrift', ueberweisung: 'Überweisung', verrechnung: 'Verrechnung', paypal: 'PayPal' };
 const viaOf = v => { const s = String(v || '').toLowerCase(); return s === 'bar' ? 'bar' : s === 'karte' ? 'karte' : s === 'lastschrift' ? 'lastschrift' : s === 'verrechnet' ? 'verrechnung' : 'ueberweisung'; };
 const day = ts => String(ts || '').slice(0, 10);
 

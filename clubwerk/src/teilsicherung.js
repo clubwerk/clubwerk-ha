@@ -26,7 +26,7 @@ const OFFEN_MS = 30 * 60000;                                            // geöf
 const MAX_ERGEBNIS = 64 * 1024 * 1024;                                  // Ergebnis der Lesekopie (JSON) höchstens 64 MB
 const MAX_KONTEN = 20000;
 const KONTO_ARTEN = ['mitglied', 'mannschaft', 'verein', 'gast', 'extern', 'nichtmitglied'];
-const VEREIN_KEYS = ['club_name', 'club_street', 'club_city', 'club_email', 'club_phone', 'club_color', 'club_color2', 'club_logo', 'club_logo_type', 'club_nav'];
+const VEREIN_KEYS = ['club_name', 'club_street', 'club_city', 'club_email', 'club_phone', 'club_web', 'club_color', 'club_color2', 'club_logo', 'club_logo_type', 'club_nav'];
 const LOGO_ARTEN = ['svg', 'png', 'jpg', 'webp'];
 /* Module, deren Export Felder aus dem Tresor enthält (vault.js SPEC) – ohne geöffneten Tresor der Sicherung nicht übernehmbar */
 const VERTRAULICH = new Set(['buchhaltung']);

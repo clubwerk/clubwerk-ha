@@ -1,5 +1,36 @@
 # Änderungen
 
+## 2026.11.60
+
+### Behoben
+- Mitglieder: Die E-Mail an den Vorstand zu einer Datenänderung aus der Mitglieder-App nennt die Felder jetzt mit ihren Namen („Straße“, „PLZ“ …) statt mit internen Bezeichnungen.
+- Mitglieder: Unter „Anträge“ sieht man eine gewünschte Änderung (bisher → neu) am Handy jetzt schon vor dem Übernehmen; das Datum steht in der normalen Schrift.
+### Neu
+- Mitgliedsbescheinigung für die Krankenkasse: Mitglieder fordern sie in der Mitglieder-App unter „Meine Daten“ an (Jahr wählen, Hinweis freiwillig), das Familienoberhaupt auch für Familienmitglieder. Der Vorstand sieht die Anfrage unter Mitglieder › Anträge, prüft die Vorschau, unterschreibt mit Finger oder Maus und sendet sie – oder lehnt mit Grund ab.
+- Die Bescheinigung trägt Briefkopf, Vereinsstempel und Unterschrift mit Name und Funktion. Sie geht per E-Mail an das Mitglied bzw. das Familienoberhaupt, liegt unter Dokumente des Mitglieds und ist in der App abrufbar; auf Wunsch kommt eine Push-Nachricht.
+- Vereinsstempel einmal unter Mitglieder › Einstellungen hochladen. Abteilungsleitungen sehen die Anfragen ihrer Abteilung, unterschreiben aber nicht.
+- Einstellungen › Verein: neues Feld „Webseite“. Sie steht mit Telefon und E-Mail in der Fußzeile aller Briefe, Rechnungen, Bescheinigungen und Formulare; leer bleibt sie weg. Mitgliedsunterlagen (Briefe, Rechnungen, SEPA-Mandat, Beitrittserklärung, Datenauskunft) zeigen dort jetzt auch Telefon und E-Mail.
+- Plätze: Platzcode für Tore mit Codetastatur. Jede Buchung auf einem Platz mit Tor bekommt einen 6-stelligen Zufallscode, auch jeder einzelne Termin einer Serie oder eines Trainings. Er gilt ab 15 Minuten vor Beginn (einstellbar) bis zum Ende der Buchung.
+- Den Code sehen Buchende und Mitspieler in der Mitglieder-App und in der Mitspieler-Mail, Trainer bei ihren Serienterminen, am Tablet erscheint er nach dem Buchen. Wer am Tablet bucht, bekommt den Code zusätzlich per Mail. Gäste bekommen ihn vom Buchenden.
+- Plätze › Plätze & Geräte: Je Platz wählbar, welche Tore der Code öffnet, z. B. das Haupttor und genau das Tor dieses Platzes. Ändern darf das nur, wer auch das Recht „Zugang“ hat; der Vorstand bekommt dazu eine Sicherheitswarnung.
+- Plätze › Einstellungen: neue Karte „Platzcode“ mit dem Puffer vor Beginn. In der Verwaltung lässt sich der Code einer Buchung mit „Zeigen“ ansehen, etwa für eine Mannschaft ohne App; das steht im Protokoll.
+- Zugang: Jede Tür kann eine Codetastatur aus Home Assistant bekommen (z. B. ESPHome mit Wiegand-Tastatur). Ein gültiger Platzcode öffnet die Tür wie die App. Verschieben nimmt das Zeitfenster mit, Storno macht den Code sofort ungültig, wer ausgetragen wird, kennt den neuen Code nicht.
+- Zugang: Nach 5 falschen Codes in 10 Minuten ist eine Tastatur gesperrt (bei Wiederholung länger), nach 10 an allen Tastaturen zusammen sind alle gesperrt, auch über einen Neustart; der Vorstand wird gewarnt. Unter „Bedienen“ lässt sich die Sperre aufheben. Die Notfall-Sperre gilt auch für die Tastaturen. Im Verlauf stehen jede Öffnung und jede Ablehnung mit Buchung und Tor, nie der Code.
+- Plätze: Gästebuchung mit PayPal. Nichtmitglieder buchen freigegebene Plätze auf einer eigenen Buchungsseite (Link oder Rahmen auf der Homepage) und zahlen mit PayPal oder Debit-/Kreditkarte. Die Buchungsseite läuft außerhalb (Cloudflare); Clubwerk ruft sie nur selbst auf und wird dafür nicht von außen erreichbar.
+- Plätze › Gäste: je Platz „für Gäste buchbar“ mit Wochentagen, Zeitfenster, Preis je Stunde, Dauer und Vorlauf; Stornofrist mit Erstattung (Standard 24 Stunden), Hinweistext zum Datenschutz mit Vorschlag, Einbettungscode für die Homepage. Zuerst nur in der PayPal-Sandbox.
+- Clubwerk prüft jede Zahlung selbst bei PayPal (Betrag, Währung, Buchungsnummer, Status) und trägt die Buchung erst danach in den Platzplan ein. Der Gast bekommt eine Bestätigung mit Platzcode und Storno-Link. Solange der Gast bezahlt, ist die Zeit im Platzplan gehalten; vorläufige Zahlungen halten den Platz ohne Code.
+- Die Buchungsseite schützt das Reservieren mit einer Sicherheitsprüfung (Cloudflare Turnstile) gegen massenhaftes Blockieren von Zeiten.
+- Stornos durch den Gast, im Reiter „Gäste“ oder im Platzplan werden über PayPal erstattet; ausgetragen wird erst nach geprüfter Erstattung, der Gast bekommt eine Mail. Gastbuchungen lassen sich im Platzplan nicht verschieben.
+- Einnahmen und PayPal-Gebühren der Gastbuchungen erscheinen in der Buchführung (Zahlweg PayPal), Erstattungen als eigene Buchung.
+- Täglicher Abgleich aller PayPal-Zahlungen; Abweichungen (Betrag, fehlende oder fremde Zahlung, Erstattung) stehen im Reiter „Gäste“ und als Hinweis in der Übersicht. Ohne Internet läuft alles andere weiter, der Reiter zeigt „keine Verbindung“; nach einem Neustart wartet der Abgleich sichtbar auf das Entsperren des Tresors.
+
+### Verbessert
+- Mitspielersuche in der Mitglieder-App: Der Knopf zum Abschicken eines neuen Gesuchs heißt jetzt „Gesuch einstellen“.
+
+### Behoben
+- Mitglieder: Die E-Mail an den Vorstand zu einer Datenänderung aus der Mitglieder-App nennt die Felder jetzt mit ihren Namen („Straße“, „PLZ“ …) statt mit internen Bezeichnungen.
+- Mitglieder: Unter „Anträge“ sieht man eine gewünschte Änderung (bisher → neu) am Handy jetzt schon vor dem Übernehmen; das Datum steht in der normalen Schrift.
+
 ## 2026.11.59
 
 ### Verbessert

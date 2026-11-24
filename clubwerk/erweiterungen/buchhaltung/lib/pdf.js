@@ -29,7 +29,7 @@ const pct = v => `${Number(v || 0).toLocaleString('de-DE')} %`;
 
 /** Fußzeile: Verein · Anschrift, darunter Kontakt/Steuernummer/Freitext; Seitenzahl bei mehreren Seiten */
 function footer(doc, club, { numbers = true, tax = true } = {}) {
-  const line2 = [club.phone && `Tel. ${club.phone}`, club.email, tax && club.tax_no && `St.-Nr. ${club.tax_no}`, tax && club.vat_id && `USt-IdNr. ${club.vat_id}`, club.footer].filter(Boolean).join(' · ');
+  const line2 = [B.contactLine(club), tax && club.tax_no && `St.-Nr. ${club.tax_no}`, tax && club.vat_id && `USt-IdNr. ${club.vat_id}`, club.footer].filter(Boolean).join(' · ');
   B.footer(doc, club, { numbers, line2, foot: FOOT });
 }
 /** Anschriftzeilen eines Empfängers (DIN 5008: Name, z. Hd., Straße, PLZ Ort, Land in Großbuchstaben) */

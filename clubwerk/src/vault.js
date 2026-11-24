@@ -70,6 +70,8 @@ const SPEC = [
   { t: 'sl_protocol', k: 'id', c: ['sig_a', 'sig_b', 'sig_c'] },                          // Schlüssel: Unterschriften
   { t: 'geheimnisse', k: 'name', c: ['value'] },   // Zugangsdaten fremder Dienste, Sicherungsschlüssel (src/geheim.js, planung/geheimnisse.md)
   { t: 'tu_person', k: 'id', c: ['token'] },          // Spielerseite LK-Turnier: Nachschlagen über token_h
+  { t: 'bk_code', k: 'booking_id', c: ['code'] },     // Platzcode je Buchung (Modul Plätze): Prüfen an der Tastatur über code_h (HMAC mit PIN-Pfeffer)
+  { t: 'bk_gast', k: 'id', c: ['first_name', 'last_name', 'email', 'phone'], ph: { email: PH_MAIL } },   // Gäste der Online-Buchung (Modul Plätze, PayPal)
 ];
 const FILE_DIRS = ['mitglieder-dokumente', 'fotos', 'mail-anhaenge', 'belege/buchhaltung', 'belege/schluessel'];   // belege/buchhaltung: eingefrorene Rechnungen und Spendenquittungen (GoBD) mit Anschriften
 const PLACEHOLDER_RE = /^gesperrt-(\d+)@clubwerk\.invalid$/i;

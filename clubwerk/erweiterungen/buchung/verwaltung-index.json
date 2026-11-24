@@ -1,6 +1,6 @@
 {
  "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
- "version": "1.33.1",
+ "version": "1.35.0",
  "varianten": [
   {
    "wenn": {},
@@ -15,7 +15,8 @@
        "buchung_buchen",
        "buchung_stornieren",
        "buchung_serien",
-       "buchung_einstellungen"
+       "buchung_einstellungen",
+       "buchung_gaeste"
       ],
       "group": {
        "key": "buchung",
@@ -35,7 +36,8 @@
        "buchung_buchen",
        "buchung_stornieren",
        "buchung_serien",
-       "buchung_einstellungen"
+       "buchung_einstellungen",
+       "buchung_gaeste"
       ],
       "group": {
        "key": "buchung",
@@ -55,7 +57,8 @@
        "buchung_buchen",
        "buchung_stornieren",
        "buchung_serien",
-       "buchung_einstellungen"
+       "buchung_einstellungen",
+       "buchung_gaeste"
       ],
       "group": {
        "key": "buchung",
@@ -75,7 +78,29 @@
        "buchung_buchen",
        "buchung_stornieren",
        "buchung_serien",
-       "buchung_einstellungen"
+       "buchung_einstellungen",
+       "buchung_gaeste"
+      ],
+      "group": {
+       "key": "buchung",
+       "label": "Plätze",
+       "icon": "kalender",
+       "order": 2
+      }
+     }
+    ],
+    [
+     "registerPage",
+     {
+      "key": "bk-gaeste",
+      "title": "Gäste",
+      "perm": [
+       "buchung",
+       "buchung_buchen",
+       "buchung_stornieren",
+       "buchung_serien",
+       "buchung_einstellungen",
+       "buchung_gaeste"
       ],
       "group": {
        "key": "buchung",
@@ -95,7 +120,8 @@
        "buchung_buchen",
        "buchung_stornieren",
        "buchung_serien",
-       "buchung_einstellungen"
+       "buchung_einstellungen",
+       "buchung_gaeste"
       ],
       "group": {
        "key": "buchung",
@@ -115,7 +141,8 @@
        "buchung_buchen",
        "buchung_stornieren",
        "buchung_serien",
-       "buchung_einstellungen"
+       "buchung_einstellungen",
+       "buchung_gaeste"
       ],
       "group": {
        "key": "buchung",
@@ -135,7 +162,8 @@
        "buchung_buchen",
        "buchung_stornieren",
        "buchung_serien",
-       "buchung_einstellungen"
+       "buchung_einstellungen",
+       "buchung_gaeste"
       ],
       "group": {
        "key": "buchung",

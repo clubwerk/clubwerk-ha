@@ -10,7 +10,7 @@
    Geöffnet wird in der Mitglieder-App (Bereich „Türen“), optional zusätzlich am Tablet (Name wählen + App-PIN).
    Es wird nie automatisch abgeschlossen. */
 const crypto = require('crypto');
-let db, getSetting, setSetting, audit, H, express, access, lastFirst;
+let db, getSetting, setSetting, audit, H, express, access, lastFirst, T = require('./lib/tastatur');
 const MOD = 'zugang';
 const APP = 'app';   // Geräte-Kopplung der Mitglieder-App
 
@@ -157,11 +157,15 @@ const states = force => ha.states(force ? 1000 : 3000);
  *  Home Assistant sie nicht (oder „Gemischt / anderer Hersteller“), keine schaltbaren Geräte. Türkontakte bleiben (nur lesend). */
 async function deviceList(c, strict) {
   const st = await states(true);
-  const out = { lock: [], switch: [], button: [], cover: [], binary_sensor: [] };
+  const out = { lock: [], switch: [], button: [], cover: [], binary_sensor: [], keypad: [] };
   const v = VENDORS.find(x => x.id === c.vendor);
   const ids = await G.integrationSet(v && v.integration);   // null: alles anbieten (nur mit allen Rechten)
   for (const s of st.values()) {
     const dom = s.entity_id.split('.')[0];
+    if (T.RE_KEYPAD.test(s.entity_id)) {   // Codetastatur: Sensor/Text/Ereignis, der den eingetippten Code meldet (wie Geräte: nur aus der Integration, außer mit allen Rechten)
+      if ((ids && !ids.has(s.entity_id)) || (!ids && strict)) continue;
+      out.keypad.push({ ref: s.entity_id, name: `${(s.attributes && s.attributes.friendly_name) || s.entity_id} (${s.entity_id})` }); continue;
+    }
     if (!out[dom]) continue;
     if (dom === 'binary_sensor' && !['door', 'garage_door', 'opening', 'window', 'lock'].includes(s.attributes && s.attributes.device_class)) continue;
     if (dom !== 'binary_sensor' && ((ids && !ids.has(s.entity_id)) || (!ids && strict))) continue;
@@ -397,13 +401,16 @@ function cleanCfg(b, cleanName) {
       { const own = H.entityOwner(ref); if (own) throw new Error(`${name}: „${ref}“ gehört schon zum Modul ${own} und kann hier nicht verwendet werden.`); }
       const sensor = String(d.sensor || '').trim();
       if (sensor && !/^binary_sensor\.[a-z0-9_]+$/.test(sensor)) throw new Error(`${name}: ungültiger Türkontakt.`);
+      const keypad = String(d.keypad || '').trim();   // Codetastatur für Platzcodes (lib/tastatur.js)
+      if (keypad && !T.RE_KEYPAD.test(keypad)) throw new Error(`${name}: ungültige Codetastatur.`);
+      if (keypad) { const own = H.entityOwner(keypad); if (own) throw new Error(`${name}: „${keypad}“ gehört schon zum Modul ${own} und kann hier nicht verwendet werden.`); }
       // vorhandene Tür behält ihre ID; eine neue ID wird nur angenommen, wenn sie hier noch nie vergeben war – sonst neu
       const keep = !seen.has(d.id) && (curDoors.has(String(d.id)) || freshId(used, d.id, /^[a-f0-9]{8}$/));
       const id = keep ? String(d.id) : newId(used);
       if (!curDoors.has(id)) idsChanged = true;
       if (d.id) doorMap.set(String(d.id), id);
       seen.add(id);
-      return { id, name, type, ref, sensor, pulseSec: Math.max(1, Math.min(30, parseInt(d.pulseSec, 10) || 3)) };
+      return { id, name, type, ref, sensor, keypad, pulseSec: Math.max(1, Math.min(30, parseInt(d.pulseSec, 10) || 3)) };
     });
     // Türen, die es nicht mehr gibt, aus den Profilen entfernen
     for (const p of out.profiles) if (p.doors !== 'all') p.doors = (p.doors || []).map(id => doorMap.get(id) || id).filter(id => seen.has(id));
@@ -457,11 +464,14 @@ function cleanCfg(b, cleanName) {
 
 /** Geänderte Türgeräte dem Vorstand melden (Einstellungen und Funktionsimport) – auch beim ersten Eintragen */
 function doorAlert(before, out, who) {
-  const refs = c2 => (c2.doors || []).map(d => `${d.name}=${d.ref}`).sort().join(', ');
+  const refs = c2 => (c2.doors || []).map(d => `${d.name}=${d.ref}${d.keypad ? ` + Tastatur ${d.keypad}` : ''}`).sort().join(', ');
   if (refs(before) !== refs(out)) H.securityAlert('tueren', `Im Modul Zugang wurden die Türen geändert (von ${who}). Vorher: ${refs(before) || '–'} · Jetzt: ${refs(out) || '–'}. War das so geplant? Sonst bitte in der Verwaltung prüfen.`);
 }
 /** Türen, denen ein Gerät neu zugeordnet wird (neue Tür oder anderes Gerät an derselben Tür – die Zeitprofile hängen an der Tür) */
-const neueGeraete = (before, out) => { const alt = new Map((before.doors || []).map(d => [d.id, d.ref])); return out.doors.filter(d => alt.get(d.id) !== d.ref).map(d => d.ref); };
+const neueGeraete = (before, out) => {   // auch eine neue Codetastatur zählt: sie öffnet die Tür
+  const alt = new Map((before.doors || []).map(d => [d.id, d]));
+  return out.doors.flatMap(d => { const o = alt.get(d.id); return [...(!o || o.ref !== d.ref ? [d.ref] : []), ...(d.keypad && (!o || o.keypad !== d.keypad) ? [d.keypad] : [])]; });
+};
 const vendorInfo = c => { const v = VENDORS.find(x => x.id === c.vendor) || VENDORS[VENDORS.length - 1]; return { name: v.name, integration: v.integration, free: !v.integration }; };
 /** Geräte-Regeln (src/geraete.js) für eine fertig geprüfte Konfiguration – gibt die geprüften Geräte zurück */
 const geraetePruefen = async (before, out, o) => { const changed = neueGeraete(before, out); await G.pruefen({ changed, vendor: vendorInfo(out), vendorChanged: out.vendor !== before.vendor, ...o, info: o }); return new Set(changed); };
@@ -477,7 +487,10 @@ function activate(ctx) {
   ctx.hooks.tabletVisible = () => { const c = cfg(); return Boolean(c.header && c.doors.length); };
   // Schalter „am Tablet zeigen“ liegt zentral unter Einstellungen › Tablet (Schlüssel header bleibt)
   ctx.hooks.tabletSwitch = { get: () => Boolean(cfg().header), set: on => { const c = cfg(); c.header = on; save(c); } };
-  ctx.hooks.usedEntities = () => cfg().doors.map(d => d.ref);
+  ctx.hooks.usedEntities = () => cfg().doors.flatMap(d => [d.ref, ...(d.keypad ? [d.keypad] : [])]);
+  /* Platzcode (Modul Plätze): Türen, die ein Platz für seinen Code wählen kann – nur solche mit Codetastatur */
+  ctx.hooks.codeDoors = () => cfg().doors.map(d => ({ id: d.id, name: d.name, keypad: Boolean(d.keypad) }));
+  T = require('./lib/tastatur').activate(ctx, { cfg, act, log, notify, ha });
   // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
   ctx.hooks.securityEvents = () => [
     { id: 'tablet', label: 'Zugang: viele falsche PINs am Tablet', level: 'r', push: 'Zugang: viele falsche PINs am Tablet – das Öffnen am Tablet ist aus.' },
@@ -486,6 +499,7 @@ function activate(ctx) {
     { id: 'offen', label: 'Tür steht zu lange offen', level: 'a', push: 'Eine Tür steht zu lange offen.' },
     { id: 'oeffner', label: 'Türöffner ließ sich nicht ausschalten', level: 'r', push: 'Ein Türöffner ließ sich nicht ausschalten – bitte prüfen.' },
     { id: 'abgelehnt', label: 'Viele abgelehnte Türöffnungen', level: 'a', push: 'Auffällig viele abgelehnte Türöffnungen.' },
+    { id: 'tastatur', label: 'Codetastatur nach falschen Codes gesperrt', level: 'r', push: 'An einer Codetastatur wurden viele falsche Codes eingetippt.' },
   ];
   /* Datenschutz: Türöffnungen zeigen, wer wann da war – nach der Frist löschen (Einstellungen › Datenschutz, src/datenschutz.js) */
   const keepDays = () => Math.min(365, Math.max(7, parseInt(ctx.setting('keep_days', '30'), 10) || 30));
@@ -536,6 +550,9 @@ function activate(ctx) {
       const x = doorState(d, st);
       if (st && x.offline) alerts.push({ level: 'r', text: `${d.name}: nicht erreichbar` });
       if (x.jammed) alerts.push({ level: 'r', text: `${d.name}: Schloss blockiert` });
+      const k = T.info(d);
+      if (k.keypadLockedUntil) alerts.push({ level: 'r', text: ctx.T('{0}: Codetastatur gesperrt bis {1} Uhr', [d.name, k.keypadLockedUntil]) });
+      if (k.keypadOffline) alerts.push({ level: 'a', text: ctx.T('{0}: Codetastatur nicht erreichbar', [d.name]) });
       if (x.open) open++;
       if (st && d.type === 'lock' && !x.offline && st.get(d.ref) && st.get(d.ref).state !== 'locked') alerts.push({ level: 'a', text: `${d.name} ist aufgeschlossen` });
     }
@@ -576,7 +593,13 @@ function activate(ctx) {
   admin.get('/doors', need('zugang', 'zugang_bedienen'), async (req, res) => {
     const c = cfg();
     let st = null, error = null; try { st = await states(true); } catch (e) { error = e.message; }
-    res.json({ error, blockAll: c.blockAll, doors: c.doors.map(d => ({ id: d.id, name: d.name, type: d.type, ...doorState(d, st) })) });
+    res.json({ error, blockAll: c.blockAll, doors: c.doors.map(d => ({ id: d.id, name: d.name, type: d.type, ...doorState(d, st), ...T.info(d) })) });
+  });
+  admin.post('/doors/:id/keypad-unlock', need('zugang', 'zugang_bedienen'), (req, res) => {
+    const door = cfg().doors.find(d => d.id === req.params.id);
+    if (!door || !door.keypad) return bad(res, 'Unbekannte Tür.', 404);
+    if (T.unlock(door.id)) { log('sperre', ctx.userName(req), door.name, 'Sperre der Codetastatur aufgehoben'); audit(req.user, 'Zugang: Sperre der Codetastatur aufgehoben', door.name); }
+    res.json({ ok: true });
   });
   admin.post('/doors/:id/:action', need('zugang', 'zugang_bedienen'), async (req, res) => {
     const door = cfg().doors.find(d => d.id === req.params.id);

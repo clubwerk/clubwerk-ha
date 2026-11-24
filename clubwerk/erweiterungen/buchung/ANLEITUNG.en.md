@@ -14,6 +14,7 @@ The module works on its own. Without the Members module it only knows first and 
 3. **Create courts:** tab “Courts & equipment” › “+ Court” or “+ Equipment”. Set the name, opening hours, time grid and maximum duration.
 4. **Check the rules:** tab “Settings” – booking window, quota, guests and guest fee are filled with suggested values. This is also where you create the **booking types** (training, league match …).
 5. **Tablet and app:** members see the “Courts” area in the app straight away. On the tablet it appears as soon as “Book on the tablet in the clubhouse” is on (the default).
+6. **Guest booking (optional):** if non-members should also book online and pay with PayPal or card, set up the booking page – step by step in the “Guests” tab below.
 
 ## Admin area {#verwaltung}
 
@@ -70,6 +71,7 @@ Clicking a block shows the details: players, title, fee, note and who entered th
 
 - **Cancel** asks for a reason (optional). The member receives an email and any fee is dropped. You need the permission “cancel other people's bookings”. You find it in the details and also in the “Edit” window (“Cancel” button at the bottom left).
 - **Edit** opens the same window as when entering a booking: court, time, member, playing partners, guests and booking type can be changed. Guest fees are recalculated, and new playing partners receive the email.
+- **Court code “Show”** (only on courts with gates, with the permission “book for members” or “Series & blocks”): shows the code for the keypad at the gate, e.g. to pass it on to a team without the app. Every view is recorded in the change log (without the code).
 
 If the date belongs to a recurring booking or block, Clubwerk first asks what you mean:
 
@@ -151,6 +153,100 @@ Fees booked by hand have a **Cancel** button in their row; the confirmation name
 
 Fees for a family member or someone with their own payer (“pays for”) appear as an open item with the payer.
 
+### Tab “Guests” {#bk-gaeste}
+
+![The “Guests” tab: connection to the booking page, key figures, discrepancies and the guest bookings.](bild: seite=bk-gaeste; hoehe=620)
+
+This is where courts are booked by **non-members**. Guests book on a small separate booking page (as a link or a frame on your website) and pay with **PayPal or debit/credit card**. The booking page runs outside the clubhouse at Cloudflare. Clubwerk stays unreachable from outside: about once a minute it calls the booking page itself, sends the free times and collects new bookings and cancellations. The booking page knows no member data.
+
+Clubwerk then checks every payment **itself at PayPal** (paid, amount, euro, booking number). Only then does the booking appear in the occupancy plan as “Guest booking”, get a court code for the gate, and the guest receive a confirmation email with the code and a cancellation link. While the guest is paying at PayPal, Clubwerk holds the time as “Guest booking (payment in progress)” so nobody books it in the meantime.
+
+At the top you see whether the connection works: **connected** (green, with the time of the last sync and “PayPal sandbox” or “PayPal live”), **no connection** (internet down – guests cannot book, everything else in Clubwerk keeps working), **vault locked** (after a restart syncing waits until an admin signs in; what is waiting is listed below) or an error such as “signature” (key does not match) or “PayPal environment does not match”. **Sync now** syncs straight away, **Set up** opens the setup window, **Embed on the website** shows the link and the code for the frame.
+
+Below are three key figures: **upcoming guest bookings**, **income this month** (minus refunds, with the number of bookings; the PayPal fee is shown in each guest booking) and **open discrepancies**.
+
+#### Discrepancies
+
+![Card “Open discrepancies” with “Enter anyway” and “Done”.](bild: seite=bk-gaeste; ziel=[data-card="abweichungen"])
+
+This lists everything that does not match for a payment – for example a different amount at PayPal, a payment that does not exist at PayPal, or, in the **daily check** with PayPal (last 3 days), a payment without a guest booking in Clubwerk. Clubwerk does not enter a booking with a discrepancy; the court stays held until you decide:
+
+- **Enter anyway** (only for “please check”): Clubwerk checks once more at PayPal that it is paid and enters the booking despite the different amount – e.g. shortly after a price change. If the amount at PayPal itself is wrong, Clubwerk refuses.
+- **Cancel** in the guest booking (see below) refunds the money.
+- **Done** hides the discrepancy once you have cleared it up. This is logged.
+
+If there are discrepancies, the overview shows a red notice too.
+
+#### Guest bookings
+
+![The list of guest bookings with filter, name, time, court, booking number, amount and status.](bild: seite=bk-gaeste; ziel=#bkBody > .card:has(table.bk-fees))
+
+The filters **Upcoming**, **All**, **Cancelled** and **With discrepancy** narrow the list. Names are shown as “Last name, First name”. The status is **Payment in progress** (guest is at PayPal right now), **Payment under review** (PayPal is still checking the payment – the court is held, the code comes afterwards), **paid** (with court code if the court has gates), **Refund in progress**, **cancelled**, **aborted**, **Court was taken** (the time was already taken in Clubwerk – nothing charged or money refunded) or **please check**.
+
+Click a row to open the guest booking:
+
+![The opened guest booking with contact, amount, PayPal numbers and “Cancel and refund”.](bild: seite=bk-gaeste; klick=tr[data-g]; ziel=dialog)
+
+You see email and mobile number, amount and PayPal fee, the numbers at PayPal and which email the guest received. Viewing is logged. **Cancel and refund** with a reason (it is included in the email to the guest): the booking page refunds the amount via PayPal, Clubwerk checks the refund, removes the booking, makes the court code invalid and emails the guest. The same happens if you cancel a guest booking in the occupancy plan or a block pushes it out. A guest booking cannot be moved – the guest paid for exactly this time.
+
+Guests cancel themselves using the link in their confirmation, up to the cancellation deadline (default 24 hours before the start). After that, only you can cancel.
+
+#### Courts for guests
+
+![Card “Courts for guests”.](bild: seite=bk-gaeste; ziel=[data-card="plaetze"])
+
+For each court you decide whether guests may book it online. **Edit** opens the window:
+
+![The window for a court: bookable by guests, weekdays, time window, price per hour, length and booking window.](bild: seite=bk-gaeste; klick=[data-gc="3"]; ziel=dialog)
+
+- **Bookable online by guests (non-members)** releases the court.
+- **Weekdays** and **From/To**: guests only see free times within this window and within the court’s opening hours.
+- **Price per hour** (€1 to €500) and **Length per booking** (in the court’s grid): the price of a booking is price per hour × length.
+- **Booking window**: how many days in advance the court can be booked (1 to 60). Times starting in less than 30 minutes are no longer offered.
+
+Times that are taken – members, recurring bookings, blocks, tournaments – are never offered on the booking page.
+
+#### Setting up
+
+![The window “Set up guest booking”: booking page, website, deadlines and privacy notice.](bild: seite=bk-gaeste; klick=#gsCfg; ziel=dialog; hoehe=640)
+
+- **Guest booking switched on**: without the tick the booking page shows “no online bookings”.
+- **Address of the booking page** (`https` only), **Website where it may be embedded** (the frame only shows there), **Legal notice** and **Privacy policy** (links at the bottom of the booking page).
+- **Cancel with refund up to … hours before** (0 to 720) and **Time reserved while the guest pays** (5 to 30 minutes).
+- **Privacy notice**: shown on the booking page before payment. **Insert suggestion** fills in a text with purpose, legal basis, PayPal and Cloudflare, deletion periods and rights – please adapt it to your club and have your data protection officer check it. **Show club logo** sends the logo to the booking page.
+![At the bottom of the window: shared key and PayPal access for checking payments.](bild: seite=bk-gaeste; klick=#gsCfg; ziel=#gsZugang)
+
+- **Shared key**: **Create key …** (with your password) shows the key **only once** for copying; afterwards it only says “saved”. It belongs on the booking page (see below). A new key triggers a security warning; until it is also on the booking page, guest booking pauses.
+- **PayPal (app “Clubwerk Prüfung”)**: **Environment** sandbox (test) or live (real money), **Client ID** and **Secret** of this app. Clubwerk uses them **read-only** (looking up payments, daily check), never to charge or refund. The secret is stored encrypted in the vault and never shown. **Check PayPal** tests the access with the check of the last 3 days. Switching to live asks for confirmation and triggers a security warning.
+
+#### Embed on the website
+
+![The window “Embed on the website” with link and frame.](bild: seite=bk-gaeste; klick=#gsEmbed; ziel=dialog)
+
+Either just put the **link** on your website or paste the **frame** (iframe) together with the small script for the height (**Copy frame**). On a phone, “Continue to booking” opens the booking page full-screen and redirects to PayPal for payment – without a popup.
+
+#### Step by step: setting up the booking page and the PayPal sandbox
+
+First set everything up in the **PayPal sandbox** (test money). Only switch to live once everything works and the board has agreed. You need: a free Cloudflare account, a PayPal developer login (sign in with the club’s PayPal business account), a PC with Node.js 22 (Windows, Mac or WSL) and the **gaestebuchung** folder from the Clubwerk package.
+
+1. **PayPal app “Buchungsseite”:** <https://developer.paypal.com> → sign in → **Apps & Credentials** → choose **Sandbox** at the top → **Create App**, name “Buchungsseite”, type *Merchant*. Note the client ID and secret – they go on the booking page.
+2. **PayPal app “Clubwerk Prüfung”:** create another app with the same sandbox business account and switch on **Transaction Search** under *Features*. The client ID and secret of this app go **only** into Clubwerk.
+3. **Create the key:** in Clubwerk under Courts › Guests › **Set up**, click **Create key …** and copy the key.
+4. **Prepare Cloudflare:** on the PC open a command prompt in the `gaestebuchung` folder and enter `npx wrangler login` (opens the Cloudflare sign-in in the browser).
+5. **Create the database:** `npx wrangler d1 create gaestebuchung` – enter the `database_id` shown in the file `wrangler.toml`, then `npx wrangler d1 migrations apply gaestebuchung --remote`.
+6. **Enter the client ID:** in `wrangler.toml` put the client ID of the app “Buchungsseite” at `PAYPAL_CLIENT_ID`. `PAYPAL_ENV` stays `"sandbox"`.
+7. **Secrets only by command:** `npx wrangler secret put PAYPAL_CLIENT_SECRET` (secret of the app “Buchungsseite”) and `npx wrangler secret put CLUBWERK_SCHLUESSEL` (key from step 3). These values never go into a file.
+8. **Security check (Turnstile) against mass reservations:** in the Cloudflare dashboard choose **Turnstile** on the left › *Add widget*: name “Buchungsseite”, as hostnames the address of the booking page (e.g. `gaestebuchung.dein-verein.workers.dev` and, if set up, `buchen.dein-verein.de`), mode *Managed*. Enter the **Site Key** in `wrangler.toml` at `TURNSTILE_SITE_KEY` and the **Secret Key** with `npx wrangler secret put TURNSTILE_SECRET`. Before paying, guests see a small “I am human” box that usually ticks itself. Without these keys the booking page accepts no reservations.
+9. **Upload:** `npx wrangler deploy` – at the end the address is shown, e.g. `https://gaestebuchung.dein-verein.workers.dev`. You set up your own address such as `buchen.dein-verein.de` at Cloudflare under *Workers › gaestebuchung › Settings › Domains & Routes*.
+10. **Webhook at PayPal:** in the app “Buchungsseite” under *Webhooks* → *Add Webhook* → address `https://<your-address>/api/v1/webhook`, events *Checkout order approved* and *Payment capture completed, denied, pending, refunded, reversed*. Enter the **Webhook ID** in `wrangler.toml` at `PAYPAL_WEBHOOK_ID` and run `npx wrangler deploy` again.
+11. **Connect Clubwerk:** in the **Set up** window enter the address of the booking page, your website, legal notice and privacy policy, environment **Sandbox** and the client ID and secret of the app “Clubwerk Prüfung”, tick **Guest booking switched on** and save. **Sync now** must show “connected”.
+12. **Release courts:** in the card “Courts for guests” click **Edit** for each court and switch on “bookable by guests”.
+13. **Try it out:** open the booking page, book a time and pay with a sandbox buyer (developer.paypal.com → *Testing Tools* › *Sandbox Accounts*, type *Personal*; test cards under *Card Testing*). Within a minute the booking is in the occupancy plan and the confirmation is in the mailbox.
+
+> Switching to live: choose **Live** at the top of developer.paypal.com and create both apps there again, in `wrangler.toml` set `PAYPAL_ENV = "live"` and the new client ID and webhook ID, run `npx wrangler secret put PAYPAL_CLIENT_SECRET` with the live secret, `npx wrangler deploy`, and in Clubwerk choose environment **Live** with the live app “Clubwerk Prüfung”. If the environments do not match, Clubwerk stops syncing.
+
+> PayPal charges a fee per payment (in Germany about 2.49 % + €0.35, less for non-profit clubs on application). On a refund PayPal keeps the fixed part. Clubwerk records both in the bookkeeping (payment method PayPal).
+
 ### Tab “Statistics” {#bk-auswertung}
 
 Utilisation compared year on year. At the top you choose the **year** and the **court**; everything is compared with the previous year (green better, red worse). In the current year, utilisation counts up to today.
@@ -230,7 +326,11 @@ Both open the same window, which “Edit” also opens for an existing court:
 - **Belongs to department** (appears as soon as there are departments): members of the department book for free; for **other members** you choose “book with court fee” (amount per person) or “may not book”.
 - **Active:** inactive courts cannot be booked and are not in the plan.
 
-Only for **courts**: **Playing partners** “optional” or “required”, and **Solo practice allowed, label** (e.g. “Ball wall”; empty = no). Only for **equipment**: **Bookable as partner** – e.g. the ball machine, which is chosen as a “partner” when booking and booked for the same time slot.
+Only for **courts** (as soon as the Access module is on): **Court code opens these gates** – the doors with a keypad from the Access module that the code of a booking on this court opens, usually the main gate and exactly this court’s gate. One gate can serve several courts. Only users who also have the “Access” permission may change this; every change is logged and the board receives a security warning. Without gates, the court gets no code.
+
+![In a court’s window: which gates the court code opens.](bild: seite=bk-plaetze; klick=[data-ed="4"]; ziel=#dialog .bkf:has([data-cd]))
+
+Also only for **courts**: **Playing partners** “optional” or “required”, and **Solo practice allowed, label** (e.g. “Ball wall”; empty = no). Only for **equipment**: **Bookable as partner** – e.g. the ball machine, which is chosen as a “partner” when booking and booked for the same time slot.
 
 “Delete” only works if there are no more upcoming bookings, recurring bookings or blocks on the court; past ones stay in the log and in the statistics. Otherwise set the court to “inactive”.
 
@@ -249,6 +349,14 @@ Three numbers and one choice:
 Club bookings (training, league matches) ignore the booking window and quota, see “Booking types”.
 
 ![Card “Book”: booking window, quota and cancellation deadline.](bild: seite=bk-einstellungen; ziel=[data-card="buchen"])
+
+#### Court code
+
+The card appears as soon as the Access module is on. Every booking on a court with gates – including every single date of a series or training – gets its own random 6-digit code. **Code valid from … before the start** (default 15 minutes) until the booking ends; after the end it no longer opens from outside (the thumb turn inside always opens). If the booking is moved, the time window moves with it. If it is cancelled, the code stops working at once. If someone is removed or the court is changed, there is a new code.
+
+![“Court code” card.](bild: seite=bk-einstellungen; ziel=[data-card="platzcode"])
+
+Only those involved see the code: the booker and the playing partners in the app and in the playing-partner email, for series the assigned coach in the app, and the booker on the tablet after booking (plus a short email with the code). Guests have no address of their own in Clubwerk – the booker passes the code on to them.
 
 #### Players & guests
 
@@ -342,6 +450,7 @@ Export courts, booking types and settings as a file and import them into another
 
 - **Booking:** tap a free slot, choose the duration (only up to the next booking or the maximum duration), and if you like add playing partners, guests (by name; ticking “Member of a partner club” saves the fee) or equipment (“ball machine”) or “solo” (e.g. ball wall). Anyone with the special right can also book for another member or repeat. A price field shows the guest fee and any court fee in advance; then confirm the court rules and tap “Book”.
 - **Tapping a taken time:** shows who has booked (depending on the setting) and offers “Join waiting list”.
+- **Court code:** after booking, the app shows the code in large digits (“Court code for the gate”, with validity and gates); under “Court codes for the gate” (below “My bookings”) you find the codes of all your bookings for today and tomorrow, as a playing partner too, and for coaches those of their series dates – court and time on the left, the code on the right.
 - **My bookings:** with icons for calendar (the booking goes into the phone's calendar), change and cancel (also at the very bottom of the “Change booking” window: “Cancel booking”); below it “My series” with “End” and “Waiting list” with “Remove”.
 - **Cancelling as a playing partner:** every playing partner entered on a booking can cancel the whole booking, with the same deadline as the person who booked it (“…'s booking will be cancelled for everyone.”). Only the person who booked can change it. Any fee is dropped just as when the booker cancels; the booker and the other playing partners receive an email and a push notification, and the log shows who cancelled. Anyone who neither booked nor plays sees “Booked by … – only they or a playing partner can cancel.”
 - **Push:** members can be notified when they are added as a playing partner, when a booking is changed or cancelled (also because of a court block), when a court from the waiting list becomes free and shortly before the match (2 hours ahead, adjustable). The board decides which occasions exist under Member app › Notifications.
@@ -352,14 +461,14 @@ Export courts, booking types and settings as a file and import them into another
 ![The “Find players” window.](bild: app=buchung; klick=.bkm-tabs [data-tab="ms"]; klick2=#bkmMsNew)
 
 **Playing partners (tab at the top of the “Courts” area):**
-- **Find players:** choose the format (for “Training” also how many), then one of your own bookings or “no court yet” with day and time. Playing level, LK range and a note (up to 140 characters, no links) are optional. “Post request” makes it visible. Only members allowed to use “Courts” in the app can see it – with “Last name, first name” and photo (if shared for court booking), never with phone number or email.
+- **Find players:** choose the format (for “Training” also how many), then one of your own bookings or “no court yet” with day and time. Playing level, LK range and a note (up to 140 characters, no links) are optional. “Post request” posts it. Only members allowed to use “Courts” in the app can see it – with “Last name, first name” and photo (if shared for court booking), never with phone number or email.
 - **I'm in:** the reply is binding, first come, first served. If the request has a court, you are added to the booking as a player straight away (with the same rules as when booking, e.g. quota). “Details” shows who has already joined and offers **Report**. Your own replies are listed under “My replies” with “Withdraw reply”.
 - **My request:** shows “2 of 3 found” and who replied when (“Remove” takes a reply out). “Edit” changes the request; once there are replies, format, time and court stay as agreed. “Withdraw” ends it; a booked court stays booked.
 - **Book a court:** when a request without a court is full, “Book a court” opens the booking window on the right day with the duration and all players; “For me” reminds you. If no court is free at the start time, the member picks one. Booking follows the normal rules; afterwards the request is done.
 - **I'm looking for players too:** members who voluntarily enter their playing level and LK see matching requests first (same or neighbouring level, LK within the range wanted). Others do not see these details; switching off deletes them at once.
 - **Push:** “Someone is in” and “Your request is full” go to the creator if the board has enabled these occasions under Member app › Notifications. There is no push for new requests.
 
-**On the tablet** (tab “Courts”) you see the same plan. Tap a free slot, search for your own name (from two letters on), enter your **PIN** and book; anyone without a PIN sets one right there. Tapping a booking and “Cancel” also needs the PIN – for the person who booked and for every playing partner entered. For recurring bookings the tablet asks: “Only today”, “Today and all following” or “Entire series”. As in the app, further days up to the booking window can be chosen above the plan; after 2 minutes without input the tablet jumps back to today.
+**On the tablet** (tab “Courts”) you see the same plan. Tap a free slot, search for your own name (from two letters on), enter your **PIN** and book; anyone without a PIN sets one right there. On a court with a gate, the tablet shows a window with the court code after booking until “Done” is tapped – without input it closes by itself after about a minute, so the next person at the tablet does not see the code. Tapping a booking and “Cancel” also needs the PIN – for the person who booked and for every playing partner entered. For recurring bookings the tablet asks: “Only today”, “Today and all following” or “Entire series”. As in the app, further days up to the booking window can be chosen above the plan; after 2 minutes without input the tablet jumps back to today.
 
 ## Permissions {#rechte}
 
@@ -369,7 +478,8 @@ Export courts, booking types and settings as a file and import them into another
 | Courts: book for members, single bookings with booking type | Enter and edit bookings and blocks, book and cancel fees by hand |
 | Courts: cancel other people's bookings | Cancel bookings and blocks; hide partner search requests and block members from it |
 | Courts: create and end recurring bookings & blocks | Recurring bookings, blocks and schedule import; repeating in the booking window |
-| Courts: courts, booking types & settings | Tabs “Courts & equipment” and “Settings” with booking types and special rights, partner search settings |
+| Courts: courts, booking types & settings | Tabs “Courts & equipment” and “Settings” with booking types and special rights, partner search settings; the gates for the court code only together with the “Access” permission |
+| Courts: set up guest booking (PayPal), cancel guest bookings, resolve discrepancies | Tab “Guests”: set up, key, PayPal access, courts for guests, view a guest booking with contact details, cancel with refund, resolve discrepancies. Everyone with a Courts permission may view the tab (without contact details). |
 
 Members and coaches book in the app and on the tablet without any admin permission. Someone who may only view the occupancy sees the plan but cannot enter anything.
 
@@ -379,6 +489,9 @@ Members and coaches book in the app and on the tablet without any admin permissi
 - **Sales:** fees for coaches, and fees without the Members module, go to the sales account and are settled there.
 - **Match play:** the schedule import also passes matches on to Match play (match days, teams).
 - **Tournaments:** the module books the courts for matches (club championship) and blocks them on tournament days – with a preview of which bookings are affected. Tournament matches are club bookings without a fee.
+- **Access:** doors with a keypad can be chosen per court as gates for the court code. When someone types a code at the gate, Access asks the Courts module whether a booking with this code may open this gate right now, and then opens it as from the app. Without Access there are no codes; without Courts no keypad opens anything.
+- **Accounting:** income and PayPal fees of guest bookings appear in the bookkeeping (payment method PayPal, income type “Guest bookings (PayPal)”), refunds as a separate entry.
+- **Guest booking (Access):** guest bookings on courts with gates get a court code; it is in the guest’s confirmation email. Guests’ contact details are stored encrypted in the vault; their deletion period is under Settings › Privacy.
 - **Faults:** courts and equipment appear there automatically as locations.
 - **Setup and overview:** the setup assistant walks you through “Create courts” and “Rules for booking”. The overview shows open fees and today's bookings.
 - **Member app:** “For me” shows the member's own next bookings, courts that became free from the waiting list and bookings cancelled by a court block.

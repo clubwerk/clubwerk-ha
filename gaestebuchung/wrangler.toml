@@ -1,0 +1,35 @@
+# Buchungsseite für Gäste – Cloudflare Worker + D1 (Einrichtung: README.md)
+name = "gaestebuchung"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+# Bilder, Skripte und Gestaltung (public/) liefert Cloudflare direkt aus
+[assets]
+directory = "./public"
+
+# Datenbank: einmal mit „npx wrangler d1 create gaestebuchung“ anlegen und die ausgegebene database_id hier eintragen
+[[d1_databases]]
+binding = "DB"
+database_name = "gaestebuchung"
+database_id = "HIER-DIE-DATABASE-ID-EINTRAGEN"
+migrations_dir = "migrations"
+
+# alle 10 Minuten: abgelaufene Reservierungen freigeben, offene Zahlungen/Erstattungen bei PayPal nachlesen, Löschfristen
+[triggers]
+crons = ["*/10 * * * *"]
+
+[vars]
+# sandbox = PayPal-Testumgebung (zuerst nur so!), live = echtes Geld (erst nach Rücksprache mit dem Vorstand)
+PAYPAL_ENV = "sandbox"
+# Client-ID der PayPal-App „Buchungsseite“ (öffentlich, steht auch in der Seite)
+PAYPAL_CLIENT_ID = ""
+# Webhook-ID aus derselben PayPal-App (Developer Dashboard › App › Webhooks)
+PAYPAL_WEBHOOK_ID = ""
+# Cloudflare Turnstile (Sicherheitsprüfung gegen Massen-Reservierungen): Site Key aus dem Cloudflare-Dashboard › Turnstile (öffentlich)
+TURNSTILE_SITE_KEY = ""
+
+# Geheim – NIE hier eintragen, nur so:
+#   npx wrangler secret put PAYPAL_CLIENT_SECRET
+#   npx wrangler secret put CLUBWERK_SCHLUESSEL
+#   npx wrangler secret put TURNSTILE_SECRET

@@ -1,0 +1,12 @@
+{
+  "name": "clubwerk-gaestebuchung",
+  "private": true,
+  "type": "module",
+  "description": "Buchungsseite für Gäste (Cloudflare Worker + D1) zum Clubwerk-Modul Plätze",
+  "scripts": {
+    "test": "node --test --no-warnings test/*.test.js",
+    "lokal": "node --no-warnings lokal.js",
+    "deploy": "wrangler deploy",
+    "db:anlegen": "wrangler d1 migrations apply gaestebuchung --remote"
+  }
+}

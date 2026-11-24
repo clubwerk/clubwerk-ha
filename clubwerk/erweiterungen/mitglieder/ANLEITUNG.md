@@ -290,6 +290,17 @@ Wünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen:
 - **Neue Bankverbindung:** mit der Unterschrift des Mitglieds. Beim Übernehmen entsteht ein neues Mandat (Erstlastschrift); das unterschriebene Mandat wird als PDF abgelegt und dem Mitglied geschickt.
 - **Kündigung:** Clubwerk schlägt den frühestmöglichen Austrittstag vor: das Ende des Geschäftsjahres unter Einhaltung der Kündigungsfrist (Frist 0 und Geschäftsjahr = Kalenderjahr: Kündigung bis 31.12. → Austritt zum 31.12.; Frist 3 Monate: Eingang bis 30.09.). Dasselbe Datum nennt die App beim Kündigen und die Eingangsbestätigung per E-Mail. Ein angefangenes Beitragsjahr wird voll berechnet; ihr bestätigt oder ändert ihn. Beim Bestätigen wählt ihr wie beim Austritt: Standardtext senden, vor dem Versenden anpassen oder keine E-Mail.
 - **Ein-, Austritt und Rückkehr in eine Abteilung** meldet die Abteilungsleitung; „Bestätigen“ übernimmt sie. Beim Austritt wählt ihr dabei die Bestätigung an das Mitglied.
+- **Bescheinigung angefordert:** ein Mitglied möchte eine Mitgliedsbescheinigung, etwa für das Bonusprogramm der Krankenkasse. In der Zeile stehen das Jahr, der Hinweis des Mitglieds und – bei Familien – wer sie angefordert hat und an wen sie geht. „Unterschreiben …“ öffnet das Fenster dazu (siehe unten), „Ablehnen“ fragt nach einem Grund für die E-Mail.
+
+#### Mitgliedsbescheinigung unterschreiben
+
+![Das Fenster „Mitgliedsbescheinigung“: Angaben, Name und Funktion und das Unterschriftsfeld.](bild: seite=mv-antraege; klick=[data-cok="12"]; ziel=#ceForm)
+
+Rechts seht ihr die Bescheinigung als PDF-Vorschau. Sie enthält nur, was der Verein kennt: Name, Geburtsdatum, Anschrift, „Mitglied seit“, Status (aktiv, passiv …), die Abteilungen in diesem Jahr und den Zeitraum der Mitgliedschaft im gewählten Jahr – keine Aussage über Training oder Teilnahme. Oben steht euer Briefkopf aus Einstellungen › Verein (Logo, Name, Anschrift; Telefon, E-Mail und Webseite in der Fußzeile).
+
+Links tragt ihr **Name** und **Funktion** ein (Clubwerk merkt sich eure Funktion für das nächste Mal) und unterschreibt mit Finger oder Maus im Feld; „Löschen“ fängt neu an. Die Unterschrift steht nur auf dieser Bescheinigung und wird sonst nirgends gespeichert. **Unterschreiben & senden** erzeugt das PDF mit Ort, Datum, Vereinsstempel und Unterschrift, legt es unter Dokumente des Mitglieds ab, schickt es per E-Mail und zeigt es in der App. Bei einer Familie geht die E-Mail an das Familienoberhaupt. Ohne Vereinsstempel lässt sich nicht unterschreiben – das Fenster weist darauf hin.
+
+Unterschreiben dürft ihr nur mit dem Recht „Mitglieder“ ohne Einschränkung auf eine Abteilung. Abteilungsleitungen sehen die Anfragen ihrer Abteilung mit Vorschau, unterschreiben und ablehnen aber nicht.
 
 #### Archiv
 
@@ -434,7 +445,13 @@ Betreff und Text der Mail, die ein Mitglied zum Austritt bekommt – wenn ihr ei
 
 ![Karte „Meine Daten“ in der App.](bild: seite=mv-einstellungen; ziel=#eApp)
 
-Legt fest, was Mitglieder in der App **sehen** (Beitrag, Posten, Anschrift, Kontakt, Geburtsdatum, Bankverbindung, Einwilligungen) und was sie **ändern** dürfen (Anschrift, Kontakt, Bankverbindung, Einwilligungen, Kündigung). Änderungen an Daten bestätigt immer der Vorstand. Sind die Einwilligungen in der App ausgeblendet, widerrufen Mitglieder sie formlos beim Vorstand.
+Legt fest, was Mitglieder in der App **sehen** (Beitrag, Posten, Anschrift, Kontakt, Geburtsdatum, Bankverbindung, Einwilligungen) und was sie **ändern** oder anfordern dürfen (Anschrift, Kontakt, Bankverbindung, Einwilligungen, Kündigung, Mitgliedsbescheinigung). Änderungen an Daten bestätigt immer der Vorstand. Sind die Einwilligungen in der App ausgeblendet, widerrufen Mitglieder sie formlos beim Vorstand.
+
+#### Bescheinigung für die Krankenkasse
+
+![Karte „Bescheinigung für die Krankenkasse“ mit dem Vereinsstempel.](bild: seite=mv-einstellungen; ziel=#eStamp)
+
+Hier ladet ihr einmal den **Vereinsstempel** hoch (PNG oder JPG, höchstens 2 MB; am besten ein eingescannter Stempel als PNG mit durchsichtigem Hintergrund). Er kommt auf jede Mitgliedsbescheinigung, weil manche Krankenkassen einen Stempel verlangen. „Anderen Stempel hochladen …“ ersetzt ihn, „Entfernen“ löscht ihn – dann lassen sich keine Bescheinigungen mehr unterschreiben. Ob Mitglieder die Bescheinigung in der App anfordern dürfen, legt ihr bei „Meine Daten“ in der App fest.
 
 #### Mitgliedsausweis
 
@@ -640,12 +657,15 @@ Wie im Reiter „Einstellungen“ unter „Mitglieder“: die Einstellungen als 
 - **Eine neue Bankverbindung** auf dem Handy per Unterschrift als neues SEPA-Mandat erteilen. Der Vorstand übernimmt es.
 - **Einwilligungen** erteilen oder widerrufen (gilt sofort, mit PIN).
 - **Die Datenauskunft** anfordern: Sie kommt als PDF per E-Mail.
+- **Eine Mitgliedsbescheinigung** anfordern (Karte „Bescheinigung für die Krankenkasse“): Jahr wählen (laufendes oder voriges, soweit man da Mitglied war) und auf Wunsch einen Hinweis schreiben, etwa den Namen der Krankenkasse. Das Familienoberhaupt kann sie auch für die Familienmitglieder anfordern. Die Karte zeigt, ob sie beim Vorstand liegt, fertig ist (mit „Ansehen“) oder abgelehnt wurde (mit Grund). Ist sie fertig, kommt eine Push-Nachricht, wenn der Verein das freigegeben hat.
 - **Überweisen:** Wer per Rechnung oder bar zahlt oder eine Mahnung bekommen hat, findet unter „Zahlungen“ den Knopf „Überweisen“. Er zeigt einen QR-Code für die Banking-App und Empfänger, IBAN, Betrag und Verwendungszweck zum Kopieren. Offene Posten ohne Rechnungsnummer bekommen dabei eine, damit der Kontoauszug die Zahlung erkennt. Wer per Lastschrift zahlt, sieht den Knopf nicht.
 - **Kündigen**, wenn das erlaubt ist. Die App nennt den frühesten Austrittstermin; Familien wählen, wer mit kündigt.
 
 Unterschriften, Kündigung und Änderungen, die Geld oder E-Mail betreffen, verlangen die PIN des Mitglieds.
 
 ![Das Fenster „Neue Bankverbindung“ mit Unterschriftsfeld.](bild: app=mitglieder; klick=#mdBank)
+
+![Das Blatt „Bescheinigung anfordern“ mit Jahr und Hinweis.](bild: app=mitglieder; klick=#mdCert)
 
 **Mitgliedsausweis:** Ist er eingeschaltet, hat „Meine Daten“ die Reiter **Mitgliedschaft** und **Ausweis**. Die Karte zeigt Vereinsname, Foto (nur wenn freigegeben), „Nachname, Vorname“, Nummer, „Mitglied seit“, Abteilungen, Altersstufe, Status, „gültig bis“, den QR-Code und eine laufende Uhr mit Sekunden. Uhr und wandernder Glanzstreifen zeigen, dass es kein Bildschirmfoto ist. Die Karte liegt auf dem Handy: Ohne Netz zeigt die Seite „Keine Verbindung“ den Knopf **Mitgliedsausweis zeigen**. In „Für mich“ führt die Zeile **Mitgliedsausweis zeigen** direkt zur Karte. Wer ausgetreten ist, sieht „Deine Mitgliedschaft ist am … beendet“ ohne Code; „Abmelden“ löscht die Karte vom Handy.
 
@@ -663,7 +683,7 @@ Unterschriften, Kündigung und Änderungen, die Geld oder E-Mail betreffen, verl
 
 | Recht | Was es erlaubt |
 |---|---|
-| Mitglieder | Mitglieder sehen und ändern, Anträge und Änderungswünsche bearbeiten, dazu Beiträge & Abteilungen, Auswertung, Einstellungen, Import, Excel, Datenauskunft, Löschen und Anonymisieren |
+| Mitglieder | Mitglieder sehen und ändern, Anträge und Änderungswünsche bearbeiten, Mitgliedsbescheinigungen unterschreiben (nicht mit „Nur eigene Abteilung(en)“), dazu Beiträge & Abteilungen, Auswertung, Einstellungen, Import, Excel, Datenauskunft, Löschen und Anonymisieren |
 | Häkchen „Nur eigene Abteilung(en)“ (in der Rolle) | Zusatz bei „Mitglieder“ für Abteilungsleitungen: nur die eigene Abteilung, nur die Reiter „Mitglieder“ und „Anträge“, am Mitglied ohne „Zahlung & Familie“ und „Konto & Mandat“, ohne Import und Excel |
 | Bankdaten | Bankverbindung und SEPA-Mandat vollständig sehen und ändern (sonst ist die IBAN unkenntlich) |
 | Einzug | Menü „Beiträge & Zahlungen“: Beitragslauf, Lastschriften, Offene Posten, Rechnungen & Mahnungen, Einstellungen, Forderungen, Mahnsperren |

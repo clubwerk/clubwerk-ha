@@ -511,6 +511,7 @@ Alles, was für den ganzen Verein gilt. Die Bereiche stehen als Reiter oben. Was
 ![Karte „Verein“: Name, Farben und Anschrift.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#clubColor))
 
 - **Vereinsname, Straße, PLZ und Ort, E-Mail, Telefon:** stehen auf Rechnungen, Mitgliedsunterlagen und Bescheinigungen. Alle Module lesen sie von hier. Der **Vereinsname ist Pflicht**: der Einrichtungs-Assistent verlangt ihn gleich beim Anlegen des Kontos. Fehlt er, meldet die Datenqualität „Vereinsname fehlt“ in Rot, und es gehen keine E-Mails und Hinweise an Mitglieder raus, bis er eingetragen ist.
+- **Webseite (freiwillig):** steht mit Telefon und E-Mail in der Fußzeile aller Briefe, Rechnungen und Bescheinigungen; leer bleibt sie weg.
 - **Vereinsfarbe** und **Zweitfarbe** (freiwillig): Die Vereinsfarbe gilt für Tablet, Verwaltung, Mitglieder-App, Beregnung und Excel. Ist sie für Schrift zu hell, dunkelt Clubwerk sie automatisch ab (im dunklen Modus hellt es auf). Die Vorschau zeigt hell und dunkel.
 
 ![Karte „Vereinslogo“.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#logoPrev))

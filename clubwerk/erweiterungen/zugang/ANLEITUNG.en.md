@@ -36,13 +36,13 @@ Before every command Clubwerk asks for confirmation. The door is then switched i
 
 > Clubwerk never locks up by itself. Whoever unlocked a door also locks it again. The overview shows a notice while a lock is open.
 
-If there are no doors yet, a button leads straight to the “Doors” tab. If the connection to Home Assistant is missing, a red notice with a link to the check in the settings appears at the top.
+If there are no doors yet, a button leads straight to the “Doors” tab. If the connection to Home Assistant is missing, a red notice with a link to the check in the settings appears at the top. If a keypad is blocked after wrong codes, a red notice at the top says until when, with the button **Lift block** (e.g. if a member only mistyped).
 
 #### Emergency
 
 ![“Emergency” card: “Block everyone now” stops all members from opening.](bild: seite=zugang; ziel=.card:has(#zBlockAll))
 
-“Block everyone now” stops opening in the app and on the tablet for all members, for example after a lost phone or in case of misuse. Clubwerk asks for confirmation first. The remote control above keeps working. While the block is active, a red notice appears on the page and the button reads “Lift block for everyone”. Every block is recorded in the history (action “Block”) and in the admin log.
+“Block everyone now” stops opening in the app, on the tablet and at the keypads for all members, for example after a lost phone or in case of misuse. Clubwerk asks for confirmation first. The remote control above keeps working. While the block is active, a red notice appears on the page and the button reads “Lift block for everyone”. Every block is recorded in the history (action “Block”) and in the admin log.
 
 ### Tab “Authorisations” {#zugang-freischaltungen}
 
@@ -105,6 +105,7 @@ If the connection to Home Assistant is missing, a red notice appears at the top.
 - **Type:** **Lock** (unlock and lock), **Door opener (pulse)** (a relay that switches briefly) or **Gate / drive** (open and close).
 - **Device in Home Assistant:** the list only shows suitable devices. The manufacturer from the “Settings” tab filters the list. A device that another module already uses (for example irrigation) cannot be used a second time.
 - **Door contact (optional):** a sensor that reports whether the door is open. This also makes the “door open too long” notice work.
+- **Keypad for court codes (optional):** the device in Home Assistant that reports the code typed at the keypad (see “Keypad at the gate” below). The door then appears in the list “with keypad”.
 - **Pulse (seconds):** door openers only. How long the relay stays on (1 to 30 seconds, default 3). If it cannot be switched off afterwards, Clubwerk tries several times and then sends a security warning. If a door opener stays on longer than its pulse (for example after a restart, or switched on by hand in Home Assistant), Clubwerk switches it off and reports it.
 
 ![A door of type “Door opener (pulse)” also has the “Pulse (seconds)” field.](bild: seite=zugang-tueren; klick=[data-de="2"]; ziel=dialog)
@@ -116,6 +117,21 @@ When editing, **Remove door …** is set apart at the bottom. Clubwerk asks for 
 **Who may choose which devices:** users with **all permissions** can enter any suitable device from Home Assistant. Everyone else (e.g. only with the “Access” permission) only sees and chooses devices of the manufacturer selected on the “Settings” tab. If “Mixed / other manufacturer” is selected there, only users with all permissions assign devices. This way nobody without all permissions can enter the alarm system or a different lock as a door, for example.
 
 > When the doors are changed, the board gets a safety message showing “before” and “now”. That way you notice if someone enters a different device without permission.
+
+#### Keypad at the gate (court code)
+
+![Window of a door with a keypad.](bild: seite=zugang-tueren; klick=[data-de="3"]; ziel=dialog)
+
+With the **Courts** module, every court booking gets a 6-digit court code. If a door has a keypad, this code opens the door – but only if the booked court has chosen this door as a gate (Courts › Courts & equipment › edit court) and only within the booking’s time window (from the buffer before the start until the end). The keypad checks nothing itself: Clubwerk reads the input from Home Assistant, asks the Courts module and opens the door as from the app. You confirm the new device with your password like any other.
+
+- **Protection against trying codes:** after 5 wrong codes in 10 minutes the keypad is blocked for 5 minutes, twice as long if it happens again on the same day (at most 1 hour). Across all keypads together, 10 wrong codes in 10 minutes block all keypads – several gates do not multiply the attempts. Blocks and counters survive a restart of Clubwerk. The board receives a red security warning, and the “Operate” page shows the block with “Lift block”. Codes outside their time or for another gate do not count as failed attempts.
+- **Emergency block** (“Block everyone now”) also blocks the keypads.
+- **Log:** every opening and every rejection is in the history – with the booking (court, day, time), the gate and the booker’s name, never with the code.
+- **Without Home Assistant or the network nothing opens.** So every gate needs a mechanical emergency cylinder (key for the board), and a thumb turn or panic bar on the inside always opens without a code.
+
+**Hardware (example, vendor-neutral):** a weatherproof keypad with Wiegand output (IP65 or better) on an ESP32 with ESPHome (ideally with a network cable and PoE instead of Wi-Fi), plus a relay and an electric gate lock or electric bolt (12/24 V) with an emergency cylinder. In ESPHome the components `wiegand` and `key_collector` put the keys together into a code (6 digits, finish with `#`, clear with `*`). In `on_result` you write the code into a text sensor (in Home Assistant `sensor.…`) and reset it to empty after 2 seconds.
+
+Add the relay as a switch and enter it in Clubwerk as **Door opener (pulse)**, and the text sensor as **Keypad**. An event entity (`event.*`) with the attribute `code` also works. So that the codes do not stay in Home Assistant’s history, exclude the sensor from recording in Home Assistant (`recorder: exclude: entities:`). Clubwerk reads the keypad directly from Home Assistant every second, only while a door has a keypad.
 
 ### Tab “Time profiles” {#zugang-profile}
 
@@ -162,7 +178,7 @@ The history shows who opened, closed or blocked which door and when, including r
 
 - **Time**, **Door** and **Who** (name of the member or of the admin user).
 - **Action:** Unlocked, Locked, Opened, **Rejected** (with the reason under “Note”, for example “Not now – possible again from tomorrow 14:00.”), **Error** (the door did not respond), **Authorisation**, **Alarm** (door open too long) and **Block** (emergency block or switch-off on the tablet).
-- **Note:** for example “am Tablet” (on the tablet) or “Fernbedienung aus der Verwaltung” (remote control from the admin area).
+- **Note:** for example “am Tablet” (on the tablet), “Fernbedienung aus der Verwaltung” (remote control from the admin area) or for the court code “Platzcode (Buchung Padel 24.11.2026 18:00–19:30)” (court code, booking …); rejected codes with a reason such as “Falscher Platzcode” (wrong court code), “Platzcode noch nicht gültig …” (not yet valid) or “Platzcode gilt nicht für dieses Tor …” (not valid for this gate), a blocked keypad as “Block”.
 
 “Excel” (top right) downloads the chosen month as a spreadsheet. The nightly backup also includes the current month as an Excel file.
 
@@ -220,7 +236,7 @@ For a member to see the section in the app at all, they must be authorised (“A
 | Permission | What it allows |
 |---|---|
 | Access | Everything in the “Access” menu: authorisations, doors, time profiles, blocked days, history and settings; also remote opening and the emergency block |
-| Operate access | Only the “Operate” page: open and close doors remotely, set and lift the emergency block. Nothing can be set up |
+| Operate access | Only the “Operate” page: open and close doors remotely, set and lift the emergency block, lift the block of a keypad. Nothing can be set up |
 
 Only users with the “Settings” permission can change Settings › Reachability (club network).
 
@@ -232,5 +248,6 @@ Only users with the “Settings” permission can change Settings › Reachabili
 - **Overview:** The start page shows doors, authorised members, “Opened today” and open doors, and warns about a missing connection, jammed or unlocked locks and the emergency block.
 - **Tablet:** The “show on tablet” switch is set centrally under Settings › Tablet.
 - **Privacy:** Under Settings › Privacy you set how long door openings are kept (7 to 365 days, default 30). After that Clubwerk deletes them every day by itself. The record of processing activities includes the purpose “access to the clubhouse and grounds”.
+- **Courts:** doors with a keypad can be chosen there per court as gates for the court code. Whether a typed code is valid right now is decided by the Courts module (booking, time window, gate); without Courts no keypad opens anything.
 - **Irrigation and other modules that use Home Assistant:** A device can only be used in one module; Clubwerk rejects double assignments.
 - **Backup:** The nightly backup includes the door log of the current month as an Excel file.

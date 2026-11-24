@@ -713,6 +713,7 @@
   :where(html.cw-liste) .tbl.kompakt td > .chk { gap: 6px; font-size: 13px; }
   :where(html.cw-liste) .tbl.kompakt tr[data-row] { cursor: pointer; }
   :where(html.cw-liste) .tbl.kompakt td:empty, :where(html.cw-liste) .tbl.kompakt .k-weg { display: none; }   /* k-weg: am Handy weglassen (steht beim Antippen bzw. Bearbeiten) – ganze Zelle oder ein Teil davon */
+  :where(html.cw-liste) .tbl.kompakt td.k-inhalt:not(:first-child) { display: block; flex: 1 1 100%; max-width: none; white-space: normal; overflow-wrap: anywhere; color: var(--ink); }   /* k-inhalt: der Inhalt einer Meldung (alt → neu) ist die Entscheidungsgrundlage – steht am Handy in voller Breite unter dem Namen, nie weggelassen */
   :where(html.cw-liste) .tbl.kompakt td.k-lbl::before { content: attr(data-label) ' '; display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }   /* k-lbl: Spaltenname davor (z. B. „Benutzer: 3“) */
   :where(html.cw-liste) .tbl.kompakt td.k-neben { flex: 1 1 0; min-width: 64px; white-space: normal; }   /* k-neben: Text neben einem Schild bricht dort um, statt in eine eigene Zeile zu rutschen (Karte bleibt ≤ 96 px, nichts abgeschnitten) */
   :where(html.cw-liste) .tbl.kompakt td.k-1z { white-space: normal; overflow-wrap: break-word; font-size: 14px; }   /* k-1z: Namen etwas kleiner; lange Namen brechen um statt abgeschnitten zu werden */

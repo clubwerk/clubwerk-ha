@@ -16,7 +16,7 @@ let ageScanFn = null, ageForFn = null, shared = null;   // Altersstufen prüfen 
 let C;   // Kontext (ctx der Erweiterung + Helfer)
 const DOC_MAX = 15 * 1024 * 1024;
 const DOC_TYPES = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', heic: 'image/heic', txt: 'text/plain', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
-const DOC_KIND = { antrag: 'Beitrittserklärung', mandat: 'SEPA-Mandat', kuendigung: 'Kündigung', nachweis: 'Nachweis', schriftverkehr: 'Schriftverkehr', sonstiges: 'Sonstiges' };
+const DOC_KIND = { antrag: 'Beitrittserklärung', mandat: 'SEPA-Mandat', kuendigung: 'Kündigung', bescheinigung: 'Bescheinigung', nachweis: 'Nachweis', schriftverkehr: 'Schriftverkehr', sonstiges: 'Sonstiges' };
 const isDate = fees.isDate;
 const txt = (v, max = 120) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f<>]/g, '').replace(/[ \t]+/g, ' ').trim().slice(0, max);
 const one = (v, max) => txt(v, max).replace(/[\r\n]+/g, ' ');
@@ -394,7 +394,7 @@ function activate(ctx) {
     ['PUT', /^\/md\/(\d+)$/, 'md'], ['DELETE', /^\/md\/(\d+)$/, 'md'], ['DELETE', /^\/honors\/(\d+)$/, 'h'], ['DELETE', /^\/functions\/(\d+)$/, 'f'],
     ['GET', /^\/applications\/(\d+)$/, 'a'], ['POST', /^\/applications\/(\d+)\/(accept|reject|code)$/, 'a'], ['PUT', /^\/applications\/(\d+)$/, 'a'], ['GET', /^\/applications\/(\d+)\/pdf$/, 'a'], ['POST', /^\/applications$/, 'newapp'],
     ['GET', /^\/documents\/(\d+)$/, 'doc'], ['GET', /^\/member\/(\d+)\/documents\.zip$/, 'm'], ['POST', /^\/documents\/zip$/, '-'], ['GET', /^\/documents\.zip$/, '-'],   // Dokumente als ZIP: nur Mitglieder der eigenen Abteilung(en) (lib/dokzip.js)
-    ['GET', /^\/changes\/(\d+)\/signature$/, 'ch'], ['POST', /^\/changes\/(\d+)\/(accept|reject)$/, 'ch'],
+    ['GET', /^\/changes\/(\d+)\/signature$/, 'ch'], ['GET', /^\/changes\/(\d+)\/preview\.pdf$/, 'ch'], ['POST', /^\/changes\/(\d+)\/(accept|reject)$/, 'ch'],
   ];
   admin.use((req, res, next) => {
     const depts = req.user ? scopeOf(req) : null;
@@ -417,7 +417,7 @@ function activate(ctx) {
     else if (hit[2] === 'ch') {
       const c = row('SELECT member_id, kind FROM mv_change WHERE id = ?', id);
       const confirmKinds = ['eintritt', 'austritt', 'rueckkehr', ...(S('scope_confirm', '1') === '1' ? ['kuendigung'] : [])];
-      ok = Boolean(c && inScope(c.member_id, depts) && c.kind !== 'bank' && !(/accept$/.test(path) && confirmKinds.includes(c.kind)));
+      ok = Boolean(c && inScope(c.member_id, depts) && c.kind !== 'bank' && !(/accept$/.test(path) && confirmKinds.includes(c.kind)) && !(c.kind === 'bescheinigung' && req.method === 'POST'));   // Bescheinigungen: Abteilungsleitung sieht sie, unterschreibt nicht
     }
     else if (hit[2] === 'new') ok = depts.includes(Number(b.department_id)) || (depts.length === 1 && !b.department_id);
     else if (hit[2] === 'newapp') ok = appInScope({ data: JSON.stringify((b.data) || {}) }, depts);
@@ -999,7 +999,7 @@ function activate(ctx) {
     for (const r of await ctx.callHooks('memberData', id)) if (r.result && Object.values(r.result).some(v => v && (!Array.isArray(v) || v.length))) module[r.name] = r.result;
     return { erstellt: nowTs(), verein: ctx.getSetting('club_name', ''), hinweis: 'Auskunft nach Art. 15 DSGVO – alle zu dieser Person gespeicherten Daten.',
       konto: core, vereinsdaten: { ...d.person, consents: d.person.consents }, bankverbindung: d.bank, abteilungen: d.departments, beitraege: d.fees, zahlergruppe: d.payerGroup, familienmitgliedschaft: d.family,
-      ehrungen: d.honors, aemter: d.functions, gratulationen: { keine_gewuenscht: d.no_congrats, anlaesse: shared.congratsOf(id) }, mitgliedsausweise: shared.cardsOf(id), forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
+      ehrungen: d.honors, aemter: d.functions, gratulationen: { keine_gewuenscht: d.no_congrats, anlaesse: shared.congratsOf(id) }, mitgliedsausweise: shared.cardsOf(id), bescheinigungen: shared.certificatesOf ? shared.certificatesOf(id) : [], forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
       aenderungsverlauf: d.history, mitglieder_app: d.app, nachrichten_in_der_app: (ctx.messagesOf ? ctx.messagesOf(id) : []), automatische_mails: (ctx.autoMailsOf ? ctx.autoMailsOf(id) : []), sicherheitswarnungen: ctx.require('./security').ofMember(id), getraenke_je_monat: drinks, weitere_bereiche: module };
   }
   admin.get('/member/:id/auskunft', P, ar(async (req, res) => {
@@ -1145,7 +1145,7 @@ function activate(ctx) {
       drinks_due: S('drinks_due', ''), due_text: S('due_text'), notify_to: S('notify_to'), app_tablet: S('app_tablet', '1') === '1', app_online: S('app_online', '0') === '1', app_intro: S('app_intro'),
       work_text: S('work_text'), satzung_url: S('satzung_url'), return_fee_cents: parseInt(S('return_fee_cents', '0'), 10) || 0, dunning_levels: shared.dunningLevels(), dunning_deadline_days: shared.dunningDeadline(),
       invoice_text: S('invoice_text'), consents: consentList(), retention_years: retYears(),
-      notice_months: parseInt(S('notice_months', '3'), 10) || 0, family_child_max: store.childMax(), scope_confirm: S('scope_confirm', '1') === '1', sepa_required: sepaRequired(), app_perms: store.appPerms(), app_labels: { view: store.APP_VIEW, edit: store.APP_EDIT } };
+      notice_months: parseInt(S('notice_months', '3'), 10) || 0, family_child_max: store.childMax(), scope_confirm: S('scope_confirm', '1') === '1', sepa_required: sepaRequired(), app_perms: store.appPerms(), app_labels: { view: store.APP_VIEW, edit: store.APP_EDIT }, ...(shared.stampInfo ? shared.stampInfo() : {}) };
     return s;
   }
   /** Schlüssel der Karten unter Beiträge & Zahlungen › Einstellungen */
@@ -1209,8 +1209,8 @@ function activate(ctx) {
   });
 
   /* ---------- weitere Teile ---------- */
-  shared = { auskunft, C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope, reenterMember };
-  Object.assign(shared, { DOC_KIND, docDir: () => DOC_DIR, otherDocuments });
+  shared = { auskunft, LABEL, C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope, reenterMember };
+  Object.assign(shared, { DOC_KIND, docDir: () => DOC_DIR, otherDocuments, docFile: d => { const f = path.join(DOC_DIR, path.basename(d.file)); return fs.existsSync(f) ? f : null; } });
   require('./lib/dokzip').register(shared);   // Dokumente als ZIP (je Mitglied und gesammelt)
   require('./lib/money').register(shared);
   require('./lib/abgerechnet').register(shared);   // „Abgerechnet bis“ für alle setzen (braucht runPreview aus money)
@@ -1225,6 +1225,7 @@ function activate(ctx) {
   require('./lib/congrats').register(shared);
   require('./lib/importvc').register(shared);
   require('./lib/memberapp').register(shared);
+  require('./lib/bescheinigung').register(shared);   // Mitgliedsbescheinigung (App anfordern, Vorstand unterschreibt) – nach memberapp (Tresor-Sperre der App) und den Gratulationen (Push-Anlässe)
   require('./lib/ausweis').register(shared);   // Digitaler Mitgliedsausweis (App, Prüfung am Tablet und in der Verwaltung)
   try { anonReapply(); } catch (e) { console.error('Mitgliederverwaltung – Anonymisierungen:', e.message); }   // nach dem Zurückspielen einer Sicherung
   /* Posten aus anderen Modulen (Platz-, Gast-, Lichtgeld, Rechnungen) lagen bis 2026.11 beim Angehörigen statt beim Zahler – offene,

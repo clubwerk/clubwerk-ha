@@ -16,7 +16,7 @@
   const PRORATE = { anteilig: 'anteilig (volle Monate)', voll: 'voller Betrag', frei: 'Eintrittsjahr frei' };
   const KIND = { beitrag: 'Beitrag', getraenke: 'Verkauf', arbeitsstunden: 'Arbeitsstunden', aufnahme: 'Aufnahme', ruecklastschrift: 'Rücklastschrift', mahngebuehr: 'Mahngebühr', sonstiges: 'Sonstiges' };
   const CSTAT = { offen: ['a', 'offen'], eingezogen: ['b', 'im Einzug'], bezahlt: ['g', 'bezahlt'], storniert: ['', 'storniert'] };
-  const DOCK = { antrag: 'Beitrittserklärung', mandat: 'SEPA-Mandat', kuendigung: 'Kündigung', nachweis: 'Nachweis', schriftverkehr: 'Schriftverkehr', sonstiges: 'Sonstiges' };
+  const DOCK = { antrag: 'Beitrittserklärung', mandat: 'SEPA-Mandat', kuendigung: 'Kündigung', bescheinigung: 'Bescheinigung', nachweis: 'Nachweis', schriftverkehr: 'Schriftverkehr', sonstiges: 'Sonstiges' };
   const FIELD = { street: 'Straße', zip: 'PLZ', city: 'Ort', address_extra: 'Adresszusatz', phone: 'Telefon (Festnetz)', mobile: 'Handy', email: 'E-Mail', holder: 'Kontoinhaber', iban: 'IBAN', bic: 'BIC', bank: 'Kreditinstitut' };
   /** Kennzeichen erklären (Seitenkarte): was gemeint ist und was zu tun ist (planung/ui-review.md Punkt 12) */
   const ISSUE_WHY = i => Object.entries({ '^Altersstufe prüfen': 'Das Alter passt nicht mehr zur Beitragsart – bitte unter „Mitgliedschaft“ eine passende wählen.', '^Mandat widerrufen': 'Das SEPA-Mandat wurde widerrufen – es wird nichts eingezogen, bis ein neues vorliegt.', '^Mandat verfallen': 'Das Mandat wurde 36 Monate nicht genutzt und ist verfallen – bitte ein neues einholen.', '^Geburtsdatum fehlt': 'Ohne Geburtsdatum fehlt die Person in der LSB-Meldung und gilt bei Altersstufen als erwachsen.', '^ohne Mitgliedsdaten': 'Anschrift, E-Mail oder Handy fehlen – bitte bei „Stammdaten“ ergänzen.', '^kein Beitrag': 'Es ist keine Beitragsart zugeordnet – so fehlt das Mitglied im Beitragslauf.', '^Zahlart nicht Lastschrift': 'Die Zahlart ist nicht Lastschrift, obwohl der Verein Lastschrift verlangt.', '^keine Bankverbindung': 'Für die Lastschrift fehlen Kontoinhaber und IBAN.', '^IBAN ungültig': 'Die IBAN ist nicht gültig – bitte prüfen.', '^kein SEPA-Mandat': 'Es liegt kein SEPA-Mandat vor – ohne Mandat kann nicht eingezogen werden.' }).find(([k]) => new RegExp(k).test(i)) ?.[1] || '';
@@ -73,6 +73,7 @@
       .mv-sum { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 0 0; border-top: 1px solid var(--line-soft); margin-top: 14px; }
       .mv-sum b { font-size: 18px; font-variant-numeric: tabular-nums; }
       .mv-sig { max-width: 220px; max-height: 70px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+      .mv-stamp img { display: block; max-width: 180px; max-height: 140px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
       .mv-diff td:nth-child(2) { color: var(--muted); text-decoration: line-through; }
       .mv-lsb { table-layout: fixed; } .mv-lsb th, .mv-lsb td { text-align: right; font-variant-numeric: tabular-nums; } .mv-lsb th:first-child, .mv-lsb td:first-child { text-align: left; width: 22%; }   /* Zahlenspalten gleich breit */
       .mv-dochead { justify-content: space-between; align-items: center; margin: -8px 0 4px; }   /* Überschrift fluchtet mit Karten ohne Knopf (Knopf ragt 8 px über) */ .mv-dochead h3 { margin: 0; flex: 1 1 120px; min-width: 0; }   /* Ablage: Überschrift links, ZIP-Knopf rechts */
@@ -157,10 +158,10 @@
   /* ---------------------------------------------------------------- Seiten des Moduls (Menü „Mitglieder“ und „Beiträge & Zahlungen“, die Seiten als Reiter) */
   const PAGE = {
     mitglieder: ['Mitglieder', 'Stammdaten, Abteilungen und Familien – Verkauf, Zugang und Mitglieder-App nutzen dieselbe Person.'],
-    'mv-antraege': ['Anträge & Änderungen', 'Beitrittserklärungen, Änderungswünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen.'],
+    'mv-antraege': ['Anträge & Änderungen', 'Beitrittserklärungen, Änderungswünsche und Bescheinigungen aus der Mitglieder-App und Meldungen der Abteilungsleitungen.'],
     'mv-stamm': ['Beiträge & Abteilungen', 'Beitragsarten, Zusatzbeiträge, Abteilungen und Altersstufen.'],
     'mv-auswertung': ['Auswertung', 'Mitgliederzahlen, Bestandserhebung für den Landessportbund und Listen.'],
-    'mv-einstellungen': ['Einstellungen', 'Mitgliedschaft, Beitrittserklärung, „Meine Daten“ in der App, Benachrichtigungen und Datenschutz.'],
+    'mv-einstellungen': ['Einstellungen', 'Mitgliedschaft, Beitrittserklärung, „Meine Daten“ in der App, Vereinsstempel, Benachrichtigungen und Datenschutz.'],
     'mv-beitraege': ['Beitragslauf', 'Erzeugt die Beiträge aller Mitglieder als offene Posten, danach geht es weiter zum Einzug.'],
     'mv-einzug': ['Lastschriften', 'SEPA-Lastschriften für Beiträge und Verkauf: Einzug erstellen, SEPA-Datei, Vorabinformation und Rücklastschriften.'],
     'mv-posten': ['Offene Posten', 'Alle Forderungen und Gutschriften der Mitglieder mit ihrem Stand.'],
@@ -1333,12 +1334,12 @@
     el.innerHTML = `
       <div class="card" id="aWait"><h3>Warten auf Bestätigung <span class="muted s">(${waiting.length})</span></h3>${waiting.length ? appTable(waiting) : '<p class="empty">Keine neuen Beitrittserklärungen.</p>'}</div>
       <div class="card"><h3>Warten auf Unterschrift am Tablet <span class="muted s">(${signing.length})</span></h3>${signing.length ? appTable(signing) : '<p class="empty">Nichts offen.</p>'}</div>
-      <div class="card"><h3>Änderungen & Meldungen <span class="muted s">(${changes.length})</span></h3><p class="muted s" style="margin-top:0">Aus der Mitglieder-App und von Abteilungsleitungen (Ein- und Austritte zur Bestätigung).</p>${changes.length ? `<table class="tbl kompakt"><tr><th>Mitglied</th><th>Art</th><th>eingegangen</th><th>Inhalt</th><th></th></tr>
-        ${changes.map(c => `<tr><td><b>${esc(GK.lastFirst(c.name))}</b>${c.member_no ? `<div class="muted s">Nr. ${esc(c.member_no)}</div>` : ''}</td><td>${pill(c.kind === 'kuendigung' || c.kind === 'austritt' ? ['r', c.label] : c.kind === 'bank' ? ['b', c.label] : c.kind === 'eintritt' ? ['g', c.label] : ['', c.label])}${c.created_by ? `<div class="muted s">von ${esc(c.created_by)}</div>` : ''}</td><td class="num nw">${deTime(c.created_at)}</td>
-          <td class="s k-weg">${c.kind === 'kuendigung' ? `${esc((c.kuendigung.names || []).join(', '))} – frühestens zum <b>${deDate(c.kuendigung.exit_date)}</b>${c.kuendigung.reason ? `<br><span class="muted" translate="no">${esc(c.kuendigung.reason)}</span>` : ''}` : c.rows.map(r => (c.scope && !r.old ? `${esc(r.field)}: <b>${esc(r.new || '–')}</b>` : `${esc(FIELD[r.field] || r.field)}: <span class="muted">${esc(r.old || '–')}</span> → <b>${esc(r.new || '–')}</b>`)).join('<br>')}</td>
-          <td class="r nw">${SC() && (c.scope || (CONF() && c.kind === 'kuendigung')) ? '<span class="pill a">wartet auf Vereinsverwaltung</span>' : `<button class="btn small" data-cok="${c.id}">${c.scope ? 'Bestätigen' : 'Übernehmen'}</button> <button class="btn small" data-cno="${c.id}">Ablehnen</button>`}</td></tr>`).join('')}</table>` : '<p class="empty">Keine offenen Änderungswünsche.</p>'}</div>
+      <div class="card"><h3>Änderungen & Meldungen <span class="muted s">(${changes.length})</span></h3><p class="muted s" style="margin-top:0">Aus der Mitglieder-App und von Abteilungsleitungen (Ein- und Austritte zur Bestätigung).</p>${changes.length ? `<table class="tbl kompakt mv-meld"><tr><th>Mitglied</th><th>Art</th><th>eingegangen</th><th>Inhalt</th><th></th></tr>
+        ${changes.map(c => `<tr><td><b translate="no">${esc(GK.lastFirst(c.name))}</b>${c.member_no ? `<div class="muted s k-weg">Nr. ${esc(c.member_no)}</div>` : ''}</td><td>${pill(c.kind === 'kuendigung' || c.kind === 'austritt' ? ['r', c.label] : c.kind === 'bank' ? ['b', c.label] : c.kind === 'eintritt' ? ['g', c.label] : ['', c.label])}${c.created_by ? `<div class="muted s">von ${esc(c.created_by)}</div>` : ''}</td><td class="nw">${deTime(c.created_at)}</td>
+          <td class="s k-weg k-inhalt">${c.kind === 'bescheinigung' ? certCell(c) : c.kind === 'kuendigung' ? `${esc((c.kuendigung.names || []).join(', '))} – frühestens zum <b>${deDate(c.kuendigung.exit_date)}</b>${c.kuendigung.reason ? `<br><span class="muted" translate="no">${esc(c.kuendigung.reason)}</span>` : ''}` : c.rows.map(r => (c.scope && !r.old ? `${esc(r.field)}: <b>${esc(r.new || '–')}</b>` : `${esc(FIELD[r.field] || r.field)}: <span class="muted">${esc(r.old || '–')}</span> → <b>${esc(r.new || '–')}</b>`)).join('<br>')}</td>
+          <td class="r nw">${c.kind === 'bescheinigung' ? (c.cert.canSign ? `<button class="btn small" data-cok="${c.id}">Unterschreiben …</button> <button class="btn small" data-cno="${c.id}">Ablehnen</button>` : `<button class="btn small" data-cok="${c.id}">Vorschau</button> <span class="pill a">unterschreibt die Vereinsverwaltung</span>`) : SC() && (c.scope || (CONF() && c.kind === 'kuendigung')) ? '<span class="pill a">wartet auf Vereinsverwaltung</span>' : `<button class="btn small" data-cok="${c.id}">${c.scope ? 'Bestätigen' : 'Übernehmen'}</button> <button class="btn small" data-cno="${c.id}">Ablehnen</button>`}</td></tr>`).join('')}</table>` : '<p class="empty">Keine offenen Änderungswünsche.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Archiv</h3><button class="btn small" id="aArch">${st.app === 'alle' ? 'Ausblenden' : 'Alle Anträge anzeigen'}</button></div>
-        ${all ? (doneApps.length || doneCh.length ? `${doneApps.length ? `<h4>Beitrittserklärungen</h4>${appTable(doneApps)}` : ''}${doneCh.length ? `<h4>Änderungen & Meldungen</h4><table class="tbl kompakt"><tr><th>Mitglied</th><th>Status</th><th>erledigt</th></tr>${doneCh.map(c => `<tr><td><b>${esc(GK.lastFirst(c.name))}</b><div class="muted s">${esc(c.label)}</div></td><td>${pill(ARCH_ST[c.status] || ['', c.status])}</td><td class="num nw">${deTime(c.reviewed_at || c.created_at)}${c.reviewed_by ? `<div class="muted s">${esc(c.reviewed_by)}</div>` : ''}</td></tr>`).join('')}</table>` : ''}` : '<p class="empty">Noch nichts im Archiv.</p>') : ''}</div>`;
+        ${all ? (doneApps.length || doneCh.length ? `${doneApps.length ? `<h4>Beitrittserklärungen</h4>${appTable(doneApps)}` : ''}${doneCh.length ? `<h4>Änderungen & Meldungen</h4><table class="tbl kompakt"><tr><th>Mitglied</th><th>Status</th><th>erledigt</th></tr>${doneCh.map(c => `<tr><td><b>${esc(GK.lastFirst(c.name))}</b><div class="muted s">${esc(c.kind === 'bescheinigung' ? `Mitgliedsbescheinigung ${c.cert.year}` : c.label)}</div></td><td>${pill(c.kind === 'bescheinigung' && c.status === 'übernommen' ? ['g', 'unterschrieben'] : ARCH_ST[c.status] || ['', c.status])}</td><td class="num nw">${deTime(c.reviewed_at || c.created_at)}${c.reviewed_by ? `<div class="muted s">${esc(c.reviewed_by)}</div>` : ''}</td></tr>`).join('')}</table>` : ''}` : '<p class="empty">Noch nichts im Archiv.</p>') : ''}</div>`;
     if (!GK.tabTools(tools, $('aWait'))) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
     $('aNew').onclick = () => applicationForm();
     $('aArch').onclick = () => { st.app = st.app === 'alle' ? 'offen' : 'alle'; showApplications(el).catch(fail); };
@@ -1346,7 +1347,7 @@
     el.querySelectorAll('[data-ap]').forEach(b => { b.onclick = () => reviewApplication(+b.dataset.ap, () => showApplications(el).catch(fail)); });
     el.querySelectorAll('[data-acode]').forEach(b => { b.onclick = async () => { try { const r = await api(`applications/${b.dataset.acode}/code`, 'POST', {}); showCode(r.code); } catch (e) { fail(e); } }; });
     el.querySelectorAll('[data-cok]').forEach(b => { b.onclick = () => acceptChange(changes.find(c => c.id === +b.dataset.cok), () => { loadMeta().then(() => showApplications(el)).catch(fail); }); });
-    el.querySelectorAll('[data-cno]').forEach(b => { b.onclick = async () => { const cc = changes.find(c => c.id === +b.dataset.cno); const r = await askText(cc && cc.scope ? `${cc.label} ablehnen?${cc.kind === 'eintritt' ? '\nDas angelegte Mitglied wird wieder entfernt.' : ''}\nGrund (nur intern, optional):` : 'Änderung ablehnen?\nDas Mitglied bekommt eine E-Mail mit dem Grund (optional):', ''); if (r == null) return; try { await api(`changes/${b.dataset.cno}/reject`, 'POST', { reason: r }); toast('Abgelehnt.'); showApplications(el).catch(fail); } catch (e) { fail(e); } }; });
+    el.querySelectorAll('[data-cno]').forEach(b => { b.onclick = async () => { const cc = changes.find(c => c.id === +b.dataset.cno); const r = await askText(cc && cc.kind === 'bescheinigung' ? `Bescheinigung ${cc.cert.year} für ${GK.lastFirst(cc.name)} ablehnen?\n${cc.cert.to ? GK.T('Das Familienoberhaupt bekommt eine E-Mail mit dem Grund (optional):') : GK.T('Das Mitglied bekommt eine E-Mail mit dem Grund (optional):')}` : cc && cc.scope ? `${cc.label} ablehnen?${cc.kind === 'eintritt' ? '\nDas angelegte Mitglied wird wieder entfernt.' : ''}\nGrund (nur intern, optional):` : 'Änderung ablehnen?\nDas Mitglied bekommt eine E-Mail mit dem Grund (optional):', ''); if (r == null) return; try { await api(`changes/${b.dataset.cno}/reject`, 'POST', { reason: r }); toast('Abgelehnt.'); showApplications(el).catch(fail); } catch (e) { fail(e); } }; });
   }
   const SRC = { verwaltung: 'Verwaltung', tablet: 'Tablet', online: 'online' };
   const ARCH_ST = { 'übernommen': ['g', 'übernommen'], abgelehnt: ['', 'abgelehnt'], 'zurückgezogen': ['', 'zurückgezogen'] };
@@ -1477,7 +1478,46 @@
     });
   }
 
+  /** Inhalt einer angeforderten Mitgliedsbescheinigung in der Liste „Änderungen & Meldungen“ */
+  function certCell(c) {
+    const x = c.cert;
+    return [`Jahr: <b>${esc(x.year)}</b>`, x.note ? `Hinweis: <span translate="no">${esc(x.note)}</span>` : '', x.by ? `angefordert von ${esc(x.by)}` : '', x.to ? `geht an ${esc(x.to)} (Familienoberhaupt)` : ''].filter(Boolean).join('<br>');
+  }
+  /** Bescheinigung ansehen, unterschreiben (jedes Mal mit Finger/Maus) und senden – oder ablehnen. Ohne Recht zum Unterschreiben nur die Vorschau. */
+  function certDialog(c, after) {
+    const x = c.cert, can = x.canSign;
+    dialog(`<h2>Mitgliedsbescheinigung ${esc(x.year)}</h2>
+      <div class="split"><div><div id="ceForm">
+        <dl class="facts"><p style="margin:0 0 6px">Für <b translate="no">${esc(GK.lastFirst(c.name))}</b>${c.member_no ? ` · Nr. ${esc(c.member_no)}` : ''}</p>
+          <p class="muted s" style="margin:0 0 6px">${[x.by ? `angefordert am ${deTime(c.created_at)} von ${esc(x.by)}` : `angefordert am ${deTime(c.created_at)}`, x.note ? `Hinweis: <span translate="no">${esc(x.note)}</span>` : '',
+            x.mail ? (x.to ? `geht per E-Mail und in die App an ${esc(x.to)} (Familienoberhaupt)` : 'geht per E-Mail und in die App') : (x.to ? `geht in die App an ${esc(x.to)} (Familienoberhaupt) – keine E-Mail-Adresse hinterlegt` : 'geht in die App – keine E-Mail-Adresse hinterlegt')].filter(Boolean).join('<br>')}</p></dl>
+        ${!can ? '<p class="muted s">Unterschreiben und senden kann nur die Vereinsverwaltung.</p>' : `
+        ${x.stamp ? '' : '<div class="banner a" id="ceNoStamp">Es ist noch kein Vereinsstempel hinterlegt. Bitte zuerst unter Mitglieder › Einstellungen › Bescheinigung hochladen – er kommt auf jede Bescheinigung.</div>'}
+        <div class="mv-grid" style="--c:2"><label class="f">Name<input id="ceName" value="${esc(x.signer)}" maxlength="70" autocomplete="name"></label><label class="f">Funktion<input id="ceRole" value="${esc(x.role)}" maxlength="60" placeholder="z. B. 1. Vorsitzende"></label></div>
+        <div style="margin-top:14px">${window.CWSign.field({ id: 'ceSig', label: 'Unterschrift' })}</div>
+        <p class="muted s">Die Unterschrift steht nur auf dieser Bescheinigung und wird nicht gespeichert. Danach liegt das PDF unter Dokumente des Mitglieds.</p>
+        <div class="err" id="ceErr"></div>`}
+      </div></div>
+      <div class="preview"><iframe src="${BASE}changes/${c.id}/preview.pdf" title="Vorschau der Bescheinigung"></iframe></div></div>
+      <div class="btns">${can ? `<button class="btn danger" id="ceNo" style="margin-right:auto">Ablehnen</button><button class="btn ghost" id="c">Später</button><button class="btn primary" id="ceOk" ${x.stamp ? '' : 'disabled'}>Unterschreiben & senden</button>` : '<button class="btn primary" id="c">Schließen</button>'}</div>`, true);
+    $('c').onclick = closeDialog;
+    if (!can) return;
+    const pad = window.CWSign.mount($('ceSig'));
+    document.querySelector('[data-sg-clr="ceSig"]').onclick = () => pad.clear();
+    $('ceNo').onclick = () => {
+      $('dialog').innerHTML = `<h2>Bescheinigung ablehnen?</h2><p class="muted s" style="margin-top:0"><span translate="no">${esc(GK.lastFirst(c.name))} · ${esc(x.year)}</span><br>${x.to ? 'Das Familienoberhaupt bekommt eine E-Mail mit dem Grund.' : 'Das Mitglied bekommt eine E-Mail mit dem Grund.'}</p><label class="f">Grund<input id="ceWhy" maxlength="300" placeholder="z. B. Im Jahr 2025 noch kein Mitglied"></label>
+        <div class="btns"><button class="btn ghost" id="cfX">Zurück</button><button class="btn danger" id="cfOk">Ablehnen</button></div>`;
+      $('cfX').onclick = () => certDialog(c, after);
+      $('cfOk').onclick = () => GK.busy($('cfOk'), async () => { try { const r = await api(`changes/${c.id}/reject`, 'POST', { reason: val('ceWhy') }); closeDialog(); toast(r.mailed ? 'Abgelehnt – das Mitglied hat eine E-Mail bekommen.' : 'Abgelehnt.'); after(); } catch (e) { fail(e); } });
+    };
+    $('ceOk').onclick = () => GK.busy($('ceOk'), async () => {
+      if (!pad.ok()) { $('ceErr').textContent = GK.T('Bitte unterschreiben.'); return; }
+      try { const r = await api(`changes/${c.id}/accept`, 'POST', { signature: pad.png(), signer: val('ceName'), role: val('ceRole') }); closeDialog(); toast(r.mailed ? 'Unterschrieben und gesendet.' : 'Unterschrieben – das Mitglied findet die Bescheinigung in der App.'); after(); }
+      catch (e) { $('ceErr').textContent = e.message; }
+    });
+  }
   async function acceptChange(c, after) {
+    if (c.kind === 'bescheinigung') return certDialog(c, after);
     if (c.scope) {
       if (c.kind === 'austritt') {
         dialog(`<h2>Austritt von ${esc(c.name)}</h2><p>Gemeldet von <b>${esc(c.created_by || '–')}</b> (Abteilungsleitung).</p>${c.rows.filter(r => r.field !== 'Austritt zum').map(r => `<p class="muted s" style="margin:0 0 6px">${esc(r.field)}: ${esc(r.new || '–')}</p>`).join('')}
@@ -2135,6 +2175,7 @@
       <div class="card" id="eAus" data-set="austritt"></div>
       <div class="card" id="eApp" data-set="meinedaten"></div>
       <div class="card" id="eAusweis" data-set="ausweis"></div>
+      <div class="card" id="eStamp" data-set="bescheinigung"></div>
       <div class="card" data-set="benachrichtigung"><h3>Benachrichtigungen</h3><div class="mv-grid" style="--c:2">
         <label class="f">Neue Anträge & App-Änderungen melden an<input id="eNotify" value="${esc(s.notify_to)}" placeholder="vorstand@verein.de"></label></div>
         <p class="muted s" style="margin:8px 0 0">Mehrere Adressen mit Komma trennen.</p>${foot('eSaveNot')}</div>
@@ -2146,6 +2187,7 @@
     GK.watch(el);
     appDataCard($('eApp')).catch(fail);
     cardSettings($('eAusweis')).catch(fail);
+    stampCard($('eStamp'));
     tplCard($('eWel'), 'welcome').catch(fail);
     tplCard($('eAus'), 'exit').catch(fail);
     congratsCard($('eCg')).catch(fail);
@@ -2460,6 +2502,19 @@
   const GZ = { key: 'mv-zahlungen', label: 'Beiträge & Zahlungen', icon: 'zahlung', order: 7.5 };   // zweiter Menüpunkt des Moduls, direkt nach „Mitglieder“
 
   /* „Meine Daten“: was Mitglieder in der App sehen und ändern dürfen – Karte in Einstellungen */
+  /** Vereinsstempel für die Mitgliedsbescheinigung: einmal hochladen, kommt auf jede Bescheinigung */
+  function stampCard(el) {
+    const s = st.meta.settings;
+    el.innerHTML = `<h3>Bescheinigung für die Krankenkasse</h3><p class="muted s" style="margin-top:0">Mitglieder fordern die Mitgliedsbescheinigung in der App unter „Meine Daten“ an, der Vorstand unterschreibt sie unter „Anträge“. Der Vereinsstempel kommt auf jede Bescheinigung – am besten als PNG mit durchsichtigem Hintergrund (höchstens 2 MB).</p>
+      <div class="mv-stamp">${s.stamp ? `<img src="${BASE}stamp?v=${encodeURIComponent(s.stamp_ver)}" alt="Vereinsstempel">` : '<p class="empty">Noch kein Vereinsstempel hinterlegt.</p>'}</div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px">${s.stamp ? '<button class="btn" id="eStampDel">Entfernen</button>' : ''}<button class="btn primary" id="eStampUp">${s.stamp ? 'Anderen Stempel hochladen …' : 'Stempel hochladen …'}</button></div>`;
+    const done = async (r, msg) => { Object.assign(st.meta.settings, { stamp: r.stamp, stamp_ver: r.stamp_ver }); toast(msg); stampCard(el); };
+    $('eStampUp').onclick = async () => {
+      const f = await pickFile('.png,.jpg,.jpeg,image/png,image/jpeg'); if (!f) return;
+      try { done(await upload('stamp', f), 'Stempel gespeichert.'); } catch (e) { fail(e); }
+    };
+    if ($('eStampDel')) $('eStampDel').onclick = async () => { if (!await ask('Vereinsstempel entfernen?\nOhne Stempel lassen sich keine Bescheinigungen unterschreiben.', { ok: 'Entfernen' })) return; try { done(await api('stamp', 'DELETE'), 'Stempel entfernt.'); } catch (e) { fail(e); } };
+  }
   async function appDataCard(el) {
     await loadMeta();
     const s = st.meta.settings;

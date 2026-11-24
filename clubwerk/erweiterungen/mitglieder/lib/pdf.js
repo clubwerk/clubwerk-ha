@@ -400,11 +400,61 @@ function mandate(club, o) {
   return done;
 }
 
+/* ===================================================================== Mitgliedsbescheinigung (z. B. für die Krankenkasse)
+   o = { person, name, member_no, birth_date, entry_date, status, departments: [Namen], year, from, to, whole, date, signature (PNG als data-URL),
+         signer, role, stamp (Buffer PNG/JPG), preview }. Nur Daten, die der Verein kennt – keine Aussage über Training oder Teilnahme. */
+function certificate(club, o) {
+  const b = brand(club);
+  const doc = newDoc(club, `Mitgliedsbescheinigung ${o.year}`);
+  const done = collect(doc);
+  const person = o.person || {};
+  let y = letterHead(doc, club, b, person, o.name, 'Mitgliedsbescheinigung', [['Datum', deD(o.date)], ['Mitgliedsnummer', o.member_no]]);
+  if (o.preview) doc.font('Helvetica-Bold').fontSize(9).fillColor(b.color).text('VORSCHAU – noch nicht unterschrieben', L, 246, { width: W, align: 'right', characterSpacing: 0.6, lineBreak: false });
+  doc.font('Helvetica').fontSize(10.5).fillColor(INK).text(person.exit_date && person.exit_date < o.date ? `Hiermit bestätigen wir, dass die folgende Person Mitglied im ${club.name} war:` : `Hiermit bestätigen wir, dass die folgende Person Mitglied im ${club.name} ist:`, L, y, { width: W, lineGap: 2 });
+  y = doc.y + 14;
+  const line = (k, v) => {
+    doc.font('Helvetica').fontSize(10.5);
+    const h = Math.max(13, doc.heightOfString(v || '–', { width: W - 150 }));
+    doc.font('Helvetica').fontSize(8.5).fillColor(MUTED).text(k, L, y + 1.5, { width: 140, lineBreak: false });
+    doc.font('Helvetica').fontSize(10.5).fillColor(INK).text(v || '–', L + 150, y, { width: W - 150 });
+    y += h + 6;
+    doc.moveTo(L + 150, y - 2).lineTo(R, y - 2).lineWidth(0.4).strokeColor(LINE).stroke();
+    y += 4;
+  };
+  line('Name', o.name);
+  line('Geburtsdatum', deD(o.birth_date));
+  line('Anschrift', [person.address_extra, person.street, [person.zip, person.city].filter(Boolean).join(' ')].filter(Boolean).join(', '));
+  line('Mitglied seit', deD(o.entry_date));
+  line('Status', o.status);
+  if (o.departments && o.departments.length) line(o.departments.length > 1 ? 'Abteilungen' : 'Abteilung', o.departments.join(', '));
+  y += 10;
+  const span = o.whole ? `Die Mitgliedschaft bestand im gesamten Jahr ${o.year}.` : o.to ? `Die Mitgliedschaft bestand im Jahr ${o.year} vom ${deD(o.from)} bis ${deD(o.to)}.` : `Die Mitgliedschaft besteht im Jahr ${o.year} seit dem ${deD(o.from)} (Stand ${deD(o.date)}).`;
+  doc.font('Helvetica-Bold').fontSize(10.5).fillColor(INK).text(span, L, y, { width: W, lineGap: 2 });
+  y = doc.y + 8;
+  doc.font('Helvetica').fontSize(10.5).fillColor(INK).text('Diese Bescheinigung wird auf Wunsch des Mitglieds zur Vorlage bei der Krankenkasse ausgestellt.', L, y, { width: W, lineGap: 2 });
+  y = doc.y + 34;
+  // Ort, Datum · Vereinsstempel · Unterschrift – drei gleich breite Spalten auf einer Linie
+  const G = 18, cw = (W - 2 * G) / 3, x2 = L + cw + G, x3 = L + 2 * (cw + G), ly = y + 62;
+  doc.font('Helvetica').fontSize(10.5).fillColor(INK).text(o.preview ? '' : [String(club.city || '').replace(/^\d{5}\s*/, '').trim(), deD(o.date)].filter(Boolean).join(', '), L, ly - 15, { width: cw, lineBreak: false });
+  if (o.stamp) { try { doc.image(o.stamp, x2, y, { fit: [cw, 64], align: 'center', valign: 'center' }); } catch (e) { /* ungültiges Bild */ } }
+  const sig = imgFromData(o.signature);
+  if (sig) { try { doc.image(sig, x3, y + 8, { fit: [cw, 52], align: 'center', valign: 'bottom' }); } catch (e) { /* ungültiges Bild */ } }
+  doc.moveTo(L, ly).lineTo(L + cw, ly).lineWidth(0.7).strokeColor(INK).stroke();
+  doc.moveTo(x3, ly).lineTo(R, ly).stroke();
+  doc.font('Helvetica').fontSize(7.5).fillColor(MUTED).text('Ort, Datum', L, ly + 4, { width: cw });
+  doc.text('Vereinsstempel', x2, ly + 4, { width: cw, align: 'center' });
+  doc.text('Unterschrift', x3, ly + 4, { width: cw });
+  if (o.signer) doc.font('Helvetica').fontSize(9.5).fillColor(INK).text([o.signer, o.role].filter(Boolean).join(' – '), x3, ly + 15, { width: cw });
+  B.footer(doc, club, { line1: [club.name, club.street, club.city].filter(Boolean).join(' · ') });   // zweite Zeile: Telefon · E-Mail · Webseite (brief.contactLine)
+  doc.end();
+  return done;
+}
+
 /* ===================================================================== Datenauskunft (Art. 15 DSGVO)
    out = Auskunft wie in der Verwaltung (JSON); lesbar als Abschnitte mit „Bezeichnung: Wert“, Listen je Eintrag eine Zeile. Interne Kennungen bleiben weg. */
 const AUSK_HEAD = { konto: 'Konto', vereinsdaten: 'Vereinsdaten', bankverbindung: 'Bankverbindung', abteilungen: 'Abteilungen', beitraege: 'Beiträge', zahlergruppe: 'Zahlergruppe',
   familienmitgliedschaft: 'Familienmitgliedschaft', ehrungen: 'Ehrungen', aemter: 'Ämter', gratulationen: 'Gratulationen', forderungen: 'Forderungen', dokumente: 'Dokumente',
-  aenderungsverlauf: 'Änderungsverlauf', mitglieder_app: 'Mitglieder-App', getraenke_je_monat: 'Verkauf je Monat' };
+  aenderungsverlauf: 'Änderungsverlauf', bescheinigungen: 'Mitgliedsbescheinigungen', mitglieder_app: 'Mitglieder-App', getraenke_je_monat: 'Verkauf je Monat' };
 const AUSK_KEY = { name: 'Name', first_name: 'Vorname', last_name: 'Nachname', salutation: 'Anrede', title: 'Titel', birth_date: 'Geburtsdatum', gender: 'Geschlecht', street: 'Straße', zip: 'PLZ', city: 'Ort',
   address_extra: 'Adresszusatz', phone: 'Telefon', mobile: 'Handy', email: 'E-Mail', member_no: 'Mitgliedsnummer', entry_date: 'Eintritt', exit_date: 'Austritt', exit_reason: 'Austrittsgrund', notice_date: 'Kündigung',
   status: 'Status', key_no: 'Schlüsselnummer', notes: 'Notizen', payment: 'Zahlungsart', consents: 'Einwilligungen', holder: 'Kontoinhaber', iban: 'IBAN', bic: 'BIC', bank: 'Bank', mandate_ref: 'Mandatsreferenz',
@@ -441,4 +491,4 @@ function auskunft(club, out) {
   return done;
 }
 
-module.exports = { invoice, dunningLetters, letters, application, mandate, auskunft };
+module.exports = { invoice, dunningLetters, letters, application, mandate, auskunft, certificate };
