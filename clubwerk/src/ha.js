@@ -53,4 +53,16 @@ async function notify(service, title, message) {
   try { await call('POST', '/services/notify/' + svc, { title, message }); } catch (e) { console.error(`${title}: Benachrichtigung fehlgeschlagen:`, e.message); }
 }
 
-module.exports = { available, call, states, state, integrationEntities, notify };
+/** Passt eine Entität zu einer Codetastatur (meldet einen eingetippten Code)? Für Auswahllisten: passende oben, alle anderen unter „Weitere“.
+ *  Text-Sensor: ohne Einheit, Geräteklasse und Messart, Zustand weder Zahl noch Zeitstempel (leer zählt: die Tastatur setzt sich zurück).
+ *  Ereignis: Merkmal „code“ oder ein Ereignistyp mit „code“. Texteingaben (text, input_text) passen immer. */
+function codeQuelle(s) {
+  const dom = s.entity_id.split('.')[0], a = s.attributes || {};
+  if (dom === 'text' || dom === 'input_text') return true;
+  if (dom === 'event') return 'code' in a || (Array.isArray(a.event_types) && a.event_types.some(t => /code/i.test(String(t))));
+  if (dom !== 'sensor' || a.unit_of_measurement || a.device_class || a.state_class) return false;
+  const v = String(s.state == null ? '' : s.state).trim();
+  if (/^-?\d+([.,]\d+)?$/.test(v)) return false;
+  return !/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(v);
+}
+module.exports = { available, call, states, state, integrationEntities, notify, codeQuelle };

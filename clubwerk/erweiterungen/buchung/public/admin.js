@@ -212,7 +212,7 @@
       }
       .bk-fees td.nw { white-space: nowrap; } .bk-fees td.nw b { font-family: var(--num); font-size: 17px; font-weight: 600; letter-spacing: .01em; }
       .bk-lg .mo { display: none; } .bk-lg td.k-lbl-n { color: inherit; }
-      @media (max-width: 700px) { .bk-lg .hm { display: none; } .bk-lg .mo { display: inline; } .bk-lg .bk-lgp > div { min-height: 0; } .bk-lg td:not(:first-child) > div { display: inline; margin-left: 6px; } .bk-lg .bk-lgt { display: none; } }
+      @media (max-width: 700px) { .bk-lg .hm { display: none; } .bk-lg .mo { display: inline; } .bk-lg .bk-lgp > div { min-height: 0; } .tbl.kompakt.bk-lg td.k-neben:not(:first-child) { min-width: 150px; }   /* Storno-Zeile: lieber eigene Zeile als Wortsäule (Gast- und Vereinsstornos mit Grund) */ .bk-lg td:not(:first-child) > div { display: inline; margin-left: 6px; } .bk-lg .bk-lgt { display: none; } }
       .bk-rl { font-size: 13.5px; color: var(--muted); }
       .bk-ch .btn { flex: none; }`;
     document.head.appendChild(s);
@@ -689,10 +689,10 @@
       const tags = [r.label ? `<span class="pill" style="background:${r.label.color};color:${ink(r.label.color)}">${esc(r.label.name)}</span>` : '', r.type === 'sperre' ? pill(['r', 'Sperre']) : r.type === 'serie' ? pill(['b', 'Serie']) : '',
         r.guests.length ? `<span class="pill a" title="${esc(r.guests.join(', '))}">${r.guests.length} ${r.guests.length === 1 ? 'Gast' : 'Gäste'}</span>` : '', r.fee_cents ? `<span class="pill">${euro(r.fee_cents)}</span>` : ''].filter(Boolean).join('');
       const s0 = STS[r.status];
-      return `${head}<tr class="bk-lgr${r.status === 'storniert' ? ' off' : ''}" data-b="${r.id}"><td style="box-shadow:inset 4px 0 0 ${col}">${who}</td>
+      return `${head}<tr class="bk-lgr${r.status === 'storniert' ? ' off k-hoch' : ''}" data-b="${r.id}"><td style="box-shadow:inset 4px 0 0 ${col}">${who}</td>
         <td><b>${esc(r.resource)}</b>${tags ? `<div class="bk-lgt">${tags}</div>` : ''}${r.title && r.people.length && (!r.label || r.title !== r.label.name) ? `<div class="muted s k-weg">${esc(r.title)}</div>` : ''}</td>
         <td class="nw"><b class="num">${r.start}–${r.end}</b><div class="muted s">${esc(new Date(r.date + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }))}</div></td>
-        <td>${pill(s0)}${r.status === 'storniert' ? `<div class="muted s">${esc(r.cancelled_by || '')}${r.cancelled_at ? ` · ${ago(r.cancelled_at)}` : ''}${r.cancel_reason ? `<br>${esc(r.cancel_reason)}` : ''}</div>` : ''}</td>
+        <td${r.status === 'storniert' ? ' class="k-neben"' : ''}>${pill(s0)}${r.status === 'storniert' ? ` <span class="muted s">${esc([r.cancelled_by, r.cancelled_at && ago(r.cancelled_at)].filter(Boolean).join(' · '))}${r.cancel_reason ? `<span translate="no">${r.cancelled_by || r.cancelled_at ? ' · ' : ''}${esc(r.cancel_reason)}</span>` : ''}</span>` : ''}</td>
         <td class="r k-weg hide-md"><span title="${esc(deDate(String(r.created_at).slice(0, 10)) + ' ' + String(r.created_at).slice(11, 16))}">${ago(r.created_at)}</span><div class="muted s">${esc(SRC[r.source] || '')}${r.created_by ? ` · ${esc(r.created_by)}` : ''}</div></td></tr>`;
     }).join('');
     const csv = `<a class="btn" href="${BASE}log.csv?${qs}" download>Excel</a>`;

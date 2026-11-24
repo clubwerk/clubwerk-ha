@@ -105,7 +105,7 @@ If the connection to Home Assistant is missing, a red notice appears at the top.
 - **Type:** **Lock** (unlock and lock), **Door opener (pulse)** (a relay that switches briefly) or **Gate / drive** (open and close).
 - **Device in Home Assistant:** the list only shows suitable devices. The manufacturer from the “Settings” tab filters the list. A device that another module already uses (for example irrigation) cannot be used a second time.
 - **Door contact (optional):** a sensor that reports whether the door is open. This also makes the “door open too long” notice work.
-- **Keypad for court codes (optional):** the device in Home Assistant that reports the code typed at the keypad (see “Keypad at the gate” below). The door then appears in the list “with keypad”.
+- **Keypad for court codes (optional):** the device in Home Assistant that reports the code typed at the keypad (see “Keypad at the gate” below). Only devices that can report a code are listed at the top (text sensors without a unit and events with the attribute `code`); all other sensors and events are below under “Others”, in case your keypad is set up in an unusual way. The door then appears in the list “with keypad”.
 - **Pulse (seconds):** door openers only. How long the relay stays on (1 to 30 seconds, default 3). If it cannot be switched off afterwards, Clubwerk tries several times and then sends a security warning. If a door opener stays on longer than its pulse (for example after a restart, or switched on by hand in Home Assistant), Clubwerk switches it off and reports it.
 
 ![A door of type “Door opener (pulse)” also has the “Pulse (seconds)” field.](bild: seite=zugang-tueren; klick=[data-de="2"]; ziel=dialog)

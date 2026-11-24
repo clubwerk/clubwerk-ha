@@ -64,7 +64,7 @@ Jeder Platz ist ein eigener Kasten. **+ Platz** (oben rechts) legt einen neuen a
 - **Name** (bis 30 Zeichen), z. B. „Platz 1“. So heißt die Kachel überall.
 - **Untertitel:** Text unter dem Namen. Bleibt er leer, schreibt Clubwerk selbst etwas wie „Erst Vorne, dann Hinten · je 2 min“.
 - **Pfeile ↑ ↓:** Reihenfolge der Plätze. Sie gilt in allen Oberflächen.
-- **Zonen:** Pro Zone wählt ihr das **Gerät** (das Ventil oder den Schalter aus Home Assistant), eine **Bezeichnung** (bis 20 Zeichen, z. B. „Vorne“) und die **Minuten** (Komma erlaubt, 0,5 bis 60). **Entfernen** nimmt die Zone heraus, **+ Zone** fügt eine hinzu. Mehrere Zonen laufen nacheinander in der angezeigten Reihenfolge.
+- **Zonen:** Pro Zone wählt ihr das **Gerät** (das Ventil oder den Schalter aus Home Assistant, mit seinem Namen dort). Zeigt die Auswahl alle Geräte statt nur die des Herstellers (z. B. bei „Anderer Hersteller“), stehen die Ventile oben und alle Schalter darunter unter „Weitere“, denn Schalter sind oft Flutlicht oder Türöffner. Dazu kommen eine **Bezeichnung** (bis 20 Zeichen, z. B. „Vorne“) und die **Minuten** (Komma erlaubt, 0,5 bis 60). **Entfernen** nimmt die Zone heraus, **+ Zone** fügt eine hinzu. Mehrere Zonen laufen nacheinander in der angezeigten Reihenfolge.
 - **Platz löschen:** nach einer Rückfrage. Gelöscht ist er erst nach „Speichern“.
 
 Bei der direkten Hydrawise-Anbindung tragt ihr statt des Geräts die **Zonennummer** ein, also den Anschluss am Controller (1, 2, 3 …).

@@ -64,7 +64,7 @@ Each court is a box of its own. **+ Court** (top right) creates a new one. For e
 - **Name** (up to 30 characters), e.g. “Court 1”. This is what the tile is called everywhere.
 - **Subtitle:** text under the name. If you leave it empty, Clubwerk writes something like “Front first, then back · 2 min each” itself.
 - **Arrows ↑ ↓:** order of the courts. It applies on every screen.
-- **Zones:** for each zone you choose the **device** (the valve or switch from Home Assistant), a **name** (up to 20 characters, e.g. “Front”) and the **minutes** (a comma is fine, 0.5 to 60). **Remove** takes the zone out, **+ Zone** adds one. Several zones run one after another in the order shown.
+- **Zones:** for each zone you choose the **device** (the valve or switch from Home Assistant, with its name there). If the list shows all devices rather than only the manufacturer’s (e.g. with “Other manufacturer”), the valves are at the top and all switches below under “Others”, because switches are often floodlights or door openers. You also set a **name** (up to 20 characters, e.g. “Front”) and the **minutes** (a comma is fine, 0.5 to 60). **Remove** takes the zone out, **+ Zone** adds one. Several zones run one after another in the order shown.
 - **Delete court:** after a confirmation. It is only gone for good after “Save”.
 
 With the direct Hydrawise connection you enter the **zone number** instead of the device, that is the connection on the controller (1, 2, 3 …).

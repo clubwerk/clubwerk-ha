@@ -164,7 +164,7 @@ async function deviceList(c, strict) {
     const dom = s.entity_id.split('.')[0];
     if (T.RE_KEYPAD.test(s.entity_id)) {   // Codetastatur: Sensor/Text/Ereignis, der den eingetippten Code meldet (wie Geräte: nur aus der Integration, außer mit allen Rechten)
       if ((ids && !ids.has(s.entity_id)) || (!ids && strict)) continue;
-      out.keypad.push({ ref: s.entity_id, name: `${(s.attributes && s.attributes.friendly_name) || s.entity_id} (${s.entity_id})` }); continue;
+      out.keypad.push({ ref: s.entity_id, name: `${(s.attributes && s.attributes.friendly_name) || s.entity_id} (${s.entity_id})`, ...(ha.codeQuelle(s) ? {} : { weitere: true }) }); continue;
     }
     if (!out[dom]) continue;
     if (dom === 'binary_sensor' && !['door', 'garage_door', 'opening', 'window', 'lock'].includes(s.attributes && s.attributes.device_class)) continue;

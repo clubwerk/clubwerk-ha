@@ -1,2 +1,2 @@
-Buchungsseite für Gäste zu Clubwerk 2026.11.60
+Buchungsseite für Gäste zu Clubwerk 2026.11.61
 SHA-256 des Ordners (ohne diese Datei, Verfahren wie PRUEFSUMMEN.md): 091a14e696bb999b0a2fc3c69b2ff66722957e71ba5efdec56a1088178a15598

@@ -92,6 +92,7 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 .vh-tile .vh-name { display: block; font-size: 17px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
 .vh-tile .vh-sub { display: block; font-size: 13.5px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
 .vh-tile .vh-acts { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+@media (max-width: 640px) { .vh-tiles .vh-tile .vh-btn { font-size: 14px; padding: 0 6px; } }   /* Handy, zwei Spalten (in der Verwaltung zusätzlich in einer Karte): „Aufschließen“ behält Luft zum Rand */
 .vh-tile.run { background: var(--brand-soft); border-color: var(--green-line, var(--brand)); }
 .vh-tile.run::before { background: var(--card); }
 .vh-tile.run .vh-sub { color: var(--brand-ink); font-weight: 600; }

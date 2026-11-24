@@ -1244,10 +1244,23 @@
   }
 
   /* Schnittstelle für Erweiterungen (deren admin.js meldet sich hier an) */
+  /** Auswahl eines Geräts aus Home Assistant (Zugang, Beregnung): passende Geräte oben, alle mit weitere: true unter „Weitere“ –
+   *  so bleibt ein ungewöhnlich eingebundenes Gerät wählbar. Eine gespeicherte Auswahl, die Home Assistant nicht mehr nennt, bleibt sichtbar und gewählt.
+   *  o.leer: erste Zeile, o.fehlt: Zusatz für ein fehlendes Gerät, o.kurz: nur der Name ohne Kennung (bei gleichem Namen mit Kennung) */
+  function haOptions(list, sel, o = {}) {
+    const short = x => x.name.replace(` (${x.ref})`, '');
+    const doppelt = new Set(), seen = new Set();
+    if (o.kurz) for (const x of list) { const n = short(x); if (seen.has(n)) doppelt.add(n); seen.add(n); }
+    const label = x => (o.kurz && !doppelt.has(short(x)) ? short(x) : x.name);
+    const opt = x => `<option value="${esc(x.ref)}" ${x.ref === sel ? 'selected' : ''}>${esc(label(x))}</option>`;
+    const rest = list.filter(x => x.weitere);
+    return `<option value="">${esc(T(o.leer || '– wählen –'))}</option>${sel && !list.some(x => x.ref === sel) ? `<option value="${esc(sel)}" selected>${esc(sel)} ${esc(T(o.fehlt || '– fehlt'))}</option>` : ''}`
+      + list.filter(x => !x.weitere).map(opt).join('') + (rest.length ? `<optgroup label="${esc(T('Weitere'))}">${rest.map(opt).join('')}</optgroup>` : '');
+  }
   window.GK = {
     /** Selbst wachsendes einzeiliges Textfeld (<textarea data-grow rows="1">) nach einer Wertänderung per Skript anpassen */
     fit: growFit,
-    sortKit, $, esc, euro, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
+    haOptions, sortKit, $, esc, euro, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
     scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, lastFirst, busy, klebend, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
     /** Antwort von api/admin/status beim Start der Verwaltung (spart eine zweite Anfrage) */

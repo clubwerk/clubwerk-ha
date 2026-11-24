@@ -665,8 +665,8 @@ INSERT INTO "audit_log"(id, at, username, action, detail) VALUES(607,'2026-03-20
 INSERT INTO "audit_log"(id, at, username, action, detail) VALUES(608,'2026-03-20 19:10:55','admin','Zugang: freigeschaltet','Stefan Brandt');
 INSERT INTO "audit_log"(id, at, username, action, detail) VALUES(609,'2026-03-20 19:10:55',NULL,'Sicherheitswarnung','Im Modul Beregnung wurden die geschalteten Geräte geändert (von Adminkonto).
 
-Vorher: switch.platz1, switch.platz2, switch.platz3
-Jetzt: switch.platz1, switch.platz2, switch.platz3, switch.platz4_nord, switch.platz4_sued
+Vorher: valve.platz1, valve.platz2, valve.platz3
+Jetzt: valve.platz1, valve.platz2, valve.platz3, valve.platz4_nord, valve.platz4_sued
 
 War das so geplant? Sonst bitte in der Verwaltung prüfen.');
 INSERT INTO "audit_log"(id, at, username, action, detail) VALUES(610,'2026-03-20 19:10:55','admin','Beregnung eingerichtet','4 Plätze, Anderer Hersteller (alle Ventile/Schalter aus Home Assistant), Schutz: Vereins-PIN');

@@ -25,12 +25,7 @@
     });
   }
 
-  function devOptions(doms, sel, emptyLabel) {
-    const list = doms.flatMap(d => (st.d.devices && st.d.devices[d]) || []);
-    const has = list.some(x => x.ref === sel);
-    return `<option value="">${emptyLabel}</option>${!has && sel ? `<option value="${esc(sel)}" selected>${esc(sel)} – fehlt</option>` : ''}`
-      + list.map(x => `<option value="${esc(x.ref)}" ${x.ref === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
-  }
+  const devOptions = (doms, sel, emptyLabel) => GK.haOptions(doms.flatMap(d => (st.d.devices && st.d.devices[d]) || []), sel, { leer: emptyLabel });
 
   /* ---------- Konfiguration laden und speichern ---------- */
   async function loadCfg() { const d = await api('config'); st.d = d; st.c = JSON.parse(JSON.stringify(d.cfg)); return d; }
@@ -145,13 +140,13 @@
   /* ---------- Reiter „Türen“ ---------- */
   async function renderTueren() {
     const d = await loadCfg(), c = st.c;
-    const devName = (doms, ref) => { if (!ref) return ''; const x = doms.flatMap(m => (d.devices && d.devices[m]) || []).find(y => y.ref === ref); return x ? x.name : `${ref} – fehlt`; };
+    const devName = (doms, ref) => { if (!ref) return ''; const x = doms.flatMap(m => (d.devices && d.devices[m]) || []).find(y => y.ref === ref); return x ? x.name.replace(` (${ref})`, '') : `${ref} – fehlt`; };   // in der Liste nur der Gerätename (die Kennung steht im Fenster und als Hinweis)
     $('main').innerHTML = `<h2 class="page">Türen</h2>
       <p class="lead">Die Türen, Tore und Schlösser, die Zugang aus Home Assistant bedient. Die Reihenfolge gilt auch in der App.</p>
       ${haBanner(d.error)}
       <div class="card" id="zDoorsBox"><h3>Türen, Tore &amp; Schlösser</h3>
       ${c.doors.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Art</th><th>Gerät in Home Assistant</th><th>Türkontakt</th><th></th></tr>
-        ${c.doors.map((x, i) => `<tr><td class="k-1z"><b>${esc(x.name)}</b></td><td>${esc(TYPE[x.type] || '')}${x.keypad ? '<span class="muted s" style="display:block">mit Codetastatur</span>' : ''}</td><td>${esc(devName(TDOM[x.type] || [], x.ref))}</td><td class="k-weg">${esc(devName(['binary_sensor'], x.sensor))}</td>
+        ${c.doors.map((x, i) => `<tr><td class="k-1z"><b>${esc(x.name)}</b></td><td>${esc(TYPE[x.type] || '')}${x.keypad ? '<span class="muted s" style="display:block">mit Codetastatur</span>' : ''}</td><td title="${esc(x.ref)}">${esc(devName(TDOM[x.type] || [], x.ref))}</td><td class="k-weg"${x.sensor ? ` title="${esc(x.sensor)}"` : ''}>${esc(devName(['binary_sensor'], x.sensor))}</td>
           <td class="r"><span class="acts"><button class="btn small" data-du="${i}" ${i === 0 ? 'disabled' : ''} aria-label="nach oben">↑</button><button class="btn small" data-dd="${i}" ${i === c.doors.length - 1 ? 'disabled' : ''} aria-label="nach unten">↓</button><button class="btn small" data-de="${i}">Bearbeiten</button></span></td></tr>`).join('')}</table>`
         : '<p class="empty">Noch keine Türen – oben auf „+ Tür“.</p>'}</div>`;
     GK.tabTools('<button class="btn primary" id="zDAdd">+ Tür</button>', $('zDoorsBox'));

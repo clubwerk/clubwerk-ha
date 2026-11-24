@@ -185,6 +185,8 @@ async function readNow(c, hw) {
           if (f.length) { shown = f; filtered = true; }
         } catch (e) { /* ältere Versionen: alles anbieten */ }
       }
+      // ohne Herstellerfilter: Ventile oben, Schalter (oft Flutlicht, Türöffner, Zwischenstecker) unter „Weitere“ – bleiben wählbar
+      if (!filtered) shown = shown.map(x => (x.ref.startsWith('switch.') ? { ...x, weitere: true } : x));
       data = { zones, list: shown, filtered, sensors: sensors.map(({ ref, name }) => ({ ref, name })), next };
     }
     cache = { at: Date.now(), data, err: null, backend: c.backend, ttl };

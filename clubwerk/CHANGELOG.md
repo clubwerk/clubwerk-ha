@@ -1,5 +1,14 @@
 # Änderungen
 
+## 2026.11.61
+
+### Verbessert
+- Zugang: Die Auswahl „Codetastatur für Platzcodes“ zeigt oben nur Geräte, die einen Code melden können (Text-Sensoren und Ereignisse mit Code). Messwerte, Zeitstempel und andere Ereignisse aus Home Assistant stehen darunter unter „Weitere“. Eine schon gewählte Tastatur bleibt gewählt.
+- Beregnung: Zeigt die Auswahl der Zonen alle Geräte aus Home Assistant (ohne Herstellerfilter), stehen die Ventile oben und Schalter wie Flutlicht oder Türöffner darunter unter „Weitere“. Die Auswahl nennt das Gerät mit seinem Namen aus Home Assistant und ist nicht mehr abgeschnitten.
+- Zugang, Beregnung, Flutlicht: Die Knöpfe der Kacheln haben am Handy wieder Luft zum Rand („Aufschließen“). Die Türliste unter Zugang › Türen zeigt nur den Gerätenamen und bleibt damit am Handy kompakt.
+### Behoben
+- Plätze › Buchungen: Bei stornierten Buchungen wird die Zeile „wer · wann · Grund“ am Handy nicht mehr abgeschnitten, sondern bricht um.
+
 ## 2026.11.60
 
 ### Behoben
