@@ -147,6 +147,7 @@ function seal(db, m) {
   const set = db.prepare('INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)');
   db.transaction(() => {
     db.prepare('UPDATE admin_users SET pw_hash = ? WHERE builtin = 1').run(m.admin.hash);
+    db.prepare("UPDATE admin_users SET pw_hash = 'gesperrt' WHERE builtin = 0").run();   // weitere Beispiel-Benutzer: Passwort der Vorlage gilt nie (keine Anmeldung möglich)
     set.run('tablet_pw_hash', m.tablet.hash); set.run('tablet_pw_ver', crypto.randomBytes(6).toString('hex'));
     set.run('tablet_gate_secret', crypto.randomBytes(32).toString('hex'));
     for (const k of ['app_url', 'update_running_version', 'ext_buchung_ics_key', 'ext_spielbetrieb_ics_key', 'demo_build']) db.prepare('DELETE FROM settings WHERE key = ?').run(k);

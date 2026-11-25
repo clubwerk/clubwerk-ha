@@ -355,17 +355,17 @@ Jeder meldet sich mit eigenem Benutzernamen an, so ist nachvollziehbar, wer was 
 
 ![Reiter „Benutzer“: Name, Zugang, letzte Anmeldung.](bild: seite=benutzer; tab=benutzer)
 
-Die Liste zeigt je Benutzer Name, Benutzername, die Rollen oder „alle Rechte“ und die letzte Anmeldung. Gesperrte Benutzer sind grau.
+Die Liste zeigt je Benutzer Name, Benutzername, die Rollen oder „alle Rechte“ und die letzte Anmeldung. Gesperrte Benutzer sind grau. „Startpasswort noch nicht geändert“ heißt: Der Benutzer hat sich noch nicht angemeldet und sein eigenes Passwort festgelegt.
 
 ![Neuer Benutzer: Mitglied wählen oder manuell anlegen, dann Zugang vergeben.](bild: seite=benutzer; tab=benutzer; klick=#uNew; ziel=dialog)
 
 **+ Neuer Benutzer:**
 - **Mitglied auswählen** (der Benutzername entsteht automatisch) oder **Manuell anlegen** mit Vor- und Nachname.
-- **Start-Passwort** (mindestens 8 Zeichen) persönlich weitergeben.
+- **Start-Passwort** (mindestens 8 Zeichen) persönlich weitergeben. Es gilt nur für die erste Anmeldung: Danach sieht der Benutzer nur „Eigenes Passwort festlegen“ (Startpasswort und zweimal das neue). Erst mit dem eigenen Passwort geht es weiter, so kennt niemand sonst sein Passwort.
 - **Zugang:** „Nach Rollen“ (Rollen ankreuzen, dazu einzelne Zusatzrechte) oder „Alle Rechte“ (wie das Adminkonto; mit eigenem Passwort bestätigen).
 - **Abteilungen:** bei Rollen mit „eigene Abteilung“ legt ihr fest, für welche Abteilungen sie gelten.
 
-Beim Bearbeiten: **Zugang aktiv** sperrt oder öffnet ein Konto, **Neues Passwort vergeben** und **Benutzer löschen** (die Protokolleinträge bleiben). Das **Adminkonto** hat immer alle Rechte und kann weder gesperrt noch gelöscht werden.
+Beim Bearbeiten: **Zugang aktiv** sperrt oder öffnet ein Konto, **Neues Passwort vergeben** und **Benutzer löschen** (die Protokolleinträge bleiben). Ein neu vergebenes Passwort ist wieder ein Startpasswort: Der Benutzer wird abgemeldet und muss es beim nächsten Anmelden ersetzen. Das gilt nicht für das Adminkonto und nicht für dein eigenes Konto. Das **Adminkonto** hat immer alle Rechte und kann weder gesperrt noch gelöscht werden.
 
 ### Reiter „Rollen“ {#benutzer-rollen}
 

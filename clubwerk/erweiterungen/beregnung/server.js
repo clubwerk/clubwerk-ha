@@ -649,6 +649,7 @@ function appRouter(ctx) {
     if (req.get('X-Clubwerk') !== '1') return res.status(403).json({ error: 'Ungültige Anfrage.' });
     const out = await auth.login(username, password, req.ip, 'beregnung', { known: auth.knownDevice(req, username) });
     if (!out.ok) { audit(String(username || '').slice(0, 30), 'Beregnung: Anmeldung fehlgeschlagen', req.ip); return res.status(401).json({ error: out.error }); }
+    if (out.mustChange) { auth.logout(out.token); return res.status(403).json({ error: 'Bitte zuerst in der Verwaltung ein eigenes Passwort festlegen – das Startpasswort gilt nur dort für die erste Anmeldung.' }); }
     audit(String(username || '').toLowerCase(), 'Beregnung: Anmeldung', req.ip);
     res.setHeader('Set-Cookie', `gbereg=${out.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${8 * 3600}${req.secure ? '; Secure' : ''}`);
     res.json({ ok: true });

@@ -340,6 +340,8 @@ CREATE TABLE IF NOT EXISTS admin_roles (
 addColumn('admin_users', 'roles', "TEXT NOT NULL DEFAULT '[]'");
 addColumn('admin_users', 'departments', "TEXT NOT NULL DEFAULT '[]'");
 addColumn('admin_users', 'member_id', 'INTEGER');
+/* Startpasswort (vom Admin vergeben) muss beim ersten Anmelden ersetzt werden. Bestehende Konten bleiben bei 0 – sonst müssten nach dem Update alle ändern. */
+addColumn('admin_users', 'pw_change', 'INTEGER NOT NULL DEFAULT 0');
 /** Einmal-Umzug: fn läuft in einer Transaktion, solange der Merker key in settings fehlt; danach steht der Merker.
  *  Wirft fn einen Fehler, bleibt alles beim Alten und der nächste Start versucht es wieder. */
 function once(key, fn) {

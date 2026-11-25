@@ -1,5 +1,14 @@
 # Änderungen
 
+## 2026.11.64
+
+### Behoben
+- Benutzer: Ein Passwort, das ein Admin für jemand anderen vergibt (neuer Benutzer oder „Neues Passwort vergeben“), ist jetzt wirklich nur ein Startpasswort. Nach dem ersten Anmelden sieht der Benutzer nur „Eigenes Passwort festlegen“ und kommt erst mit dem eigenen Passwort weiter – auch am Handy, am Tablet und über Home Assistant. Danach meldet Clubwerk die übrigen Sitzungen des Kontos ab.
+
+### Verbessert
+- Benutzer & Rechte: In der Liste steht „Startpasswort noch nicht geändert“, solange ein Benutzer sein Startpasswort nicht ersetzt hat; die Fenster zum Anlegen und Zurücksetzen weisen darauf hin. Bestehende Konten müssen ihr Passwort nach dem Update nicht ändern.
+- Beregnung: Mit einem Startpasswort weist die Anmeldung darauf hin, zuerst in der Verwaltung ein eigenes Passwort festzulegen.
+
 ## 2026.11.63
 
 ### Verbessert

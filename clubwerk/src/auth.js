@@ -135,19 +135,21 @@ function adminConfigured() {
   return db.prepare('SELECT COUNT(*) n FROM admin_users').get().n > 0;
 }
 
-async function createUser({ username, name, password, role = 'admin', perms = [], builtin = false, roles = [], departments = [], memberId = null }) {
+/** mustChange: Startpasswort, das ein Admin vergeben hat – der Benutzer muss es beim ersten Anmelden ersetzen (Spalte pw_change) */
+async function createUser({ username, name, password, role = 'admin', perms = [], builtin = false, roles = [], departments = [], memberId = null, mustChange = false }) {
   const pwHash = await hashSecret(password);
-  const r = db.prepare('INSERT INTO admin_users(username, name, pw_hash, role, perms, builtin, roles, departments, member_id) VALUES (?,?,?,?,?,?,?,?,?)')
-    .run(username, name || username, pwHash, role, JSON.stringify(perms.filter(p => PERMS[p])), builtin ? 1 : 0, JSON.stringify(roles), JSON.stringify(departments), memberId);
+  const r = db.prepare('INSERT INTO admin_users(username, name, pw_hash, role, perms, builtin, roles, departments, member_id, pw_change) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run(username, name || username, pwHash, role, JSON.stringify(perms.filter(p => PERMS[p])), builtin ? 1 : 0, JSON.stringify(roles), JSON.stringify(departments), memberId, mustChange && !builtin ? 1 : 0);
   vaultHook('onPassword', Number(r.lastInsertRowid), password);
   return Number(r.lastInsertRowid);
 }
 
 /* Tresor (verschlüsselte persönliche Daten): Anmeldung entsperrt ihn, neue Passwörter bekommen eine Schlüsselkopie */
 function vaultHook(fn, ...a) { try { require('./vault')[fn](...a); } catch (e) { console.error('Tresor:', e.message); } }
-async function setPassword(userId, pw) {
+/** mustChange: Ein Admin hat das Passwort für jemand anderen gesetzt (Startpasswort). Jedes andere Setzen hebt die Pflicht auf. */
+async function setPassword(userId, pw, { mustChange = false } = {}) {
   const h = await hashSecret(pw);
-  db.prepare('UPDATE admin_users SET pw_hash = ? WHERE id = ?').run(h, userId);
+  db.prepare('UPDATE admin_users SET pw_hash = ?, pw_change = ? WHERE id = ?').run(h, mustChange ? 1 : 0, userId);
   vaultHook('onPassword', userId, pw);
   for (const [k, v] of sessions) if (v.userId === userId) sessions.delete(k);
 }
@@ -207,7 +209,7 @@ async function loginJetzt(name, pw, ip, scope, { trusted = false, known = false,
   const token = crypto.randomBytes(24).toString('hex');
   sessions.set(token, tablet ? { userId: u.id, scope, tablet: true, expiresAt: now + TABLET_ADMIN_TTL_MS, maxAt: now + TABLET_ADMIN_MAX_MS }
     : { userId: u.id, scope, expiresAt: now + ADMIN_TTL_MS, maxAt: now + ADMIN_MAX_MS });
-  return { ok: true, token };
+  return { ok: true, token, mustChange: Boolean(u.pw_change) };
 }
 
 function logout(token) { sessions.delete(token); }
@@ -229,27 +231,34 @@ function parseCookies(req) {
    Die Verwaltung am Tablet (req.cwTablet, Pfad …/tadmin/) liest nur ihr eigenes Cookie gtadm und nur Tablet-Sitzungen. */
 const COOKIE_OF = { admin: 'gadmin', beregnung: 'gbereg' };
 const sessionCookie = (req, scope = 'admin') => (scope === 'admin' && req.cwTablet ? 'gtadm' : COOKIE_OF[scope] || 'gadmin');
-function currentUser(req, scope = 'admin') {
+/** Angemeldeter Benutzer oder null. Wer noch ein Startpasswort hat (mustChange), gilt überall als nicht angemeldet –
+ *  nur requireAdmin (Passwort ändern) und der Anmeldestand fragen mit startPw: true. */
+function currentUser(req, scope = 'admin', { startPw = false } = {}) {
   const token = parseCookies(req)[sessionCookie(req, scope)];
   const s = token && sessions.get(token);
   if (!s || s.expiresAt < Date.now() || s.maxAt < Date.now()) { if (s) sessions.delete(token); return null; }
   if ((s.scope || 'admin') !== scope || Boolean(s.tablet) !== Boolean(scope === 'admin' && req.cwTablet)) return null;
   const u = userById(s.userId);
   if (!u) { sessions.delete(token); return null; }
+  if (u.mustChange && !startPw) return null;
   s.expiresAt = Date.now() + (s.tablet ? TABLET_ADMIN_TTL_MS : ADMIN_TTL_MS);
   return { ...u, token };
 }
 /** Benutzer mit seinen heutigen Rechten – null, wenn gesperrt oder gelöscht (auch für Aufträge, die nach einem Neustart weiterlaufen) */
 function userById(id) {
-  const u = db.prepare('SELECT id, username, name, role, perms, roles, departments, member_id, active, builtin FROM admin_users WHERE id = ?').get(id);
+  const u = db.prepare('SELECT id, username, name, role, perms, roles, departments, member_id, active, builtin, pw_change FROM admin_users WHERE id = ?').get(id);
   if (!u || !u.active) return null;
-  const pi = permInfo(u);
-  return { ...u, perms: pi.perms, deptOnly: pi.deptOnly, depts: parse(u.departments).map(Number).filter(Number.isInteger) };
+  const pi = permInfo(u), { pw_change: pc, ...rest } = u;
+  return { ...rest, mustChange: Boolean(pc), perms: pi.perms, deptOnly: pi.deptOnly, depts: parse(u.departments).map(Number).filter(Number.isInteger) };
 }
 
+/* Startpasswort: Bis der Benutzer ein eigenes Passwort festgelegt hat, öffnet seine Sitzung nur „Passwort ändern“ (POST /api/admin/password);
+   Abmelden liegt außerhalb dieses Routers. Alles andere lehnt der Server ab – nicht nur die Oberfläche. */
+const START_PW_MSG = 'Bitte zuerst ein eigenes Passwort festlegen. Das Startpasswort gilt nur für die erste Anmeldung.';
 function requireAdmin(req, res, next) {
-  const u = currentUser(req);
+  const u = currentUser(req, 'admin', { startPw: true });
   if (!u) return res.status(401).json({ error: 'Bitte anmelden.' });
+  if (u.mustChange && !(req.method === 'POST' && req.path === '/password')) return res.status(403).json({ error: START_PW_MSG, mustChange: true });
   req.user = u;
   next();
 }
@@ -300,6 +309,6 @@ setInterval(() => {
 
 module.exports = {
   PERMS, DEPT_PERMS, hashSecret, hashPin, pinUmstellen, verifySecret, nacheinander, pinProblem, permInfo, setPermFilter, memberAllowed, deviceCookie, knownDevice,
-  adminConfigured, createUser, setPassword, login, logout, dropUserSessions, parseCookies, sessionCookie, currentUser, userById, requireAdmin, need,
+  START_PW_MSG, adminConfigured, createUser, setPassword, login, logout, dropUserSessions, parseCookies, sessionCookie, currentUser, userById, requireAdmin, need,
   issueTabletToken, checkTabletToken, checkTabletTokenBuchen, dropTabletToken,
 };

@@ -28,6 +28,7 @@
     const data = await r.json().catch(() => ({}));
     // 401 mit pwWrong = falsches Passwort bei einer Bestätigung: angemeldet bleiben, nur die Meldung zeigen
     if (r.status === 401 && !data.pwWrong && !url.startsWith('login') && !url.startsWith('setup')) { showLogin(); throw new Error(data.error || 'Bitte anmelden.'); }
+    if (r.status === 403 && data.mustChange) { start(); throw new Error(data.error); }   // Startpasswort noch nicht ersetzt: zurück zu „Eigenes Passwort festlegen“
     if (r.status === 423 && data.vaultLocked) throw Object.assign(new Error(data.error), { status: 423, vaultLocked: true });
     if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status, odd: data.odd, links: data.links, needPassword: Boolean(data.needPassword), field: data.field });
     // Jede Änderung frischt die Zähler an Reitern und Menü auf (zentral statt an jeder Stelle eines Moduls; gebündelt, falls mehrere Aufrufe kurz nacheinander kommen). Suche und GoBD-Prüfung sind nur Abfragen per POST.
@@ -401,6 +402,7 @@
     SCHEME = s.https ? 'https' : 'http'; tabletOnUI = s.tablet !== false;
     if (!s.configured) return showSetup(s.modules || [], s);
     if (!s.loggedIn) return showLogin();
+    if (s.mustChange) return showStartPw(s.mustChange);
     startStatus = s;
     me = s.user; tabletPwMissing = Boolean(s.tabletPwMissing); clubNetsMissing = Boolean(s.clubNetsMissing);
     startSettings = s.ext && s.ext.settings;   // Grundeinstellungen kamen mit (spart api/admin/settings beim Aufbau)
@@ -602,6 +604,28 @@
     $('lf').onsubmit = async e => {
       e.preventDefault();
       try { await api('login', 'POST', { username: $('un').value, password: $('pw').value }); start(); } catch (err) { $('err').textContent = err.message; }
+    };
+  }
+
+  /* Startpasswort (vom Admin vergeben): nach der Anmeldung nur dieser Bildschirm – der Server lässt bis dahin nichts anderes zu */
+  function showStartPw(who) {
+    me = null;
+    $('app').innerHTML = `<main class="login card">${logoImg('loginlogo')}<h2 class="page" role="heading" aria-level="1">Eigenes Passwort festlegen</h2>
+      <p class="lead">${esc(T('Hallo {0}, dein Passwort hat ein Admin vergeben. Lege jetzt ein eigenes fest – erst danach geht es weiter.', [who.name || who.username]))}</p>
+      <form id="spf" class="loginform"><input type="text" autocomplete="username" value="${esc(who.username)}" hidden>
+      <label class="f">Startpasswort<input type="password" id="spCur" autocomplete="current-password" autofocus></label>
+      <label class="f">Neues Passwort (mind. 8 Zeichen)<input type="password" id="spNew" autocomplete="new-password"></label>
+      <label class="f">Neues Passwort wiederholen<input type="password" id="spNew2" autocomplete="new-password"></label>
+      <button class="btn primary">Passwort festlegen</button><span class="err" id="spErr" role="alert"></span></form>
+      <p class="muted s" style="margin-top:18px"><a href="admin.html" id="spOut">Abmelden</a></p></main>`;
+    wireLogos();
+    $('spOut').onclick = async e => { e.preventDefault(); await api('logout', 'POST', {}).catch(() => {}); showLogin(); };
+    $('spf').onsubmit = async e => {
+      e.preventDefault();
+      const cur = $('spCur').value, nw = $('spNew').value;
+      if (nw !== $('spNew2').value) { formError($('spErr'), T('Die beiden neuen Passwörter stimmen nicht überein.')); return; }
+      if (nw && nw === cur) { formError($('spErr'), T('Bitte ein neues Passwort wählen, nicht das Startpasswort.')); return; }
+      try { await api('password', 'POST', { current: cur, next: nw }); toast('Eigenes Passwort festgelegt.'); start(); } catch (err) { formError($('spErr'), err.message); }
     };
   }
 
@@ -3750,7 +3774,7 @@
         <div class="ugrid">
           <label class="f wall" id="uMemL">Mitglied<select id="uMem" translate="no"><option value="">${esc(T('– Mitglied wählen –'))}</option>${free.map(m => `<option value="${m.id}" data-un="${esc(m.username)}" data-nm="${esc(m.name)}">${esc(lastFirst(m.name))}</option>`).join('')}</select></label>
           <label class="f" id="uFirstL">Vorname<input id="uFirst" autocomplete="off"></label><label class="f" id="uLastL">Nachname<input id="uLast" autocomplete="off"></label>
-          <label class="f">Benutzername (automatisch)<input id="uUn" disabled placeholder="Vorname-Initial + Nachname"></label><label class="f">Start-Passwort (mind. 8 Zeichen)<input id="uPw" type="text" autocomplete="off"></label>
+          <label class="f">Benutzername (automatisch)<input id="uUn" disabled placeholder="Vorname-Initial + Nachname"></label><label class="f">Start-Passwort (mind. 8 Zeichen)<input id="uPw" type="text" autocomplete="off" aria-describedby="uPwHint"><span class="muted s" id="uPwHint">Muss beim ersten Anmelden geändert werden.</span></label>
         </div>`}
       ${fixed ? '' : `<h3 class="usec">Zugang</h3>
       <div class="ugrid"><label class="chk ucard"><input type="radio" name="uRole" value="admin" ${!u || u.role === 'admin' ? 'checked' : ''}> <span><b>Nach Rollen</b><br><span class="muted s">Rollen unten ankreuzen (und ggf. einzelne Rechte)</span></span></label>
@@ -3788,11 +3812,12 @@
     }
     $('c').onclick = closeDialog;
     if (u) $('uReset').onclick = async () => {
-      const pw = await askText(`Neues Passwort für ${u.username} (mind. 8 Zeichen):`, '', { ok: 'Passwort setzen' });
+      const own = fixed || u.id === me.id;   // für das Adminkonto und sich selbst kein Startpasswort
+      const pw = await askText(own ? `Neues Passwort für ${u.username} (mind. 8 Zeichen):` : `Neues Startpasswort für ${u.username}\nMindestens 8 Zeichen. Muss beim ersten Anmelden geändert werden.`, '', { ok: 'Passwort setzen' });
       if (!pw) return;
       const mine = await askText('Zur Bestätigung: dein eigenes Passwort', '', { ok: 'Bestätigen', password: true });
       if (!mine) return;
-      try { await api(`users/${u.id}/password`, 'POST', { password: pw, myPassword: mine }); toast('Passwort gesetzt – bitte persönlich weitergeben.'); } catch (e) { fail(e); }
+      try { await api(`users/${u.id}/password`, 'POST', { password: pw, myPassword: mine }); toast(own ? 'Passwort gesetzt.' : 'Startpasswort gesetzt – bitte persönlich weitergeben.'); if (!own) RENDER.benutzer(); } catch (e) { fail(e); }
     };
     if ($('uDel')) $('uDel').onclick = async () => {
       if (!await ask(`Benutzer „${u.name || u.username}“ löschen? Die Einträge im Protokoll bleiben erhalten.`)) return;
@@ -3866,7 +3891,7 @@
           <td>${u.builtin ? '<span class="pill g">Adminkonto</span>' : u.role === 'oberadmin' ? '<span class="pill g">alle Rechte</span>'
             : [u.roles.map(id => `<span class="pill b" style="margin:1px">${esc(roleName(id) || '?')}</span>`).join(' '), u.extra.length ? permPills(u.extra, opt.permLabels) : ''].filter(Boolean).join(' ') || '<span class="muted s">keine Rechte</span>'}
             ${u.departments.length && u.deptOnly.length ? `<div class="muted s" translate="no">${esc(u.departments.map(deptName).filter(Boolean).join(', '))}</div>` : ''}${u.active ? '' : ' <span class="pill">gesperrt</span>'}</td>
-          <td>${u.last_login ? deTime(u.last_login) : '<span class="muted s">noch nie</span>'}</td>
+          <td>${u.startPw ? '<span class="pill a">Startpasswort noch nicht geändert</span>' : u.last_login ? deTime(u.last_login) : '<span class="muted s">noch nie</span>'}</td>
           <td class="r"><button class="btn small" data-u="${u.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
       $('uBody').querySelectorAll('[data-u]').forEach(b => { b.onclick = () => userDialog(users.find(x => x.id === Number(b.dataset.u)), opt).catch(fail); });
     }

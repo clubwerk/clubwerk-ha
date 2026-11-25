@@ -15598,6 +15598,26 @@
   "Namensänderung von {0}": "Change of name from {0}",
   "Nur ein Tippfehler. Es wird kein früherer Name gemerkt. Soll ein bisheriger Name gar nicht mehr erscheinen: als Namensänderung speichern und danach unter „Frühere Namen“ entfernen.": "Just a typo. No former name is kept. If a previous name should not appear at all: save it as a change of name and then remove it under “Former names”.",
   "Zum Beispiel nach einer Hochzeit oder Scheidung. Der Vorstand bestätigt die Änderung.": "For example after a marriage or divorce. The board confirms the change.",
-  "Zum Beispiel nach Hochzeit oder Scheidung. Der bisherige Name bleibt als „früherer Name“ beim Mitglied, die Suche findet es auch darunter.": "For example after marriage or divorce. The previous name is kept as a “former name” on the member, and search will still find them by it."
+  "Zum Beispiel nach Hochzeit oder Scheidung. Der bisherige Name bleibt als „früherer Name“ beim Mitglied, die Suche findet es auch darunter.": "For example after marriage or divorce. The previous name is kept as a “former name” on the member, and search will still find them by it.",
+  "{0} (Startpasswort, beim ersten Anmelden ändern)": "{0} (start password, to be changed at first login)",
+  "Anmeldung mit Startpasswort": "Login with start password",
+  "Bitte ein neues Passwort wählen, nicht das Startpasswort.": "Please choose a new password, not the start password.",
+  "Bitte zuerst ein eigenes Passwort festlegen. Das Startpasswort gilt nur für die erste Anmeldung.": "Please set your own password first. The start password only works for the first login.",
+  "Bitte zuerst in der Verwaltung ein eigenes Passwort festlegen – das Startpasswort gilt nur dort für die erste Anmeldung.": "Please set your own password in the admin area first – the start password only works there, for the first login.",
+  "Das Startpasswort stimmt nicht.": "The start password is incorrect.",
+  "Die beiden neuen Passwörter stimmen nicht überein.": "The two new passwords do not match.",
+  "Eigenes Passwort festgelegt.": "Your own password has been set.",
+  "Eigenes Passwort festlegen": "Set your own password",
+  "Hallo {0}, dein Passwort hat ein Admin vergeben. Lege jetzt ein eigenes fest – erst danach geht es weiter.": "Hello {0}, your password was set by an admin. Please set your own now – only then can you continue.",
+  "Mindestens 8 Zeichen. Muss beim ersten Anmelden geändert werden.": "At least 8 characters. Must be changed at first login.",
+  "Muss beim ersten Anmelden geändert werden.": "Must be changed at first login.",
+  "Neues Passwort (mind. 8 Zeichen)": "New password (min. 8 characters)",
+  "Neues Passwort wiederholen": "Repeat new password",
+  "Neues Startpasswort für {0}": "New start password for {0}",
+  "Passwort gesetzt.": "Password set.",
+  "Startpasswort": "Start password",
+  "Startpasswort ersetzt": "Start password replaced",
+  "Startpasswort gesetzt – bitte persönlich weitergeben.": "Start password set – please pass it on in person.",
+  "Startpasswort noch nicht geändert": "Start password not yet changed"
  }
 }

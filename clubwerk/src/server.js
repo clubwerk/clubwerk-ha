@@ -429,7 +429,7 @@ const fullPerm = (req, perm) => req.user.perms.includes(perm) && !(req.user.dept
 const jarr = v => { try { const x = JSON.parse(v || '[]'); return Array.isArray(x) ? x : []; } catch (e) { return []; } };
 const cleanUser = u => { const pi = auth.permInfo(u); return { id: u.id, username: u.username, name: u.name, role: u.role, perms: pi.perms, deptOnly: pi.deptOnly,
   extra: jarr(u.perms), roles: jarr(u.roles).map(Number), departments: jarr(u.departments).map(Number), member_id: u.member_id || null,
-  active: Boolean(u.active), last_login: u.last_login, builtin: Boolean(u.builtin) }; };
+  active: Boolean(u.active), last_login: u.last_login, builtin: Boolean(u.builtin), startPw: Boolean(u.pw_change) }; };
 /** Abteilungen (aus der Mitgliederverwaltung, falls aktiv) */
 const departmentList = () => { for (const p of plugins.withHook('departments')) { try { return p.hooks.departments() || []; } catch (e) { console.error(`Modul ${p.meta.id}: Abteilungen nicht lesbar:`, e.message); } } return []; };
 /** Benutzername-Vorschlag: erster Buchstabe Vorname + Nachname (ä → ae …), eindeutig */
@@ -443,8 +443,10 @@ function suggestUsername(first, last, exceptId = 0, taken = null) {   // taken: 
 }
 
 app.get('/api/admin/status', (req, res) => {
-  const u = auth.currentUser(req);
-  res.json({ configured: auth.adminConfigured(), loggedIn: Boolean(u), https: tls.enabled(),
+  const su = auth.currentUser(req, 'admin', { startPw: true });
+  const u = su && !su.mustChange ? su : null;   // mit Startpasswort: nur „Eigenes Passwort festlegen“ – keine Module, Einstellungen oder Rechte
+  res.json({ configured: auth.adminConfigured(), loggedIn: Boolean(su), https: tls.enabled(),
+    mustChange: su && su.mustChange ? { username: su.username, name: su.name } : undefined,
     tabletPwMissing: u && auth.adminConfigured() ? tabletOn() && !gateOn() : undefined, tablet: tabletOn(),
     clubNetsMissing: u && auth.adminConfigured() && u.perms.includes('einstellungen') ? !require('./memberapp').hasClubNets() : undefined,
     user: u ? { id: u.id, username: u.username, name: u.name, role: u.role, perms: u.perms, deptOnly: u.deptOnly, depts: u.depts, builtin: Boolean(u.builtin) } : null,
@@ -459,6 +461,10 @@ app.get('/api/admin/status', (req, res) => {
     ext: u && auth.adminConfigured() && req.query.ext === '1' ? { ...extInfo(), settings: settingsView(u) } : undefined, brand: req.query.ext === '1' ? branding() : undefined });
 });
 
+/* Startpasswort: Was ein Admin für jemand anderen vergibt, muss der Benutzer beim ersten Anmelden ersetzen (src/auth.js requireAdmin).
+   Nur Testläufe: CW_TEST_STARTPW_AUS=1 vergibt ohne diese Pflicht – die übrigen Testreihen melden sich mit den angelegten Benutzern direkt an;
+   die Sperre selbst prüfen die Reihen startpw und rmatrix ohne den Schalter. */
+const startPwPflicht = () => process.env.CW_TEST_STARTPW_AUS !== '1';
 const pwOk = p => { const n = String(p || '').length; return n >= 8 && n <= 200; };
 const PW_MSG = 'Das Passwort braucht 8 bis 200 Zeichen.';
 function validUsername(n) { return /^[a-z0-9._-]{3,30}$/i.test(n); }
@@ -540,12 +546,12 @@ app.post('/api/admin/login', rateLimit('login', 15, 5 * 60000), async (req, res)
     if (r.manyFails) securityAlert('login.viele', `Auffällig viele fehlgeschlagene Anmeldungen für „${String(username || '').slice(0, 30)}“ (zuletzt von ${req.ip}). Bitte prüfen, ob jemand versucht, das Passwort zu erraten.`, { key: String(username || '').trim().toLowerCase().slice(0, 30) });
     return bad(res, r.error, 401);
   }
-  audit(String(username).toLowerCase(), 'Anmeldung', req.ip);
+  audit(String(username).toLowerCase(), r.mustChange ? 'Anmeldung mit Startpasswort' : 'Anmeldung', req.ip);
   // Neues Gerät (kein Gerätecookie dieses Kontos): Warnung in der Tagesmail – nicht über die Seitenleiste und nicht bei der allerersten Anmeldung.
   // Geräte, die sich schon einmal angemeldet haben, tragen das Cookie bereits und gelten als bekannt.
   if (!known && !viaIngress(req) && before && before.last_login && !DEMO_KOPIE) securityAlert('login.geraet', `„${String(username).toLowerCase()}“ hat sich von einem neuen Gerät angemeldet (Adresse ${req.ip}). Warst du das nicht, bitte sofort das Passwort ändern.`, { key: String(username).toLowerCase() + '|' + req.ip });
   res.setHeader('Set-Cookie', [cookieOpts(r.token, req), auth.deviceCookie(username, req.secure)]);
-  res.json({ ok: true });
+  res.json({ ok: true, mustChange: r.mustChange || undefined });
 });
 
 app.post('/api/admin/logout', (req, res) => {
@@ -574,11 +580,13 @@ const owner = (req, res, next) => (req.user.role === 'oberadmin' ? next() : bad(
 admin.post('/password', rateLimit('pwchange', 10, 10 * 60000), async (req, res) => {
   const { current, next } = req.body || {};
   const u = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(req.user.id);
-  if (!await ownPwOk(req, current)) return pwBad(res, 'Aktuelles Passwort falsch.');
+  const start = Boolean(u.pw_change);   // Startpasswort ersetzen (die Sitzung darf bis dahin nur hierher)
+  if (!await ownPwOk(req, current)) return pwBad(res, start ? 'Das Startpasswort stimmt nicht.' : 'Aktuelles Passwort falsch.');
   if (!pwOk(next)) return bad(res, PW_MSG);
-  await auth.setPassword(u.id, String(next));
-  audit(req.user, 'Eigenes Passwort geändert', u.username);
-  securityAlert('benutzer.passwort', `„${u.username}“ hat das eigene Passwort geändert (Adresse ${req.ip}). Warst du es nicht, bitte sofort ein neues Passwort vergeben.`, { key: u.username });
+  if (start && String(next) === String(current)) return bad(res, 'Bitte ein neues Passwort wählen, nicht das Startpasswort.');
+  await auth.setPassword(u.id, String(next));   // hebt die Pflicht auf und meldet alle Sitzungen des Kontos ab
+  audit(req.user, start ? 'Startpasswort ersetzt' : 'Eigenes Passwort geändert', u.username);
+  if (!start) securityAlert('benutzer.passwort', `„${u.username}“ hat das eigene Passwort geändert (Adresse ${req.ip}). Warst du es nicht, bitte sofort ein neues Passwort vergeben.`, { key: u.username });
   const r = await auth.login(u.username, String(next), req.ip, 'admin', { tablet: Boolean(req.cwTablet) });
   res.setHeader('Set-Cookie', cookieOpts(r.token, req));
   res.json({ ok: true });
@@ -647,8 +655,8 @@ admin.post('/users', need('benutzer'), async (req, res) => {
   if (db.prepare('SELECT 1 FROM admin_users WHERE username = ?').get(un)) return bad(res, 'Diesen Benutzernamen gibt es schon.');
   if (!pwOk(password)) return bad(res, PW_MSG);
   const roles = roleIds(b.roles) || [], depts = deptIds(b.departments) || [];
-  const id = await auth.createUser({ username: un, name: nm, password: String(password),
-    role: role === 'oberadmin' ? 'oberadmin' : 'admin', perms: Array.isArray(perms) ? perms : [], roles, departments: depts, memberId });
+  const id = await auth.createUser({ username: un, name: nm, password: String(password),   // Startpasswort: beim ersten Anmelden ersetzen
+    role: role === 'oberadmin' ? 'oberadmin' : 'admin', perms: Array.isArray(perms) ? perms : [], roles, departments: depts, memberId, mustChange: startPwPflicht() });
   audit(req.user, 'Admin angelegt', `${un} (${role === 'oberadmin' ? 'alle Rechte' : [roles.map(r => (db.prepare('SELECT name FROM admin_roles WHERE id = ?').get(r) || {}).name).join(', '), Array.isArray(perms) ? permNames(perms) : ''].filter(Boolean).join(' · ')})`);
   securityAlert(role === 'oberadmin' ? 'benutzer.alle' : 'benutzer.rechte', `Neuer Benutzer der Verwaltung „${un}“${role === 'oberadmin' ? ' mit allen Rechten' : ''}, angelegt von ${req.user.name || req.user.username}.`, { key: un });
   res.json({ id, username: un });
@@ -741,10 +749,11 @@ admin.post('/users/:id/password', need('benutzer'), rateLimit('pwreset', 10, 10 
   if (!await ownPwOk(req, (req.body || {}).myPassword)) return pwBad(res, 'Dein eigenes Passwort zur Bestätigung stimmt nicht.');
   const pw = String((req.body || {}).password || '');
   if (!pwOk(pw)) return bad(res, PW_MSG);
-  const u = db.prepare('SELECT id, username FROM admin_users WHERE id = ?').get(int(req.params.id));
+  const u = db.prepare('SELECT id, username, builtin FROM admin_users WHERE id = ?').get(int(req.params.id));
   if (!u) return bad(res, 'Nicht gefunden.', 404);
-  await auth.setPassword(u.id, pw);
-  audit(req.user, 'Passwort neu vergeben', u.username);
+  const start = u.id !== req.user.id && !u.builtin && startPwPflicht();   // für jemand anderen vergeben = Startpasswort (das Adminkonto bleibt der Notfallzugang ohne Pflicht)
+  await auth.setPassword(u.id, pw, { mustChange: start });
+  audit(req.user, 'Passwort neu vergeben', start ? `${u.username} (Startpasswort, beim ersten Anmelden ändern)` : u.username);
   securityAlert('benutzer.passwort', `Das Passwort von „${u.username}“ wurde von ${req.user.name || req.user.username} neu vergeben.`, { key: u.username });
   res.json({ ok: true });
 });

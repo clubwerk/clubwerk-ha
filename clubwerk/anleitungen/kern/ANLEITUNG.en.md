@@ -355,17 +355,17 @@ Everyone logs in with their own username, so it is clear who changed what. **Rol
 
 ![Tab “Users”: name, access, last login.](bild: seite=benutzer; tab=benutzer)
 
-The list shows each user's name, username, the roles or “all permissions” and the last login. Locked users are grey.
+The list shows each user's name, username, the roles or “all permissions” and the last login. Locked users are grey. “Start password not yet changed” means the user has not yet logged in and set their own password.
 
 ![New user: choose a member or create manually, then grant access.](bild: seite=benutzer; tab=benutzer; klick=#uNew; ziel=dialog)
 
 **+ New user:**
 - **Select member** (the username is created automatically) or **Create manually** with first and last name.
-- Give the **start password** (at least 8 characters) to the person in person.
+- Give the **start password** (at least 8 characters) to the person in person. It only works for the first login: after that the user only sees “Set your own password” (start password and the new one twice). Only with their own password can they continue, so nobody else knows it.
 - **Access:** “By role” (tick roles, plus single extra permissions) or “All permissions” (like the admin account; confirm with your own password).
 - **Departments:** for roles with “own department” you decide which departments they apply to.
 
-When editing: **Access active** locks or opens an account, **Set new password** and **Delete user** (log entries stay). The **admin account** always has all permissions and can be neither locked nor deleted.
+When editing: **Access active** locks or opens an account, **Set new password** and **Delete user** (log entries stay). A newly set password is again a start password: the user is logged out and must replace it at the next login. This does not apply to the admin account or to your own account. The **admin account** always has all permissions and can be neither locked nor deleted.
 
 ### Tab “Roles” {#benutzer-rollen}
 
