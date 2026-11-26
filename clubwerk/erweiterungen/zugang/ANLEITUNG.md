@@ -204,12 +204,18 @@ Hier wählt ihr den **Hersteller** (Nuki, Matter, Yale, tedee, SwitchBot, HomeKi
 
 #### Benachrichtigungen
 
-![Karte „Benachrichtigungen“: Empfänger und Zeit für „Tür zu lange offen“.](bild: seite=zugang-einstellungen; ziel=.card:has(#zNotify))
+![Karte „Benachrichtigungen“: Zeit für „Tür zu lange offen“, E-Mail-Empfänger und Push.](bild: seite=zugang-einstellungen; ziel=[data-card="benachrichtigungen"])
 
-Clubwerk kann euch aufs Handy melden, wenn eine Tür sich nicht öffnen oder abschließen ließ oder zu lange offen steht:
-
-- **Bei Störung oder offener Tür melden an:** der Name des Handys in Home Assistant (der Mitteilungsdienst „notify“, z. B. `mobile_app_handy_vorstand`). Leer = keine Meldung.
 - **Tür länger offen als … Minuten melden:** 0 = aus. Das klappt nur bei Türen mit Türkontakt und meldet jede offene Tür einmal. Im Verlauf erscheint dazu ein Eintrag „Alarm“.
+
+Clubwerk meldet es, wenn sich eine Tür nicht öffnen oder abschließen lässt, ein Türöffner an bleibt, eine Tür zu lange offen steht oder an einer Codetastatur viele falsche Codes eingetippt werden, auf zwei Wegen:
+
+- **E-Mail-Empfänger:** eine oder mehrere Adressen, getrennt mit Komma, z. B. die des Platzwarts. Die Mail kommt über das Vereinspostfach (Einstellungen › Postfach) mit Vereinsname, Anlass, Uhrzeit und einem Link in die Verwaltung (der Link funktioniert im Vereinsnetz). Fehlt das Postfach, steht oben in der Karte ein Hinweis mit Link. Eine falsch geschriebene Adresse zeigt Clubwerk direkt am Feld.
+- **Push:** Benutzer der Verwaltung mit dem Recht „Zugang“ bekommen einen Hinweis in der Mitglieder-App, wenn ihr Benutzer mit einem Mitglied verknüpft ist. Ob es diese Hinweise gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest (Anlass „Störung beim Zugang“).
+
+Dieselbe Störung kommt höchstens einmal je Stunde; Clubwerk versucht es in jedem Fall weiter. Die Adressen sind persönliche Daten und stehen deshalb nicht in der Datei von „Einstellungen übertragen“.
+
+> Tipp Für Fortgeschrittene: Unter **„Zusätzlich an Home Assistant (notify-Dienst, für Fortgeschrittene)“** lässt sich der Name des Handys in Home Assistant eintragen (z. B. `mobile_app_handy_vorstand`). Ein früher dort eingetragener Dienst bleibt erhalten und meldet weiter.
 
 #### Einstellungen übertragen
 

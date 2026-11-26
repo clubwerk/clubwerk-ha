@@ -11,7 +11,7 @@ let db, getSetting, setSetting, bank;
 const S = (k, d = '') => getSetting('ext_mitglieder_' + k, d);
 const SET = (k, v) => setSetting('ext_mitglieder_' + k, v == null ? '' : String(v));
 const { today, nowTs, addColumns } = require('../../../src/util');
-const { splitPersonName } = require('../../../src/db');   // Namenszerlegung: eine Quelle für Sortierung, Kern und Module
+const { splitPersonName, lastFirst } = require('../../../src/db');   // Namenszerlegung: eine Quelle für Sortierung, Kern und Module
 
 function createTables() {
   db.exec(`
@@ -134,6 +134,7 @@ function migrate() {
   add('mv_member_department', 'fee_free', 'INTEGER NOT NULL DEFAULT 0');   // vom Zusatzbeitrag befreit (z. B. Trainer)
   add('mv_charge', 'member_dept_id', 'INTEGER');
   add('mv_collection', 'kind', 'TEXT');                 // 'getraenke' = Verkaufs-Einzug (nur Verkauf), sonst alle fälligen Posten
+  add('mv_person', 'first_year', 'TEXT');             // erstes Jahr je Mitglied: NULL = wie Beitragsart | frei (Anfänger) | anteilig | voll (z. B. Vereinswechsler)
   add('mv_change', 'created_by', 'TEXT');               // Meldungen von Abteilungsleitungen (Eintritt, Austritt, Rückkehr)
   add('mv_application', 'pre_by', 'TEXT'); add('mv_application', 'pre_at', 'TEXT');   // von der Abteilungsleitung befürwortet
   // Verkauf bei Angehörigen: payer = über den Hauptzahler (nicht in der Tablet-Liste) · own_payer = eigener Eintrag, zahlt der Hauptzahler · own = eigener Eintrag, zahlt selbst
@@ -169,6 +170,7 @@ CREATE INDEX IF NOT EXISTS ix_mvd_member ON mv_dunning(member_id);`);
 /** Zahler-Ketten (Kind → Mutter → Vater) auf den Hauptzahler ziehen – die Familie hat genau einen Hauptzahler */
 function flattenPayers() {
   for (const r of db.prepare('SELECT p.member_id FROM mv_person p JOIN mv_person q ON q.member_id = p.payer_id WHERE p.payer_id IS NOT NULL AND q.payer_id IS NOT NULL AND q.payer_id != q.member_id').all()) {
+    if (payerChain(r.member_id).ring) continue;   // Kreis: nichts still ändern – die Verwaltung repariert ihn (Hinweis in der Mitgliederliste)
     const head = payerOf(r.member_id);
     db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(head === r.member_id ? null : head, r.member_id);
   }
@@ -322,15 +324,61 @@ function relations() {
   };
 }
 
-/** Wer zahlt für diese Person? (Kette höchstens 3 Stufen, sonst selbst) */
-function payerOf(memberId, src = live) {
+/**
+ * Zahlerkette ab einem Mitglied (payer_id → payer_id …). Grundregel: Sie endet immer bei jemandem, der selbst zahlt (head).
+ * Läuft sie im Kreis (A → B → A, auch länger), ist ring = die Mitglieder des Kreises (in Kettenfolge) und head = null.
+ */
+function payerChain(memberId, src = live) {
+  const seen = [memberId];
   let id = memberId;
-  for (let i = 0; i < 3; i++) {
+  for (;;) {
     const p = src.person(id);
-    if (!p || !p.payer_id || p.payer_id === id) return id;
+    if (!p || !p.payer_id || p.payer_id === id) return { head: id, ring: null };
     id = p.payer_id;
+    const at = seen.indexOf(id);
+    if (at >= 0) return { head: null, ring: seen.slice(at) };
+    seen.push(id);
   }
-  return id;
+}
+/** Wer zahlt für diese Person? Hauptzahler am Ende der Kette; bei einem Kreis (ungültiger Zahlungsweg) die Person selbst – nie ein Mitglied des Kreises, bis er repariert ist */
+function payerOf(memberId, src = live) {
+  const c = payerChain(memberId, src);
+  return c.ring ? memberId : c.head;
+}
+const ringName = id => { const m = db.prepare('SELECT name, kind FROM members WHERE id = ?').get(id); return m ? lastFirst(m.name, m.kind) : `Nr. ${id}`; };
+/** Kreis lesbar: „A und B zahlen gegenseitig füreinander“ bzw. „A zahlt über B, B über C, C über A“ */
+function ringText(ring) {
+  const n = ring.map(ringName);
+  if (n.length === 2) return `${n[0]} und ${n[1]} zahlen gegenseitig füreinander`;
+  return n.map((x, i) => (i === 0 ? `${x} zahlt über ${n[1]}` : `${x} über ${n[(i + 1) % n.length]}`)).join(', ');
+}
+/**
+ * Zentrale Prüfung, bevor payer_id gesetzt wird – alle Wege nutzen sie (Verwaltung, Neues Mitglied, Familie, Anträge, Import, Zusammenführen):
+ * keine Selbstzahlung, kein Kreis, und der gewählte Zahler hat selbst einen gültigen Zahlungsweg. → Fehlertext oder null
+ */
+function payerError(memberId, payerId, src = live) {
+  if (!payerId) return null;
+  if (payerId === memberId) return 'Ein Mitglied kann nicht über sich selbst zahlen.';
+  const c = payerChain(memberId, { person: id => (id === memberId ? { payer_id: payerId } : src.person(id)) });
+  if (!c.ring) return null;
+  if (c.ring.includes(memberId)) return `Das ergäbe einen Kreis: ${ringText(c.ring)}. Ein Zahlungsweg endet immer bei jemandem, der selbst zahlt.`;
+  return `Der Zahlungsweg von ${ringName(payerId)} ist ungültig (${ringText(c.ring)}) – bitte zuerst unter „Mitglieder“ reparieren.`;
+}
+/**
+ * Bestehende Kreise finden (z. B. aus einem älteren Import): [{ ids, text, via }] – ids in Kettenfolge, via = wer über ein Mitglied
+ * des Kreises zahlt (ungültiger Weg, wird mit repariert). Ein Schnappschuss, eine Abfrage.
+ */
+function payerRings(src = relations()) {
+  const pay = db.prepare('SELECT member_id FROM mv_person WHERE payer_id IS NOT NULL AND payer_id != member_id').all().map(r => r.member_id);
+  const rings = new Map(), of = new Map();
+  for (const id of pay) {
+    const c = payerChain(id, src); if (!c.ring) continue;
+    const key = c.ring.slice().sort((a, b) => a - b).join(',');
+    if (!rings.has(key)) { const i = c.ring.indexOf(Math.min(...c.ring)); rings.set(key, { key, ids: [...c.ring.slice(i), ...c.ring.slice(0, i)], via: [] }); }
+    of.set(id, key);
+  }
+  for (const [id, key] of of) { const r = rings.get(key); if (!r.ids.includes(id)) r.via.push(id); }
+  return [...rings.values()].map(r => ({ ...r, text: ringText(r.ids) }));
 }
 /*
  * Zwei getrennte Beziehungen:
@@ -425,6 +473,6 @@ module.exports = {
     noteMemberNo(db.prepare("SELECT MAX(CAST(member_no AS INTEGER)) n FROM mv_person WHERE member_no GLOB '[0-9]*'").get().n);   // Bestand: höchste Nummer gilt als vergeben
   },
   S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, fillNames, splitName, syncCore, formerNames, rememberName, nextMemberNo, noteMemberNo, mandateRefFor, hist,
-  relations, payerOf, payerGroup, familyOf, familyHead, familyFee, familyMembers, familyFromPayers, isAdult, childMax, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, mailOwners, mailOwnerFor, fullName, sepa, fees,
+  relations, payerOf, payerChain, payerError, payerRings, ringText, payerGroup, familyOf, familyHead, familyFee, familyMembers, familyFromPayers, isAdult, childMax, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, mailOwners, mailOwnerFor, fullName, sepa, fees,
   sha256: b => crypto.createHash('sha256').update(b).digest('hex'),
 };

@@ -136,9 +136,16 @@ Die Webapp ist eine eigene Seite fürs Handy. Ihre Adresse steht in der Karte (`
 
 #### Benachrichtigungen
 
-Nur mit Home Assistant als Anbindung. Bei **„Bei Störung benachrichtigen“** tragt ihr den Namen des Home-Assistant-Dienstes ein (`notify.…`, z. B. `mobile_app_handy_platzwart`). Er schickt eine Nachricht ans Handy, wenn eine Zone nicht startet oder sich nicht ausschalten lässt. Bei der direkten Hydrawise-Anbindung gibt es diese Karte nur als Hinweis.
+![Karte „Benachrichtigungen“: E-Mail-Empfänger, Push und eingeklappt der notify-Dienst von Home Assistant.](bild: seite=beregnung; tab=einstellungen; ziel=[data-card="benachrichtigungen"])
 
-![Karte „Benachrichtigungen“.](bild: seite=beregnung; tab=einstellungen; ziel=[data-card="benachrichtigungen"])
+Clubwerk meldet es, wenn ein Platz nicht startet oder sich eine Zone nicht ausschalten lässt, auf zwei Wegen:
+
+- **E-Mail-Empfänger:** eine oder mehrere Adressen, getrennt mit Komma, z. B. die des Platzwarts. Die Mail kommt über das Vereinspostfach (Einstellungen › Postfach) mit Vereinsname, Anlass, Uhrzeit und einem Link in die Verwaltung (der Link funktioniert im Vereinsnetz). Fehlt das Postfach, steht oben in der Karte ein Hinweis mit Link. Eine falsch geschriebene Adresse zeigt Clubwerk direkt am Feld.
+- **Push:** Benutzer der Verwaltung mit dem Recht „Beregnung“ bekommen einen Hinweis in der Mitglieder-App, wenn ihr Benutzer mit einem Mitglied verknüpft ist. Ob es diese Hinweise gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest (Anlass „Störung bei der Beregnung“).
+
+Dieselbe Störung kommt höchstens einmal je Stunde; Clubwerk versucht es in jedem Fall weiter. Die Adressen sind persönliche Daten und stehen deshalb nicht in der Datei von „Einstellungen übertragen“.
+
+> Tipp Für Fortgeschrittene: Unter **„Zusätzlich an Home Assistant (notify-Dienst, für Fortgeschrittene)“** lässt sich bei der Anbindung über Home Assistant der Name des Handys in Home Assistant eintragen (z. B. `mobile_app_handy_vorstand`). Ein früher dort eingetragener Dienst bleibt erhalten und meldet weiter.
 
 #### Einstellungen übertragen
 

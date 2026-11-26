@@ -158,11 +158,7 @@
               <label class="f" style="flex:1;min-width:200px">Untertitel<input id="bSub" maxlength="40" value="${esc(c.subtitle)}"></label></div>
             ${ha ? `<div class="row" style="margin-top:12px"><label class="f" style="flex:1;min-width:240px">Anzeige „nächste automatische Beregnung“ (optional)<select id="bNext"><option value="">– keine –</option>${(d.sensors || []).map(x => `<option value="${esc(x.ref)}" ${x.ref === c.nextEntity ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label></div>` : ''}
             <div class="btns"><button class="btn primary" id="bSaveW">Speichern</button></div></div>
-          <div class="card" data-card="benachrichtigungen"><h3>Benachrichtigungen</h3>
-            ${ha ? `<div class="row"><label class="f" style="flex:1;min-width:240px">Bei Störung benachrichtigen (optional)<input id="bNotify" value="${esc(c.notify || '')}" placeholder="z. B. mobile_app_handy_platzwart"></label></div>
-              <p class="muted s" style="margin:8px 0 0">Name des Home-Assistant-Dienstes (notify.…), der die Nachricht ans Handy des Platzwarts schickt, wenn eine Zone nicht startet oder sich nicht ausschalten lässt.</p>
-              <div class="btns"><button class="btn primary" id="bSaveN">Speichern</button></div>`
-            : '<p class="muted s" style="margin:0">Benachrichtigungen bei Störungen gibt es nur mit Home Assistant als Anbindung.</p>'}</div>
+          <div id="bNotif"></div>
           <div id="bFunc"></div>`;
         GK.watch(el);
         const hints = () => { const m = $('bMode').value; for (const x of ['pin', 'app', 'login']) $('bHint' + x).style.display = m === x ? '' : 'none'; };
@@ -191,7 +187,8 @@
           } catch (e) { fail(e); }
         });
         cardSave($('bSaveW'), () => ({ appName: $('bApp').value, subtitle: $('bSub').value, ...($('bNext') ? { nextEntity: $('bNext').value } : {}) }));
-        if ($('bSaveN')) cardSave($('bSaveN'), () => ({ notify: $('bNotify').value }));
+        GK.stoerungKarte($('bNotif'), { mod: 'beregnung', anlass: 'Eine E-Mail kommt, wenn ein Platz nicht startet oder sich eine Zone nicht ausschalten lässt – mit Uhrzeit und Link in die Verwaltung.',
+          push: 'Push über die Mitglieder-App bekommen Verwaltungsnutzer mit dem Recht „Beregnung“, wenn ihr Benutzer mit einem Mitglied verknüpft ist.' }).catch(fail);
         if (GK.funcBox) GK.funcBox($('bFunc'), 'beregnung', 'Beregnung', again);
         return;
       }
@@ -228,7 +225,7 @@
     { label: 'Wer darf die Beregnung bedienen?', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'einstellungen'], card: 'Wer darf bedienen', in: 'Einstellungen', words: 'Bedienung Sperre Stopp ohne PIN' },
     { label: 'Vereins-PIN der Beregnung', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'einstellungen'], field: 'bPin', in: 'Einstellungen › Wer darf bedienen?', words: 'PIN Vereins-PIN Kennwort' },
     { label: 'Beregnungs-Webapp (Name, Untertitel)', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'einstellungen'], card: 'Webapp', in: 'Einstellungen', words: 'Webapp Homescreen Name Handy Adresse nächste Beregnung' },
-    { label: 'Benachrichtigung bei Störung der Beregnung', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'einstellungen'], card: 'Benachrichtigungen', in: 'Einstellungen', words: 'Störung Push notify Platzwart Handy' },
+    { label: 'Benachrichtigung bei Störung der Beregnung', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'einstellungen'], card: 'Benachrichtigungen', in: 'Einstellungen', words: 'Störung E-Mail Push notify Platzwart Handy', field: 'stberegnungMail' },
     { label: 'Einstellungen der Beregnung übertragen', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'einstellungen'], card: 'Einstellungen übertragen', kind: 'aktion', in: 'Einstellungen', words: 'Export Import Datei sichern' },
   ]);
 })();

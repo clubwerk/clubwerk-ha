@@ -125,7 +125,7 @@ function register(sh) {
   /** Antrag annehmen → Mitglieder anlegen (oder mit vorhandenen zusammenführen) */
   /* user: angemeldeter Benutzer – beim Zusammenführen mit einem vorhandenen Mitglied gelten dieselben Rechte wie beim Bearbeiten:
      Bankverbindung überschreiben nur mit „Bankdaten“, Abteilungsleitung nur Mitglieder der eigenen Abteilung(en) (scope) */
-  function accept(id, { by, persons: choice = [], entry_date, user = null, scope = null } = {}) {
+  function accept(id, { by, persons: choice = [], entry_date, user = null, scope = null, first_year } = {}) {
     const a = db.prepare('SELECT * FROM mv_application WHERE id = ?').get(id);
     if (!a || a.status !== 'eingegangen') throw new Error('Dieser Antrag kann nicht (mehr) angenommen werden.');
     const d = JSON.parse(a.data);
@@ -134,6 +134,9 @@ function register(sh) {
     if (user && d.iban && merges.length && !user.perms.includes('mitglieder_bank')) throw new Error('Zusammenführen mit einem vorhandenen Mitglied ändert dessen Bankverbindung – dafür fehlt dir das Recht „Bankdaten“. Bitte ohne Zusammenführen annehmen oder an die Vereinsverwaltung geben.');
     const fee = db.prepare('SELECT * FROM mv_fee WHERE id = ?').get(d.fee_id);
     const start = isDate(entry_date) ? entry_date : (d.entry_date || today());
+    // erstes Jahr: der Vorstand wählt beim Annehmen (Anfänger frei, Vereinswechsler anteilig) – Pflicht, wenn eine gewählte Beitragsart oder Abteilung „Eintrittsjahr frei“ vorsieht
+    const fy = sh.firstYear.fyInput(first_year !== undefined ? first_year : d.first_year, [(choice[0] && int(choice[0].fee_id)) || d.fee_id, ...d.persons.slice(1).map((p, i) => (choice[i + 1] && int(choice[i + 1].fee_id)) || p.fee_id)], d.persons.flatMap(p => p.departments || []));
+    if (fy.error) throw new Error(fy.error);
     const ids = [];
     db.transaction(() => {
       d.persons.forEach((p, i) => {
@@ -149,10 +152,11 @@ function register(sh) {
           db.prepare('UPDATE members SET pending = 0, active = 1 WHERE id = ?').run(mid);
         } else mid = createPerson(fields, by);
         db.prepare('UPDATE mv_person SET consents = ? WHERE member_id = ?').run(JSON.stringify(Object.fromEntries(Object.keys(d.consents || {}).map(k => [k, (a.signed_at || nowTs()).slice(0, 10)]))), mid);
+        sh.firstYear.fySet(mid, fy.value, by);
         ids.push(mid);
       });
       const head = ids[0];
-      for (const mid of ids.slice(1)) db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(head, mid);   // Zahler: der/die Antragsteller/in
+      for (const mid of ids.slice(1)) { const err = store.payerError(mid, head); if (err) throw new Error(err); db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(head, mid); }   // Zahler: der/die Antragsteller/in – zentrale Prüfung (beim Zusammenführen mit vorhandenen Mitgliedern könnte sonst ein Kreis entstehen)
       // Beiträge: Hauptzahler bekommt den gewählten; ohne Familientarif jede weitere Person ihren eigenen
       const addFee = (mid, fid) => { if (fid && db.prepare('SELECT 1 FROM mv_fee WHERE id = ?').get(fid)) db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date) VALUES (?,?,?)').run(mid, fid, start); };
       const headFee = db.prepare('SELECT * FROM mv_fee WHERE id = ?').get((choice[0] && choice[0].fee_id) || fee.id) || fee;
@@ -219,7 +223,11 @@ function register(sh) {
     const r = validate(b.data, { needBank: true }); if (r.error) return bad(res, r.error);
     if (!r.v.consents || !consentList().filter(c => c.required).every(c => r.v.consents[c.key])) { /* Pflicht-Einwilligungen gibt die Person beim Unterschreiben */ }
     const code = newCode();
-    const data = { ...r.v, auto_accept: b.auto_accept !== false };
+    const auto = b.auto_accept !== false;
+    // erstes Jahr gleich mitgeben, wenn nach der Unterschrift automatisch angenommen wird (sonst wählt der Vorstand beim Annehmen)
+    const fy = sh.firstYear.fyInput(b.first_year, [r.v.fee_id, ...r.v.persons.slice(1).map(p => p.fee_id)], r.v.persons.flatMap(p => p.departments || []));
+    if (auto && fy.error) return bad(res, fy.error);
+    const data = { ...r.v, auto_accept: auto, ...(fy.error || b.first_year === undefined || b.first_year === '' ? {} : { first_year: b.first_year }) };
     const id = Number(db.prepare("INSERT INTO mv_application(source, status, data, code_hash, code_expires, created_by) VALUES ('verwaltung', 'unterschrift', ?, ?, ?, ?)")
       .run(JSON.stringify(data), await codeHash(code), Date.now() + 3 * 3600000, uname(req)).lastInsertRowid);
     vorfilter.merke(id, code);
@@ -239,7 +247,7 @@ function register(sh) {
     if (!a || a.status !== 'unterschrift') return bad(res, 'Nur Anträge, die noch nicht unterschrieben sind, lassen sich ändern.');
     const r = validate((req.body || {}).data, { needBank: true }); if (r.error) return bad(res, r.error);
     const old = JSON.parse(a.data);
-    db.prepare('UPDATE mv_application SET data = ? WHERE id = ?').run(JSON.stringify({ ...r.v, auto_accept: old.auto_accept }), a.id);
+    db.prepare('UPDATE mv_application SET data = ? WHERE id = ?').run(JSON.stringify({ ...r.v, auto_accept: old.auto_accept, ...(old.first_year ? { first_year: old.first_year } : {}) }), a.id);
     res.json({ ok: true });
   });
   admin.post('/applications/:id/accept', P, (req, res) => {
@@ -252,7 +260,7 @@ function register(sh) {
       if (sh.notifyBoard) sh.notifyBoard(`Zur Bestätigung: Beitrittserklärung ${view(a).names}`, [`${uname(req)} (Abteilungsleitung) befürwortet die Beitrittserklärung von ${view(a).names}.`, '', 'Bitte in der Verwaltung unter Mitgliederverwaltung → Anträge annehmen.']).catch(() => {});
       return res.json({ ok: true, pending: true });
     }
-    try { const ids = accept(int(req.params.id), { by: uname(req), persons: Array.isArray(b.persons) ? b.persons : [], entry_date: b.entry_date, user: req.user, scope: req.mvScope || null }); res.json({ ok: true, member_id: ids[0], ids }); }
+    try { const ids = accept(int(req.params.id), { by: uname(req), persons: Array.isArray(b.persons) ? b.persons : [], entry_date: b.entry_date, user: req.user, scope: req.mvScope || null, first_year: b.first_year }); res.json({ ok: true, member_id: ids[0], ids }); }
     catch (e) { bad(res, e.message); }
   });
   admin.post('/applications/:id/reject', P, (req, res) => {

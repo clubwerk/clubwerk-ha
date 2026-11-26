@@ -224,6 +224,8 @@ function load({ app, admin, helpers }) {
         // Push-Benachrichtigungen (Mitglieder-App): Anlässe meldet das Modul über hooks.pushEvents an; send(ids, 'anlass', { title, body, url, tag })
         // Sicherheitswarnungen („Sicherheit & Betrieb“): Arten meldet das Modul über hooks.securityEvents an; securityAlert('art', text, { key, member })
         securityAlert: (ev, text, opts) => require('./security').securityAlert(`${id}.${ev}`, text, opts),
+        // Benachrichtigung bei Störungen (Karte „Benachrichtigungen“, GK.stoerungKarte): E-Mail-Empfänger, Push an Verwaltungsnutzer, optional notify-Dienst von Home Assistant
+        stoerung: (st => ({ ...st, einrichten: o => st.einrichten(o, adminR) }))(require('./stoerung').fuerModul(id, p.meta)),
         push: { send: (ids, ev, msg) => require('./push').send(ids, `${id}.${ev}`, msg), enabled: ev => require('./push').enabled(`${id}.${ev}`), lead: ev => require('./push').lead(`${id}.${ev}`) },
         addColumns: (table, cols) => require('./util').addColumns(db, table, cols),   // fehlende Spalten nachrüsten: { spalte: 'TEXT …' } → Namen der neu angelegten
         userName: req => (req.user && (req.user.name || req.user.username)) || '',   // Name des angemeldeten Admins für Protokoll und „erstellt von“

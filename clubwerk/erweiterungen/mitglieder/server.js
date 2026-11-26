@@ -42,13 +42,23 @@ function zusatzFor(md, birth, day = today(), memo = null) {
   const ages = list.some(f => f.age_min != null || f.age_max != null);
   return { fee: p.fee, auto: true, nomatch: !p.fee, age: p.age, assumed: p.assumed && ages };
 }
+/** „Eintrittsjahr frei“ noch nicht vorbei: bis wann frei, ab wann der Beitrag folgt → { free_until, next_from } oder {} */
+function freeYear(prorate, entry, row) {
+  if (prorate !== 'frei' || !isDate(entry || row.start_date)) return {};
+  const end = fees.freeEnd(entry || row.start_date, S('year_start', '01-01'));
+  if (end < today() || row.start_date > end || (row.end_date && row.end_date <= end) || (row.booked_until && row.booked_until > end)) return {};
+  return { free_until: end, next_from: fees.addDays(end, 1) };
+}
 const deptRows = id => {
-  const birth = (C.db.prepare('SELECT birth_date FROM mv_person WHERE member_id = ?').get(id) || {}).birth_date;
+  const pe = C.db.prepare('SELECT birth_date, entry_date, first_year FROM mv_person WHERE member_id = ?').get(id) || {}, birth = pe.birth_date;
   return C.db.prepare(`SELECT md.*, d.name FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id WHERE md.member_id = ? ORDER BY md.exit_date IS NOT NULL, d.sort, d.name`).all(id)
-    .map(md => { const z = zusatzFor(md, birth); return { ...md, zusatz: z.fee ? { id: z.fee.id, name: z.fee.name, cents: z.fee.cents, interval: z.fee.interval, auto: z.auto, assumed: Boolean(z.assumed) } : null, zusatz_free: Boolean(z.free), zusatz_none: Boolean(z.none), zusatz_nomatch: Boolean(!z.fee && z.nomatch), zusatz_age: z.age ?? null }; });
+    .map(md => { const z = zusatzFor(md, birth); return { ...md, zusatz: z.fee ? { id: z.fee.id, name: z.fee.name, cents: z.fee.cents, interval: z.fee.interval, auto: z.auto, assumed: Boolean(z.assumed) } : null, zusatz_free: Boolean(z.free), zusatz_none: Boolean(z.none), zusatz_nomatch: Boolean(!z.fee && z.nomatch), zusatz_age: z.age ?? null, ...(z.fee ? freeYear(pe.first_year || z.fee.prorate, pe.entry_date || md.entry_date, { start_date: md.entry_date || pe.entry_date, end_date: md.exit_date, booked_until: md.booked_until }) : {}) }; });
 };
-const feeRows = id => C.db.prepare(`SELECT mf.*, f.name, f.cents AS fee_cents, f.interval, f.family, f.department_id, f.age_min, f.age_max FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id
-  WHERE mf.member_id = ? ORDER BY mf.end_date IS NOT NULL, mf.start_date DESC`).all(id).map(r => ({ ...r, eff_cents: r.cents != null ? r.cents : r.fee_cents }));
+const feeRows = id => C.db.prepare(`SELECT mf.*, f.name, f.cents AS fee_cents, f.interval, f.family, f.department_id, f.age_min, f.age_max, f.prorate, p.entry_date AS p_entry, p.first_year AS p_fy FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id
+  LEFT JOIN mv_person p ON p.member_id = mf.member_id WHERE mf.member_id = ? ORDER BY mf.end_date IS NOT NULL, mf.start_date DESC`).all(id)
+  .map(({ p_entry, p_fy, ...r }) => ({ ...r, eff_cents: r.cents != null ? r.cents : r.fee_cents, ...(r.interval === 'einmalig' ? {} : freeYear(p_fy || r.prorate, p_entry, r)) }));
+/** Fehler mit Feld: die Verwaltung zeigt die Meldung direkt an diesem Feld (GK.formError, data-feld) */
+const badAt = (res, msg, field) => res.status(400).json({ error: msg, field });
 const bankRow = id => C.db.prepare('SELECT * FROM mv_bank WHERE member_id = ?').get(id) || null;
 
 /** Mandat einsatzbereit? → { ok, reason } */
@@ -88,15 +98,19 @@ function listRows(q = {}) {
       (SELECT group_concat(mf.fee_id) FROM mv_member_fee mf WHERE mf.member_id = m.id AND (mf.end_date IS NULL OR mf.end_date >= ?)) AS fee_ids,
       b.iban AS iban_raw, b.mandate_ref, b.mandate_date, b.mandate_last_used, b.mandate_revoked,
       (SELECT name FROM members WHERE id = p.payer_id) AS payer_name,
-      (SELECT COUNT(*) FROM mv_person c WHERE c.payer_id = m.id AND c.member_id != m.id) AS dependents,
+      (SELECT COUNT(*) FROM mv_person c WHERE c.payer_id = m.id AND c.member_id != m.id AND (c.exit_date IS NULL OR c.exit_date >= ?)) AS dependents,   -- „zahlt für …“: nur wer noch dabei ist
       (SELECT name FROM members WHERE id = p.family_of) AS family_head_name,
       (SELECT COUNT(*) FROM mv_person c WHERE c.family_of = m.id AND c.member_id != m.id) AS family_count,
       (SELECT COALESCE(SUM(cents),0) FROM mv_charge c WHERE c.member_id = m.id AND c.status = 'offen') AS open_cents,
-      (SELECT COUNT(*) FROM mv_age_notice a WHERE a.member_id = m.id AND a.status = 'offen') AS age_open,
+      (SELECT COUNT(*) FROM mv_age_notice a WHERE a.member_id = m.id AND a.status = 'offen' AND a.kind != 'alone') AS age_open,
+      (SELECT COUNT(*) FROM mv_age_notice a WHERE a.member_id = m.id AND a.status = 'offen' AND a.kind = 'alone') AS alone_open,
       (SELECT group_concat(kind) FROM mv_change x WHERE x.member_id = m.id AND x.status = 'offen' AND x.kind IN ('eintritt','austritt','rueckkehr')) AS pend,
       (SELECT json_group_array(json_object('id', f.id, 'first_name', f.first_name, 'last_name', f.last_name, 'until', f.until)) FROM mv_former_name f WHERE f.member_id = m.id) AS former
     FROM members m LEFT JOIN mv_person p ON p.member_id = m.id LEFT JOIN mv_bank b ON b.member_id = m.id
-    WHERE m.kind = 'mitglied' AND m.deleted = 0 ORDER BY name_key(m.name, m.kind)`).all(day, day, day, day);
+    WHERE m.kind = 'mitglied' AND m.deleted = 0 ORDER BY name_key(m.name, m.kind)`).all(day, day, day, day, day);
+  const ringOf = new Map();   // ungültiger Zahlungsweg (Kreis): Mitglieder des Kreises und wer darüber zahlt
+  const lf = id => (x => (x ? C.require('./db').lastFirst(x.name, x.kind) : '…'))(C.db.prepare('SELECT name, kind FROM members WHERE id = ?').get(id));
+  for (const g of store.payerRings()) { const names = g.ids.map(lf); for (const mid of [...g.ids, ...g.via]) ringOf.set(mid, { key: g.key, text: g.text, ids: g.ids, names, member: g.ids.includes(mid) }); }   // names: auch für Abteilungsleitungen, deren Liste nicht alle enthält
   return rows.map(r => {
     const exited = Boolean(r.exit_date && r.exit_date < day);
     const ms = r.payment === 'lastschrift' && !r.payer_id ? mandateState({ iban: r.iban_raw, mandate_ref: r.mandate_ref, mandate_date: r.mandate_date, mandate_last_used: r.mandate_last_used, mandate_revoked: r.mandate_revoked }) : null;
@@ -105,7 +119,8 @@ function listRows(q = {}) {
       depts: r.depts || '', dept_ids: r.dept_ids ? r.dept_ids.split(',').map(Number) : [], fees: r.fees || '', fee_ids: r.fee_ids ? r.fee_ids.split(',').map(Number) : [],
       payer_id: r.payer_id, payer_name: r.payer_name, dependents: r.dependents, family_of: r.family_of, family_head_name: r.family_head_name, family_count: r.family_count, payment: r.payment || 'lastschrift', email: r.email, mobile: r.mobile || r.phone, city: r.city,
       complete: Boolean(r.complete), pending: Boolean(r.pending), open_cents: r.open_cents, former: r.former ? formerList(r.id, r, JSON.parse(r.former).sort((a, b) => String(b.until).localeCompare(String(a.until)) || b.id - a.id)) : [],
-      issues: [r.family_of && r.fee_ids && 'eigener Beitrag trotz Familienmitgliedschaft', !r.complete && 'ohne Mitgliedsdaten', r.complete && !exited && !r.anonymized_at && sepaRequired() && payNeedsSepa(r) && r.payment !== 'lastschrift' && 'Zahlart nicht Lastschrift', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', !exited && ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', !exited && !r.anonymized_at && !r.birth_date && 'Geburtsdatum fehlt', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
+      ring: ringOf.get(r.id) || null,
+      issues: [ringOf.has(r.id) && 'Zahlungsweg ungültig', r.family_of && r.fee_ids && 'eigener Beitrag trotz Familienmitgliedschaft', !r.complete && 'ohne Mitgliedsdaten', r.complete && !exited && !r.anonymized_at && sepaRequired() && payNeedsSepa(r) && r.payment !== 'lastschrift' && 'Zahlart nicht Lastschrift', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', !exited && ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', r.alone_open && !exited && 'Allein im Familienbeitrag', !exited && !r.anonymized_at && !r.birth_date && 'Geburtsdatum fehlt', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
   }).filter(r => {
     if (q.status === 'aktuell' && (r.status === 'ausgetreten' || r.status === 'anonym')) return false;
     if (q.status && !['aktuell', 'alle'].includes(q.status) && r.status !== q.status) return false;
@@ -127,8 +142,8 @@ function detail(id, user) {
   const bank = bankRow(id);
   // Zahlergruppe (Geld) und Familienmitgliedschaft (Familienbeitrag) getrennt – siehe store.js
   const pg = store.payerGroup(id);
-  const payerRows = pg.members.length > 1 ? C.db.prepare(`SELECT m.id, m.name, p.birth_date, p.sales_mode FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.id IN (${pg.members.map(() => '?').join(',')})`).all(...pg.members)
-    .map(r => ({ id: r.id, name: r.name, age: fees.ageAt(r.birth_date, today()), head: r.id === pg.head, sales_mode: r.sales_mode || 'payer' })) : [];
+  const payerRows = pg.members.length > 1 ? C.db.prepare(`SELECT m.id, m.name, p.birth_date, p.exit_date, p.sales_mode FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.id IN (${pg.members.map(() => '?').join(',')})`).all(...pg.members)
+    .map(r => ({ id: r.id, name: r.name, age: fees.ageAt(r.birth_date, today()), head: r.id === pg.head, sales_mode: r.sales_mode || 'payer', exit_date: r.exit_date || null })) : [];
   const famHead = store.familyHead(id);
   const famRows = famHead ? store.familyMembers(famHead).map(r => ({ id: r.id, name: r.name, age: r.age, role: r.role, head: r.role === 'oberhaupt', exit_date: r.exit_date || null })) : [];
   const appState = C.require('./memberapp').memberState(id);
@@ -139,13 +154,15 @@ function detail(id, user) {
     former: formerList(id, p),
     bank: bank ? (perms.includes('mitglieder_bank') ? { ...bank, state: mandateState(bank), holder_is_name: holderIs(bank.holder, p) } : { masked: sepa.maskIban(bank.iban), mandate_ref: bank.mandate_ref, mandate_date: bank.mandate_date, state: mandateState(bank), hidden: true }) : null,
     missing: missingOf(p, bank, feeRows(id).some(f => !f.end_date || f.end_date >= today())),
-    departments: deptRows(id), fees: feeRows(id), payerGroup: payerRows, payer: p.payer_id ? (x => x ? { id: x.id, name: x.name } : null)(personRow(store.payerOf(id))) : null,   // nur Name – der Zahler kann außerhalb der eigenen Abteilung liegen
+    payerRing: (c => (c.ring ? { text: store.ringText(c.ring), ids: c.ring, names: c.ring.map(x => (r => (r ? C.require('./db').lastFirst(r.name, 'mitglied') : '…'))(personRow(x))), member: c.ring.includes(id) } : null))(store.payerChain(id)),
+    departments: deptRows(id), fees: feeRows(id), payerGroup: payerRows, payer: p.payer_id ? (x => x ? { id: x.id, name: x.name } : null)(personRow(store.payerOf(id) === id ? p.payer_id : store.payerOf(id))) : null,   // nur Name – der Zahler kann außerhalb der eigenen Abteilung liegen
     family: famRows, familyHead: famHead && famHead !== id ? (x => x ? { id: x.id, name: x.name } : null)(personRow(famHead)) : null, familyFee: Boolean(store.familyFee(id)),
     honors: C.db.prepare('SELECT * FROM mv_honor WHERE member_id = ? ORDER BY date DESC').all(id), no_congrats: shared.congratsOff(id),
     functions: C.db.prepare('SELECT * FROM mv_function WHERE member_id = ? ORDER BY to_date IS NOT NULL, from_date DESC').all(id),
     documents: perms.includes('mitglieder_dokumente') ? [...C.db.prepare('SELECT id, kind, title, mime, size, created_at, by_user FROM mv_document WHERE member_id = ? ORDER BY created_at DESC').all(id), ...otherDocuments(id, perms)].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))) : null,
     charges: perms.includes('mitglieder_finanzen') ? C.db.prepare(`SELECT c.*, (SELECT name FROM members WHERE id = c.for_member_id) AS for_name FROM mv_charge c WHERE c.member_id = ? OR c.for_member_id = ? ORDER BY c.due_date DESC, c.id DESC LIMIT 200`).all(id, id) : null,
     history: C.db.prepare('SELECT * FROM mv_history WHERE member_id = ? ORDER BY id DESC LIMIT 150').all(id),
+    first_year: shared.firstYear ? shared.firstYear.fyState(id) : null,   // erstes Jahr: Wahl, Zeitraum, schon abgerechnet?
     dunning: perms.includes('mitglieder_finanzen') ? shared.dunningInfo(id) : null,
     app: { device: appState.device, access: appState.access }, drinksOpen,
     changes: C.db.prepare("SELECT id, kind, created_at FROM mv_change WHERE member_id = ? AND status = 'offen'").all(id),
@@ -202,6 +219,7 @@ function savePerson(id, fields, user) {
   const cur = C.db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(id);
   const keys = Object.keys(fields).filter(k => store.PERSON_FIELDS.includes(k));
   if (!keys.length) return;
+  if (keys.includes('payer_id') && fields.payer_id && fields.payer_id !== cur.payer_id) { const err = store.payerError(id, fields.payer_id); if (err) throw new Error(err); }   // Zahlungsweg: zentrale Prüfung (kein Kreis, keine Selbstzahlung)
   const shown = (k, v) => k === 'notes' ? (v ? '…' : '') : (k === 'payer_id' || k === 'family_of') && v ? (C.db.prepare('SELECT name FROM members WHERE id = ?').get(v) || {}).name || v : v;   // Verlauf: Namen statt Nummern
   for (const k of keys) store.hist(id, user, LABEL[k] || k, shown(k, cur[k]), shown(k, fields[k]));
   C.db.prepare(`UPDATE mv_person SET ${keys.map(k => `${k} = ?`).join(', ')}, updated_at = ? WHERE member_id = ?`).run(...keys.map(k => fields[k]), nowTs(), id);
@@ -544,7 +562,13 @@ function activate(ctx) {
   admin.get('/member/:id/exit-notes', P, (req, res) => {
     const id = int(req.params.id);
     if (!personRow(id)) return bad(res, 'Mitglied nicht gefunden.', 404);
-    res.json({ notes: ctx.callHooksSync('exitNotes', id).map(x => x.result).flat().filter(t => typeof t === 'string').slice(0, 10) });
+    const day = isDate(String(req.query.date || '')) ? String(req.query.date) : today(), own = [];
+    const p = personRow(id), head = p.family_of && p.family_of !== id ? personRow(p.family_of) : null, ff = head && store.familyFee(head.id);
+    if (ff) {   // Angehörige/r tritt aus: bleibt danach niemand in der Familie, ist das Oberhaupt allein im Familienbeitrag
+      const rest = ctx.db.prepare('SELECT 1 FROM mv_person x JOIN members m ON m.id = x.member_id WHERE x.family_of = ? AND x.member_id NOT IN (?, ?) AND m.deleted = 0 AND (x.exit_date IS NULL OR x.exit_date > ?)').get(head.id, head.id, id, day);
+      if (!rest) own.push(`Danach ist ${ctx.require('./db').lastFirst(head.name, 'mitglied')} allein im Familienbeitrag „${ff.fee_name}“. Unter Beiträge & Abteilungen › Altersstufen erscheint ein Hinweis, den Beitrag umzustellen.`);
+    }
+    res.json({ notes: [...own, ...ctx.callHooksSync('exitNotes', id).map(x => x.result).flat().filter(t => typeof t === 'string')].slice(0, 10) });
   });
   admin.post('/member/new-document', P, express.raw({ type: () => true, limit: DOC_MAX + 1024 }), (req, res) => {
     let name = ''; try { name = decodeURIComponent(String(req.get('X-Filename') || '')); } catch (e) { name = ''; }
@@ -576,6 +600,7 @@ function activate(ctx) {
     if (f0.mobile && String(f0.mobile).replace(/\D/g, '').length < 7) return bad(res, 'Bitte eine gültige Handynummer eintragen.');
     if (famHead) { const err = familyError({ id: null, name: `${f0.first_name} ${f0.last_name}`, birth_date: f0.birth_date, family_of: null }, famHead, ['kind', 'partner'].includes(b.family_role) ? b.family_role : undefined); if (err) return bad(res, err); }
     if (payerIn && !personRow(payerIn)) return bad(res, 'Zahler nicht gefunden.');
+    { const via = famHead || payerIn, err = via && store.payerError(0, store.payerOf(via)); if (err) return badAt(res, err, 'rel'); }   // 0 = das neue Mitglied (noch ohne Nummer)
     // von Hand ausgefüllte Beitrittserklärung gehört dazu (mit Unterschrift auf dem Tablet geht es über „Beitrittserklärung am Tablet“)
     const doc = ctx.db.prepare('SELECT * FROM mv_document WHERE id = ? AND member_id IS NULL AND application_id IS NULL AND by_user = ?').get(int(b.doc_id), uname(req));
     if (!doc) return bad(res, 'Bitte die unterschriebene Beitrittserklärung hochladen (PDF oder Foto).');
@@ -596,12 +621,16 @@ function activate(ctx) {
         bank = { iban: ib.iban, holder, mandate_date: b.mandate_date, bic: (sepa.checkBic(b.bic || '').bic) || null };
       }
     }
+    // erstes Jahr: Anfänger (frei) oder Vereinswechsler (anteilig/voll) – Pflicht, wenn Beitragsart oder Zusatzbeitrag „Eintrittsjahr frei“ vorsieht
+    const fy = shared.firstYear.fyInput(b.first_year, [fee && fee.id], [int(b.department_id) || (req.mvScope ? Number(b.department_id) || req.mvScope[0] : 0)]);
+    if (fy.error) return bad(res, fy.error);
     // Alles in einer Transaktion: Kern-Konto, Vereinsdaten, Dokument, Beitrag, Bank, Abteilung – entweder ganz oder gar nicht
     // (z. B. doppelte Mandatsreferenz darf kein halbes Mitglied ohne Beitrag und Bank hinterlassen)
     let id, pending = false;
     try {
       ctx.db.transaction(() => {
         id = createPerson(pi.fields, uname(req));
+        shared.firstYear.fySet(id, fy.value, uname(req));
         ctx.db.prepare('UPDATE mv_document SET member_id = ? WHERE id = ?').run(id, doc.id);
         store.hist(id, uname(req), 'Dokument', null, doc.title);
         if (fee) {
@@ -722,7 +751,7 @@ function activate(ctx) {
   try {
     for (const r of ctx.db.prepare('SELECT x.member_id, x.payer_id, x.family_of FROM mv_person x WHERE x.family_of IS NOT NULL AND x.family_of != x.member_id').all()) {
       const want = store.payerOf(r.family_of);
-      if (want && want !== r.member_id && r.payer_id !== want && !ctx.db.prepare('SELECT 1 FROM mv_person WHERE payer_id = ? AND member_id != ?').get(r.member_id, r.member_id)) {
+      if (want && want !== r.member_id && r.payer_id !== want && !store.payerError(r.member_id, want) && !store.payerChain(r.member_id).ring && !ctx.db.prepare('SELECT 1 FROM mv_person WHERE payer_id = ? AND member_id != ?').get(r.member_id, r.member_id)) {   // Kreis: nichts still ändern (Reparatur in der Verwaltung)
         ctx.db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(want, r.member_id);
         store.hist(r.member_id, 'System', 'Zahler', null, `${(personRow(want) || {}).name || want} (Oberhaupt der Familienmitgliedschaft)`);
       }
@@ -736,14 +765,13 @@ function activate(ctx) {
     { const me = personRow(id);
       if (me && me.family_of) {   // Familienmitgliedschaft: Geld läuft immer über das Oberhaupt (bzw. dessen Zahler) – nur der Verkauf ist einstellbar
         const want = store.payerOf(me.family_of);
-        if (payer && store.payerOf(payer) !== want) return bad(res, `${me.name} gehört zur Familienmitgliedschaft von ${(personRow(me.family_of) || {}).name || '…'} – gezahlt wird über das Oberhaupt. Erst unter „Familienmitgliedschaft“ lösen.`);
+        if (payer && store.payerOf(payer) !== want) return badAt(res, `${me.name} gehört zur Familienmitgliedschaft von ${(personRow(me.family_of) || {}).name || '…'} – gezahlt wird über das Oberhaupt. Erst unter „Familienmitgliedschaft“ lösen.`, 'payer');
         payer = want;
       } }
     if (payer) {
-      if (personRow(payer)) payer = store.payerOf(payer);   // zahlt der Gewählte selbst über jemanden, gilt dessen Hauptzahler
-      if (payer === id) return bad(res, 'Ein Mitglied kann nicht für sich selbst als Zahler eingetragen werden.');
       if (!personRow(payer)) return bad(res, 'Zahler nicht gefunden.');
-      if (store.payerOf(payer) === id) return bad(res, 'Das ergäbe einen Kreis – der Zahler zahlt schon über dieses Mitglied.');
+      const err = store.payerError(id, payer); if (err) return badAt(res, err, 'payer');   // zentrale Prüfung: Selbstzahlung, Kreis, ungültiger Weg des Zahlers
+      payer = store.payerOf(payer);   // zahlt der Gewählte selbst über jemanden, gilt dessen Hauptzahler
       if (ctx.db.prepare('SELECT 1 FROM mv_person WHERE payer_id = ? AND member_id != ?').get(id, id)) return bad(res, 'Für dieses Mitglied zahlen schon andere (es ist selbst Hauptzahler) – erst die Angehörigen umhängen.');
       store.ensurePerson(payer);
     }
@@ -751,6 +779,65 @@ function activate(ctx) {
     const mode = ['payer', 'own_payer', 'own'].includes(b.sales_mode) ? b.sales_mode : b.drinks_to_payer === false ? 'own' : (cur.sales_mode || 'payer');
     savePerson(id, { payer_id: payer, drinks_to_payer: mode === 'own' ? 0 : 1 }, uname(req));
     if (mode !== cur.sales_mode) { ctx.db.prepare('UPDATE mv_person SET sales_mode = ? WHERE member_id = ?').run(mode, id); store.hist(id, uname(req), 'Verkauf', SALES[cur.sales_mode] || null, SALES[mode]); }
+    res.json({ ok: true });
+  });
+  /** Vorab prüfen, ob „zahlt über …“ ginge (Fenster „Von Mitglied übernehmen“): dieselbe zentrale Prüfung wie beim Speichern. member=0: neues Mitglied */
+  admin.get('/payer-check', P, (req, res) => {
+    const id = int(req.query.member) || 0, payer = int(req.query.payer);
+    if (!personRow(payer)) return bad(res, 'Zahler nicht gefunden.', 404);
+    const flat = store.payerOf(payer);
+    res.json({ error: store.payerError(id, payer) || (flat !== payer && store.payerError(id, flat)) || null });
+  });
+  /* Ungültiger Zahlungsweg (Kreis, z. B. aus einem älteren Import): anzeigen und reparieren – beim Start wird nichts still geändert */
+  const ringInfo = id => {
+    const c = store.payerChain(id); if (!c.ring) return null;
+    const via = store.payerRings().find(g => g.ids.includes(c.ring[0]));
+    const people = c.ring.map(personRow).filter(Boolean).map(p => {
+      const bk = bankRow(p.id), ms = mandateState(bk);
+      const fo = p.family_of && p.family_of !== p.id ? p.family_of : null;   // eigenes Oberhaupt zählt nicht als Familienmitglied
+      return { id: p.id, name: p.name, family_of: fo, family_head: fo ? (personRow(fo) || {}).name || null : null,
+        payment: p.payment || 'lastschrift', mandate: (p.payment || 'lastschrift') === 'lastschrift' ? (ms.ok ? 'ok' : ms.reason) : null, exited: store.isExited(p) };
+    });
+    return { text: store.ringText(c.ring), ids: c.ring, names: c.ring.map(x => (r => (r ? ctx.require('./db').lastFirst(r.name, 'mitglied') : '…'))(personRow(x))), people, via: (via ? via.via : []).map(personRow).filter(Boolean).map(p => ({ id: p.id, name: p.name })) };
+  };
+  admin.get('/member/:id/payer-ring', P, (req, res) => {
+    const id = int(req.params.id); if (!personRow(id)) return bad(res, 'Mitglied nicht gefunden.', 404);
+    res.json({ ring: ringInfo(id) });
+  });
+  /** Reparieren: keep zahlt selbst, die übrigen Mitglieder des Kreises zahlen über keep (Familienmitglieder über ihr Oberhaupt); wer darüber zahlte, folgt mit */
+  admin.post('/member/:id/payer-ring/repair', P, (req, res) => {
+    if (req.mvScope) return bad(res, 'Familie und Zahler legt die Vereinsverwaltung fest.', 403);
+    const id = int(req.params.id), keep = int((req.body || {}).keep);
+    const info = ringInfo(id);
+    if (!info) return bad(res, 'Der Zahlungsweg ist gültig – nichts zu reparieren.');
+    const fam = p => p.family_of && p.family_of !== p.id;
+    if ((req.body || {}).keep === 'familie') {   // Kreis nur aus Familienmitgliedern: alle zahlen über ihr Oberhaupt
+      if (!info.people.every(fam)) return badAt(res, 'Bitte auswählen, wer selbst zahlt.', 'keep');
+      try {
+        ctx.db.transaction(() => {
+          for (const p of info.people) savePerson(p.id, { payer_id: null }, uname(req));
+          for (const p of info.people) { const want = store.payerOf(p.family_of); if (want !== p.id) savePerson(p.id, { payer_id: want }, uname(req)); }
+          store.flattenPayers();
+          if (info.ids.some(x => store.payerChain(x).ring)) throw new Error('Der Zahlungsweg ist danach noch ungültig.');
+        })();
+      } catch (e) { return bad(res, 'Nicht repariert: ' + e.message); }
+      ctx.audit(req.user, 'Mitglied: Zahlungsweg repariert', `${info.people.map(p => p.name).join(', ')} zahlen über ihr Familienoberhaupt`);
+      return res.json({ ok: true });
+    }
+    const k = info.people.find(p => p.id === keep);
+    if (!k) return badAt(res, 'Bitte auswählen, wer selbst zahlt.', 'keep');
+    if (fam(k)) return res.status(400).json({ error: `${ctx.require('./db').lastFirst(k.name, 'mitglied')} gehört zur Familienmitgliedschaft von ${ctx.require('./db').lastFirst(k.family_head || '…', 'mitglied')} – gezahlt wird über das Oberhaupt. Bitte eine andere Person wählen.`, field: 'keep' });
+    try {
+      ctx.db.transaction(() => {
+        savePerson(keep, { payer_id: null }, uname(req));
+        for (const p of info.people) if (p.id !== keep) savePerson(p.id, { payer_id: keep }, uname(req));
+        for (const p of info.people) if (p.id !== keep && fam(p) && p.family_of !== keep) { const want = store.payerOf(p.family_of); if (want !== p.id && want !== keep) savePerson(p.id, { payer_id: want }, uname(req)); }   // Familie zahlt über das Oberhaupt
+        store.flattenPayers();   // wer über ein Mitglied des Kreises zahlte: direkt auf den Hauptzahler
+        if (info.ids.some(x => store.payerChain(x).ring)) throw new Error('Der Zahlungsweg ist danach noch ungültig.');
+      })();
+    } catch (e) { return bad(res, 'Nicht repariert: ' + e.message); }
+    const others = info.people.filter(p => p.id !== keep).map(p => p.name).join(', ');
+    ctx.audit(req.user, 'Mitglied: Zahlungsweg repariert', `${k.name} zahlt selbst; ${others} über ${k.name}`);
     res.json({ ok: true });
   });
   /* Familienmitgliedschaft: Zuordnung zum Oberhaupt (dessen Familienbeitrag deckt die Person ab) – getrennt vom Zahler.
@@ -783,7 +870,7 @@ function activate(ctx) {
     const id = int(req.params.id); const b = req.body || {};
     const p = personRow(id); if (!p) return bad(res, 'Mitglied nicht gefunden.', 404);
     const head = b.family_of ? int(b.family_of) : null;
-    if (head) { const err = familyError(p, head); if (err) return bad(res, err); }
+    if (head) { const err = familyError(p, head) || (store.payerOf(head) !== id && store.payerError(id, store.payerOf(head))); if (err) return badAt(res, err, 'family'); }
     savePerson(id, { family_of: head }, uname(req));
     // Zahler folgt der Familie: dabei → Oberhaupt (bzw. dessen Zahler); gelöst → zahlt wieder selbst, wenn bisher das Oberhaupt zahlte
     if (head) { const want = store.payerOf(head); if (p.payer_id !== want) savePerson(id, { payer_id: want === id ? null : want }, uname(req)); }
@@ -954,14 +1041,22 @@ function activate(ctx) {
     });
   }
 
+  /** Angehörige, die am Tag day noch dabei sind: zahlen über id oder gehören zu seiner Familie – sortiert nach Nachname */
+  function dependentsOf(id, day = today()) {
+    const { nameKey } = ctx.require('./db');
+    return ctx.db.prepare('SELECT DISTINCT m.id, m.name, m.kind FROM mv_person x JOIN members m ON m.id = x.member_id WHERE (x.payer_id = ? OR x.family_of = ?) AND x.member_id != ? AND m.deleted = 0 AND (x.exit_date IS NULL OR x.exit_date > ?)').all(id, id, id, day)
+      .sort((a, c) => nameKey(a.name, a.kind).localeCompare(nameKey(c.name, c.kind), 'de'));
+  }
+  const depNames = deps => deps.map(d => ctx.require('./db').lastFirst(d.name, d.kind)).join(' · ');
   /* Austritt & Rückkehr */
   admin.post('/member/:id/exit', P, ar(async (req, res) => {
     const id = int(req.params.id); const b = req.body || {};
     const p = personRow(id); if (!p) return bad(res, 'Mitglied nicht gefunden.', 404);
     if (!isDate(b.exit_date)) return bad(res, 'Bitte das Austrittsdatum angeben.');
     if (p.entry_date && b.exit_date < p.entry_date) return bad(res, 'Der Austritt liegt vor dem Eintritt.');
-    const deps = ctx.db.prepare('SELECT DISTINCT m.name FROM mv_person x JOIN members m ON m.id = x.member_id WHERE (x.payer_id = ? OR x.family_of = ?) AND x.member_id != ? AND (x.exit_date IS NULL OR x.exit_date > ?)').all(id, id, id, b.exit_date);
-    if (deps.length && !b.force) return res.status(409).json({ error: `Für ${deps.map(d => d.name).join(', ')} zahlt dieses Mitglied oder es ist deren Familienoberhaupt. Diese Angehörigen bitte vorher umhängen oder mit austreten lassen.`, dependents: deps.map(d => d.name) });
+    // Angehörige (zahlen über dieses Mitglied oder gehören zu seiner Familie): mit „Angehörige mit austreten lassen“ treten genau diese mit aus – dann keine Rückfrage
+    const deps = dependentsOf(id, b.exit_date);
+    if (deps.length && !b.force && !b.withDependents) return res.status(409).json({ error: `Für ${depNames(deps)} zahlt dieses Mitglied oder es ist deren Familienoberhaupt. Diese Angehörigen bitte vorher umhängen oder mit austreten lassen.`, dependents: deps.map(d => d.name) });
     if (needConfirm(req)) {   // Abteilungsleitung: Austritt geht zur Bestätigung an die Vereinsverwaltung
       if (ctx.db.prepare("SELECT 1 FROM mv_change WHERE member_id = ? AND kind = 'austritt' AND status = 'offen'").get(id)) return bad(res, 'Für dieses Mitglied liegt schon ein Austritt zur Bestätigung vor.');
       scopeChange(req, id, 'austritt', { exit_date: b.exit_date, notice_date: isDate(b.notice_date) ? b.notice_date : null, reason: one(b.reason, 80) || null, endFees: b.endFees !== false, endDepts: b.endDepts !== false, withDependents: Boolean(b.withDependents) }, `Austritt von ${p.name} zum ${deD(b.exit_date)}`);
@@ -969,7 +1064,7 @@ function activate(ctx) {
     }
     exitMember(id, { exit_date: b.exit_date, reason: one(b.reason, 80), notice_date: isDate(b.notice_date) ? b.notice_date : null, endFees: b.endFees !== false, endDepts: b.endDepts !== false }, uname(req));
     const mit = [];   // mit ausgetretene Angehörige (für die Bestätigung)
-    if (b.withDependents) for (const d of ctx.db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(id, id, id, b.exit_date)) { mit.push(d.member_id); exitMember(d.member_id, { exit_date: b.exit_date, reason: one(b.reason, 80) }, uname(req)); }
+    if (b.withDependents) for (const d of deps) { mit.push(d.id); exitMember(d.id, { exit_date: b.exit_date, reason: one(b.reason, 80), endFees: b.endFees !== false, endDepts: b.endDepts !== false }, uname(req)); }   // Beiträge und Abteilungen wie beim Mitglied selbst
     daily();
     ctx.audit(req.user, 'Mitglied: Austritt eingetragen', `${p.name} zum ${deD(b.exit_date)}`);
     const names = [p, ...mit.map(personRow)].filter(Boolean).map(shared.exitMail.fullName);
@@ -1094,10 +1189,10 @@ function activate(ctx) {
     res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="Datenauskunft_${(out.vereinsdaten.member_no || id)}.json"` }).send(JSON.stringify(out, null, 2));
   }));
   /* Austritt vor über X Jahren (Einstellung „Erinnern nach … Jahren“, Standard 2): Liste und Sammel-Anonymisieren; mit offenen Forderungen nicht */
-  admin.get('/anonymize-due', P, (req, res) => res.json({ years: retYears(), rows: dueAnon().map(r => ({ id: r.id, name: r.name, member_no: r.member_no, exit_date: r.exit_date, open: r.open })) }));
+  admin.get('/anonymize-due', P, (req, res) => res.json({ years: retYears(), rows: dueAnon().map(r => ({ id: r.id, name: r.name, member_no: r.member_no, exit_date: r.exit_date, open: r.open, deps: r.deps })) }));
   admin.post('/anonymize-due', P, (req, res) => {
     if (!['ANONYMISIEREN', 'ANONYMIZE'].includes(String((req.body || {}).confirm || '').trim().toUpperCase())) return bad(res, 'Bitte zur Bestätigung ANONYMISIEREN eingeben.');
-    const rows = dueAnon(), go = rows.filter(r => !r.open);
+    const rows = dueAnon(), go = rows.filter(r => !r.open && !r.deps);
     for (const r of go) anonymize(r.id, uname(req));
     if (go.length) ctx.audit(req.user, 'Mitglieder anonymisiert', `${go.length} ${go.length === 1 ? 'Mitglied' : 'Mitglieder'}, Austritt vor über ${retYears()} Jahren`);
     res.json({ ok: true, n: go.length, skipped: rows.length - go.length });
@@ -1106,6 +1201,7 @@ function activate(ctx) {
     const id = int(req.params.id); const p = personRow(id);
     if (!p) return bad(res, 'Mitglied nicht gefunden.', 404);
     if (!p.exit_date || p.exit_date >= today()) return bad(res, 'Anonymisieren geht erst nach dem Austritt.');
+    { const deps = dependentsOf(id); if (deps.length) return bad(res, `Über dieses Mitglied zahlen noch ${depNames(deps)} (oder es ist deren Familienoberhaupt) – bitte zuerst umhängen oder austreten lassen.`); }
     if (ctx.db.prepare("SELECT 1 FROM mv_charge WHERE member_id = ? AND status IN ('offen','eingezogen')").get(id)) return bad(res, 'Es gibt noch offene Forderungen – erst ausgleichen oder stornieren.');
     if (!['ANONYMISIEREN', 'ANONYMIZE'].includes(String((req.body || {}).confirm || '').trim().toUpperCase())) return bad(res, 'Bitte zur Bestätigung ANONYMISIEREN eingeben.');
     anonymize(id, uname(req));
@@ -1219,7 +1315,7 @@ function activate(ctx) {
     const y = retYears(); if (!y) return [];
     const { nameKey } = ctx.require('./db');
     return ctx.db.prepare('SELECT p.member_id AS id, m.name, p.member_no, p.exit_date FROM mv_person p JOIN members m ON m.id = p.member_id WHERE p.anonymized_at IS NULL AND p.exit_date IS NOT NULL AND p.exit_date < ?')
-      .all(fees.addMonths(today(), -12 * y)).map(r => ({ ...r, open: Boolean(ctx.db.prepare("SELECT 1 FROM mv_charge WHERE member_id = ? AND status IN ('offen','eingezogen')").get(r.id)) }))
+      .all(fees.addMonths(today(), -12 * y)).map(r => ({ ...r, open: Boolean(ctx.db.prepare("SELECT 1 FROM mv_charge WHERE member_id = ? AND status IN ('offen','eingezogen')").get(r.id)), deps: dependentsOf(r.id).length > 0 }))
       .sort((a, b) => nameKey(a.name, 'mitglied').localeCompare(nameKey(b.name, 'mitglied'), 'de'));
   }
   function settingsView(user) {
@@ -1299,6 +1395,7 @@ function activate(ctx) {
   require('./lib/dokzip').register(shared);   // Dokumente als ZIP (je Mitglied und gesammelt)
   require('./lib/money').register(shared);
   require('./lib/abgerechnet').register(shared);   // „Abgerechnet bis“ für alle setzen (braucht runPreview aus money)
+  require('./lib/freijahr').register(shared);   // „Eintrittsjahr frei“ zu weit vermerkt: Liste und Korrektur
   require('./lib/mahnung').register(shared);
   require('./lib/kontoauszug').register(shared);
   require('./lib/agecheck').register(shared);
@@ -1418,11 +1515,10 @@ function activate(ctx) {
   ctx.hooks.tabletMembers = () => {
     const rows = ctx.db.prepare(`SELECT p.member_id, p.payer_id FROM mv_person p JOIN members m ON m.id = p.member_id
       WHERE p.payer_id IS NOT NULL AND p.payer_id != p.member_id AND p.sales_mode = 'payer' AND m.deleted = 0 AND m.active = 1 AND p.anonymized_at IS NULL`).all();
-    // Hauptzahler wie store.payerOf (Kette höchstens 3 Stufen), aber aus einer Abfrage statt zwei je Person – läuft bei jedem Laden
-    // der Verkaufsseite und alle 60 s (bei 500 Mitgliedern vorher rund 400 Abfragen)
-    const pay = new Map(ctx.db.prepare('SELECT member_id, payer_id FROM mv_person WHERE payer_id IS NOT NULL').all().map(r => [r.member_id, r.payer_id]));
-    const payerOf = id => { for (let i = 0; i < 3; i++) { const p = pay.get(id); if (!p || p === id) return id; id = p; } return id; };
-    return { hidden: rows.filter(r => payerOf(r.member_id) !== r.member_id).map(r => r.member_id) };
+    // Hauptzahler aus einem Schnappschuss (eine Abfrage statt zwei je Person) – läuft bei jedem Laden der Verkaufsseite und alle 60 s.
+    // Bei einem Kreis (ungültiger Zahlungsweg) zahlt jede Person selbst und bleibt sichtbar – sonst verschwänden beide aus der Liste.
+    const rel = store.relations();
+    return { hidden: rows.filter(r => store.payerOf(r.member_id, rel) !== r.member_id).map(r => r.member_id) };
   };
   /* für andere Module (Buchhaltung): Anschrift eines Mitglieds, Forderung anlegen/abfragen/stornieren */
   /* alte Schlüsselnummern (Freitext aus verein.cloud) für das Modul Schlüssel: „übernehmen“ statt doppelt führen */
@@ -1486,7 +1582,7 @@ function activate(ctx) {
     { table: 'mv_member_fee', date: 'start_date' },
     { table: 'mv_member_department', date: null, cols: ['id', 'member_id', 'department_id', 'entry_date', 'exit_date', 'status', 'fee_id', 'fee_free', 'booked_until'] },   // Zusatzbeitrag „abgerechnet bis“
     { table: 'mv_booked_set', date: 'created_at' },   // „Abgerechnet bis“ gesammelt gesetzt bzw. zurückgenommen
-    { table: 'mv_person', date: null, cols: ['member_id', 'member_no', 'salutation', 'title', 'first_name', 'last_name', 'street', 'zip', 'city', 'country', 'entry_date', 'exit_date', 'payer_id', 'family_of', 'payment', 'anonymized_at'] },
+    { table: 'mv_person', date: null, cols: ['member_id', 'member_no', 'salutation', 'title', 'first_name', 'last_name', 'street', 'zip', 'city', 'country', 'entry_date', 'exit_date', 'payer_id', 'family_of', 'payment', 'first_year', 'anonymized_at'] },
   ];
   ctx.hooks.gobdKeys = () => [
     { key: 'mv.beitrag', label: 'Mitgliedsbeiträge (Hauptverein)', sphere: 'ideell' },
@@ -1528,6 +1624,8 @@ function activate(ctx) {
       // Angehörige, die über das alte Konto zahlten, zahlen jetzt über das Zielkonto; das Zielkonto zahlt nie über sich selbst
       ctx.db.prepare('UPDATE mv_person SET payer_id = NULL WHERE member_id = ? AND payer_id = ?').run(intoId, fromId);
       ctx.db.prepare('UPDATE mv_person SET payer_id = ? WHERE payer_id = ? AND member_id != ?').run(intoId, fromId, intoId);
+      { const c = store.payerChain(intoId); if (c.ring && c.ring.includes(intoId)) throw new Error(`Zusammenführen ergäbe einen Kreis im Zahlungsweg: ${store.ringText(c.ring)}. Bitte vorher beim Mitglied unter „Zahlung & Familie“ den Zahler ändern.`); }   // die Transaktion des Kerns nimmt alles zurück
+      store.flattenPayers();   // wer über das alte Konto zahlte und das Zielkonto zahlt über jemanden: direkt auf den Hauptzahler
       ctx.db.prepare('UPDATE mv_person SET family_of = NULL WHERE member_id = ? AND family_of = ?').run(intoId, fromId);
       ctx.db.prepare('UPDATE mv_person SET family_of = ? WHERE family_of = ? AND member_id != ?').run(intoId, fromId, intoId);
       ctx.db.prepare('UPDATE mv_history SET member_id = ? WHERE member_id = ?').run(intoId, fromId);

@@ -35,6 +35,10 @@ The page shows all members as a list, sorted by last name and first name. The co
 
 At the top you see a **red warning box** if members are missing required details (member data, fee, bank details or SEPA mandate). “Show” jumps to the “With note” filter. Anyone missing required details is missing from the fee run.
 
+If two members pay for each other (or a longer chain runs in a loop, e.g. from an older import), a second red box **“Invalid payment chain: … pay for each other”** appears at the top; the people affected carry the note “Invalid payment chain”, on the member as well. The fee run skips them until the chain is repaired. **Repair …** opens a window: you choose **who pays themselves**; the others then pay via this person (family members always via the head of the family), as does anyone who has paid via a member of the loop so far. Every change is recorded in the history and the log. Clubwerk does not change any of this by itself at start-up.
+
+![The “Repair payment chain” window: who pays themselves?](bild: seite=mitglieder; klick=[data-ring]; ziel=dialog)
+
 A **missing date of birth** also appears in the list as the note “Geburtsdatum fehlt” (filter “With note”) and under Settings › Data quality. Such members are missing from the LSB report and count as adults for age bands and the family rate; the fee run warns about this in its preview.
 
 For searching and filtering there are:
@@ -51,6 +55,7 @@ Clicking a row opens the member. “← All members” takes you back, with the 
 Required fields carry the note “(required)” – the same throughout the admin area. A member is only created **completely**: name, date of birth, joining date, address, email, mobile, fee, department and payment method. For direct debit, the account holder (Clubwerk suggests the name), IBAN and the date of the SEPA mandate are needed as well. On top comes the **signed membership application** as a PDF or photo (choose the file or drag it into the box).
 
 - Clubwerk assigns the **member number** itself if the field stays empty.
+- **First year:** “as fee type (default)”, “free (beginner)”, “charge pro rata” or “charge in full”. If the fee type or the additional fee of the chosen department has “Joining year free”, the window asks explicitly “beginner or transferring from another club?”: beginners pay nothing in the first year, members transferring from another club pay pro rata.
 - For the **fee** only the types that fit the age can be chosen; the rest are greyed out. Enter the date of birth first.
 - If “Direct debit is required” is set in the settings, direct debit is the only payment method.
 - If the new member is to sign on the tablet, use “+ Membership application” on the “Applications” tab instead.
@@ -69,6 +74,9 @@ The import takes over members from **S-Verein/SPG-Verein**, **WISO Mein Verein**
 1. **Choose the file.** Clubwerk recognises the program from the column headings and suggests which column goes where. On the right, the values of one person are shown as an example. Where the suggestion is wrong, set the column yourself. At the bottom you enter up to when the fees were already billed in the old program (“Fees billed so far until”) and whether the SEPA mandates have already been used. That way the next fee run does not bill anything twice.
 2. **Preview.** Tiles show how many people are created or updated. Below that you check what Clubwerk cannot decide on its own. For departments and fee types with “similar names” you must choose.
 3. **Apply.** Clubwerk recognises existing people (also those from sales) by number or name and updates them; PINs are kept. Payers and families are linked. “Back to mapping” goes back one step at any time.
+   If a “different payer” would close a loop (A pays via B, B via A), Clubwerk does not link that row: the preview warns about it, and after applying it is listed with row and reason under “Not linked”. You then set the payer for the member.
+
+In the first step **First year of new members** sets how the first fee year of newly created people is billed (default: as fee type). Existing members keep their setting.
 
 The preview has four check cards:
 
@@ -172,6 +180,8 @@ Which fee types the member has, with amount, frequency, “from”, “to” and
 
 If the member is a family member, they have no fee of their own; it is part of the head of the family's family fee.
 
+Below the list is the **first year** with its period (fee year of joining) and the choice: “as fee type (default)”, “free (beginner)”, “charge pro rata” or “charge in full”. It applies to all fees and additional fees of the member in the first year. **Change …** works as long as nothing has been billed in the first year. If part of it is already marked as free (“billed until” without items), Clubwerk asks whether to revert that mark; the next fee run then bills the period, with a preview. Every change is recorded in the member's history and in the log.
+
 #### Departments
 
 ![A member's “Departments” card.](bild: seite=mitglieder/mitglied/24; tab=mitgliedschaft; tabkey=detail_mitglied; ziel=.detbody > div:nth-child(2))
@@ -194,7 +204,7 @@ Two cards side by side. With “+ Honour” and “+ Position” you enter a nam
 
 ![The “Leaving” window.](bild: seite=mitglieder/mitglied/24; tab=mitgliedschaft; tabkey=detail_mitglied; klick=#mvExit; ziel=dialog)
 
-The **Leaving …** button on the right of the tab bar records the leaving: date (the earliest date based on notice period and financial year is suggested, counted from when the cancellation was received), date the cancellation was received, reason and, if you like, the cancellation letter as a file. You decide whether fees and departments end at the leaving date and whether relatives leave too. Until the leaving date everything stays as before. After that the member disappears from the tablet and the app; the data stays until anonymised. A leaving that has not yet taken effect can be withdrawn with **Revert leaving**, one that has been completed with **Rejoin …** (the member gets a new number and needs a new mandate for direct debit).
+The **Leaving …** button on the right of the tab bar records the leaving: date (the earliest date based on notice period and financial year is suggested, counted from when the cancellation was received), date the cancellation was received, reason and, if you like, the cancellation letter as a file. You decide whether fees and departments end at the leaving date and whether relatives leave too. The **Let relatives leave too** tick box names everyone who pays via the member or belongs to their family; with the tick they leave on the same day, and their fees and departments end as for the member. Without the tick, Clubwerk asks before the member leaves alone. If the last child or the partner of a family leaves, the window points out that the head of the family will then be alone in the family fee. A member via whom others still pay cannot be anonymised. Until the leaving date everything stays as before. After that the member disappears from the tablet and the app; the data stays until anonymised. A leaving that has not yet taken effect can be withdrawn with **Revert leaving**, one that has been completed with **Rejoin …** (the member gets a new number and needs a new mandate for direct debit).
 
 Under **Confirmation to the member** you choose whether the member gets an email: **Send default text** (preselected, text from Settings › “Leaving confirmation”), **Edit before sending** (subject and text with the values filled in appear in the dialogue and can be changed for this one time) or **No email** (e.g. after a death). Below it you see which address the email goes to; without their own address it goes to the head of family, otherwise to the payer. If there is no address or no mailbox is set up, only “No email” remains, with the reason. Sending is recorded in the member's history and in the log; if it fails, the leaving is still recorded and the message names the reason. If a department head reports the leaving, the club administration chooses when confirming. Every email sent this way is listed with its full text under Messages › Sent › Automatic.
 
@@ -207,6 +217,8 @@ There are two **separate** assignments here, side by side in two cards.
 ![The “Who pays?” card with the payer group.](bild: seite=mitglieder/mitglied/7; tab=zahlung; tabkey=detail_mitglied; ziel=.detbody > .mv-two > div:nth-child(1))
 
 This is purely a money relationship: fees, add-on fees and sales run through the account and mandate of the **payer**. It can also be a father paying for his adult child. Below it is the payer group. Under “Sales on the tablet” you set whether a relative books on the tablet via the main payer or has their own entry. The **payment method** (direct debit, invoice, cash) applies to the payer.
+
+A payment chain always ends with someone who pays themselves. Setting a payer who already pays (also via others) for this person is refused – the message appears right at the “Payer” field. The same check applies when creating a member, with “Take over from member …”, for families, membership applications, the import and merging.
 
 #### Family membership
 
@@ -281,7 +293,7 @@ Signed applications (from the tablet or online) wait here. “Review & accept”
 
 ![The membership application to review: people, match with existing members and fee.](bild: seite=mv-antraege; klick=[data-ap]; ziel=#dialog .split table)
 
-For each person Clubwerk suggests whether they are **created new** or **merged** with an existing member (e.g. if someone is already known in sales), and which fee applies. On the right of the window is the signed application as a PDF with a check value. “Accept & create members” creates everything; “Reject” rejects it (with an internal reason). A department head can only endorse an application; the club administration then has to accept it.
+For each person Clubwerk suggests whether they are **created new** or **merged** with an existing member (e.g. if someone is already known in sales), and which fee applies. On the right of the window is the signed application as a PDF with a check value. Below “Joining on” you choose the **first year**; if a chosen fee type or department has “Joining year free”, the question “beginner or transferring from another club?” must be answered. “Accept & create members” creates everything; “Reject” rejects it (with an internal reason). A department head can only endorse an application; the club administration then has to accept it.
 
 #### Awaiting signature on tablet
 
@@ -354,6 +366,8 @@ The fields in the window:
 - **Name** (as on the form) and **Amount**.
 - **Frequency:** yearly to monthly or “one-off”, e.g. for an admission fee.
 - **In joining year:** “pro rata (full months)”, “full amount” or “Joining year free”.
+
+> Tip “Joining year free”: only the **fee year in which the member joined the club** is free – never a later one. The free year is meant for **beginners**: anyone transferring from another club gets “First year: charge pro rata” (or “charge in full”) on the member. With a fee year from 01.05. to 30.04. that means: joining in March → free until 30.04. of the same year; joining in July → free until 30.04. of the following year. From the next 01.05. fees are charged and collected as usual, whether yearly, half-yearly, quarterly or monthly, also for additional fees and in families. If someone only gets their fee later (assigned later, new age group, added to a department later), there is no further free year. The fee run marks the free time as “billed until”, without items; the member shows “Joining year free – next fee from …” below it. What counts is the **fee year** (Settings › “Fee year starts on the 1st”), not the financial year.
 - **Work hours per year:** empty = default of the “Duties & dates” module, 0 = none.
 - **from … years** and **up to and including … years:** a note in the fee run and a suggestion for new applications. The age at the start of the fee period is used; under the field it says what the upper limit means (“up to and including 18 → applies until the day before turning 19”). The same wording is used everywhere: “from 19”, “up to and including 18”, “12 to 18 inclusive”. If the age ranges of two fee types of the same kind overlap (e.g. “Youth up to 19” and “Adults from 19”), the window warns (“Overlaps with … – did you mean up to and including 18?”; saving is still possible) and Settings › Data quality lists it. With an overlap the higher tier always applies, including the suggestion for children growing out of the family fee.
 - **Family fee:** applies to the main payer and all relatives.
@@ -376,7 +390,7 @@ Name, federation and number of members. “+ Department” creates a new one (na
 
 ![The “Age brackets” card with two suggestions.](bild: seite=mv-stamm; ziel=#cAges)
 
-Anyone who gets older and no longer fits their fee, grows out of the family fee or moves into a higher level of the add-on fee is listed here with the occasion, current and new fee and date. **Switch** moves to the new fee from the next period, **Keep as is** remembers the decision. Until then the current fee continues.
+Anyone who gets older and no longer fits their fee, grows out of the family fee or moves into a higher level of the add-on fee is listed here – as is a head of family who is alone in the family fee (**Family fee without relatives**: no relatives left, or all of them are leaving; “from” is then the period after the last leaving date). The list shows the occasion, current and new fee and date. **Switch** moves to the new fee from the next period, **Keep as is** remembers the decision. Until then the current fee continues.
 
 ### “Statistics” tab {#mv-auswertung}
 
@@ -516,11 +530,15 @@ The fee run creates the fees as **open items**: for all members, pro rata from j
 - **Also debit sales:** includes the members' open sales accounts (only with the Sales module).
 - **Include unworked work hours in billing:** only with the “Duties & dates” module.
 
-**Preview** shows what would be created: for each payer the positions with type, due date and amount, total and warnings (e.g. missing details). With the tick boxes you take single positions out. **Bill fees** creates the items. After that “Continue to collection” leads to the direct debits; whoever pays by invoice or cash gets their invoice under “Invoices & reminders”.
+**Preview** shows what would be created: for each payer the positions with type, due date and amount, total and warnings (e.g. missing details). A note names free periods in the joining year together with the day the fee starts; with a reference date in the next fee year you already see these fees in the preview. With the tick boxes you take single positions out. Members with an invalid payment chain (loop) are skipped by the run; the warning names them until they are repaired. **Bill fees** creates the items. After that “Continue to collection” leads to the direct debits; whoever pays by invoice or cash gets their invoice under “Invoices & reminders”.
 
 #### Previous runs
 
 Each run is listed with date, type, reference date, number of positions and total. “Items” shows the items of the run. As long as none of them has been collected, **Undo run …** reverses it (the sales accounts are then open again too).
+
+#### Free joining year: marked too far
+
+This card only appears if a fee run of earlier versions marked more than the joining year as free for “Joining year free” (the fee started later than the joining). The list shows for each member (“Surname, first name”) the fee, the joining date, until when it was marked free and from when it is charged again. Nothing changes by itself. **Correct** resets “billed until” to the end of the joining year after asking you and records this in the member's history and in the log. The fees are only created in the next fee run, with a preview. Only periods are included that a Clubwerk fee run marked without items and that nobody changed afterwards with “Set billed until for everyone”.
 
 #### Set “billed until” for everyone
 

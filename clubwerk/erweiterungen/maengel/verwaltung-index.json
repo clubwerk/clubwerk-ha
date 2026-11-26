@@ -1,6 +1,6 @@
 {
  "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
- "version": "1.11.8",
+ "version": "1.12.0",
  "varianten": [
   {
    "wenn": {},
@@ -81,7 +81,7 @@
         "maengel",
         "einstellungen"
        ],
-       "field": "mgNotify",
+       "field": "stmaengelMail",
        "in": "Einstellungen › Benachrichtigungen",
        "words": "E-Mail Platzwart Hausmeister"
       },

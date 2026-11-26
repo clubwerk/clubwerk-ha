@@ -1,6 +1,6 @@
 {
  "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
- "version": "1.15.1",
+ "version": "1.16.0",
  "varianten": [
   {
    "wenn": {},
@@ -185,11 +185,12 @@
        "words": "WLAN Vereinsnetz Internet Sicherheit"
       },
       {
-       "label": "Störung und offene Tür melden",
+       "label": "Störung und offene Tür melden (E-Mail, Push)",
+       "field": "stzugangMail",
        "page": "zugang-einstellungen",
        "perm": "zugang",
        "card": "Benachrichtigungen",
-       "words": "Benachrichtigung Störung Tür offen Handy notify"
+       "words": "Benachrichtigung Störung Tür offen E-Mail Push Handy notify"
       },
       {
        "label": "Einstellungen des Zugangs übertragen",

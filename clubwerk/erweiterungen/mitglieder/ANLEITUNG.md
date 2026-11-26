@@ -35,6 +35,10 @@ Die Seite zeigt alle Mitglieder als Liste, nach Nachname und Vorname sortiert. D
 
 Oben seht ihr einen **roten Warnkasten**, wenn Mitglieder Pflichtangaben fehlen (Mitgliedsdaten, Beitrag, Bankverbindung oder SEPA-Mandat). „Anzeigen“ springt in den Filter „Mit Hinweis“. Wer Pflichtangaben fehlen, fehlt im Beitragslauf.
 
+Zahlen zwei Mitglieder gegenseitig füreinander (oder läuft eine längere Kette im Kreis, z. B. aus einem älteren Import), steht oben ein zweiter roter Kasten **„Zahlungsweg ungültig: … zahlen gegenseitig füreinander“**; die Betroffenen tragen den Hinweis „Zahlungsweg ungültig“, auch am Mitglied selbst. Der Beitragslauf überspringt sie, bis der Weg repariert ist. **Reparieren …** öffnet ein Fenster: Ihr wählt, **wer selbst zahlt**; die anderen zahlen danach über diese Person (Familienmitglieder immer über ihr Oberhaupt), ebenso alle, die bisher über ein Mitglied des Kreises zahlten. Jede Änderung steht im Verlauf und im Protokoll. Beim Start ändert Clubwerk daran nichts von selbst.
+
+![Fenster „Zahlungsweg reparieren“: wer zahlt selbst?](bild: seite=mitglieder; klick=[data-ring]; ziel=dialog)
+
 Auch ein **fehlendes Geburtsdatum** steht in der Liste als Hinweis „Geburtsdatum fehlt“ (Filter „Mit Hinweis“) und unter Einstellungen › Datenqualität. Solche Mitglieder fehlen in der LSB-Meldung und gelten bei Altersstufen und im Familientarif als erwachsen; der Beitragslauf warnt davor in der Vorschau.
 
 Zum Suchen und Filtern gibt es:
@@ -51,6 +55,7 @@ Ein Klick auf eine Zeile öffnet das Mitglied. „← Alle Mitglieder“ führt 
 Pflichtfelder tragen den Zusatz „(Pflicht)“ – in der ganzen Verwaltung gleich. Ein Mitglied wird nur **vollständig** angelegt: Name, Geburtsdatum, Eintritt, Anschrift, E-Mail, Handy, Beitrag, Abteilung und Zahlart. Bei Lastschrift gehören Kontoinhaber (Clubwerk schlägt den Namen vor), IBAN und das Datum des SEPA-Mandats dazu. Dazu kommt die **unterschriebene Beitrittserklärung** als PDF oder Foto (Datei wählen oder ins Feld ziehen).
 
 - Die **Mitgliedsnummer** vergibt Clubwerk selbst, wenn das Feld leer bleibt.
+- **Erstes Jahr:** „wie Beitragsart (Vorgabe)“, „frei (Anfänger)“, „anteilig berechnen“ oder „voll berechnen“. Sieht die Beitragsart oder der Zusatzbeitrag der gewählten Abteilung „Eintrittsjahr frei“ vor, fragt das Fenster ausdrücklich „Anfänger oder Vereinswechsler?“: Anfänger zahlen im ersten Jahr nichts, wer aus einem anderen Verein wechselt, zahlt anteilig.
 - Beim **Beitrag** sind nur die Arten wählbar, die zum Alter passen; die übrigen sind ausgegraut. Dafür zuerst das Geburtsdatum eintragen.
 - Ist in den Einstellungen „Lastschrift ist Pflicht“ gesetzt, gibt es nur die Zahlart Lastschrift.
 - Soll das neue Mitglied am Tablet unterschreiben, nehmt stattdessen „+ Beitrittserklärung“ im Reiter „Anträge“.
@@ -69,6 +74,9 @@ Der Import übernimmt Mitglieder aus **S-Verein/SPG-Verein**, **WISO Mein Verein
 1. **Datei wählen.** Clubwerk erkennt das Programm an den Spaltenköpfen und schlägt vor, welche Spalte wohin gehört. Rechts stehen als Beispiel die Werte einer Person. Wo der Vorschlag nicht passt, stellt ihr die Spalte selbst ein. Unten tragt ihr ein, bis wann die Beiträge im alten Programm schon abgerechnet sind („Beiträge bisher abgerechnet bis“) und ob die SEPA-Mandate schon benutzt wurden. So rechnet der nächste Beitragslauf nichts doppelt ab.
 2. **Vorschau.** Kacheln zeigen, wie viele Personen neu angelegt oder ergänzt werden. Darunter prüft ihr, was Clubwerk nicht allein entscheiden kann. Bei „ähnlich benannten“ Abteilungen und Beitragsarten ist die Wahl Pflicht.
 3. **Übernehmen.** Vorhandene Personen (auch aus dem Verkauf) erkennt Clubwerk an Nummer oder Namen und ergänzt sie; PINs bleiben erhalten. Zahler und Familien werden verknüpft. „Zurück zur Zuordnung“ geht jederzeit einen Schritt zurück.
+   Würde ein „Abweichender Zahler“ einen Kreis schließen (A zahlt über B, B über A), verknüpft Clubwerk diese Zeile nicht: Die Vorschau warnt davor, und nach dem Übernehmen steht sie mit Zeile und Grund unter „Nicht verknüpft“. Den Zahler legt ihr danach beim Mitglied fest.
+
+Im ersten Schritt legt **Erstes Jahr neuer Mitglieder** fest, wie das erste Beitragsjahr der neu angelegten Personen berechnet wird (Vorgabe: wie Beitragsart). Bereits vorhandene Mitglieder behalten ihre Einstellung.
 
 Die Vorschau hat vier Prüfkarten:
 
@@ -170,6 +178,8 @@ Welche Beitragsarten das Mitglied hat, mit Betrag, Rhythmus, „ab“, „bis“
 - **Abgerechnet bis:** setzt der Beitragslauf selbst. Nur ändern, wenn ihr außerhalb von Clubwerk abgerechnet habt.
 - **Beitrag entfernen …:** nur sinnvoll, solange nichts abgerechnet ist. Sonst ein Ende eintragen.
 
+Unter der Liste steht das **erste Jahr** mit seinem Zeitraum (Beitragsjahr des Eintritts) und der Wahl: „wie Beitragsart (Vorgabe)“, „frei (Anfänger)“, „anteilig berechnen“ oder „voll berechnen“. Sie gilt für alle Beiträge und Zusatzbeiträge des Mitglieds im ersten Jahr. **Ändern …** geht, solange im ersten Jahr nichts abgerechnet ist. Ist ein Teil schon als beitragsfrei vermerkt („abgerechnet bis“ ohne Posten), fragt Clubwerk, ob der Vermerk zurückgenommen werden soll; der nächste Beitragslauf berechnet den Zeitraum dann mit Vorschau. Jede Änderung steht im Verlauf des Mitglieds und im Protokoll.
+
 Ist das Mitglied Familienmitglied, hat es keinen eigenen Beitrag; er steckt im Familienbeitrag des Oberhaupts.
 
 #### Abteilungen
@@ -194,7 +204,7 @@ Zwei Karten nebeneinander. Mit „+ Ehrung“ und „+ Amt“ tragt ihr Bezeichn
 
 ![Das Fenster „Austritt“.](bild: seite=mitglieder/mitglied/24; tab=mitgliedschaft; tabkey=detail_mitglied; klick=#mvExit; ziel=dialog)
 
-Der Knopf **Austritt …** rechts in der Reiterzeile trägt den Austritt ein: Datum (vorgeschlagen ist der früheste Termin nach Kündigungsfrist und Geschäftsjahr, gerechnet ab dem Eingang der Kündigung), Eingang der Kündigung, Grund und auf Wunsch das Kündigungsschreiben als Datei. Ihr entscheidet, ob Beiträge und Abteilungen zum Austritt enden und ob Angehörige mit austreten. Bis zum Austrittstag bleibt alles wie bisher. Danach verschwindet das Mitglied am Tablet und in der App; die Daten bleiben bis zum Anonymisieren. Ein noch nicht wirksamer Austritt lässt sich mit **Austritt zurücknehmen** widerrufen, ein vollzogener mit **Wiedereintritt …** (das Mitglied bekommt eine neue Nummer und braucht bei Lastschrift ein neues Mandat).
+Der Knopf **Austritt …** rechts in der Reiterzeile trägt den Austritt ein: Datum (vorgeschlagen ist der früheste Termin nach Kündigungsfrist und Geschäftsjahr, gerechnet ab dem Eingang der Kündigung), Eingang der Kündigung, Grund und auf Wunsch das Kündigungsschreiben als Datei. Ihr entscheidet, ob Beiträge und Abteilungen zum Austritt enden und ob Angehörige mit austreten. Das Häkchen **Angehörige mit austreten lassen** nennt alle, die über das Mitglied zahlen oder zu seiner Familie gehören; mit Häkchen treten sie zum selben Tag aus, ihre Beiträge und Abteilungen enden wie beim Mitglied. Ohne Häkchen fragt Clubwerk nach, bevor das Mitglied allein austritt. Tritt das letzte Kind oder der Partner einer Familie aus, weist das Fenster darauf hin, dass das Oberhaupt danach allein im Familienbeitrag ist. Ein Mitglied, über das noch andere zahlen, lässt sich nicht anonymisieren. Bis zum Austrittstag bleibt alles wie bisher. Danach verschwindet das Mitglied am Tablet und in der App; die Daten bleiben bis zum Anonymisieren. Ein noch nicht wirksamer Austritt lässt sich mit **Austritt zurücknehmen** widerrufen, ein vollzogener mit **Wiedereintritt …** (das Mitglied bekommt eine neue Nummer und braucht bei Lastschrift ein neues Mandat).
 
 Unter **Bestätigung an das Mitglied** wählt ihr, ob das Mitglied eine E-Mail bekommt: **Standardtext senden** (vorgewählt, Text aus Einstellungen › „Austrittsbestätigung“), **Vor dem Versenden anpassen** (Betreff und Text mit den eingesetzten Werten erscheinen im Fenster und lassen sich nur für dieses Mal ändern) oder **Keine E-Mail** (z. B. bei einem Todesfall). Darunter steht, an welche Adresse die Mail geht; ohne eigene Adresse geht sie an das Familienoberhaupt, sonst an den Zahler. Fehlt eine Adresse oder ist kein Postfach eingerichtet, bleibt nur „Keine E-Mail“ mit dem Grund. Der Versand steht im Verlauf des Mitglieds und im Protokoll; klappt er nicht, ist der Austritt trotzdem eingetragen und die Meldung nennt den Grund. Meldet eine Abteilungsleitung den Austritt, wählt die Vereinsverwaltung beim Bestätigen. Jede so gesendete Mail steht mit vollem Text unter Nachrichten › Gesendet › Automatisch.
 
@@ -207,6 +217,8 @@ Hier gibt es zwei **getrennte** Zuordnungen, nebeneinander in zwei Karten.
 ![Karte „Wer zahlt?“ mit der Zahlergruppe.](bild: seite=mitglieder/mitglied/7; tab=zahlung; tabkey=detail_mitglied; ziel=.detbody > .mv-two > div:nth-child(1))
 
 Das ist eine reine Geldbeziehung: Beiträge, Zusatzbeiträge und Verkauf laufen über das Konto und Mandat des **Zahlers**. Das kann auch ein Vater für sein erwachsenes Kind sein. Darunter steht die Zahlergruppe. Bei „Verkauf am Tablet“ stellt ihr ein, ob ein Angehöriger am Tablet über den Hauptzahler bucht oder einen eigenen Eintrag hat. Die **Zahlungsart** (Lastschrift, Rechnung, bar) gilt für den Zahler.
+
+Ein Zahlungsweg endet immer bei jemandem, der selbst zahlt. Wer über ein Mitglied zahlen soll, das selbst (auch über andere) über diese Person zahlt, wird abgelehnt – die Meldung steht direkt am Feld „Zahler“. Dieselbe Prüfung gilt beim Anlegen, bei „Von Mitglied übernehmen …“, bei Familie, Beitrittserklärung, Import und Zusammenführen.
 
 #### Familienmitgliedschaft
 
@@ -281,7 +293,7 @@ Unterschriebene Anträge (vom Tablet oder online) warten hier. „Prüfen & anne
 
 ![Die Beitrittserklärung zum Prüfen: Personen, Zuordnung zum Bestand und Beitrag.](bild: seite=mv-antraege; klick=[data-ap]; ziel=#dialog .split table)
 
-Zu jeder Person schlägt Clubwerk vor, ob sie **neu angelegt** oder mit einem vorhandenen Mitglied **zusammengeführt** wird (z. B. wenn jemand schon im Verkauf geführt wird), und welcher Beitrag gilt. Rechts im Fenster steht die unterschriebene Erklärung als PDF mit Prüfwert. „Annehmen & Mitglieder anlegen“ legt alles an; „Ablehnen“ lehnt ab (mit internem Grund). Die Abteilungsleitung kann einen Antrag nur befürworten, annehmen muss ihn dann die Vereinsverwaltung.
+Zu jeder Person schlägt Clubwerk vor, ob sie **neu angelegt** oder mit einem vorhandenen Mitglied **zusammengeführt** wird (z. B. wenn jemand schon im Verkauf geführt wird), und welcher Beitrag gilt. Rechts im Fenster steht die unterschriebene Erklärung als PDF mit Prüfwert. Unter „Eintritt zum“ wählt ihr das **erste Jahr**; sieht eine gewählte Beitragsart oder Abteilung „Eintrittsjahr frei“ vor, muss die Frage „Anfänger oder Vereinswechsler?“ beantwortet sein. „Annehmen & Mitglieder anlegen“ legt alles an; „Ablehnen“ lehnt ab (mit internem Grund). Die Abteilungsleitung kann einen Antrag nur befürworten, annehmen muss ihn dann die Vereinsverwaltung.
 
 #### Warten auf Unterschrift am Tablet
 
@@ -354,6 +366,8 @@ Die Felder im Fenster:
 - **Bezeichnung** (wie auf dem Formular) und **Betrag**.
 - **Rhythmus:** jährlich bis monatlich oder „einmalig“, z. B. für eine Aufnahmegebühr.
 - **Im Eintrittsjahr:** „anteilig (volle Monate)“, „voller Betrag“ oder „Eintrittsjahr frei“.
+
+> Tipp „Eintrittsjahr frei“: Frei ist nur das **Beitragsjahr, in das der Eintritt in den Verein fällt** – nie ein späteres. Das freie Jahr ist für **Anfänger** gedacht: Wer aus einem anderen Verein wechselt, bekommt am Mitglied „Erstes Jahr: anteilig berechnen“ (oder „voll berechnen“). Bei einem Beitragsjahr vom 01.05. bis 30.04. heißt das: Eintritt im März → frei bis 30.04. desselben Jahres; Eintritt im Juli → frei bis 30.04. des Folgejahres. Ab dem nächsten 01.05. wird ganz normal berechnet und eingezogen, egal ob jährlich, halbjährlich, vierteljährlich oder monatlich, auch bei Zusatzbeiträgen und in Familien. Bekommt jemand seinen Beitrag erst später (später zugeordnet, neue Altersstufe, später in eine Abteilung eingetragen), gibt es kein weiteres freies Jahr. Der Beitragslauf vermerkt die freie Zeit als „abgerechnet bis“, ohne Posten; am Mitglied steht darunter „Eintrittsjahr frei – nächster Beitrag ab …“. Maßgeblich ist das **Beitragsjahr** (Einstellungen › „Beitragsjahr beginnt am 1.“), nicht das Geschäftsjahr.
 - **Arbeitsstunden im Jahr:** leer = Vorgabe des Moduls „Dienste & Termine“, 0 = keine.
 - **ab … Jahre** und **bis einschließlich … Jahre:** Hinweis im Beitragslauf und Vorschlag bei neuen Anträgen. Gerechnet wird mit dem Alter zu Beginn des Beitragszeitraums; unter dem Feld steht, was die Obergrenze bedeutet („bis einschließlich 18 → gilt bis zum Tag vor dem 19. Geburtstag“). Überall steht dieselbe Schreibweise: „ab 19“, „bis einschl. 18“, „12 bis einschl. 18“. Überschneiden sich die Altersbereiche zweier Beitragsarten gleicher Art (z. B. „Jugendliche bis 19“ und „Erwachsene ab 19“), warnt das Fenster („Überschneidet sich mit … – meintest du bis einschließlich 18?“; Speichern bleibt möglich) und Einstellungen › Datenqualität zeigt es als Hinweis. Bei einer Überschneidung gilt immer die höhere Stufe, auch beim Vorschlag für Kinder, die aus dem Familienbeitrag herauswachsen.
 - **Familienbeitrag:** gilt für den Hauptzahler und alle Angehörigen.
@@ -376,7 +390,7 @@ Name, Fachverband und Zahl der Mitglieder. „+ Abteilung“ legt eine neue an (
 
 ![Die Karte „Altersstufen“ mit zwei Vorschlägen.](bild: seite=mv-stamm; ziel=#cAges)
 
-Wer älter wird und nicht mehr in seinen Beitrag passt, aus dem Familienbeitrag herauswächst oder in eine höhere Stufe des Zusatzbeitrags kommt, steht hier mit Anlass, bisherigem und neuem Beitrag und Datum. **Umstellen** schaltet ab dem nächsten Zeitraum auf den neuen Beitrag, **So belassen** merkt sich die Entscheidung. Bis dahin läuft der bisherige Beitrag weiter.
+Wer älter wird und nicht mehr in seinen Beitrag passt, aus dem Familienbeitrag herauswächst oder in eine höhere Stufe des Zusatzbeitrags kommt, steht hier – ebenso ein Oberhaupt, das allein im Familienbeitrag ist (**Familienbeitrag ohne Angehörige**: keine Angehörigen mehr oder alle treten aus; „ab“ ist dann der Zeitraum nach dem letzten Austritt). Die Liste nennt Anlass, bisherigen und neuen Beitrag und Datum. **Umstellen** schaltet ab dem nächsten Zeitraum auf den neuen Beitrag, **So belassen** merkt sich die Entscheidung. Bis dahin läuft der bisherige Beitrag weiter.
 
 ### Reiter „Auswertung“ {#mv-auswertung}
 
@@ -516,11 +530,15 @@ Der Beitragslauf erzeugt die Beiträge als **offene Posten**: für alle Mitglied
 - **Verkauf mit abbuchen:** nimmt die offenen Verkaufskonten der Mitglieder mit (nur mit dem Modul Verkauf).
 - **Nicht geleistete Arbeitsstunden mit abrechnen:** nur mit dem Modul „Dienste & Termine“.
 
-**Vorschau** zeigt, was entstünde: je Zahler die Positionen mit Art, Fälligkeit und Betrag, Summe und Warnungen (z. B. fehlende Angaben). Mit den Häkchen nehmt ihr einzelne Positionen heraus. **Beiträge abrechnen** erzeugt die Posten. Danach führt „Weiter zum Einzug“ zu den Lastschriften; wer per Rechnung oder bar zahlt, bekommt seine Rechnung unter „Rechnungen & Mahnungen“.
+**Vorschau** zeigt, was entstünde: je Zahler die Positionen mit Art, Fälligkeit und Betrag, Summe und Warnungen (z. B. fehlende Angaben). Beitragsfreie Zeiträume im Eintrittsjahr nennt ein Hinweis mit dem Tag, ab dem der Beitrag folgt; mit einem Stichtag im nächsten Beitragsjahr seht ihr diese Beiträge schon in der Vorschau. Mit den Häkchen nehmt ihr einzelne Positionen heraus. Mitglieder mit ungültigem Zahlungsweg (Kreis) überspringt der Lauf; die Warnung nennt sie, bis sie repariert sind. **Beiträge abrechnen** erzeugt die Posten. Danach führt „Weiter zum Einzug“ zu den Lastschriften; wer per Rechnung oder bar zahlt, bekommt seine Rechnung unter „Rechnungen & Mahnungen“.
 
 #### Bisherige Läufe
 
 Jeder Lauf steht mit Datum, Art, Stichtag, Zahl der Positionen und Summe in der Liste. „Posten“ zeigt die Posten des Laufs. Solange nichts davon eingezogen ist, macht **Lauf zurücknehmen …** ihn rückgängig (auch die Verkaufskonten stehen dann wieder offen).
+
+#### Eintrittsjahr frei: zu weit vermerkt
+
+Diese Karte erscheint nur, wenn ein Beitragslauf früherer Versionen bei „Eintrittsjahr frei“ mehr als das Eintrittsjahr frei vermerkt hat (der Beitrag begann später als der Eintritt). Die Liste nennt je Mitglied („Nachname, Vorname“) den Beitrag, den Eintritt, bis wann frei vermerkt wurde und ab wann wieder berechnet wird. Von selbst ändert sich nichts. **Korrigieren** setzt „abgerechnet bis“ nach einer Rückfrage auf das Ende des Eintrittsjahres zurück und trägt das im Verlauf des Mitglieds und im Protokoll ein. Die Beiträge entstehen erst im nächsten Beitragslauf, mit Vorschau. Berücksichtigt werden nur Zeiträume, die ein Beitragslauf von Clubwerk ohne Posten vermerkt hat und die danach niemand mit „Abgerechnet bis für alle setzen“ geändert hat.
 
 #### „Abgerechnet bis“ für alle setzen
 

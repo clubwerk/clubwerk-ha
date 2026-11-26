@@ -230,9 +230,7 @@
         <div class="frm" style="margin-top:12px"><label class="f">Je angefangene ¼ Stunde<input id="flFeeC" class="num" inputmode="decimal" value="${GK.centsToInput ? GK.centsToInput(c.fee.cents) : (c.fee.cents / 100).toFixed(2).replace('.', ',')}"></label><label class="f">Ab Uhrzeit<input type="time" id="flFeeF" class="num" value="${esc(c.fee.from)}"></label></div>
         <p class="muted s" style="margin:8px 0 0">Gebucht wird wie die Platzgebühr: als offener Posten in den Mitgliedern bzw. aufs Verkaufskonto. Bei Buchungen zahlt der Buchende nur die gebuchte Zeit (Vorlauf und Nachlauf frei), sonst wer eingeschaltet hat. Verwaltung, Serien und Vereinsbuchungen sind frei.</p>
         <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn primary" id="flSaveF">Speichern</button></div></div>
-      <div class="card"><h3>Benachrichtigungen</h3><div class="frm"><label class="f">Bei Störung melden an (optional)<input id="flNotify" value="${esc(c.notify || '')}" placeholder="z. B. mobile_app_handy_vorstand"></label></div>
-        <p class="muted s" style="margin:8px 0 0">Der Empfänger ist der Name des Handys in Home Assistant (Mitteilungsdienst „notify“).</p>
-        <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn primary" id="flSaveN">Speichern</button></div></div>
+      <div id="flNotif"></div>
       <div id="flFunc"></div>`;
     GK.watch($('main'));
     bindGo($('main'));
@@ -240,7 +238,8 @@
     $('flTest').onclick = () => GK.busy($('flTest'), async () => { try { const r = await api('test', 'POST', {}); $('flTestOut').innerHTML = `<b>${esc(r.text)}</b>`; } catch (e) { fail(e); } });
     $('flSaveW').onclick = async () => { c.who = { auto: $('flWA').checked, app: $('flWP').checked, tablet: $('flWT').checked }; c.maxMin = $('flMax').value; c.extendMin = $('flExt').value; if (await saveCfg(['who', 'maxMin', 'extendMin'])) again(); };
     $('flSaveF').onclick = async () => { c.fee = { on: $('flFee').checked, cents: GK.toCents($('flFeeC').value), from: $('flFeeF').value }; if (await saveCfg(['fee'])) again(); };
-    $('flSaveN').onclick = async () => { c.notify = $('flNotify').value; if (await saveCfg(['notify'])) again(); };
+    await GK.stoerungKarte($('flNotif'), { mod: 'flutlicht', anlass: 'Eine E-Mail kommt, wenn sich ein Licht nicht schalten lässt – mit Uhrzeit und Link in die Verwaltung.',
+      push: 'Push über die Mitglieder-App bekommen Verwaltungsnutzer mit dem Recht „Flutlicht“, wenn ihr Benutzer mit einem Mitglied verknüpft ist.' });
     if (GK.funcBox) GK.funcBox($('flFunc'), 'flutlicht', 'Flutlicht', again);
   }
 
@@ -264,5 +263,6 @@
     { label: 'Wer darf das Flutlicht schalten', page: 'flutlicht-einstellungen', perm: 'flutlicht', card: 'Wer darf schalten', words: 'Automatik App Tablet Höchstdauer verlängern' },
     { label: 'Verbindung des Flutlichts testen', page: 'flutlicht-einstellungen', perm: 'flutlicht', card: 'Anbindung', kind: 'aktion', words: 'Home Assistant Verbindung testen Schalter' },
     { label: 'Einstellungen des Flutlichts übertragen', page: 'flutlicht-einstellungen', perm: 'flutlicht', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
+    { label: 'Benachrichtigung bei Störung des Flutlichts', page: 'flutlicht-einstellungen', perm: 'flutlicht', card: 'Benachrichtigungen', field: 'stflutlichtMail', words: 'Störung E-Mail Push notify Handy Benachrichtigung' },
   ]);
 })();

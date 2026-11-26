@@ -100,11 +100,7 @@
         <p class="muted s" style="margin-top:0">Aus dieser Liste wählen Mitglieder beim Melden.${st.meta.bookingPlaces ? ' Die Plätze und Geräte aus „Plätze“ stehen automatisch davor.' : ''} „Anderer Ort“ mit eigenem Text ist immer dabei.</p>
         <div id="mgPl"></div>
         <div class="btns"><button class="btn ghost" id="mgPlAdd">+ Ort hinzufügen</button><button class="btn primary" id="mgSavePl">Speichern</button></div></div>
-      <div class="card" data-card="benachrichtigungen"><h3>Benachrichtigungen</h3>
-        <p class="muted s" style="margin-top:0">Bei neuen Meldungen bekommen alle Benutzer mit dem Recht „Mängel“ eine Push-Nachricht, wenn ihr Benutzer mit einem Mitglied verknüpft ist und das Mitglied Benachrichtigungen in der App eingeschaltet hat.</p>
-        <label class="chk"><input type="checkbox" id="mgMail" ${c.mail_on ? 'checked' : ''}> Zusätzlich per E-Mail (an die Adresse des verknüpften Mitglieds)</label>
-        <label class="f" style="margin-top:12px">Weitere E-Mail-Empfänger (mehrere mit Komma)<input id="mgNotify" value="${esc(c.notify)}" placeholder="z. B. platzwart@dein-verein.de"></label>
-        <div class="btns"><button class="btn primary" id="mgSaveNo">Speichern</button></div></div>
+      <div id="mgNotif"></div>
       <div class="card" data-card="aufbewahrung"><h3>Aufbewahrung</h3>
         <div class="row" style="align-items:flex-end"><label class="f" style="flex:0 1 220px">Erledigte Meldungen löschen nach<input id="mgKeep" inputmode="numeric" value="${c.keep_months}"></label><span class="muted s" style="padding-bottom:12px">Monaten – mit allen Fotos. Gilt auch für abgelehnte Meldungen.</span></div>
         <div class="btns"><button class="btn primary" id="mgSaveKe">Speichern</button></div></div>
@@ -126,7 +122,10 @@
       catch (e) { fail(e); }
     });
     save($('mgSavePl'), () => ({ places: places.filter(p => p.trim()) }));
-    save($('mgSaveNo'), () => ({ mail_on: $('mgMail').checked, notify: $('mgNotify').value }));
+    GK.stoerungKarte($('mgNotif'), { mod: 'maengel', anlass: 'Bei jeder neuen Meldung kommt eine E-Mail an diese Adressen, z. B. an Platzwart oder Hausmeister.',
+      push: 'Push über die Mitglieder-App bekommen Verwaltungsnutzer mit dem Recht „Mängel“, wenn ihr Benutzer mit einem Mitglied verknüpft ist.',
+      vorne: `<label class="chk mb14"><input type="checkbox" id="mgMail" ${c.mail_on ? 'checked' : ''}> Zusätzlich per E-Mail an die Adresse des verknüpften Mitglieds</label>`,
+      speichern: async () => { const r = await api('einstellungen', 'PUT', { mail_on: $('mgMail').checked }); st.meta.cfg = r.cfg; } }).catch(fail);
     save($('mgSaveKe'), () => ({ keep_months: $('mgKeep').value }));
     if (GK.funcBox) GK.funcBox($('mgFunc'), 'maengel', 'Mängel', () => showSettings(el));
   }
@@ -148,7 +147,7 @@
     { label: 'Orte für Mängel', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Orte', in: 'Einstellungen', words: 'Ort Platz Clubhaus Parkplatz' },
     { label: 'Ort hinzufügen', page: 'maengel', tab: ['maengel', 'einstellungen'], btn: '+ Ort', kind: 'aktion', in: 'Einstellungen › Orte', words: 'Ort neu Liste' },
     { label: 'Benachrichtigungen bei neuen Mängeln', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Benachrichtigungen', in: 'Einstellungen', words: 'E-Mail Push Meldung' },
-    { label: 'E-Mail-Empfänger für Mängel', page: 'maengel', tab: ['maengel', 'einstellungen'], field: 'mgNotify', in: 'Einstellungen › Benachrichtigungen', words: 'E-Mail Platzwart Hausmeister' },
+    { label: 'E-Mail-Empfänger für Mängel', page: 'maengel', tab: ['maengel', 'einstellungen'], field: 'stmaengelMail', in: 'Einstellungen › Benachrichtigungen', words: 'E-Mail Platzwart Hausmeister' },
     { label: 'Aufbewahrung erledigter Mängel', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Aufbewahrung', in: 'Einstellungen', words: 'löschen aufbewahren Frist' },
     { label: 'Einstellungen der Mängel übertragen', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Einstellungen übertragen', in: 'Einstellungen', words: 'Export Import sichern Datei' },
   ]);

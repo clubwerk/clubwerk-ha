@@ -61,9 +61,15 @@ Aus dieser Liste wählen Mitglieder beim Melden. „+ Ort hinzufügen“ legt ei
 
 #### Benachrichtigungen
 
-Bei neuen Meldungen bekommen alle Benutzer mit dem Recht „Mängel“ eine Push-Nachricht, wenn ihr Konto mit einem Mitglied verknüpft ist und dieses Mitglied Benachrichtigungen in der App eingeschaltet hat. Zusätzlich lässt sich E-Mail einschalten (an die Adresse des verknüpften Mitglieds) und eine Liste weiterer Empfänger eintragen, getrennt mit Komma, z. B. die Adresse des Hausmeisters.
+Bei jeder neuen Meldung meldet Clubwerk sich auf diesen Wegen – dieselbe Karte wie bei Flutlicht, Zugang und Beregnung:
 
-![Karte „Benachrichtigungen“: E-Mail und weitere Empfänger.](bild: seite=maengel; tab=einstellungen; ziel=[data-card="benachrichtigungen"])
+- **Push:** Benutzer der Verwaltung mit dem Recht „Mängel“ bekommen einen Hinweis in der Mitglieder-App, wenn ihr Benutzer mit einem Mitglied verknüpft ist. Ob es diese Hinweise gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest (Anlass „Neue Mängelmeldung“).
+- **Zusätzlich per E-Mail an die Adresse des verknüpften Mitglieds:** dieselben Benutzer bekommen die Meldung auch als E-Mail.
+- **E-Mail-Empfänger:** weitere Adressen, getrennt mit Komma, z. B. die des Hausmeisters. Sie bekommen jede neue Meldung, auch wenn der Haken darüber aus ist. Eine falsch geschriebene Adresse zeigt Clubwerk direkt am Feld. Die Adressen sind persönliche Daten und stehen deshalb nicht in der Datei von „Einstellungen übertragen“.
+
+E-Mails gehen über das Vereinspostfach (Einstellungen › Postfach); fehlt es, steht oben in der Karte ein Hinweis mit Link.
+
+![Karte „Benachrichtigungen“: Push, E-Mail an verknüpfte Mitglieder und E-Mail-Empfänger.](bild: seite=maengel; tab=einstellungen; ziel=[data-card="benachrichtigungen"])
 
 #### Aufbewahrung
 

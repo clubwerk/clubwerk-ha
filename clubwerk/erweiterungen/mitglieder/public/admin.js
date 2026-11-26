@@ -14,12 +14,22 @@
   const INTERVAL = { jahr: 'jährlich', halbjahr: 'halbjährlich', quartal: 'vierteljährlich', monat: 'monatlich', einmalig: 'einmalig' };
   const PRS = { anteilig: 'anteilig', voll: 'voller Betrag', frei: 'Eintrittsjahr frei' };
   const PRORATE = { anteilig: 'anteilig (volle Monate)', voll: 'voller Betrag', frei: 'Eintrittsjahr frei' };
+  /* Erstes Jahr je Mitglied (lib/freijahr.js): Anfänger frei, Vereinswechsler anteilig – gilt für Grund- und Zusatzbeiträge im Beitragsjahr des Eintritts */
+  const FY = { standard: 'wie Beitragsart (Vorgabe)', frei: 'frei (Anfänger)', anteilig: 'anteilig berechnen', voll: 'voll berechnen' };
+  const FY_ASK = { frei: 'Anfänger (erstes Jahr frei)', anteilig: 'Vereinswechsler (anteilig)', voll: 'voll berechnen' };
+  /** Muss gefragt werden? Eine gewählte Beitragsart oder der Zusatzbeitrag einer gewählten Abteilung steht auf „Eintrittsjahr frei“ */
+  const fyNeed = (feeIds, deptIds) => ((st.meta && st.meta.fees) || []).some(f => f.active !== 0 && f.prorate === 'frei' && f.interval !== 'einmalig'
+    && (feeIds.includes(f.id) || (f.kind === 'zusatz' && deptIds.includes(f.department_id))));
+  /** Feld „Erstes Jahr“; need = deutlich fragen (keine Vorgabe, Pflicht) */
+  const fyField = (id, need, cur, cls = 'f') => `<label class="${cls}" id="${id}L">${need ? `<span class="flab">${esc(GK.T('Erstes Jahr'))} <span class="req">${esc(GK.T('(Pflicht)'))}</span></span>` : esc(GK.T('Erstes Jahr'))}<select id="${id}"${need ? ' required' : ''}>${need ? opt('', GK.T('– Anfänger oder Vereinswechsler? –'), cur === 'standard' ? '' : cur || '') : ''}${Object.entries(need ? FY_ASK : FY).map(([k, l]) => opt(k, GK.T(l), cur || 'standard')).join('')}</select>${need ? `<span class="muted s" style="font-weight:500">${esc(GK.T('Die Beitragsart sieht „Eintrittsjahr frei“ vor: Anfänger zahlen im ersten Jahr nichts, Vereinswechsler anteilig.'))}</span>` : ''}</label>`;
+  /** Feld neu zeichnen, wenn sich Beitrag oder Abteilung ändern (Wahl bleibt) */
+  const fyRedraw = (id, need, cls) => { const l = $(id + 'L'); if (!l) return; const cur = val(id), was = l.dataset.need === '1'; if (was === need) return; l.outerHTML = fyField(id, need, cur, cls); $(id + 'L').dataset.need = need ? '1' : '0'; };
   const KIND = { beitrag: 'Beitrag', getraenke: 'Verkauf', arbeitsstunden: 'Arbeitsstunden', aufnahme: 'Aufnahme', ruecklastschrift: 'Rücklastschrift', mahngebuehr: 'Mahngebühr', sonstiges: 'Sonstiges' };
   const CSTAT = { offen: ['a', 'offen'], eingezogen: ['b', 'im Einzug'], bezahlt: ['g', 'bezahlt'], storniert: ['', 'storniert'] };
   const DOCK = { antrag: 'Beitrittserklärung', mandat: 'SEPA-Mandat', kuendigung: 'Kündigung', bescheinigung: 'Bescheinigung', nachweis: 'Nachweis', schriftverkehr: 'Schriftverkehr', sonstiges: 'Sonstiges' };
   const FIELD = { first_name: 'Vorname', last_name: 'Nachname', street: 'Straße', zip: 'PLZ', city: 'Ort', address_extra: 'Adresszusatz', phone: 'Telefon (Festnetz)', mobile: 'Handy', email: 'E-Mail', holder: 'Kontoinhaber', iban: 'IBAN', bic: 'BIC', bank: 'Kreditinstitut' };
   /** Kennzeichen erklären (Seitenkarte): was gemeint ist und was zu tun ist (planung/ui-review.md Punkt 12) */
-  const ISSUE_WHY = i => Object.entries({ '^Altersstufe prüfen': 'Das Alter passt nicht mehr zur Beitragsart – bitte unter „Mitgliedschaft“ eine passende wählen.', '^Mandat widerrufen': 'Das SEPA-Mandat wurde widerrufen – es wird nichts eingezogen, bis ein neues vorliegt.', '^Mandat verfallen': 'Das Mandat wurde 36 Monate nicht genutzt und ist verfallen – bitte ein neues einholen.', '^Geburtsdatum fehlt': 'Ohne Geburtsdatum fehlt die Person in der LSB-Meldung und gilt bei Altersstufen als erwachsen.', '^ohne Mitgliedsdaten': 'Anschrift, E-Mail oder Handy fehlen – bitte bei „Stammdaten“ ergänzen.', '^kein Beitrag': 'Es ist keine Beitragsart zugeordnet – so fehlt das Mitglied im Beitragslauf.', '^Zahlart nicht Lastschrift': 'Die Zahlart ist nicht Lastschrift, obwohl der Verein Lastschrift verlangt.', '^keine Bankverbindung': 'Für die Lastschrift fehlen Kontoinhaber und IBAN.', '^IBAN ungültig': 'Die IBAN ist nicht gültig – bitte prüfen.', '^kein SEPA-Mandat': 'Es liegt kein SEPA-Mandat vor – ohne Mandat kann nicht eingezogen werden.' }).find(([k]) => new RegExp(k).test(i)) ?.[1] || '';
+  const ISSUE_WHY = i => Object.entries({ '^Zahlungsweg ungültig': 'Die Zahler zahlen im Kreis füreinander – der Beitragslauf überspringt das Mitglied, bis der Zahlungsweg repariert ist.', '^Altersstufe prüfen': 'Das Alter passt nicht mehr zur Beitragsart – bitte unter „Mitgliedschaft“ eine passende wählen.', '^Allein im Familienbeitrag': 'Zum Familienbeitrag gehört niemand mehr (oder alle treten aus) – unter Beiträge & Abteilungen › Altersstufen umstellen oder so belassen.', '^Mandat widerrufen': 'Das SEPA-Mandat wurde widerrufen – es wird nichts eingezogen, bis ein neues vorliegt.', '^Mandat verfallen': 'Das Mandat wurde 36 Monate nicht genutzt und ist verfallen – bitte ein neues einholen.', '^Geburtsdatum fehlt': 'Ohne Geburtsdatum fehlt die Person in der LSB-Meldung und gilt bei Altersstufen als erwachsen.', '^ohne Mitgliedsdaten': 'Anschrift, E-Mail oder Handy fehlen – bitte bei „Stammdaten“ ergänzen.', '^kein Beitrag': 'Es ist keine Beitragsart zugeordnet – so fehlt das Mitglied im Beitragslauf.', '^Zahlart nicht Lastschrift': 'Die Zahlart ist nicht Lastschrift, obwohl der Verein Lastschrift verlangt.', '^keine Bankverbindung': 'Für die Lastschrift fehlen Kontoinhaber und IBAN.', '^IBAN ungültig': 'Die IBAN ist nicht gültig – bitte prüfen.', '^kein SEPA-Mandat': 'Es liegt kein SEPA-Mandat vor – ohne Mandat kann nicht eingezogen werden.' }).find(([k]) => new RegExp(k).test(i)) ?.[1] || '';
   const can = p => GK.can(p);
   const SC = () => Boolean(st.meta && st.meta.scope);   // Abteilungsadmin: nur eigene Abteilung(en)
   const CONF = () => SC() && st.meta.settings.scope_confirm;   // Ein-/Austritte der Abteilungsleitung bestätigt die Vereinsverwaltung
@@ -213,6 +223,7 @@
     const lack = cur.filter(r => r.status !== 'ausgetreten' && r.status !== 'anonym' && r.issues.some(i => typeof i === 'string' && PFLICHT.test(i)));
     el.innerHTML = `
       ${lack.length && !SC() ? `<div class="banner r mv-lack"><span title="${esc(GK.T('Fehlen Mitgliedsdaten, Beitrag oder Zahlungsdaten. Wer kein Vereinsmitglied ist (z. B. Trainer), wird beim Mitglied in „Kein Mitglied“ umgewandelt.'))}"><b>${lack.length === 1 ? '1 Mitglied ohne Pflichtangaben' : `${lack.length} Mitglieder ohne Pflichtangaben`}</b>: <span translate="no">${lack.slice(0, 3).map(r => esc(GK.lastFirst(r.name))).join(' · ')}${lack.length > 3 ? ` · +${lack.length - 3}` : ''}</span> – bitte ergänzen.</span><button class="btn small" id="mvLack" type="button">Anzeigen</button></div>` : ''}
+      ${SC() ? '' : ringBanners()}
       ${st.f.issue ? `<div class="banner a"><span><b>${esc(GK.T(st.f.issue))}</b> – nur diese Mitglieder.</span><button class="btn small" id="mvIssueOff" type="button">Alle Hinweise</button></div>` : ''}
       <div class="filterbar"><label class="search"><span aria-hidden="true">${icon('suche', 16)}</span><input id="mvQ" placeholder="Name, Nr., Ort suchen" aria-label="Suchen" value="${esc(st.f.q)}"></label>
         ${chipBar('mvSeg', [['aktuell', 'Aktuell'], ['hinweis', 'Mit Hinweis'], ['ausgetreten', 'Ausgetreten'], ['alle', 'Alle']], st.f.status)}
@@ -250,13 +261,13 @@
       const rows = sk.sort(st.rows.filter(r => F[st.f.status](r) && match(r)));
       st.shown = rows.map(r => r.id);   // „Dokumente (ZIP)“ exportiert genau die angezeigten Mitglieder
       if (st.sel && !rows.some(r => r.id === st.sel)) { st.sel = null; showCard(null); }   // Karte zeigt nie ein Mitglied, das nach Suche oder Filter nicht in der Liste steht
-      $('mvTbl').innerHTML = rows.length ? `<tr>${sk.th('name', 'Name')}${sk.th('no', 'Nr.', 'style="width:90px"')}${sk.th('age', 'Alter', 'class="r" style="width:70px"')}<th>Abteilungen</th><th>Beitrag</th><th>Zahlung</th></tr>`
+      $('mvTbl').innerHTML = rows.length ? `<tr>${sk.th('name', 'Name')}${sk.th('no', 'Nr.', 'style="width:70px"')}${sk.th('age', 'Alter', 'class="r" style="width:70px"')}<th>Abteilungen</th><th>Beitrag</th><th>Zahlung</th></tr>`
         + rows.map(r => `<tr data-sel="${r.id}" data-row tabindex="0" class="${r.status === 'ausgetreten' || r.status === 'anonym' ? 'off' : ''}${st.sel === r.id ? ' on' : ''}">
           <td class="k-1z"><span class="who"><span class="av">${ini(r.name)}</span><span><b>${esc(GK.lastFirst(r.name))}</b>${(h => (h ? ` <span class="muted">(${esc(GK.T('früher {0}', [h.label]))})</span>` : ''))(oldHit(r))}${r.leaving ? `<div class="muted s">Austritt ${deDate(r.exit_date)}</div>` : r.status !== 'aktiv' ? `<div class="muted s">${esc((STATUS[r.status] || ['', r.status])[1])}</div>` : ''}${r.issues.length ? `<div class="mv-hw">${r.issues.map(i => `<span class="pill a">${esc(i)}</span>`).join(' ')}</div>` : ''}</span></span></td>
           <td class="muted nw num k-lbl" data-label="Nr.">${esc(r.member_no || '')}</td>
           <td class="r k-lbl" data-label="Alter">${r.age ?? ''}</td><td class="mv-nw" translate="no" title="${esc(r.depts)}">${esc(r.depts)}</td>
           <td class="mv-nw">${r.family_of ? `<span class="muted s">Familie ${esc(GK.lastFirst(r.family_head_name))}</span>` : `<span translate="no">${esc(r.fees)}</span>`}</td>
-          <td class="mv-nw mv-pay${r.payer_id ? '' : ' k-weg'}">${r.payer_id ? `<span class="muted s${r.family_of && r.payer_id === r.family_of ? ' k-weg' : ''}">zahlt über ${esc(GK.lastFirst(r.payer_name))}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">${esc(GK.T('zahlt für {0}', [r.dependents]))}</span>` : ''}</td></tr>`).join('') : '';
+          <td class="mv-nw mv-pay${r.payer_id ? '' : ' k-weg'}">${r.ring && r.ring.member ? `<span class="muted s">${esc(GK.T('zahlt im Kreis'))}</span>` : r.payer_id ? `<span class="muted s${r.family_of && r.payer_id === r.family_of ? ' k-weg' : ''}">zahlt über ${esc(GK.lastFirst(r.payer_name))}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents && !(r.ring && r.ring.member) ? ` <span class="pill">${esc(GK.T('zahlt für {0}', [r.dependents]))}</span>` : ''}</td></tr>`).join('') : '';   // im Kreis stimmt „zahlt für“ nicht – dort steht „Zahlungsweg ungültig“
       $('mvTbl').classList.toggle('hidden', !rows.length);
       einzeilig();
       const em = $('mvEmpty'); em.classList.toggle('hidden', rows.length > 0);
@@ -266,6 +277,7 @@
     sk.bind($('mvTbl'), $('mvSort'), draw);
     $('mvQ').oninput = () => { st.f.q = $('mvQ').value.trim(); draw(); };
     if ($('mvIssueOff')) $('mvIssueOff').onclick = () => { st.f.issue = ''; list(); };
+    bindRing(el, reloadTab);
     if ($('mvLack')) $('mvLack').onclick = () => { st.f.issue = ''; st.f.status = 'hinweis'; $('mvSeg').querySelectorAll('[data-f]').forEach(x => { x.classList.toggle('on', x.dataset.f === 'hinweis'); x.setAttribute('aria-pressed', x.dataset.f === 'hinweis'); }); draw(); };
     $('mvSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; st.f.status = b.dataset.f; if (st.f.issue) { st.f.issue = ''; list(); return; } $('mvSeg').querySelectorAll('[data-f]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); draw(); };
     $('mvDept').onchange = () => { st.f.dept = $('mvDept').value; draw(); };
@@ -300,6 +312,7 @@
     const deps = (d.departments || []).filter(x => !x.exit_date).map(x => esc(x.name)).join(', ');
     const pay = d.payer ? `${esc(GK.T('über'))} ${esc(GK.lastFirst(d.payer.name))}` : `${esc(GK.T(PAY[p.payment] || p.payment || ''))}${d.bank && d.bank.mandate_ref ? ` · ${esc(GK.T('Mandat'))} ${esc(d.bank.mandate_ref)}` : ''}`;
     const until = (d.fees || []).map(f => f.booked_until).filter(Boolean).sort().pop();
+    const nextFree = [...(d.fees || []), ...(d.departments || [])].map(f => f.next_from).filter(Boolean).sort()[0];   // Eintrittsjahr frei: ab wann der Beitrag folgt
     const open = (d.charges || []).filter(c => c.status === 'offen').reduce((a, c) => a + (c.cents || 0), 0);
     const addr = [p.street, [p.zip, p.city].filter(Boolean).join(' ')].filter(Boolean).map(esc).join('<br>');   // Straße, darunter PLZ und Ort – feste Zeilen statt zufälligem Umbruch
     const fact = (l, v, cls = '') => v ? `<div><dt>${esc(GK.T(l))}</dt><dd class="${cls}">${v}</dd></div>` : '';
@@ -309,10 +322,50 @@
       <dl class="facts">
         ${fact('Geburtsdatum', p.birth_date ? deDate(p.birth_date) : '')}${fact('Eintritt', p.entry_date ? deDate(p.entry_date) : '')}
         ${fact('Abteilungen', deps)}${fact('Beitrag', p.family_of ? `${esc(GK.T('Familie'))} ${esc(GK.lastFirst(r.family_head_name || ''))}` : fee)}
-        ${fact('Zahlung', pay)}${fact('Abgerechnet bis', until ? deDate(until) : '')}${fact('Offene Posten', open ? euro(open) : '', 'neg')}
+        ${fact('Zahlung', pay)}${fact('Abgerechnet bis', until ? `${deDate(until)}${nextFree ? `<div class="muted s">${esc(GK.T('Eintrittsjahr frei – nächster Beitrag ab {0}', [deDate(nextFree)]))}</div>` : ''}` : '')}${fact('Offene Posten', open ? euro(open) : '', 'neg')}
         ${fact('Handy', esc(p.mobile || p.phone || ''))}${fact('E-Mail', esc(p.email || ''))}${fact('Anschrift', addr)}
       </dl>
       <div class="mact"><button class="btn primary" data-open="${id}">Öffnen</button>${tabs.map(([k, l]) => `<button class="btn" data-open="${id}" data-tab="${k}">${esc(GK.T(l))}</button>`).join('')}</div>`;
+  }
+
+  /* ---------------------------------------------------------------- Ungültiger Zahlungsweg (Kreis): Hinweis und „Reparieren …“ */
+  /** „A und B zahlen gegenseitig füreinander“ bzw. „A zahlt über B, B über C, C über A“ – Namen („Nachname, Vorname“) schickt der Server mit */
+  function ringLabel(r) {
+    const n = r.names.map(x => `<b translate="no">${esc(x)}</b>`);
+    if (n.length === 2) return GK.T('{0} und {1} zahlen gegenseitig füreinander', n);
+    return n.map((x, i) => GK.T(i ? '{0} über {1}' : '{0} zahlt über {1}', [x, n[(i + 1) % n.length]])).join(', ');
+  }
+  /** Hinweise über der Mitgliederliste: ein Kasten je Kreis */
+  function ringBanners() {
+    const rings = [...new Map(st.rows.filter(r => r.ring && r.ring.member).map(r => [r.ring.key, r])).values()];
+    return rings.map(r => `<div class="banner r mv-lack"><span><b>${esc(GK.T('Zahlungsweg ungültig:'))}</b> ${ringLabel(r.ring)}.</span><button class="btn small" type="button" data-ring="${r.id}">${esc(GK.T('Reparieren …'))}</button></div>`).join('');
+  }
+  const bindRing = (el, done) => el.querySelectorAll('[data-ring]').forEach(b => { b.onclick = () => repairRing(+b.dataset.ring, done); });
+  /** Am Mitglied (jede Ansicht, oben): derselbe Hinweis */
+  function ringBanner(el, d, again) {
+    const r = d.payerRing; if (!r) return;
+    el.insertAdjacentHTML('afterbegin', `<div class="banner r mv-lack"><span><b>${esc(GK.T('Zahlungsweg ungültig:'))}</b> ${ringLabel(r)}.${r.member ? '' : ` ${esc(GK.T('Dieses Mitglied zahlt über den Kreis.'))}`}</span>${SC() ? '' : `<button class="btn small" type="button" data-ring="${r.ids[0]}">${esc(GK.T('Reparieren …'))}</button>`}</div>`);
+    bindRing(el.firstElementChild, again);
+  }
+  /** Fenster „Zahlungsweg reparieren“: wer zahlt selbst? Die übrigen zahlen dann über diese Person (Familienmitglieder über ihr Oberhaupt). */
+  async function repairRing(id, done) {
+    let info; try { info = (await api(`member/${id}/payer-ring`)).ring; } catch (e) { return fail(e); }
+    if (!info) { toast('Der Zahlungsweg ist inzwischen gültig.'); return done(); }
+    const payText = p => [GK.T(PAY[p.payment] || p.payment), p.mandate ? GK.T(p.mandate === 'ok' ? 'Mandat gültig' : p.mandate) : '', p.exited ? GK.T('ausgetreten') : ''].filter(Boolean).join(' · ');
+    dialog(`<h2>${esc(GK.T('Zahlungsweg reparieren'))}</h2>
+      <p style="margin-top:0">${ringLabel(info)}. ${esc(GK.T('Ein Zahlungsweg endet immer bei jemandem, der selbst zahlt.'))}</p>
+      <h4 class="mv-sub">${esc(GK.T('Wer zahlt selbst?'))}</h4>
+      <div class="mv-tkopts" data-feld="keep">${info.people.every(p => p.family_of) ? `<label class="chk"><input type="radio" name="rgKeep" value="familie"><span><b>${esc(GK.T('Alle zahlen über ihr Familienoberhaupt'))}</b><br><span class="muted s">${esc(GK.T('Alle gehören zu einer Familienmitgliedschaft – gezahlt wird über das Oberhaupt.'))}</span></span></label>` : ''}${info.people.map(p => `<label class="chk ${p.family_of ? 'off' : ''}"><input type="radio" name="rgKeep" value="${p.id}" ${p.family_of ? 'disabled' : ''}><span><b translate="no">${esc(GK.lastFirst(p.name))}</b><br><span class="muted s">${p.family_of ? GK.T('Familienmitglied von {0} – zahlt über das Oberhaupt', [`<span translate="no">${esc(GK.lastFirst(p.family_head || '…'))}</span>`]) : esc(payText(p))}</span></span></label>`).join('')}</div>
+      <p class="muted s">${esc(GK.T('Die anderen zahlen dann über die gewählte Person – ihre eigene Bankverbindung bleibt gespeichert, wird aber nicht mehr genutzt.'))}${info.via.length ? ` ${GK.T('Ebenso {0} (zahlt bisher über ein Mitglied des Kreises).', [`<span translate="no">${info.via.map(v => esc(GK.lastFirst(v.name))).join(', ')}</span>`])}` : ''} ${esc(GK.T('Jede Änderung steht im Verlauf und im Protokoll.'))}</p>
+      <div class="err" id="rgErr"></div>
+      <div class="btns"><button class="btn ghost" id="rgX" type="button">Abbrechen</button><button class="btn primary" id="rgOk" type="button">${esc(GK.T('Reparieren'))}</button></div>`);
+    $('rgX').onclick = () => closeDialog();
+    $('rgOk').onclick = () => GK.busy($('rgOk'), async () => {
+      const v = ($('dialog').querySelector('[name=rgKeep]:checked') || {}).value || '', keep = v === 'familie' ? v : +v;
+      if (!keep) return GK.formError($('rgErr'), GK.T('Bitte auswählen, wer selbst zahlt.'), 'keep');
+      try { await api(`member/${id}/payer-ring/repair`, 'POST', { keep }); } catch (e) { return GK.formError($('rgErr'), e); }
+      closeDialog(); toast('Zahlungsweg repariert.'); await loadRows(); done();
+    });
   }
 
   /* ---------------------------------------------------------------- „Von Mitglied übernehmen …“ (Anlegen, Bearbeiten, Beitrittserklärung erfassen) */
@@ -346,13 +399,14 @@
           }
           const birth = o.birth ? o.birth() : '', age = birth ? ageOn(birth, m.today) : null, max = m.settings.family_child_max || 18;
           const famBlock = fam && fam.partner && age != null && age > max ? GK.T('Dort gibt es schon eine/n Partner/in – in einer Familie sind höchstens zwei Erwachsene.') : '';
+          const payBlock = o.family ? ((await api(`payer-check?member=${o.skip || 0}&payer=${id}`).catch(() => ({}))).error || '') : '';   // dieselbe Prüfung wie beim Speichern (kein Kreis)
           dialog(`<h2>${esc(GK.T('Übernehmen von'))} ${nm}</h2>
             <div id="tkBox"><p class="muted s" style="margin-top:0">Haken setzen, was ins Formular soll. Gespeichert wird erst mit „Speichern“.</p>
             <div class="mv-tkopts">${defs.map(([k, l, v, on]) => `<label class="chk ${v ? '' : 'off'}"><input type="checkbox" data-f="${k}" ${v && on ? 'checked' : ''} ${v ? '' : 'disabled'}><span><b>${esc(GK.T(l))}</b><br><span class="muted s" translate="no">${v ? esc(v) : '–'}</span></span></label>`).join('')}</div>
             ${o.family ? `<h4 class="mv-sub" style="margin-top:18px">Zuordnung statt Bankverbindung</h4>
               <div class="mv-tkopts"><label class="chk"><input type="radio" name="tkRel" value="" checked><span>Keine Zuordnung</span></label>
                 <label class="chk ${fam && !famBlock ? '' : 'off'}"><input type="radio" name="tkRel" value="family" ${fam && !famBlock ? '' : 'disabled'}><span>${fam ? GK.T('Zur Familie von {0} hinzufügen', [`<b translate="no">${esc(GK.lastFirst(fam.name))}</b>`]) : esc(GK.T('Zur Familie hinzufügen'))}<br><span class="muted s">${famBlock ? esc(famBlock) : fam ? esc(GK.T('Die Rolle (Partner/in oder Kind) ergibt sich aus dem Geburtsdatum. Gezahlt wird über das Oberhaupt.')) : esc(GK.T('Nur möglich bei Mitgliedern mit Familienbeitrag oder in einer Familie.'))}</span></span></label>
-                <label class="chk"><input type="radio" name="tkRel" value="payer"><span>${esc(GK.T('Zahlt über'))} ${nm}<br><span class="muted s">Beiträge und Verkauf laufen dann über dessen Konto – ein eigenes Konto ist nicht nötig.</span></span></label></div>` : ''}</div>
+                <label class="chk ${payBlock ? 'off' : ''}"><input type="radio" name="tkRel" value="payer" ${payBlock ? 'disabled' : ''}><span>${esc(GK.T('Zahlt über'))} ${nm}<br><span class="muted s">${payBlock ? esc(payBlock) : 'Beiträge und Verkauf laufen dann über dessen Konto – ein eigenes Konto ist nicht nötig.'}</span></span></label></div>` : ''}</div>
             <div class="btns"><button class="btn ghost" id="tkBack" type="button">Zurück</button><button class="btn primary" id="tkOk" type="button">Übernehmen</button></div>`);
           $('tkBack').onclick = () => search();
           $('tkOk').onclick = () => {
@@ -423,7 +477,7 @@
     dialog(`<h2>Neues Mitglied</h2>
       <div class="row" style="align-items:flex-start;margin:0 0 14px"><p class="muted s" style="margin:0;flex:1 1 280px">Felder mit „(Pflicht)“ müssen ausgefüllt sein. ${full ? '<span>Bei Lastschrift gehören Kontoinhaber, IBAN und SEPA-Mandat dazu.</span> ' : ''}<span>Mit Unterschrift auf dem Tablet geht es über „Beitrittserklärung am Tablet“.</span></p>
         ${SC() ? '' : '<button class="btn" id="mvTake" type="button">Von Mitglied übernehmen …</button>'}</div>
-      <div id="nRelBox" style="display:none;margin:0 0 14px"></div>
+      <div id="nRelBox" data-feld="rel" style="display:none;margin:0 0 14px"></div>
       <div class="mv-grid" style="--c:4">
         <label class="f">Vorname<input id="nFirst" autocomplete="off" required></label><label class="f">Nachname<input id="nLast" autocomplete="off" required></label><label class="f">Geburtsdatum<input id="nBirth" type="date" required></label><label class="f">Eintritt<input id="nEntry" type="date" value="${m.today}"></label>
         <label class="f w2">Straße und Hausnummer<input id="nStreet" autocomplete="off" required></label><label class="f">PLZ<input id="nZip" inputmode="numeric" maxlength="10" required></label><label class="f">Ort<input id="nCity" required></label>
@@ -434,6 +488,7 @@
         <label class="f w2 nb">Kontoinhaber<input id="nHold" placeholder="wie auf dem Mandat"></label><label class="f w2 nb">IBAN<input id="nIban" autocomplete="off" spellcheck="false"></label>
         <label class="f w2 nb">SEPA-Mandat unterschrieben am<input id="nMand" type="date" value="${m.today}"></label>` : ''}
         <label class="f w2">Mitgliedsnummer<input id="nNo" placeholder="${esc(m.nextNo)} (automatisch)"></label>
+        ${fyField('nFy', false, 'standard', 'f wall')}
         <label class="f wall">Unterschriebene Beitrittserklärung${full ? ' mit SEPA-Mandat' : ''} (PDF oder Foto)<input id="nDocF" type="file" accept="application/pdf,image/*" hidden required><div class="mv-up" id="nDoc"><span>Datei wählen oder hierher ziehen</span><b>Datei wählen …</b></div></label>
       </div>
       <div class="mv-cons" id="nWel" style="margin-top:14px${SC() ? ';display:none' : ''}">
@@ -519,7 +574,9 @@
     $('nWelApp').onchange = () => { $('nWelGuideL').style.display = $('nWelApp').checked ? '' : 'none'; };
     let welT = null; const welSoon = () => { clearTimeout(welT); welT = setTimeout(welCheck, 300); };
     $('nMail').addEventListener('input', welSoon); $('nBirth').addEventListener('change', welSoon);
-    fees(); drawRel(); if (!SC()) welCheck();
+    const fyNew = () => fyRedraw('nFy', fyNeed([+val('nFee') || 0], [+val('nDept') || 0]), 'f wall');
+    if ($('nFee')) $('nFee').addEventListener('change', fyNew); $('nDept').addEventListener('change', fyNew);
+    fees(); drawRel(); if (!SC()) welCheck(); fyNew();
     $('nBirth').onchange = () => { fees(); relHint(); }; $('nBirth').oninput = relHint; $('nEntry').onchange = fees; if ($('nPay')) $('nPay').onchange = pay;
     if ($('mvTake')) $('mvTake').onclick = async () => {
       const r = await takeFrom({ family: true, birth: () => val('nBirth') });
@@ -535,7 +592,7 @@
       try {
         const other = Boolean(rel), famRel = rel && rel.kind === 'family';
         const r = await api('member', 'POST', { first_name: val('nFirst'), last_name: val('nLast'), birth_date: val('nBirth') || null, email: val('nMail'), mobile: val('nMob'), phone: val('nPhone'), street: val('nStreet'), zip: val('nZip'), city: val('nCity'), country: country || undefined,
-          entry_date: val('nEntry'), member_no: val('nNo') || undefined, department_id: +val('nDept') || undefined,
+          entry_date: val('nEntry'), member_no: val('nNo') || undefined, department_id: +val('nDept') || undefined, first_year: val('nFy') || undefined,
           doc_id: doc ? doc.doc_id : null,
           ...(famRel ? { family_of: rel.id, family_role: rel.role } : rel ? { payer_id: rel.id } : {}),
           ...(full ? { fee_id: famRel ? null : +val('nFee') || null, ...(other ? {} : { payment: val('nPay'), iban: val('nIban'), holder: val('nHold'), mandate_date: val('nMand') }) } : {}),
@@ -544,7 +601,7 @@
         const w = r.welcome;
         toast(r.pending ? `Mitglied angelegt. ${PENDING}` : !w ? 'Mitglied angelegt.' : w.ok ? GK.T(w.app ? 'Mitglied angelegt. Willkommens-E-Mail mit Einladung zur App an {0} geschickt.' : 'Mitglied angelegt. Willkommens-E-Mail an {0} geschickt.', [w.to]) : GK.T('Mitglied angelegt. Die Willkommens-E-Mail ging nicht raus: {0}', [w.error]), Boolean(w && !w.ok));
         openMember(r.id);
-      } catch (e) { fail(e); }
+      } catch (e) { if (e.field) GK.formError(null, e); else fail(e); }
     });
   }
 
@@ -577,6 +634,7 @@
       else if (k === 'ausweis') subCard(body, d, again).catch(fail);
       else if (k === 'verlauf') subHistory(body, d);
       missingBanner(body, d);
+      ringBanner(body, d, again);
     },
   });
   /** Fehlende Pflichtangaben: einmal je Ansicht, oben */
@@ -719,18 +777,20 @@
   }
 
   function subMembership(el, d, again) {
-    const p = d.person, m = st.meta, id = p.id;
+    const p = d.person, m = st.meta, id = p.id, fy = d.first_year;
+    const freeNote = r => (r.free_until ? `<div class="muted s" style="white-space:normal">${esc(GK.T('Eintrittsjahr frei – nächster Beitrag ab {0}', [deDate(r.next_from)]))}</div>` : '');
     const feeRows = d.fees.map(f => `<tr class="${f.end_date && f.end_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(f.name)}</b>${(!f.end_date || f.end_date >= m.today) && p.age != null && ((f.age_min != null && p.age < f.age_min) || (f.age_max != null && p.age > f.age_max)) ? ` <span class="pill r">passt nicht zum Alter (${ageLim(f, ' J.')})</span>` : ''}${f.note ? `<div class="muted s">${esc(f.note)}</div>` : ''}</td>
       <td class="r">${euro(f.eff_cents)}${f.cents != null ? ' <span class="pill">abweichend</span>' : ''}</td><td>${esc(INTERVAL[f.interval] || f.interval)}</td><td class="num nw k-weg">${deDate(f.start_date)}</td><td class="nw k-weg">${f.end_date ? deDate(f.end_date) : '–'}</td>
-      <td class="nw k-weg">${f.booked_until ? deDate(f.booked_until) : '<span class="muted s">noch nichts</span>'}</td><td class="r nw">${SC() ? '' : `<button class="btn small" data-mf="${f.id}">Bearbeiten</button>`}</td></tr>`).join('');
+      <td class="nw k-weg">${f.booked_until ? deDate(f.booked_until) : '<span class="muted s">noch nichts</span>'}${freeNote(f)}</td>${f.free_until ? `<td class="k-mob k-1z" style="flex:1 1 100%">${freeNote(f)}</td>` : ''}<td class="r nw">${SC() ? '' : `<button class="btn small" data-mf="${f.id}">Bearbeiten</button>`}</td></tr>`).join('');
     const myDept = depId => !SC() || m.scope.some(x => x.id === depId);
-    const zText = x => '<div>' + (x.zusatz_free ? '<span class="pill">befreit</span>' : x.zusatz ? `${nameBetrag(x.zusatz.name, x.zusatz.cents, '', true)}${x.zusatz.auto ? '' : ' <span class="pill b">fest</span>'}${x.zusatz.assumed ? '<div class="muted s">Geburtsdatum fehlt – Erwachsenenbeitrag angenommen</div>' : ''}${x.booked_until ? `<div class="muted s">abgerechnet bis ${deDate(x.booked_until)}</div>` : ''}`
+    const zText = x => '<div>' + (x.zusatz_free ? '<span class="pill">befreit</span>' : x.zusatz ? `${nameBetrag(x.zusatz.name, x.zusatz.cents, '', true)}${x.zusatz.auto ? '' : ' <span class="pill b">fest</span>'}${x.zusatz.assumed ? '<div class="muted s">Geburtsdatum fehlt – Erwachsenenbeitrag angenommen</div>' : ''}${x.booked_until ? `<div class="muted s">abgerechnet bis ${deDate(x.booked_until)}</div>` : ''}${freeNote(x)}`
       : x.zusatz_nomatch ? (x.zusatz_age != null ? `<span class="pill">beitragsfrei</span><div class="muted s">keine Altersstufe für ${x.zusatz_age} Jahre</div>` : '<span class="pill a">Geburtsdatum fehlt</span>') : '<span class="muted s">–</span>') + '</div>';
     const depRows = d.departments.map(x => `<tr class="${x.exit_date && x.exit_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(x.name)}</b></td><td>${esc(x.status)}</td><td class="num nw k-weg">${deDate(x.entry_date) || '–'}</td><td class="nw k-weg">${x.exit_date ? deDate(x.exit_date) : '–'}</td><td>${zText(x)}</td>
       <td class="r nw">${myDept(x.department_id) ? `<button class="btn small" data-md="${x.id}">Bearbeiten</button>` : ''}</td></tr>`).join('');
     el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Beiträge</h3>${SC() || d.familyHead ? '' : '<button class="btn small" id="fAdd">+ Beitrag</button>'}</div>
         ${d.fees.length ? `<table class="tbl kompakt"><tr><th>Beitrag</th><th class="r">Betrag</th><th>Rhythmus</th><th>ab</th><th>bis</th><th>abgerechnet bis</th><th></th></tr>${feeRows}</table>`
-          : `<p class="muted">${d.familyHead ? `Kein eigener Beitrag – im Familienbeitrag von ${esc(GK.lastFirst(d.familyHead.name))} enthalten (Reiter „Zahlung & Familie“).` : p.payer_id ? 'Kein eigener Beitrag – der Zahler zahlt.' : 'Noch kein Beitrag zugeordnet.'}</p>`}</div>
+          : `<p class="muted">${d.familyHead ? `Kein eigener Beitrag – im Familienbeitrag von ${esc(GK.lastFirst(d.familyHead.name))} enthalten (Reiter „Zahlung & Familie“).` : p.payer_id ? 'Kein eigener Beitrag – der Zahler zahlt.' : 'Noch kein Beitrag zugeordnet.'}</p>`}
+        ${fy ? `<div class="row mv-fy" style="justify-content:space-between;align-items:center;margin-top:12px"><div style="min-width:0;flex:1 1 220px"><span class="muted s">${esc(GK.T('Erstes Jahr ({0}–{1})', [deDate(fy.from), deDate(fy.to)]))}</span><div><b>${esc(GK.T(FY[fy.value] || fy.value))}</b>${fy.billed.length ? ` <span class="muted s">${esc(GK.T('– schon abgerechnet'))}</span>` : ''}</div></div>${SC() || !m.perms.finance || fy.billed.length ? '' : '<button class="btn small" id="fyEdit">Ändern …</button>'}</div>` : ''}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Abteilungen</h3>${SC() ? '' : '<button class="btn small" id="dAdd">+ Abteilung</button>'}</div>
         ${d.departments.length ? `<table class="tbl kompakt"><tr><th>Abteilung</th><th>Status</th><th>Eintritt</th><th>Austritt</th><th>Zusatzbeitrag</th><th></th></tr>${depRows}</table>
           <p class="muted s" style="margin-bottom:0">${d.familyHead ? `Der Zusatzbeitrag wird ${esc(GK.lastFirst(d.familyHead.name))} (Oberhaupt) zusätzlich zum Familienbeitrag belastet.` : 'Zusatzbeiträge der Abteilungen gelten je Person nach Alter – auch in einer Familie zahlt der Hauptzahler sie nur für die Angehörigen, die der Abteilung angehören.'}</p>` : '<p class="empty">Keiner Abteilung zugeordnet.</p>'}</div>
@@ -779,6 +839,22 @@
       });
     };
     if ($('fAdd')) $('fAdd').onclick = () => feeDialog(null);
+    if ($('fyEdit')) $('fyEdit').onclick = () => {   // erstes Jahr ändern; schon frei vermerkte Zeiträume nur nach Rückfrage zurücknehmen
+      dialog(`<h2>Erstes Jahr</h2><p class="muted" style="margin-top:0">${esc(GK.T('Gilt für alle Beiträge und Zusatzbeiträge im Beitragsjahr des Eintritts ({0}–{1}). Anfänger: frei, Vereinswechsler: anteilig oder voll.', [deDate(fy.from), deDate(fy.to)]))}</p>
+        <div class="mv-grid" style="--c:2">${fyField('fyS', false, fy.value)}</div>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="fyOk">Speichern</button></div>`);
+      $('c').onclick = closeDialog;
+      $('fyOk').onclick = () => GK.busy($('fyOk'), async () => {
+        const body = { first_year: val('fyS') };
+        try { await api(`member/${id}/first-year`, 'PUT', body); }
+        catch (e) {
+          if (e.status !== 409) return fail(e);
+          if (!await ask(`${GK.T('Ein Teil des ersten Jahres ist schon als beitragsfrei vermerkt (abgerechnet bis):')}\n\n${fy.marked.map(x => `${x.fee}: ${deDate(x.old_until)}`).join('\n')}\n\n${GK.T('Zurücknehmen? Der nächste Beitragslauf berechnet diesen Zeitraum dann (mit Vorschau).')}`, { ok: GK.T('Zurücknehmen'), danger: false })) return;
+          try { await api(`member/${id}/first-year`, 'PUT', { ...body, reset: true }); } catch (e2) { return fail(e2); }
+        }
+        closeDialog(); toast('Gespeichert.'); again();
+      });
+    };
     el.querySelectorAll('[data-mf]').forEach(b => { b.onclick = () => feeDialog(d.fees.find(f => f.id === +b.dataset.mf)); });
     const deptDialog = x => {
       dialog(`<h2>${x ? esc(x.name) : 'Abteilung zuordnen'}</h2><div class="mv-grid" style="--c:2">
@@ -834,24 +910,24 @@
     el.innerHTML = `<div class="mv-two">
       <div class="card"><h3>Wer zahlt?</h3>
         <div class="mv-grid" style="--c:1">
-          <label class="f">Zahler<select id="pPayer" ${d.familyHead ? 'disabled' : ''}><option value="">${esc(GK.lastFirst(p.name))} zahlt selbst</option>${memberOptions(p.payer_id, id)}</select></label>
+          <label class="f">Zahler<select id="pPayer" data-feld="payer" ${d.familyHead ? 'disabled' : ''}><option value="">${esc(GK.lastFirst(p.name))} zahlt selbst</option>${memberOptions(p.payer_id, id)}</select></label>
           <label class="f ${p.payer_id ? '' : 'hidden'}" id="pDrinksL">Verkauf am Tablet<select id="pSales">${opt('payer', 'Über den Hauptzahler (nicht in der Liste)', p.sales_mode || 'payer')}${opt('own_payer', 'Eigener Eintrag – zahlt der Hauptzahler', p.sales_mode)}${opt('own', 'Eigener Eintrag – zahlt selbst', p.sales_mode)}</select></label>
           <label class="f">Zahlungsart (des Zahlers)<select id="pPay" ${head ? '' : 'disabled'}>${Object.entries(PAY).filter(([k]) => !st.meta.settings.sepa_required || k === 'lastschrift' || k === p.payment).map(([k, l]) => opt(k, l, p.payment)).join('')}</select></label>
         </div>
         ${d.familyHead ? `<div class="banner b mv-lockinfo"><span><b>Familienmitglied von ${esc(GK.lastFirst(d.familyHead.name))}</b> – gezahlt wird immer über das Oberhaupt. Einstellbar ist nur, wie am Tablet gebucht wird.</span></div>` : ''}
         <p class="muted s">Der Zahler ist eine reine Geldbeziehung: Beiträge, Zusatzbeiträge und Verkauf aller Angehörigen laufen über sein Konto und Mandat – auch für erwachsene Kinder mit eigenem Beitrag. Am Tablet bucht die Zahlergruppe standardmäßig auf den Namen des Hauptzahlers.</p>
         ${d.payerGroup.length ? `<h4 class="mv-sub">Zahlergruppe</h4><table class="tbl kompakt">${[...d.payerGroup].sort((a, b) => GK.lastFirst(a.name).localeCompare(GK.lastFirst(b.name), 'de')).map(f => `<tr><td><b>${esc(GK.lastFirst(f.name))}</b>${f.id === id ? '<div class="muted s">dieses Mitglied</div>' : ''}</td><td class="nw">${f.age != null ? f.age + ' Jahre' : '<span class="muted s">ohne Geburtsdatum</span>'}</td><td class="nw">${f.head ? '<span class="pill g">Hauptzahler</span>' : `<span class="muted s">Verkauf: ${f.sales_mode === 'payer' ? 'über Hauptzahler' : f.sales_mode === 'own' ? 'eigener Eintrag, zahlt selbst' : 'eigener Eintrag'}</span>`}</td><td class="r nw">${f.id !== id ? `<button class="btn small" data-open="${f.id}">Öffnen</button>` : ''}</td></tr>`).join('')}</table>` : ''}
-        <div class="row" style="justify-content:flex-end"><button class="btn primary" id="pSave">Speichern</button></div></div>
+        <div class="err" id="pErr"></div><div class="row" style="justify-content:flex-end"><button class="btn primary" id="pSave">Speichern</button></div></div>
       <div class="card"><h3>Familienmitgliedschaft</h3>
         <div class="mv-grid" style="--c:1">
-          <label class="f">Familienmitgliedschaft bei<select id="pFamOf" ${isHead ? 'disabled' : ''}>${famOpts}</select></label>
+          <label class="f">Familienmitgliedschaft bei<select id="pFamOf" data-feld="family" ${isHead ? 'disabled' : ''}>${famOpts}</select></label>
         </div>
         <p class="muted s">${isHead ? `${esc(GK.lastFirst(p.name))} ist Oberhaupt: der eigene Familienbeitrag deckt Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre ab. Ein Oberhaupt kann nicht selbst einer anderen Familie zugeordnet sein.`
           : `Wählbar sind Mitglieder mit aktivem Familienbeitrag. Wer zugeordnet ist, braucht keine eigene Beitragsart – Zusatzbeiträge der Abteilungen bleiben je Person. Erlaubt: Oberhaupt, ein/e Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre.${!d.familyFee && famFeeIds.size === 0 ? ' Noch keine Beitragsart mit Familienbeitrag angelegt (Mitglieder › Beiträge & Abteilungen).' : ''}`}</p>
         ${d.family.length ? `<h4 class="mv-sub">Familie</h4>${famTable(d.family)}` : d.familyFee ? '<p class="empty">Noch keine Angehörigen zugeordnet – unten hinzufügen.</p>' : ''}
         ${isHead || d.familyFee ? `<div class="row mv-famadd" style="margin-top:10px"><label class="f" style="flex:1"><select id="pAddFam" data-nodirty><option value="">Angehörige/n hinzufügen …</option>${addable.map(r => opt(r.id, `${GK.lastFirst(r.name)}${r.member_no ? ' (' + r.member_no + ')' : ''}`, '')).join('')}</select></label><button class="btn" id="pFamOk">Hinzufügen</button></div>
           ${SC() ? '' : `<div class="mv-famact"><button class="btn" id="pFamPartner" type="button" ${hasPartner ? 'disabled' : ''}>Partner/in neu anlegen</button><button class="btn" id="pFamKid" type="button">Kind neu anlegen</button></div>${hasPartner ? '<p class="muted s" id="pFamPartnerWhy" style="margin:6px 0 0">Es gibt schon eine/n Partner/in – in einer Familie sind höchstens zwei Erwachsene.</p>' : ''}`}` : ''}
-        <div class="row" style="justify-content:flex-end"><button class="btn primary" id="pFamSave" ${isHead ? 'disabled' : ''}>Speichern</button></div></div></div>
+        <div class="err" id="pFamErr"></div><div class="row" style="justify-content:flex-end"><button class="btn primary" id="pFamSave" ${isHead ? 'disabled' : ''}>Speichern</button></div></div></div>
       ${d.charges ? `<div class="card"><h3>Forderungen & Zahlungen</h3>
         ${d.charges.length ? chargeTable(d.charges, { member: true }) : '<p class="empty">Noch keine Forderungen.</p>'}
         ${d.drinksOpen ? `<p class="muted s">Dazu noch nicht abgerechneter Verkauf: <b>${euro(d.drinksOpen)}</b></p>` : ''}</div>` : ''}
@@ -864,9 +940,9 @@
         await api(`member/${id}/payer`, 'PUT', { payer_id: val('pPayer') ? +val('pPayer') : null, sales_mode: val('pSales') });
         if (!$('pPay').disabled) await api('member/' + id, 'PUT', { payment: val('pPay') });
         GK.clean(); toast('Gespeichert.'); again();
-      } catch (e) { fail(e); }
+      } catch (e) { if (e.field) GK.formError($('pErr'), e); else fail(e); }
     };
-    $('pFamSave').onclick = () => GK.busy($('pFamSave'), async () => { try { await api(`member/${id}/family`, 'PUT', { family_of: val('pFamOf') ? +val('pFamOf') : null }); GK.clean(); toast('Gespeichert.'); again(); } catch (e) { fail(e); } });
+    $('pFamSave').onclick = () => GK.busy($('pFamSave'), async () => { try { await api(`member/${id}/family`, 'PUT', { family_of: val('pFamOf') ? +val('pFamOf') : null }); GK.clean(); toast('Gespeichert.'); again(); } catch (e) { if (e.field) GK.formError($('pFamErr'), e); else fail(e); } });
     if ($('pFamOk')) $('pFamOk').onclick = () => GK.busy($('pFamOk'), async () => { const x = +val('pAddFam'); if (!x) return; try { await api(`member/${x}/family`, 'PUT', { family_of: id }); toast('Hinzugefügt.'); again(); } catch (e) { fail(e); } });
     // neue Angehörige: Formular „Neues Mitglied“, vorbelegt mit Anschrift, Nachname und Festnetz des Oberhaupts, Familie und Zahlung über das Oberhaupt
     const newRel = role => newMember({ rel: { kind: 'family', id, name: p.name, role }, country: p.country || '', f: { nStreet: p.street || '', nZip: p.zip || '', nCity: p.city || '', nLast: p.last_name || '', nPhone: p.phone || '' } });
@@ -1049,28 +1125,36 @@
   const exitMailToast = (base, m) => { if (m && m.sent) toast(`${GK.T(base)} ${GK.T('Bestätigung an {0} gesendet.', [m.to])}`); else if (m && m.error) toast(`${GK.T(base)} ${GK.T(m.error)}`, true); else toast(base); };
 
   function exitDialog(d, again) {
-    const p = d.person, seen = new Set(), fam = [...(d.payerGroup || []), ...(d.family || [])].filter(f => !f.head && f.id !== p.id && !seen.has(f.id) && seen.add(f.id));   // Zahlergruppe und Familienmitgliedschaft
+    // Angehörige wie am Server: wer über dieses Mitglied zahlt (nur wenn es selbst Hauptzahler ist) und seine Familie (nur als Oberhaupt) – ausgetretene nicht
+    const p = d.person, seen = new Set(), live = f => !(f.exit_date && f.exit_date < st.meta.today);
+    const fam = [...(!p.payer_id || (d.payerGroup || []).some(f => f.head && f.id === p.id) ? d.payerGroup || [] : []), ...((d.family || [])[0] && d.family[0].id === p.id ? d.family : [])].filter(f => !f.head && f.role !== 'oberhaupt' && f.id !== p.id && live(f) && !seen.has(f.id) && seen.add(f.id));
     dialog(`<h2>Austritt von ${esc(GK.lastFirst(p.name))}</h2>
       <div class="mv-grid" style="--c:2"><label class="f">Austritt zum<input id="xDate" type="date"></label><label class="f">Kündigung eingegangen am<input id="xNotice" type="date" value="${st.meta.today}"></label>
       <p class="muted s wall" id="xHint" style="margin:0">Vorschlag nach Kündigungsfrist und Geschäftsjahr.</p>
       <label class="f wall">Grund (optional)<input id="xReason" placeholder="z. B. Umzug"></label>
       <label class="f wall">Kündigungsschreiben o. ä. (optional, PDF oder Foto)<input id="xDoc" type="file" accept="application/pdf,image/*"></label></div>
       <div class="mv-cons" style="margin-top:12px"><label class="chk"><input type="checkbox" id="xFees" checked> Beiträge zum Austritt beenden</label><label class="chk"><input type="checkbox" id="xDepts" checked> Abteilungen zum Austritt beenden</label>
-        ${fam.length ? `<label class="chk"><input type="checkbox" id="xFam"><span>Angehörige mit austreten lassen (<span translate="no">${esc(fam.map(f => GK.lastFirst(f.name)).sort((a, b) => a.localeCompare(b, 'de')).join(' · '))}</span>)</span></label>` : ''}</div>
+        ${fam.length ? `<label class="chk" id="xFamL"><input type="checkbox" id="xFam"><span>Angehörige mit austreten lassen (<span translate="no" id="xFamN"></span>)</span></label>` : ''}</div>
       <div id="xNotes"></div>
       ${CONF() ? '<p class="muted s">Die Bestätigung an das Mitglied schickt die Vereinsverwaltung, wenn sie den Austritt bestätigt.</p>' : '<div id="xMail"></div>'}
       <p class="muted s">Bis zum Austritt bleibt alles wie bisher. Danach verschwindet das Mitglied am Tablet und in der App; Daten bleiben bis zum Anonymisieren erhalten.</p>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="xOk">Austritt eintragen</button></div>`);
     $('c').onclick = closeDialog;
+    // Angehörige, die am gewählten Austrittstag noch dabei sind (Server: Austritt nach diesem Tag) – wer vorher austritt, geht nicht „mit“
+    const famAt = () => { const d = val('xDate') || st.meta.today; return fam.filter(f => !f.exit_date || f.exit_date > d); };
+    const famShow = () => { if (!$('xFamL')) return; const l = famAt(); $('xFamL').classList.toggle('hidden', !l.length); $('xFamN').textContent = l.map(f => GK.lastFirst(f.name)).sort((a, b) => a.localeCompare(b, 'de')).join(' · '); if (!l.length) $('xFam').checked = false; };
+    famShow();
     // Vorschlag „Austritt zum“: Ende des Geschäftsjahres nach Kündigungsfrist, bezogen auf den Eingang (bis man das Datum selbst ändert)
     let own = false;
-    const suggest = () => { const day = val('xNotice'); if (own || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return; api(`notice-date?day=${day}`).then(r => { if (!own && $('xDate') && val('xNotice') === day) $('xDate').value = r.date; }).catch(() => {}); };
+    const suggest = () => { const day = val('xNotice'); if (own || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return; api(`notice-date?day=${day}`).then(r => { if (!own && $('xDate') && val('xNotice') === day) { $('xDate').value = r.date; famShow(); } }).catch(() => {}); };
     $('xDate').oninput = () => { own = true; };
     $('xNotice').onchange = () => { suggest(); xm && xm.load(); };
-    const xm = $('xMail') ? exitMailBox($('xMail'), p.id, () => ({ exit_date: val('xDate'), notice_date: val('xNotice'), with: $('xFam') && $('xFam').checked ? fam.map(f => f.id) : [] })) : null;
-    $('xDate').onchange = () => xm && xm.load(); if ($('xFam')) $('xFam').onchange = () => xm && xm.load();
+    const xm = $('xMail') ? exitMailBox($('xMail'), p.id, () => ({ exit_date: val('xDate'), notice_date: val('xNotice'), with: $('xFam') && $('xFam').checked ? famAt().map(f => f.id) : [] })) : null;
+    $('xDate').onchange = () => { famShow(); if (xm) xm.load(); }; if ($('xFam')) $('xFam').onchange = () => xm && xm.load();
     suggest();
-    if (st.meta.keyModule) api(`member/${p.id}/exit-notes`).then(r => { if ($('xNotes') && (r.notes || []).length) $('xNotes').innerHTML = r.notes.map(t => `<div class="banner a"><span>${esc(t)}</span></div>`).join(''); }).catch(() => {});
+    // Hinweise zum Austritt (Schlüssel zurückgeben, Oberhaupt danach allein im Familienbeitrag …) – neu bei anderem Datum
+    const notes = () => api(`member/${p.id}/exit-notes?date=${encodeURIComponent(val('xDate') || st.meta.today)}`).then(r => { if ($('xNotes')) $('xNotes').innerHTML = (r.notes || []).map(t => `<div class="banner a"><span>${esc(t)}</span></div>`).join(''); }).catch(() => {});
+    notes(); $('xDate').addEventListener('change', notes);
     $('xOk').onclick = () => GK.busy($('xOk'), async () => {
       const body = { exit_date: val('xDate'), notice_date: val('xNotice'), reason: val('xReason'), endFees: $('xFees').checked, endDepts: $('xDepts').checked, withDependents: $('xFam') ? $('xFam').checked : false, ...(xm ? { mail: xm.get() } : {}) };
       const file = $('xDoc').files[0] || null;
@@ -1131,6 +1215,7 @@
       if (commit) q.set('commit', '1');
       if ($('iBooked') && $('iBooked').value && !$('iBookedRow').classList.contains('hidden')) q.set('booked', $('iBooked').value);
       if ($('iUsed') && $('iUsed').checked) q.set('used', '1');
+      if ($('iFy') && val('iFy') !== 'standard') q.set('first_year', val('iFy'));
       if (commit && prev && prev.yearHint) q.set('year_start', prev.yearHint);
       return '?' + q.toString();
     };
@@ -1151,10 +1236,13 @@
       if ($('iUsedRow')) $('iUsedRow').classList.toggle('hidden', !m.mandate_ref);
       document.querySelectorAll('#iMap .imp-row').forEach(r => { const s = r.querySelector('select'); const i = an.headers.indexOf(s.value); r.classList.toggle('on', i >= 0); r.querySelector('.ex').textContent = i >= 0 ? ((/^(phone|mobile)$/.test(s.dataset.fk) ? an.samplePhone : an.sample[0] || [])[i] || '–') : '–'; });   // so, wie es übernommen wird (z. B. mit führender 0)
     };
+    let fyImp = 'standard';   // erstes Jahr der neu angelegten Mitglieder (Vorgabe: wie Beitragsart)
     function drawMap() {
+      if ($('iFy')) fyImp = val('iFy');
       const vc = fmt() === 'vereincloud';
       const det = `<div class="imp-det"><label class="f">Erkanntes Format<select id="iFmt">${an.presets.map(p => opt(p.key, p.label, fmt())).join('')}</select></label>
-        <span class="pill b">${an.count} ${an.count === 1 ? 'Person' : 'Personen'}</span><span class="pill">${an.headers.length} Spalten</span></div>`;
+        <span class="pill b">${an.count} ${an.count === 1 ? 'Person' : 'Personen'}</span><span class="pill">${an.headers.length} Spalten</span>
+        <label class="f">Erstes Jahr neuer Mitglieder<select id="iFy">${Object.entries(FY).map(([k, l]) => opt(k, l, fyImp)).join('')}</select></label></div>`;
       {
         const fields = vc ? an.fields.filter(f => an.vcFields.includes(f.key)) : an.fields;
         const groups = [...new Set(fields.map(f => f.group))];
@@ -1303,7 +1391,7 @@
         else if (Object.values(feeDec).some(v => v === '')) { throw new Error('Bitte bei allen Beitragsarten mit ähnlichen vorhandenen wählen: vorhandene verwenden, neu anlegen, zusammenführen oder nicht übernehmen.'); }
         else if (feeCheckNow().errs.length) { throw new Error(feeCheckNow().errs[0]); }
         else if (feeCheckNow().diffs.length && !feeOk) { throw new Error('Bitte im Warnkasten bestätigen: Die zusammengeführten Beitragsarten unterscheiden sich, es gilt die Zielart.'); }
-        else { const r = await run(true); closeDialog(); await ask(`Import abgeschlossen.\n\n${r.created} neu angelegt, ${r.updated} ergänzt, ${r.depts} Abteilungen und ${r.fees} Beitragsarten neu, ${r.payers} Zahler verknüpft, ${r.families || 0} Familienmitgliedschaften.`, { okOnly: true, danger: false }); reloadTab(); return; }
+        else { const r = await run(true); closeDialog(); await ask(`Import abgeschlossen.\n\n${r.created} neu angelegt, ${r.updated} ergänzt, ${r.depts} Abteilungen und ${r.fees} Beitragsarten neu, ${r.payers} Zahler verknüpft, ${r.families || 0} Familienmitgliedschaften.${(r.errors || []).length ? `\n\n${GK.T('Nicht verknüpft:')}\n${r.errors.map(x => '– ' + x).join('\n')}` : ''}`, { okOnly: true, danger: false }); reloadTab(); return; }
       } catch (e) { fail(e); }
       $('iOk').disabled = false;
     });
@@ -1437,6 +1525,7 @@
       <div class="mv-grid" style="--c:4"><label class="f w2">Kontoinhaber<input id="afHolder"></label><label class="f w2">IBAN<input id="afIban" spellcheck="false" autocomplete="off"></label>
         <label class="f">BIC (optional)<input id="afBic"></label><label class="f">Kreditinstitut (optional)<input id="afBank"></label><label class="f w2">Gesetzlicher Vertreter (nur bei Minderjährigen)<input id="afSigner"></label></div>
       <label class="chk" style="margin-top:14px"><input type="checkbox" id="afAuto" checked> Nach der Unterschrift sofort als Mitglied übernehmen (sonst erst nach Bestätigung unter „Anträge“)</label>
+      <div class="mv-grid" style="--c:4;margin-top:10px" id="afFyBox">${fyField('afFy', false, 'standard', 'f w2')}</div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="afOk">Code fürs Tablet erzeugen</button></div>`, true);
     $('c').onclick = closeDialog;
     /* mehrere Personen → nur Familienbeitrag (falls angelegt); eine Person → ohne Familienbeitrag */
@@ -1447,7 +1536,13 @@
       $('afFees').innerHTML = offer.map(f => `<label><input type="radio" name="afFee" value="${f.id}" ${String(f.id) === cur || offer.length === 1 ? 'checked' : ''}> <span translate="no">${esc(f.name)}</span><b>${euro(f.cents)}</b></label>`).join('');
       $('afFeeHint').textContent = n > 1 && fam.length ? 'Mehrere Personen: es gilt die Familienmitgliedschaft.' : '';
     };
-    drawFees();
+    const fyAf = () => {   // nur beim sofortigen Übernehmen nötig (sonst wählt der Vorstand beim Annehmen)
+      $('afFyBox').style.display = $('afAuto').checked ? '' : 'none';
+      const fee = document.querySelector('[name=afFee]:checked'), dep = [...document.querySelectorAll('#afP [data-dep]:checked')].map(i => +i.dataset.dep);
+      fyRedraw('afFy', fyNeed([fee ? +fee.value : 0], dep), 'f w2');
+    };
+    $('afAuto').onchange = fyAf; $('dialog').addEventListener('change', e => { if (e.target.name === 'afFee' || e.target.dataset.dep) fyAf(); });
+    drawFees(); fyAf();
     const bindPx = () => document.querySelectorAll('#afP [data-px]').forEach(b => { b.onclick = () => { b.closest('[data-p]').remove(); drawFees(); }; });
     $('afAdd').onclick = () => { const n = document.querySelectorAll('#afP [data-p]').length; $('afP').insertAdjacentHTML('beforeend', person(n, { last_name: (document.querySelector('#afP [data-p="0"] [data-k="last_name"]') || {}).value || '' })); bindPx(); drawFees(); };
     $('afTake').onclick = async () => {   // Anschrift, Nachname (der antragstellenden Person), E-Mail und Mobil – Bankdaten nie
@@ -1463,7 +1558,7 @@
       const fee = document.querySelector('[name=afFee]:checked');
       const data = { persons, street: val('afStreet'), zip: val('afZip'), city: val('afCity'), email: val('afMail'), mobile: val('afMobile'), entry_date: val('afEntry'), fee_id: fee ? +fee.value : null,
         holder: val('afHolder'), iban: val('afIban'), bic: val('afBic'), bank: val('afBank'), signer: val('afSigner') };
-      try { const r = await api('applications', 'POST', { data, auto_accept: $('afAuto').checked }); showCode(r.code); } catch (e) { fail(e); }
+      try { const r = await api('applications', 'POST', { data, auto_accept: $('afAuto').checked, first_year: $('afAuto').checked ? val('afFy') || undefined : undefined }); showCode(r.code); } catch (e) { fail(e); }
     });
   }
 
@@ -1484,7 +1579,7 @@
           <p style="margin:0 0 6px">Konto: <b>${esc(d.holder || '')}</b> · ${esc(d.iban ? fmtIban(d.iban) : d.iban_masked || '–')}${d.bank ? ' · ' + esc(d.bank) : ''}</p>
           <p class="muted s" style="margin:0">Einwilligungen: ${esc(st.meta.settings.consents.filter(c => d.consents && d.consents[c.key]).map(c => c.short).join(', ') || '–')}${d.signer ? ` · gesetzl. Vertreter: ${esc(d.signer)}` : ''}</p>
         </dl>
-        ${ro ? '' : `<label class="f" style="margin-top:12px;max-width:240px">Eintritt zum<input id="rvEntry" type="date" value="${esc(d.entry_date || st.meta.today)}"></label>`}
+        ${ro ? '' : `<div class="mv-grid" style="--c:2;margin-top:12px"><label class="f">Eintritt zum<input id="rvEntry" type="date" value="${esc(d.entry_date || st.meta.today)}"></label>${fyField('rvFy', false, d.first_year || 'standard')}</div>`}
         ${a.sha256 ? `<p class="muted s" style="word-break:break-all">Prüfwert (SHA-256): ${esc(a.sha256)}</p>` : ''}
       </div>
       <div class="preview"><iframe src="${BASE}applications/${id}/pdf" title="Beitrittserklärung"></iframe></div></div>
@@ -1496,6 +1591,8 @@
       try { await api('applications/' + id, 'DELETE'); closeDialog(); toast('Gelöscht.'); after(); } catch (e) { fail(e); }
     }, () => reviewApplication(id, after));
     if (ro) return;
+    const fyRv = () => fyRedraw('rvFy', fyNeed([...document.querySelectorAll('[data-fee]')].map(x => +x.value).concat(d.fee_id), d.persons.flatMap(p => p.departments || [])));
+    document.querySelectorAll('[data-fee]').forEach(x => x.addEventListener('change', fyRv)); fyRv();
     $('rvNo').onclick = () => {
       $('dialog').innerHTML = `<h2>Antrag ablehnen?</h2><label class="f">Grund (nur intern, optional)<input id="rvWhy"></label>
         <div class="btns"><button class="btn ghost" id="cfX">Abbrechen</button><button class="btn danger" id="cfOk">Antrag ablehnen</button></div>`;
@@ -1504,7 +1601,7 @@
     };
     $('rvOk').onclick = () => GK.busy($('rvOk'), async () => {
       const persons = d.persons.map((p, i) => ({ merge_id: (document.querySelector(`[data-merge="${i}"]`) || {}).value || null, fee_id: (document.querySelector(`[data-fee="${i}"]`) || {}).value ? +(document.querySelector(`[data-fee="${i}"]`)).value : null }));
-      try { const r = await api(`applications/${id}/accept`, 'POST', { persons, entry_date: val('rvEntry') }); closeDialog(); if (r.pending) { toast(`Befürwortet. ${PENDING}`); after(); return; } toast('Angenommen – Willkommens-E-Mail ist unterwegs.'); await loadMeta(); GK.refreshBadges(); openMember(r.member_id); }
+      try { const r = await api(`applications/${id}/accept`, 'POST', { persons, entry_date: val('rvEntry'), first_year: val('rvFy') || undefined }); closeDialog(); if (r.pending) { toast(`Befürwortet. ${PENDING}`); after(); return; } toast('Angenommen – Willkommens-E-Mail ist unterwegs.'); await loadMeta(); GK.refreshBadges(); openMember(r.member_id); }
       catch (e) { fail(e); }
     });
   }
@@ -1636,10 +1733,10 @@
   async function ageList(el, after, pre) {
     const rows = pre || await api('age-notices');
     el.innerHTML = `<div class="card"><h3>Altersstufen</h3>
-      <p class="muted s" style="margin-top:0">Wer älter wird und nicht mehr in seinen Beitrag passt, aus dem Familienbeitrag herauswächst oder in eine höhere Stufe des Zusatzbeitrags kommt, steht hier. Bis zur Entscheidung läuft der <b>bisherige Beitrag weiter</b>. „So belassen“ wird gemerkt – es kommt kein neuer Hinweis.</p>
-      ${rows.length ? `<table class="tbl kompakt"><tr><th>Mitglied</th><th>Anlass</th><th>bisher</th><th>neu</th><th class="nw">ab</th><th></th></tr>${rows.map(n => `<tr>
+      <p class="muted s" style="margin-top:0">Wer älter wird und nicht mehr in seinen Beitrag passt, aus dem Familienbeitrag herauswächst oder in eine höhere Stufe des Zusatzbeitrags kommt, steht hier – ebenso ein Oberhaupt, das allein im Familienbeitrag ist. Bis zur Entscheidung läuft der <b>bisherige Beitrag weiter</b>. „So belassen“ wird gemerkt – es kommt kein neuer Hinweis.</p>
+      ${rows.length ? `<table class="tbl kompakt k-name-voll"><tr><th>Mitglied</th><th>Anlass</th><th>bisher</th><th>neu</th><th class="nw">ab</th><th></th></tr>${rows.map(n => `<tr>
           <td><a href="#" data-agem="${n.member_id}"><b>${esc(GK.lastFirst(n.name || ''))}</b></a>${n.payer_name ? `<div class="muted s k-weg">zahlt über ${esc(GK.lastFirst(n.payer_name))}</div>` : ''}</td>
-          <td>${esc(n.label)}${n.dept ? ` <span class="muted s" translate="no">(${esc(n.dept)})</span>` : ''}<div class="muted s k-weg">${n.age} Jahre</div></td>
+          <td>${esc(n.label)}${n.dept ? ` <span class="muted s" translate="no">(${esc(n.dept)})</span>` : ''}${n.age != null ? `<div class="muted s k-weg">${n.age} Jahre</div>` : ''}</td>
           <td class="k-desk nw">${ageFrom(n)}</td><td class="k-desk nw">${ageTo(n)}</td><td class="k-mob k-1z" style="flex:1 1 100%"><span class="muted s">bisher</span> ${ageFrom(n, true)} <span class="muted s">→ neu</span> ${ageTo(n, true)} <span class="muted s">ab</span> <span class="num nw">${deDate(n.due_date)}</span></td><td class="num nw k-desk">${deDate(n.due_date)}</td>
           <td class="r nw"><span class="acts"><button class="btn small" data-age="${n.id}:belassen">So belassen</button> <button class="btn small" data-age="${n.id}:umstellen" ${n.kind !== 'zusatz' && !n.to ? 'disabled' : ''}>Umstellen</button></span></td></tr>`).join('')}</table>`
         : '<p class="empty">Gerade nichts zu entscheiden – wer in eine andere Altersstufe rutscht, erscheint hier.</p>'}</div>`;
@@ -1651,7 +1748,7 @@
     const m = st.meta;
     const today = m.today;
     const done = st.runDone; st.runDone = null;
-    el.innerHTML = `<div class="card"><h3>Beitragslauf</h3>
+    el.innerHTML = `<div id="fjBox"></div><div class="card"><h3>Beitragslauf</h3>
         <p class="muted s" style="margin-top:0">Erzeugt die Beiträge aller Mitglieder bis zum Stichtag als offene Posten – anteilig nach Eintritt, jeder Zeitraum nur einmal. Danach geht es weiter zum Einzug.</p>
         <div class="mv-grid" style="--c:2"><label class="f">Abrechnen bis<input id="rUntil" type="date" value="${today}"></label>
           <label class="f">Nur Zahlungsart<select id="rPay"><option value="">alle</option>${Object.entries(PAY).map(([k, l]) => opt(k, l)).join('')}</select></label></div>
@@ -1666,6 +1763,7 @@
           <td class="r nw"><button class="btn small" data-rshow="${r.id}">Posten</button></td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Lauf.</p>'}</div>
       <div id="bkBox"></div>`;
     bookedCard($('bkBox'), again).catch(fail);
+    freeYearCard($('fjBox'), again).catch(fail);
     const preview = async () => {
       const o = { until: val('rUntil'), payment: val('rPay') || undefined, drinks: $('rDrinks') ? $('rDrinks').checked : false, extra: $('rExtra') ? $('rExtra').checked : true };
       const pv = await api('runs/preview', 'POST', o);
@@ -1704,6 +1802,23 @@
       };
       posten().catch(fail);
     }; });
+  }
+
+  /* ---------------------------------------------------------------- „Eintrittsjahr frei“ zu weit vermerkt (lib/freijahr.js)
+     Hinweis nur, wenn ein früherer Lauf mehr als das Eintrittsjahr frei vermerkt hat; korrigiert wird erst auf Knopfdruck. */
+  async function freeYearCard(el, again) {
+    const p = await api('freijahr');
+    if (!p.rows.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="card"><h3>Eintrittsjahr frei: zu weit vermerkt</h3>
+      <div class="banner a"><span>${esc(GK.T('Frei ist nur das Beitragsjahr, in das der Eintritt fällt. Bei diesen Beiträgen hat ein früherer Lauf mehr als das Eintrittsjahr frei vermerkt – sie würden sonst erst später wieder berechnet.'))}</span></div>
+      <table class="tbl kompakt"><tr><th>Mitglied</th><th>Beitrag</th><th class="nw">wieder berechnet ab</th></tr>${p.rows.map(r => `<tr><td><b>${esc(r.name)}</b></td>
+        <td class="k-1z" style="flex:1 1 100%">${esc(r.text)}</td><td class="num nw k-lbl" data-label="${esc(GK.T('wieder berechnet ab'))}">${deDate(r.from)}</td></tr>`).join('')}</table>
+      <p class="muted s">${esc(GK.T('„Korrigieren“ setzt „abgerechnet bis“ auf das Ende des Eintrittsjahres zurück. Posten entstehen erst im nächsten Beitragslauf – mit Vorschau.'))}</p>
+      <div class="row" style="justify-content:flex-end"><button class="btn primary" id="fjGo">Korrigieren</button></div></div>`;
+    $('fjGo').onclick = async () => {
+      if (!await ask(GK.T('„Abgerechnet bis“ bei {0} Beiträgen zurücksetzen? Die Beiträge ab dem Ende des Eintrittsjahres erscheinen danach in der Vorschau des nächsten Beitragslaufs.', [p.rows.length]), { ok: GK.T('Korrigieren'), danger: false })) return;
+      try { const r = await api('freijahr', 'POST', { token: p.token }); toast(GK.T('{0} Beiträge korrigiert.', [r.count])); again(); } catch (e) { fail(e); }
+    };
   }
 
   /* ---------------------------------------------------------------- „Abgerechnet bis“ für alle setzen (lib/abgerechnet.js)
@@ -1797,10 +1912,11 @@
 
   /** Mahnstufe eines Postens als Bezeichnung aus den Einstellungen (über der letzten Stufe: die letzte) */
   const stageName = n => { const L = (st.meta && st.meta.settings.dunning_levels) || []; return L.length ? L[Math.min(n, L.length) - 1].title : `${n}. Mahnstufe`; };
+  /** Posten-Tabelle; ohne member steht der Zahler vorn – am Handy mit k-1z, damit „Nachname, Vorname“ neben „Bezahlt“ und „Ändern“ in eine Zeile passt (B-7) */
   function chargeTable(rows, { member, select } = {}) {
     const first = c => (member ? `<b translate="no">${esc(c.text)}</b>${c.note ? `<div class="muted s">${esc(c.note)}</div>` : ''}` : `<b>${esc(GK.lastFirst(c.payer_name))}</b>${c.member_no ? `<div class="muted s mv-nr">Nr. ${esc(c.member_no)}</div>` : ''}`);
     return `<div class="scroll"><table class="tbl kompakt${member ? ' mv-ctbl' : ''}"><tr>${member ? '<th>Position</th>' : '<th>Zahler</th><th>Position</th>'}<th>Fällig</th><th class="k-eng">Art</th><th>Status</th><th class="r">Betrag</th><th></th></tr>
-      ${rows.map(c => `<tr class="${c.status === 'storniert' ? 'off' : ''}"><td>${select && c.status === 'eingezogen' ? `<label class="chk"><input type="checkbox" data-csel="${c.id}" aria-label="auswählen"> ${first(c)}</label>` : first(c)}</td>
+      ${rows.map(c => `<tr class="${c.status === 'storniert' ? 'off' : ''}"><td${member ? '' : ' class="k-1z"'}>${select && c.status === 'eingezogen' ? `<label class="chk"><input type="checkbox" data-csel="${c.id}" aria-label="auswählen"> ${first(c)}</label>` : first(c)}</td>
         ${member ? '' : `<td class="k-lang"><span translate="no">${esc(c.text)}</span>${c.note ? `<div class="muted s k-weg">${esc(c.note)}</div>` : ''}</td>`}
         <td class="num nw">${deDate(c.due_date)}</td><td class="k-weg k-eng nw">${esc(KIND[c.kind] || c.kind)}</td>
         <td>${c.dunning_level && c.status === 'offen' ? `<span class="pill r">${esc(stageName(c.dunning_level))}</span>` : pill(CSTAT[c.status] || ['', c.status])}${c.dunning_block && c.status === 'offen' && (!c.dunning_block_until || c.dunning_block_until >= st.meta.today) ? ' <span class="pill b">Mahnsperre</span>' : ''}${c.paid_at ? ` <span class="muted s nw k-weg hide-md">${deDate(c.paid_at)} · ${esc(VIA[c.paid_via] || c.paid_via || '')}</span>` : ''}</td>
@@ -2089,7 +2205,7 @@
       const ids = [...el.querySelectorAll('[data-inv]')].filter(c => c.checked).map(c => +c.dataset.inv);
       if (!ids.length) return;
       if (!await ask(`Rechnungen an ${ids.length} Zahler senden?\n\nJede/r bekommt eine E-Mail mit PDF.`, { ok: 'Senden', danger: false })) return;
-      try { const r = await api('invoices/send', 'POST', { member_ids: ids }); toast(`${r.sent} verschickt${r.missing.length ? `, ${r.missing.length} ohne E-Mail (${r.missing.join(', ')})` : ''}.`, r.missing.length > 0 || r.failed.length > 0); again(); } catch (e) { fail(e); }
+      try { const r = await api('invoices/send', 'POST', { member_ids: ids }); toast(`${r.sent} verschickt${r.missing.length ? `, ${r.missing.length} ohne E-Mail (${r.missing.join(' · ')})` : ''}.`, r.missing.length > 0 || r.failed.length > 0); again(); } catch (e) { fail(e); }
     };
     el.querySelectorAll('[data-dunb]').forEach(b => { b.onclick = async () => { try { await api(`member/${b.dataset.dunb}/dunning-block`, 'DELETE'); toast('Mahnsperre aufgehoben.'); again(); } catch (e) { fail(e); } }; });
     el.querySelectorAll('[data-dunc]').forEach(b => { b.onclick = async () => { try { await api(`charges/${b.dataset.dunc}/dunning-block`, 'DELETE'); toast('Mahnsperre aufgehoben.'); again(); } catch (e) { fail(e); } }; });
@@ -2311,10 +2427,10 @@
     if (!r.rows.length) { box.innerHTML = `<p class="muted s" style="margin:10px 0 0">${T(r.years === 1 ? 'Niemand ist seit über {0} Jahr ausgetreten und noch nicht anonymisiert.' : 'Niemand ist seit über {0} Jahren ausgetreten und noch nicht anonymisiert.', [r.years])}</p>`; return; }
     box.innerHTML = `<div class="banner a" style="margin-top:12px">${r.rows.length} ${r.rows.length === 1 ? 'Mitglied ist' : 'Mitglieder sind'} seit über ${r.years} ${r.years === 1 ? 'Jahr' : 'Jahren'} ausgetreten. <button class="btn small" id="anDue">Liste ansehen …</button></div>`;
     $('anDue').onclick = () => {
-      const can = r.rows.filter(x => !x.open);
+      const can = r.rows.filter(x => !x.open && !x.deps);
       dialog(`<h2>Ausgetreten seit über ${r.years} ${r.years === 1 ? 'Jahr' : 'Jahren'}</h2>
         <table class="tbl kompakt"><tr><th>Name</th><th>Austritt</th><th></th></tr>${r.rows.map(x => `<tr><td>${esc(GK.lastFirst(x.name))}${x.member_no ? ` <span class="muted s">(${esc(x.member_no)})</span>` : ''}</td><td class="nw">${deDate(x.exit_date)}</td>
-          <td>${x.open ? '<span class="pill a">offene Forderung</span>' : ''}</td></tr>`).join('')}</table>
+          <td>${x.open ? '<span class="pill a">offene Forderung</span>' : x.deps ? `<span class="pill a">${esc(GK.T('zahlt noch für andere'))}</span>` : ''}</td></tr>`).join('')}</table>
         <p class="muted s">Name, Anschrift, Kontakt, Bankverbindung, Dokumente und Verlauf werden unwiderruflich gelöscht. Für die Statistik bleiben Geburtsjahr, Geschlecht, Ein-/Austritt und Abteilungen; Beträge und Buchungen bleiben unter „Anonym …“.${can.length < r.rows.length ? ' Mitglieder mit offener Forderung bleiben, bis sie ausgeglichen oder storniert ist.' : ''}</p>
         ${can.length ? `<label class="f">Zur Bestätigung ANONYMISIEREN eingeben<input id="anConf" autocomplete="off"></label>` : ''}
         <div class="btns"><button class="btn ghost" id="c">Schließen</button>${can.length ? `<button class="btn danger" id="anGo">${can.length === 1 ? '1 Mitglied' : can.length + ' Mitglieder'} anonymisieren</button>` : ''}</div>`);

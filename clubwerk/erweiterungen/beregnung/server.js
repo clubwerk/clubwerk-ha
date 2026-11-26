@@ -284,7 +284,8 @@ async function sendStops() {
     if (!rest.all && !rest.refs.length && q.late) log('stop', 'System', q.platz.join(', ') || null, null, 'Stopp nachgeholt (Hydrawise hatte gebremst)');
   }
 }
-const notify = text => ha.notify(cfg().notify, 'Beregnung', text);
+// Störung melden: E-Mail-Empfänger, Push und (früher eingetragen) notify-Dienst von Home Assistant – zentral in src/stoerung.js
+const notify = text => H.stoerung.melden(text);
 
 /* Home Assistant: Ausschaltbefehle, die (noch) nicht bestätigt sind – gespeichert, damit sie auch einen Neustart überstehen. Ein Ventil
    ohne eigene Abschaltzeit liefe sonst weiter, bis jemand vor Ort ist. Je Zone { ref, name, since, next, sent, err, alerted }. Erledigt
@@ -781,6 +782,8 @@ function activate(ctx) {
   require('../../src/vault').onUnlock(() => { if (pendingStop()) flushStops().catch(e => console.error('Beregnung: Stopp nach dem Entsperren:', e.message)); });
   createTables();
   const { need, bad, cleanName } = ctx;
+  ctx.stoerung.einrichten({ seite: 'beregnung', ha: { get: () => cfg().notify, zeigen: () => cfg().backend !== 'hydrawise', set: v => { let c = {}; try { c = JSON.parse(getSetting('ext_beregnung_cfg', '{}')) || {}; } catch (e) { c = {}; } c.notify = v; setSetting('ext_beregnung_cfg', JSON.stringify(c)); } } });
+  ctx.hooks.pushEvents = () => [ctx.stoerung.pushAnlass('Störung bei der Beregnung', 'Ein Platz ließ sich nicht starten oder nicht ausschalten.')];
   // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
   ctx.hooks.securityEvents = () => [
     { id: 'pin', label: 'Beregnung: viele falsche PINs', level: 'r', push: 'Beregnung: viele falsche PINs – die PIN-Eingabe ist gesperrt.' },

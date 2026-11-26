@@ -20,6 +20,9 @@ function nextAnchor(from, yearStart, step) {
 }
 const isAnchor = (d, yearStart, step) => { let a = `${Number(d.slice(0, 4)) - 1}-${yearStart}`; while (a < d) a = addMonths(a, step); return a === d; };
 
+/** letzter Tag des Beitragsjahres, in das der Tag `entry` fällt (Ende des beitragsfreien Eintrittsjahres) */
+const freeEnd = (entry, yearStart) => addDays(nextAnchor(entry, yearStart, 12), -1);
+
 /** Alter an einem Tag (volle Jahre) */
 function ageAt(birth, day) {
   if (!isDate(birth) || !isDate(day)) return null;
@@ -31,10 +34,10 @@ function ageAt(birth, day) {
 /**
  * Zeiträume eines zugeordneten Beitrags bis `until`.
  * mf = { start_date, end_date, booked_until, cents, interval, prorate }   prorate: anteilig | voll | frei (Eintrittsjahr frei)   (cents = gültiger Betrag je Zeitraum)
- * limit = Austrittsdatum (oder null); yearStart = 'MM-DD'
- * → [{ from, to, cents, partial, months }]
+ * limit = Austrittsdatum (oder null); yearStart = 'MM-DD'; entry = Eintrittsdatum (bestimmt das beitragsfreie Eintrittsjahr, sonst der Beginn)
+ * → [{ from, to, cents, partial, months, free }]
  */
-function periods(mf, until, { limit = null, yearStart = '01-01' } = {}) {
+function periods(mf, until, { limit = null, yearStart = '01-01', entry = null } = {}) {
   const out = [];
   if (!isDate(until) || !isDate(mf.start_date)) return out;
   const step = MONTHS[mf.interval];
@@ -58,10 +61,11 @@ function periods(mf, until, { limit = null, yearStart = '01-01' } = {}) {
     out.push({ from: cur, to, cents, partial, months });
     cur = next;
   }
-  // „Eintrittsjahr frei“: alles im Beitragsjahr des Beginns kostet nichts (wird aber als abgerechnet vermerkt)
+  // „Eintrittsjahr frei“: nur das Beitragsjahr, in das der Eintritt fällt, kostet nichts (wird aber als abgerechnet vermerkt) –
+  // nie ein späteres, auch wenn der Beitrag erst später beginnt (später zugeordnet, neue Altersstufe, später in die Abteilung)
   if (mf.prorate === 'frei') {
-    const freeEnd = addDays(nextAnchor(mf.start_date, yearStart, 12), -1);
-    for (const p of out) if (p.from <= freeEnd) { p.cents = 0; p.free = true; }
+    const end = freeEnd(isDate(entry) ? entry : mf.start_date, yearStart);
+    for (const p of out) if (p.from <= end) { p.cents = 0; p.free = true; }
   }
   return out;
 }
@@ -104,4 +108,4 @@ function periodText(from, to) {
   return a === b ? a : `${a}–${b}`;
 }
 
-module.exports = { MONTHS, INTERVAL_LABEL, periods, ageAt, pickByAge, fitsAge, higherFirst, ageLimText, ageOverlaps, isDate, addDays, addMonths, nextAnchor, periodText, deD };
+module.exports = { MONTHS, INTERVAL_LABEL, periods, ageAt, pickByAge, fitsAge, higherFirst, ageLimText, ageOverlaps, isDate, addDays, addMonths, nextAnchor, freeEnd, periodText, deD };

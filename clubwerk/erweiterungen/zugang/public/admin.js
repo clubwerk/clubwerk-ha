@@ -309,18 +309,18 @@
         <label class="chk"><input type="checkbox" id="zWlan" ${c.wlanOnly ? 'checked' : ''}> Öffnen nur aus dem Vereinsnetz (Anfragen aus dem Internet werden abgelehnt)</label>
         <p class="muted s" style="margin:8px 0 0">Welche Adressen als Vereinsnetz gelten, stellst du zentral ein${GK.can('einstellungen') ? ' unter <a href="#einstellungen" id="zNetLink">Einstellungen › Erreichbarkeit</a>' : ' (Einstellungen › Erreichbarkeit, nur mit Recht „Einstellungen“)'}.</p>
         <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn primary" id="zSaveS">Speichern</button></div></div>
-      <div class="card"><h3>Benachrichtigungen</h3>
-        <div class="row"><label class="f" style="flex:1;min-width:240px">Bei Störung oder offener Tür melden an (optional)<input id="zNotify" value="${esc(c.notify || '')}" placeholder="z. B. mobile_app_handy_vorstand"></label>
-          <label class="f" style="flex:1;min-width:240px">Tür länger offen als … Minuten melden (0 = aus)<input id="zAlert" inputmode="numeric" value="${c.openAlertMin || 0}"></label></div>
-        <p class="muted s" style="margin:8px 0 0">Der Empfänger ist der Name des Handys in Home Assistant (Mitteilungsdienst „notify“).</p>
-        <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn primary" id="zSaveN">Speichern</button></div></div>
+      <div id="zNotif"></div>
       <div id="zFunc"></div>`;
     GK.watch($('main'));
     $('zVendor').onchange = () => { const v = d.vendors.find(x => x.id === $('zVendor').value); if (v) $('zVendHint').innerHTML = setupText(v); };
     if ($('zNetLink')) $('zNetLink').onclick = e => { e.preventDefault(); GK.openSettings('erreichbar'); };
     // jede Karte schreibt nur ihre eigenen Felder
-    const only = (id, keys) => { $(id).onclick = async () => { const cc = st.c; cc.vendor = $('zVendor').value; cc.wlanOnly = $('zWlan').checked; cc.notify = $('zNotify').value; cc.openAlertMin = $('zAlert').value; if (await saveCfg(keys)) renderEinstellungen().catch(fail); }; };
-    only('zSaveV', ['vendor']); only('zSaveS', ['wlanOnly']); only('zSaveN', ['notify', 'openAlertMin']);
+    const only = (id, keys) => { $(id).onclick = async () => { const cc = st.c; cc.vendor = $('zVendor').value; cc.wlanOnly = $('zWlan').checked; if (await saveCfg(keys)) renderEinstellungen().catch(fail); }; };
+    only('zSaveV', ['vendor']); only('zSaveS', ['wlanOnly']);
+    await GK.stoerungKarte($('zNotif'), { mod: 'zugang', anlass: 'Eine E-Mail kommt, wenn sich eine Tür nicht öffnen oder abschließen lässt, ein Türöffner an bleibt, eine Tür zu lange offen steht oder an einer Codetastatur viele falsche Codes eingetippt werden.',
+      push: 'Push über die Mitglieder-App bekommen Verwaltungsnutzer mit dem Recht „Zugang“, wenn ihr Benutzer mit einem Mitglied verknüpft ist.',
+      vorne: `<label class="f mb14">Tür länger offen als … Minuten melden (0 = aus)<input id="zAlert" inputmode="numeric" value="${st.c.openAlertMin || 0}"></label>`,
+      speichern: async () => { const r = await api('config', 'PUT', { openAlertMin: $('zAlert').value }); st.d.cfg = r.cfg; st.c = JSON.parse(JSON.stringify(r.cfg)); } });
     if (GK.funcBox) GK.funcBox($('zFunc'), 'zugang', 'Zugang', () => renderEinstellungen().catch(fail));
   }
 
@@ -379,7 +379,7 @@
     { label: 'Zugangsverlauf als Excel', page: 'zugang-verlauf', perm: 'zugang', btn: 'Excel', kind: 'aktion', words: 'Verlauf Protokoll Excel Türprotokoll' },
     { label: 'Hersteller der Türen (Anbindung)', page: 'zugang-einstellungen', perm: 'zugang', card: 'Anbindung', words: 'Hersteller Home Assistant Nuki Matter Yale tedee Shelly' },
     { label: 'Öffnen nur aus dem Vereinsnetz (Zugang)', page: 'zugang-einstellungen', perm: 'zugang', card: 'Sicherheit', words: 'WLAN Vereinsnetz Internet Sicherheit' },
-    { label: 'Störung und offene Tür melden', page: 'zugang-einstellungen', perm: 'zugang', card: 'Benachrichtigungen', words: 'Benachrichtigung Störung Tür offen Handy notify' },
+    { label: 'Störung und offene Tür melden (E-Mail, Push)', field: 'stzugangMail', page: 'zugang-einstellungen', perm: 'zugang', card: 'Benachrichtigungen', words: 'Benachrichtigung Störung Tür offen E-Mail Push Handy notify' },
     { label: 'Einstellungen des Zugangs übertragen', page: 'zugang-einstellungen', perm: 'zugang', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
   ]);
 })();

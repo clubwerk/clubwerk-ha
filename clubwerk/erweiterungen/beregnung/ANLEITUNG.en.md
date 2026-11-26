@@ -136,9 +136,16 @@ The web app is a separate page for phones. Its address is shown in the card (`ht
 
 #### Notifications
 
-Only with Home Assistant as the connection. Under **“Notify on fault”** enter the name of the Home Assistant service (`notify.…`, e.g. `mobile_app_handy_platzwart`). It sends a message to the phone when a zone does not start or cannot be switched off. With the direct Hydrawise connection this card only shows a note.
+![“Notifications” card: email recipients, push and, folded away, the Home Assistant notify service.](bild: seite=beregnung; tab=einstellungen; ziel=[data-card="benachrichtigungen"])
 
-![Card “Notifications”.](bild: seite=beregnung; tab=einstellungen; ziel=[data-card="benachrichtigungen"])
+Clubwerk reports a court that does not start or a zone that cannot be switched off in two ways:
+
+- **Email recipients:** one or more addresses, separated by commas, e.g. the groundsman’s. The email is sent through the club mailbox (Settings › Mailbox) with the club name, what happened, the time and a link to the admin area (the link works on the club network). If the mailbox is missing, a note with a link appears at the top of the card. Clubwerk shows a mistyped address right at the field.
+- **Push:** admin users with the “Irrigation” permission get a notification in the member app if their user is linked to a member. Whether these notifications exist is decided by the board under Member app › Notifications (occasion “Irrigation malfunction”).
+
+The same malfunction is reported at most once an hour; Clubwerk keeps trying in any case. The addresses are personal data and are therefore not included in the file from “Transfer settings”.
+
+> Tip For advanced users: under **“Also to Home Assistant (notify service, for advanced users)”** you can enter, with the Home Assistant connection, the name of the phone in Home Assistant (e.g. `mobile_app_handy_vorstand`). A service entered there earlier is kept and keeps reporting.
 
 #### Transfer settings
 

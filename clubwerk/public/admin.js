@@ -66,12 +66,12 @@
   }
 
   /** Fehler in einem Fenster sichtbar machen – nie stilles Nichtstun nach einem Klick auf den Hauptknopf. Nennt der Fehler ein Feld
-   *  (e.field vom Server oder field; Wert von data-feld am Feld), steht die Meldung direkt am Feld: rot umrandet, in den Blick gescrollt, mit Fokus.
+   *  (e.field vom Server oder field; Wert von data-feld am Feld, im Fenster oder in der Karte des Kastens), steht die Meldung direkt am Feld: rot umrandet, in den Blick gescrollt, mit Fokus.
    *  Sonst steht sie im Kasten box (.err) und wird in den Blick gescrollt. Leere Meldung räumt auf.
    *  Verwendung: catch (e) { GK.formError($('xErr'), e); } bzw. GK.formError($('xErr'), 'Bitte … eintragen.', 'role') */
   function formError(box, e, field) {
     const msg = typeof e === 'string' ? e : (e && e.message) || '';
-    const root = (box && box.closest('.dialog')) || $('dialog');
+    const root = (box && (box.closest('.dialog') || box.closest('.card'))) || $('dialog');   // auch auf einer Seite: das Feld in derselben Karte (z. B. GK.stoerungKarte)
     root.querySelectorAll('.f-bad').forEach(c => { c.classList.remove('f-bad'); c.querySelectorAll('.f-err').forEach(x => x.remove()); c.querySelectorAll('[aria-invalid]').forEach(x => x.removeAttribute('aria-invalid')); });
     if (box) box.textContent = '';
     if (!msg) return;
@@ -88,6 +88,40 @@
     c.addEventListener(inp ? 'input' : 'pointerdown', weg, { once: true });
     c.scrollIntoView({ block: 'center' });
     if (inp) inp.focus({ preventScroll: true });
+  }
+
+  /** Karte „Benachrichtigungen“ bei Störungen – ein Baustein für alle Module (Server: src/stoerung.js über ctx.stoerung.einrichten).
+   *  E-Mail-Empfänger (geprüft, Fehler am Feld), Hinweis auf Postfach und Push-Freigabe, eingeklappt der notify-Dienst von Home Assistant
+   *  (nur Module, die ihn früher hatten). GK.stoerungKarte(el, { mod, anlass, push, vorne, speichern }) füllt el und speichert selbst;
+   *  vorne: eigenes HTML des Moduls vor den Empfängern, speichern: async () => {…} speichert dessen Felder vorher. */
+  async function stoerungKarte(el, o) {
+    const d = await api(`x/${o.mod}/stoerung`), k = 'st' + o.mod;
+    const link = (attr, label) => `<a href="#" ${attr} class="m0">${esc(T(label))}</a>`;
+    el.innerHTML = `<div class="card" data-card="benachrichtigungen"><h3>${esc(T('Benachrichtigungen'))}</h3>
+      ${!d.postfach ? `<div class="banner a m-0-0-12"><span>${esc(T('E-Mails gehen erst, wenn das Vereinspostfach eingerichtet ist:'))} ${can('einstellungen') ? link('data-st-mail', 'Einstellungen › Postfach') : esc(T('ein Admin mit Recht „Einstellungen“ richtet es unter Einstellungen › Postfach ein.'))}</span></div>`
+        : !d.vereinsname ? `<div class="banner a m-0-0-12"><span>${esc(T('Ohne Vereinsnamen verschickt Clubwerk keine E-Mails und keine Push-Hinweise:'))} ${can('einstellungen') ? link('data-st-verein', 'Einstellungen › Verein') : esc(T('ein Admin mit Recht „Einstellungen“ trägt ihn unter Einstellungen › Verein ein.'))}</span></div>` : ''}
+      ${o.vorne || ''}
+      <label class="f" data-feld="stoerungMail">${esc(T('E-Mail-Empfänger (mehrere mit Komma)'))}<textarea id="${k}Mail" data-grow rows="1" inputmode="email" autocomplete="off" spellcheck="false" maxlength="1300" placeholder="${esc(T('z. B. platzwart@dein-verein.de'))}">${esc(d.mail)}</textarea></label>
+      <p class="muted s m-8-0-0">${esc(T(o.anlass))}</p>
+      <p class="muted s m-8-0-0">${esc(T(o.push))} ${d.push ? esc(T('Der Vorstand hat diese Push-Hinweise freigegeben.')) : esc(T('Push-Hinweise dafür sind noch nicht freigegeben.'))} ${can('app') || can('einstellungen') ? link('data-st-push', 'Mitglieder-App › Benachrichtigungen') : ''}</p>
+      ${d.ha === null ? '' : `<details class="mt10"><summary>${esc(T('Zusätzlich an Home Assistant (notify-Dienst, für Fortgeschrittene)'))}${d.ha ? ` · ${esc(d.ha)}` : ''}</summary>
+        <label class="f mt10" data-feld="stoerungHa">${esc(T('Name des notify-Dienstes (optional)'))}<input id="${k}Ha" autocomplete="off" spellcheck="false" maxlength="90" value="${esc(d.ha)}" placeholder="${esc(T('z. B. mobile_app_handy_vorstand'))}"></label>
+        <p class="muted s m-8-0-0">${esc(T('Der Name des Handys in Home Assistant (Mitteilungsdienst „notify“). Nur nötig, wenn die Meldungen auch in der Home-Assistant-App ankommen sollen.'))}</p></details>`}
+      <div class="btns"><button class="btn primary" id="${k}Save">${esc(T('Speichern'))}</button></div></div>`;
+    watch(el);
+    const on = (sel, fn) => { const a = el.querySelector(sel); if (a) a.onclick = e => { e.preventDefault(); fn(); }; };
+    on('[data-st-mail]', () => GK.openSettings('mail'));
+    on('[data-st-verein]', () => GK.openSettings('verein'));
+    on('[data-st-push]', () => { sset('cw_appsec', 'push'); go('app'); });
+    const btn = $(`${k}Save`);
+    btn.onclick = () => busy(btn, async () => {
+      formError(btn, '');
+      try {
+        if (o.speichern) await o.speichern();
+        await api(`x/${o.mod}/stoerung`, 'PUT', { mail: $(`${k}Mail`).value, ...($(`${k}Ha`) ? { ha: $(`${k}Ha`).value } : {}) });
+        clean(); toast(T('Gespeichert.')); await stoerungKarte(el, o);
+      } catch (e) { formError(btn, e); }
+    });
   }
 
   /** Mitglied löschen – derselbe Weg in „Mitglieder & Konten“ und in der Mitgliederverwaltung. Hängt es noch irgendwo
@@ -216,8 +250,17 @@
   /* ---------- Ungespeicherte Änderungen ---------- */
   let dirty = false;
   let closeMenusBound = false;   // Seite „Module“: Klick-außerhalb-Listener nur einmal registrieren
-  /** Formularbereich beobachten: jede Eingabe markiert „ungespeichert“ */
-  function watch(el) { if (!el) return; const mark = e => { if (e.target.matches('input, select, textarea') && !e.target.closest('[data-nodirty]')) dirty = true; }; el.addEventListener('input', mark); el.addEventListener('change', mark); }
+  /** Formularbereich beobachten: jede Eingabe darin markiert „ungespeichert“. Beobachtet wird nur bis zum nächsten Seiten- oder Reiterwechsel
+   *  (sonst zählte ein bleibender Bereich wie #main auf jeder späteren Seite mit). Suche, Filter, Sortierung und Reiter zählen nie. */
+  const watched = new Set();
+  const NODIRTY = '[data-nodirty], .filterbar, .tabtools, .tabs, .search, [role="search"], [type="search"], .srt-sel';
+  function watch(el) { if (el) watched.add(el); }
+  const unwatch = () => watched.clear();
+  ['input', 'change'].forEach(ev => document.addEventListener(ev, e => {
+    const t = e.target;
+    if (!(t instanceof Element) || !t.matches('input, select, textarea') || t.closest(NODIRTY)) return;
+    for (const w of watched) { if (!w.isConnected) watched.delete(w); else if (w.contains(t)) { dirty = true; return; } }
+  }, true));
   const clean = () => { dirty = false; };
   async function leaveOk() {
     if (!dirty) return true;
@@ -236,6 +279,7 @@
     bar.innerHTML = list.map(([k, l]) => `<button type="button"${role ? ' role="tab"' : ''} ${attr}="${esc(k)}"${k === cur ? ' class="on"' : ''}>${esc(l)}${badge(k)}</button>`).join('');
     const show = async k => {
       if (k !== cur && leave && !(await leaveOk())) return;
+      if (leave) unwatch();
       cur = k;
       bar.querySelectorAll(`[${attr}]`).forEach(b => { b.classList.toggle('on', b.getAttribute(attr) === k); if (b.getAttribute(attr) === k) revealTab(b); });
       await pick(k);
@@ -1103,6 +1147,7 @@
 
   async function go(p) {
     if (!(await leaveOk())) { setChrome(page); return; }
+    unwatch();   // die neue Seite meldet ihre Formulare selbst wieder an
     { const t = $('toast'); if (t) { clearTimeout(toast.t); t.classList.add('hidden'); } }   // Meldungen der vorigen Seite verschwinden beim Wechsel
     // Detailansicht: Adresse #seite/art/id (Neuladen und Suche führen wieder hin)
     const [pk, dk, ...rest] = String(p).split('/'), did = decodeURIComponent(rest.join('/'));
@@ -1310,7 +1355,7 @@
     /** Selbst wachsendes einzeiliges Textfeld (<textarea data-grow rows="1">) nach einer Wertänderung per Skript anpassen */
     fit: growFit,
     haOptions, sortKit, $, esc, euro, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
-    scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, lastFirst, busy, formError, klebend, invite: (...a) => appInvite(...a), go: p => go(p),
+    scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, lastFirst, busy, formError, stoerungKarte, klebend, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
     /** Antwort von api/admin/status beim Start der Verwaltung (spart eine zweite Anfrage) */
     startStatus: () => startStatus,

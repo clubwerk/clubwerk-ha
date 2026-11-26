@@ -513,6 +513,21 @@ function register(sh) {
       out.rows.push({ line: r.line, name: `${r.p.first_name || ''} ${r.p.last_name}`.trim(), member_no: r.member_no, birth_date: r.p.birth_date || '', action: m.id ? `ergänzen (${m.by})` : 'neu', suggest: sug, depts: r.depts.map(d => d.name).join(', '),
         fees: r.fees.map(f => `${f.name}${f.booked ? ' · gebucht bis ' + fees.deD(f.booked) : ''}`).join(', '), payer: payerText(r), mandate: r.bank && r.bank.mandate_ref ? r.bank.mandate_ref : '', exit: r.p.exit_date });
     }
+    // Kreise im Zahlungsweg (A zahlt über B, B über A – auch länger, auch über schon vorhandene Mitglieder): der Reihe nach wie beim Übernehmen,
+    // die Zeile, die den Kreis schließen würde, wird nicht verknüpft (store.payerError beim Übernehmen meldet sie als Fehlerzeile)
+    const rel = store.relations(), link = new Map();
+    const keyOf = rec => { const m = matchMember(rec); return m.id ? 'm' + m.id : 'r' + rec.line; };
+    const next = k => (link.has(k) ? link.get(k) : k[0] === 'm' ? (p => (p && p.payer_id && p.payer_id !== +k.slice(1) ? 'm' + p.payer_id : null))(rel.person(+k.slice(1))) : null);
+    for (const r of recs) {
+      const w = r.payer.member && whoIs(r.payer.member); if (!w) continue;
+      const me = keyOf(r), to = w.rec ? keyOf(w.rec) : 'm' + w.id;
+      if (to === me) continue;
+      const seen = new Set([me]); let k = to;
+      while (k && !seen.has(k)) { seen.add(k); k = next(k); }
+      const why = !k ? null : k === me ? 'zahlt selbst (über andere) für diese Person – das ergäbe einen Kreis im Zahlungsweg' : 'hat selbst einen ungültigen Zahlungsweg (Kreis)';
+      if (why) out.warnings.push(`Zeile ${r.line} ${r.p.first_name || ''} ${r.p.last_name}: Zahler „${r.payer.member.trim()}“ ${why}. Wird nicht verknüpft, bitte nach dem Import beim Mitglied unter „Zahlung & Familie“ festlegen.`.replace(/  +/g, ' '));
+      else link.set(me, to);
+    }
     // Beginn des Beitragsjahres aus „Gebucht bis“ ablesen (z. B. 30.04. → Beitragsjahr ab 01.05.)
     const votes = {};
     for (const r of recs) for (const f of r.fees) if (f.booked && f.interval !== 'monat') { const m = fees.addDays(f.booked, 1).slice(5); if (m.endsWith('-01')) votes[m] = (votes[m] || 0) + 1; }
@@ -542,9 +557,9 @@ function register(sh) {
     return { ...out, yearHint, sample, depts: [...out.depts], deptMatches, fees: [...out.fees.values()] };
   }
 
-  function commit(recs, user, dec = new Map(), feeDec = new Map(), deptDec = new Map()) {
+  function commit(recs, user, dec = new Map(), feeDec = new Map(), deptDec = new Map(), firstYear = null) {
     const ids = new Map();   // member_no / Zeile → id
-    const stats = { created: 0, updated: 0, fees: 0, depts: 0, payers: 0, families: 0 };
+    const stats = { created: 0, updated: 0, fees: 0, depts: 0, payers: 0, families: 0, errors: [] };
     db.transaction(() => {
       const deptId = name => {
         const c = deptChoice(deptDec, name); if (c !== undefined) return c;   // zugeordnete vorhandene Abteilung bzw. null = nicht übernehmen
@@ -575,7 +590,7 @@ function register(sh) {
         const m = matchMember(r);
         let id = m.id || dec.get(r.line) || null;   // ähnlicher Name: im Dialog „zusammenführen“ gewählt → Daten aus der Datei übernehmen
         const fields = Object.fromEntries(Object.entries(r.p).filter(([, v]) => v != null && v !== ''));
-        if (!id) { id = sh.createPerson({ ...fields, first_name: fields.first_name || '-', entry_date: fields.entry_date || today() }, user, { memberNo: r.member_no && !db.prepare('SELECT 1 FROM mv_person WHERE member_no = ?').get(r.member_no) ? r.member_no : null }); stats.created++; }
+        if (!id) { id = sh.createPerson({ ...fields, first_name: fields.first_name || '-', entry_date: fields.entry_date || today() }, user, { memberNo: r.member_no && !db.prepare('SELECT 1 FROM mv_person WHERE member_no = ?').get(r.member_no) ? r.member_no : null }); stats.created++; sh.firstYear.fySet(id, firstYear, user); }
         else {
           store.ensurePerson(id);
           if (r.member_no && !db.prepare('SELECT 1 FROM mv_person WHERE member_no = ? AND member_id != ?').get(r.member_no, id)) fields.member_no = r.member_no;
@@ -642,7 +657,10 @@ function register(sh) {
       for (const r of recs) {
         if (!r.payer.member) continue;
         const pid = findMember(r.payer.member.trim());
-        if (pid && pid !== r.id) { db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(pid, r.id); stats.payers++; }
+        if (!pid || pid === r.id) continue;
+        const err = store.payerError(r.id, pid);   // zentrale Prüfung: ein Kreis (A zahlt über B, B über A) wird nicht übernommen, sondern gemeldet
+        if (err) { stats.errors.push(`Zeile ${r.line} ${r.p.first_name || ''} ${r.p.last_name}: Zahler „${r.payer.member.trim()}“ nicht verknüpft – ${err}`.replace(/  +/g, ' ')); continue; }
+        db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(pid, r.id); stats.payers++;
       }
       // Familienmitgliedschaft: Spalte „Familie bei“ (Nummer oder Name des Oberhaupts) – nur mit Familienbeitrag beim Oberhaupt, eine Ebene
       for (const r of recs) {
@@ -656,7 +674,12 @@ function register(sh) {
         if (list.length < 2) continue;
         const payers = list.filter(r => r.fees.some(f => (f.cents || 0) > 0 && !f.end));
         if (payers.length !== 1) continue;
-        for (const r of list) if (r !== payers[0] && !db.prepare('SELECT payer_id FROM mv_person WHERE member_id = ?').get(r.id).payer_id) { db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(payers[0].id, r.id); stats.payers++; }
+        for (const r of list) {
+          if (r === payers[0] || db.prepare('SELECT payer_id FROM mv_person WHERE member_id = ?').get(r.id).payer_id) continue;
+          const err = store.payerError(r.id, payers[0].id);   // Gemeinschaft: nie in einen Kreis – gemeldet wie beim abweichenden Zahler
+          if (err) { stats.errors.push(`Zeile ${r.line} ${r.p.first_name || ''} ${r.p.last_name}: Gemeinschaft „${r.group}“ nicht verknüpft – ${err}`.replace(/  +/g, ' ')); continue; }
+          db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(payers[0].id, r.id); stats.payers++;
+        }
       }
       store.flattenPayers();
       stats.families += store.familyFromPayers(recs.filter(r => !r.skipped).map(r => r.id));   // „nicht übernehmen“ macht niemanden zur Familie   // wie bisher: wer über einen Zahler mit Familienbeitrag läuft, gehört zu dessen Familienmitgliedschaft
@@ -710,9 +733,12 @@ function register(sh) {
       const both = raw.m || raw.f || raw.d ? raw : { m: raw, f: {} };
       dec = decisions(recs, both.m || {}); deptDec = deptDecisions(recs, both.d || {}); feeDec = feeDecisions(recs, both.f || {}, deptDec, both.fok === true);
     } catch (e) { return bad(res, e.message || 'Die Entscheidungen sind ungültig.'); }
-    const stats = commit(recs, uname(req), dec, feeDec, deptDec);
+    // erstes Jahr der neu angelegten Mitglieder (Vorgabe: wie Beitragsart; im Import-Fenster änderbar)
+    const fyRaw = String(req.query.first_year || 'standard');
+    if (!['standard', 'frei', 'anteilig', 'voll'].includes(fyRaw)) return bad(res, 'Unbekannte Wahl für das erste Jahr.');
+    const stats = commit(recs, uname(req), dec, feeDec, deptDec, fyRaw === 'standard' ? null : fyRaw);
     if (map) SET('import_map_' + format, JSON.stringify(map));   // nur Spaltennamen, keine Daten
-    C.audit(req.user, `Mitglieder importiert (${PRESETS[format].label})`, `${stats.created} neu, ${stats.updated} ergänzt, ${stats.depts} Abteilungen, ${stats.fees} Beitragsarten, ${stats.payers} Zahler verknüpft, ${stats.families} Familienmitgliedschaften`);
+    C.audit(req.user, `Mitglieder importiert (${PRESETS[format].label})`, `${stats.created} neu, ${stats.updated} ergänzt, ${stats.depts} Abteilungen, ${stats.fees} Beitragsarten, ${stats.payers} Zahler verknüpft, ${stats.families} Familienmitgliedschaften${stats.errors.length ? `, ${stats.errors.length} Zahler nicht verknüpft (Kreis)` : ''}`);
     res.json({ ok: true, ...stats });
   }
   /* bisheriger Weg (verein.cloud direkt) */

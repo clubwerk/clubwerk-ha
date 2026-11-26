@@ -320,7 +320,7 @@ function register(sh) {
         const opt = { exit_date: date, reason: d.reason, notice_date: d.notice_date, endFees: d.endFees !== false, endDepts: d.endDepts !== false };
         exitMember(c.member_id, opt, by);
         const mit = [];
-        if (d.withDependents) for (const x of db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(c.member_id, c.member_id, c.member_id, date)) { mit.push(x.member_id); exitMember(x.member_id, { exit_date: date, reason: d.reason }, by); }
+        if (d.withDependents) for (const x of db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(c.member_id, c.member_id, c.member_id, date)) { mit.push(x.member_id); exitMember(x.member_id, { exit_date: date, reason: d.reason, endFees: opt.endFees, endDepts: opt.endDepts }, by); }   // Beiträge und Abteilungen wie beim Mitglied selbst
         mailRes = await sh.exitMail.afterExit(c.member_id, req.user, b.mail, { exit_date: date, notice_date: d.notice_date, names: [p, ...mit.map(personRow)].filter(Boolean).map(sh.exitMail.fullName) }, 'Austritt der Abteilungsleitung bestätigt');
       }
       if (c.kind === 'rueckkehr') sh.reenterMember(c.member_id, by);

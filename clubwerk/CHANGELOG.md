@@ -1,5 +1,37 @@
 # Änderungen
 
+## 2026.11.65
+
+### Neu
+- Mitglieder: Hinweis „Familienbeitrag ohne Angehörige“, wenn ein Oberhaupt allein im Familienbeitrag ist (keine Angehörigen mehr oder alle treten aus). Er steht wie die Altersstufen unter Beiträge & Abteilungen, zählt am Reiter mit und lässt sich auf einen Einzelbeitrag umstellen. Tritt das letzte Familienmitglied aus, weist schon das Austrittsfenster darauf hin.
+- Flutlicht, Zugang und Beregnung: Störungen kommen jetzt per E-Mail. In der Karte „Benachrichtigungen“ tragt ihr eine oder mehrere Adressen ein, z. B. die des Platzwarts. Die Mail geht über das Vereinspostfach und nennt Vereinsname, Anlass, Uhrzeit und einen Link in die Verwaltung.
+- Flutlicht, Zugang und Beregnung: Störungen gibt es auch als Push-Hinweis in der Mitglieder-App für Benutzer der Verwaltung mit dem Recht des Bereichs. Der Vorstand gibt die Anlässe unter Mitglieder-App › Benachrichtigungen frei.
+- Mitglieder: „Erstes Jahr“ je Mitglied – „wie Beitragsart“, „frei (Anfänger)“, „anteilig berechnen“ oder „voll berechnen“. Das freie Eintrittsjahr ist damit nur für Anfänger; wer aus einem anderen Verein wechselt, zahlt anteilig. Die Wahl gilt für Grund- und Zusatzbeiträge.
+- Steht die Beitragsart oder der Zusatzbeitrag einer gewählten Abteilung auf „Eintrittsjahr frei“, fragen „Neues Mitglied“, das Annehmen einer Beitrittserklärung und das sofortige Übernehmen nach der Unterschrift ausdrücklich „Anfänger oder Vereinswechsler?“. Im Import gilt für neue Mitglieder eine wählbare Vorgabe.
+- Am Mitglied lässt sich das erste Jahr ändern, solange es nicht abgerechnet ist. Ist schon ein Zeitraum als beitragsfrei vermerkt, nimmt Clubwerk ihn nach Rückfrage zurück; die Änderung steht im Verlauf und im Protokoll.
+
+### Verbessert
+- Die Karte „Benachrichtigungen“ sieht in Flutlicht, Zugang, Beregnung und Mängeln gleich aus. Ungültige Adressen zeigt sie direkt am Feld, fehlt das Vereinspostfach, steht dort ein Hinweis mit Link.
+- Der Name eines Handys in Home Assistant (notify-Dienst) steht jetzt eingeklappt unter „Zusätzlich an Home Assistant (für Fortgeschrittene)“. Bereits eingetragene Dienste bleiben erhalten und melden weiter.
+- Dieselbe Störung wird höchstens einmal je Stunde gemeldet.
+- Mängel: Die eingetragenen E-Mail-Empfänger bekommen neue Meldungen auch dann, wenn „Zusätzlich per E-Mail an die Adresse des verknüpften Mitglieds“ aus ist.
+- E-Mail-Empfänger sind persönliche Daten und stehen nicht mehr in der Datei von „Einstellungen übertragen“.
+- Mitglieder: Am Mitglied steht unter „Abgerechnet bis“, solange das Eintrittsjahr frei ist, „Eintrittsjahr frei – nächster Beitrag ab …“. Die Vorschau des Beitragslaufs nennt den Tag, ab dem der Beitrag folgt.
+- Beiträge & Zahlungen › Beitragslauf: Hat ein früherer Lauf mehr als das Eintrittsjahr frei vermerkt, zeigt eine Karte die betroffenen Mitglieder. „Korrigieren“ setzt „abgerechnet bis“ nach einer Rückfrage auf das Ende des Eintrittsjahres zurück; die Beiträge entstehen im nächsten Beitragslauf mit Vorschau.
+
+### Behoben
+- Offene Posten: Am Handy steht der Name des Zahlers wieder in einer Zeile neben „Bezahlt“ und „Ändern“, statt umzubrechen.
+- Mitglieder: Zwei Mitglieder können nicht mehr gegenseitig füreinander zahlen, auch nicht über längere Ketten. Ein Zahlungsweg endet immer bei jemandem, der selbst zahlt. Das gilt beim Eintragen des Zahlers, beim Anlegen, bei „Von Mitglied übernehmen …“, bei Familie, Beitrittserklärung, Import und Zusammenführen; die Meldung steht direkt am Feld.
+- Mitglieder-Import: Würde ein abweichender Zahler einen Kreis schließen, wird diese Zeile nicht verknüpft. Die Vorschau warnt davor, das Ergebnis nennt Zeile und Grund.
+- Mitglieder: Bestehende Kreise stehen oben in der Mitgliederliste und am Mitglied als „Zahlungsweg ungültig“. Mit „Reparieren …“ wählt ihr, wer selbst zahlt; danach stimmt auch „zahlt für …“ wieder.
+- Beitragslauf: Mitglieder mit ungültigem Zahlungsweg werden mit Hinweis übersprungen statt beim falschen Zahler abgebucht. Einzelne Forderungen landen bis zur Reparatur bei der Person selbst, und am Tablet bleiben beide sichtbar.
+- Austritt: Ist „Angehörige mit austreten lassen“ angehakt, fragt Clubwerk nicht mehr nach, sondern trägt den Austritt für alle ein; ihre Beiträge und Abteilungen enden wie beim Mitglied. Die Rückfrage ohne Häkchen nennt die Angehörigen als „Nachname, Vorname“.
+- Mitglieder: Wer noch für andere zahlt oder Familienoberhaupt ist, lässt sich erst anonymisieren, wenn die Angehörigen umgehängt oder ausgetreten sind.
+- Beitragslauf und Rechnungsversand nennen Mitglieder in ihren Hinweisen als „Nachname, Vorname“, nach Nachname sortiert. Der Hinweis zum beitragsfreien Eintrittsjahr zählt Mitglieder statt Zeiträume und sagt, dass ab dem nächsten Zeitraum normal gezahlt wird.
+- Verwaltung: Suche, Filter, Sortierung und Reiterwahl zählen nicht mehr als ungespeicherte Änderung. Nach dem Besuch mancher Einstellungsseiten (etwa Zugang, Flutlicht oder Helferdienste) fragte die Verwaltung schon nach einer Suche in der Mitgliederliste „Änderungen verwerfen?“. Echte, nicht gespeicherte Eingaben in Formularen fragen weiterhin nach.
+- Flutlicht: Ließ sich ein Licht beim Einschalten von Hand nicht schalten, kam keine Meldung über die Störung.
+- Mitglieder: „Eintrittsjahr frei“ gilt nur noch für das Beitragsjahr, in das der Eintritt in den Verein fällt. Bisher bekam ein weiteres freies Jahr, wer seinen Beitrag erst später bekam (später zugeordnet, neue Altersstufe, später in eine Abteilung eingetragen). Ab dem nächsten Beitragsjahr wird ganz normal berechnet, bei jedem Rhythmus, auch bei Zusatzbeiträgen und in Familien.
+
 ## 2026.11.64
 
 ### Behoben

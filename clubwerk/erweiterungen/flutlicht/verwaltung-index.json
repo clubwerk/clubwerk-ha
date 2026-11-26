@@ -1,6 +1,6 @@
 {
  "hinweis": "Erzeugt von werkzeuge/verwaltung-index.js – nicht von Hand bearbeiten",
- "version": "1.4.3",
+ "version": "1.5.0",
  "varianten": [
   {
    "wenn": {},
@@ -169,6 +169,14 @@
        "card": "Einstellungen übertragen",
        "kind": "aktion",
        "words": "Export Import Datei"
+      },
+      {
+       "label": "Benachrichtigung bei Störung des Flutlichts",
+       "page": "flutlicht-einstellungen",
+       "perm": "flutlicht",
+       "card": "Benachrichtigungen",
+       "field": "stflutlichtMail",
+       "words": "Störung E-Mail Push notify Handy Benachrichtigung"
       }
      ]
     ]

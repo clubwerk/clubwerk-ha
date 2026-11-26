@@ -226,7 +226,8 @@ function pulseAlert(door, why) {
   notify(`${door.name}: Türöffner ließ sich nicht ausschalten (${why}).`);
   H.securityAlert('oeffner', `Zugang: Der Türöffner von ${door.name} ließ sich nicht ausschalten (${why}). Die Tür ist womöglich dauerhaft offen. Clubwerk versucht es weiter – bitte vor Ort prüfen.`, { key: door.id });
 }
-const notify = text => ha.notify(cfg().notify, 'Zugang', text);
+// Störung melden: E-Mail-Empfänger, Push und (früher eingetragen) notify-Dienst von Home Assistant – zentral in src/stoerung.js
+const notify = text => H.stoerung.melden(text);
 
 /* Tür steht zu lange offen → einmal melden. Impuls-Schalter, die länger als ihre Impulsdauer an sind (Ausschalten gescheitert,
    Neustart während des Impulses, von Hand in Home Assistant eingeschaltet) → ausschalten und melden. */
@@ -491,6 +492,8 @@ function activate(ctx) {
   /* Platzcode (Modul Plätze): Türen, die ein Platz für seinen Code wählen kann – nur solche mit Codetastatur */
   ctx.hooks.codeDoors = () => cfg().doors.map(d => ({ id: d.id, name: d.name, keypad: Boolean(d.keypad) }));
   T = require('./lib/tastatur').activate(ctx, { cfg, act, log, notify, ha });
+  ctx.stoerung.einrichten({ seite: 'zugang-verlauf', ha: { get: () => cfg().notify, set: v => { const c = cfg(); c.notify = v; save(c); } } });
+  ctx.hooks.pushEvents = () => [ctx.stoerung.pushAnlass('Störung beim Zugang', 'Eine Tür ließ sich nicht öffnen oder abschließen, ein Türöffner blieb an, eine Tür steht zu lange offen oder an einer Codetastatur wurden viele falsche Codes eingetippt.')];
   // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
   ctx.hooks.securityEvents = () => [
     { id: 'tablet', label: 'Zugang: viele falsche PINs am Tablet', level: 'r', push: 'Zugang: viele falsche PINs am Tablet – das Öffnen am Tablet ist aus.' },

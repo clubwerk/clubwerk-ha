@@ -22,6 +22,8 @@ function register(sh) {
   const nameKey = (n, k) => C.require('./db').nameKey(n, k);   // Sortierung: Nachname, Vorname
   const lastFirst = (n, k) => C.require('./db').lastFirst(n, k);
 
+  /** Namen in Hinweisen des Laufs: „Nachname, Vorname“, nach Nachname sortiert, je Name einmal, höchstens max (dann „…“) */
+  const nameList = (rows, max = 6) => { const n = [...new Set(rows.map(x => x.name))].sort((a, b) => nameKey(a, 'mitglied').localeCompare(nameKey(b, 'mitglied'), 'de')); return n.slice(0, max).map(x => lastFirst(x, 'mitglied')).join(' · ') + (n.length > max ? ' …' : ''); };   // „ · “ trennt, das Komma steht schon im Namen
   const payerName = id => (db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || '?';
   const personOf = id => db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(id) || {};
   const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), ...C.clubAddress(), iban: store.account().iban, bic: store.account().bic, bank: store.account().bank, holder: store.account().holder,
@@ -33,23 +35,33 @@ function register(sh) {
     const yearStart = S('year_start', '01-01');
     const positions = [], warnings = [], info = [], marks = [];   // marks: beitragsfreie Zeiträume (Eintrittsjahr frei) – nur „abgerechnet bis“ vorrücken
     const famWarned = new Set();
+    // ungültiger Zahlungsweg (Kreis A → B → A und wer darüber zahlt): diese Personen überspringt der Lauf mit Hinweis – keine Abbuchung beim Falschen, keine doppelte
+    const broken = new Map(), ringWarned = new Set();
+    for (const r of store.payerRings()) for (const id of [...r.ids, ...r.via]) broken.set(id, r);
+    const skipRing = (id, name) => {
+      const r = broken.get(id); if (!r) return false;
+      if (!ringWarned.has(id)) { ringWarned.add(id); warnings.push({ member_id: id, text: `${lastFirst(name, 'mitglied')}: Zahlungsweg ungültig (${r.text}) – im Lauf übersprungen. Bitte unter Mitglieder reparieren.` }); }
+      return true;
+    };
     // o.booked = { mf: { id: Datum }, md: { id: Datum } }: anderer Stand „abgerechnet bis“ nur für diese Rechnung (Vorschau „Abgerechnet bis“ für alle setzen)
     const bk = (kind, row) => (o.booked && o.booked[kind] && Object.prototype.hasOwnProperty.call(o.booked[kind], row.id) ? o.booked[kind][row.id] : row.booked_until);
     if (!o.onlyDrinks) {
       if (sh.ageScan) sh.ageScan(until);   // Vorschau und Liste „Altersstufen“ sagen dasselbe: erst prüfen, dann warnen
       const rows = db.prepare(`SELECT mf.*, f.name AS fee_name, f.cents AS fee_cents, f.interval, f.prorate, f.department_id, f.age_min, f.age_max, f.family,
-          p.exit_date, p.birth_date, p.anonymized_at, m.name AS person_name
+          p.exit_date, p.entry_date AS p_entry, p.first_year, p.birth_date, p.anonymized_at, m.name AS person_name
         FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id JOIN mv_person p ON p.member_id = mf.member_id JOIN members m ON m.id = mf.member_id
         WHERE m.deleted = 0 AND p.anonymized_at IS NULL AND f.kind != 'zusatz' AND NOT EXISTS (SELECT 1 FROM mv_change x WHERE x.member_id = m.id AND x.kind = 'eintritt' AND x.status = 'offen')`).all();
       for (const r of rows) {
         if (o.dept && r.department_id !== Number(o.dept)) continue;
         if (o.fee && r.fee_id !== Number(o.fee)) continue;
+        if (skipRing(r.member_id, r.person_name)) continue;
+        if (r.first_year && r.interval !== 'einmalig') r.prorate = r.first_year;   // erstes Jahr am Mitglied gewählt (Anfänger frei, Vereinswechsler anteilig/voll)
         const payer = store.payerOf(r.member_id);
         const pp = personOf(payer);
         if (o.payment && (pp.payment || 'lastschrift') !== o.payment) continue;
-        const per = fees.periods({ start_date: r.start_date, end_date: r.end_date, booked_until: bk('mf', r), cents: r.cents != null ? r.cents : r.fee_cents, interval: r.interval, prorate: r.prorate }, until, { limit: r.exit_date, yearStart });
+        const per = fees.periods({ start_date: r.start_date, end_date: r.end_date, booked_until: bk('mf', r), cents: r.cents != null ? r.cents : r.fee_cents, interval: r.interval, prorate: r.prorate }, until, { limit: r.exit_date, yearStart, entry: r.p_entry });
         for (const pr of per) {
-          if (pr.free || !pr.cents) { marks.push({ mf: r.id, to: pr.to, name: r.person_name, fee: r.fee_name }); continue; }   // beitragsfrei bzw. 0 € (befreit): kein Posten, nur „abgerechnet bis“ vorrücken
+          if (pr.free || !pr.cents) { marks.push({ mf: r.id, to: pr.to, name: r.person_name, fee: r.fee_name, mid: r.member_id, zero: !pr.free }); continue; }   // beitragsfrei bzw. 0 € (befreit): kein Posten, nur „abgerechnet bis“ vorrücken
           const age = fees.ageAt(r.birth_date, pr.from);
           if (age != null && ((r.age_max != null && age > r.age_max) || (r.age_min != null && age < r.age_min)) && !(sh.ageNoticeFor && sh.ageNoticeFor(r.id)))
             warnings.push({ member_id: r.member_id, text: `${lastFirst(r.person_name, 'mitglied')} ist am ${deD(pr.from)} ${age} Jahre – „${r.fee_name}“ gilt für ${fees.ageLimText(r, ' Jahre')}.` });
@@ -79,7 +91,7 @@ function register(sh) {
         for (const f of zfees) { if (!byDept.has(f.department_id)) byDept.set(f.department_id, []); byDept.get(f.department_id).push(f); }
         const allZ = db.prepare("SELECT * FROM mv_fee WHERE kind = 'zusatz'").all();
         const hold = sh.ageHold();   // offene Altersstufen-Hinweise: bisherige Stufe läuft weiter
-        const mds = db.prepare(`SELECT md.*, d.name AS dept_name, p.birth_date, p.exit_date AS p_exit, p.entry_date AS p_entry, m.name AS person_name
+        const mds = db.prepare(`SELECT md.*, d.name AS dept_name, p.birth_date, p.exit_date AS p_exit, p.entry_date AS p_entry, p.first_year, m.name AS person_name
           FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id JOIN mv_person p ON p.member_id = md.member_id JOIN members m ON m.id = md.member_id
           WHERE m.deleted = 0 AND p.anonymized_at IS NULL AND md.fee_free = 0 AND NOT EXISTS (SELECT 1 FROM mv_change x WHERE x.member_id = m.id AND x.kind = 'eintritt' AND x.status = 'offen')`).all();
         for (const md of mds) {
@@ -93,52 +105,60 @@ function register(sh) {
             return h && f && f.id === h.to_fee_id ? allZ.find(x => x.id === h.from_fee_id) || f : f;
           };
           if (!md.fee_id && !isDate(md.birth_date) && list && list.some(f => f.age_min != null || f.age_max != null))
-            warnings.push({ member_id: md.member_id, text: `${md.person_name}: Geburtsdatum fehlt – für „${md.dept_name}“ wird der Erwachsenen-Zusatzbeitrag berechnet.` });
+            warnings.push({ member_id: md.member_id, text: `${lastFirst(md.person_name, 'mitglied')}: Geburtsdatum fehlt – für „${md.dept_name}“ wird der Erwachsenen-Zusatzbeitrag berechnet.` });
           const start = [md.entry_date, md.p_entry].filter(isDate).sort().reverse()[0] || store.periodStart(today(), (list && list[0] || {}).interval || 'jahr');
           const base = pick(start) || (list || [])[0];
           if (!base) continue;
           const UNIT = 1200000;
-          const per = fees.periods({ start_date: start, end_date: md.exit_date, booked_until: bk('md', md), cents: UNIT, interval: base.interval, prorate: base.prorate }, until, { limit: md.p_exit, yearStart });
+          const per = fees.periods({ start_date: start, end_date: md.exit_date, booked_until: bk('md', md), cents: UNIT, interval: base.interval, prorate: md.first_year || base.prorate }, until, { limit: md.p_exit, yearStart, entry: md.p_entry || md.entry_date });
+          if (skipRing(md.member_id, md.person_name)) continue;
           const payer = store.payerOf(md.member_id);
           const pp = personOf(payer);
           if (o.payment && (pp.payment || 'lastschrift') !== o.payment) continue;
           for (const pr of per) {
             const f = pick(pr.from);
-            if (!f && md.fee_id) { warnings.push({ member_id: md.member_id, text: `${md.person_name}: den fest gewählten Zusatzbeitrag der Abteilung „${md.dept_name}“ gibt es nicht mehr – bitte im Mitglied neu wählen.` }); break; }
-            if (!f && !isDate(md.birth_date)) { warnings.push({ member_id: md.member_id, text: `${md.person_name}: Geburtsdatum fehlt – für „${md.dept_name}“ lässt sich keine Altersstufe bestimmen. Bitte Geburtsdatum eintragen oder im Mitglied einen Beitrag wählen.` }); break; }
+            if (!f && md.fee_id) { warnings.push({ member_id: md.member_id, text: `${lastFirst(md.person_name, 'mitglied')}: den fest gewählten Zusatzbeitrag der Abteilung „${md.dept_name}“ gibt es nicht mehr – bitte im Mitglied neu wählen.` }); break; }
+            if (!f && !isDate(md.birth_date)) { warnings.push({ member_id: md.member_id, text: `${lastFirst(md.person_name, 'mitglied')}: Geburtsdatum fehlt – für „${md.dept_name}“ lässt sich keine Altersstufe bestimmen. Bitte Geburtsdatum eintragen oder im Mitglied einen Beitrag wählen.` }); break; }
             if (!f) {   // keine Altersstufe passt (z. B. nur „ab 19“) → in diesem Zeitraum beitragsfrei, später greift die passende Stufe
-              marks.push({ md: md.id, to: pr.to, name: md.person_name, fee: `${md.dept_name} (Alter ${fees.ageAt(md.birth_date, pr.from) ?? '?'})`, age: true }); continue;
+              marks.push({ md: md.id, to: pr.to, name: md.person_name, fee: `${md.dept_name} (Alter ${fees.ageAt(md.birth_date, pr.from) ?? '?'})`, age: true, mid: md.member_id }); continue;
             }
             if (o.fee && f.id !== Number(o.fee)) continue;
-            if (pr.free) { marks.push({ md: md.id, to: pr.to, name: md.person_name, fee: f.name }); continue; }
+            if (pr.free) { marks.push({ md: md.id, to: pr.to, name: md.person_name, fee: f.name, mid: md.member_id }); continue; }
             const cents = Math.round(f.cents * pr.cents / UNIT);
-            if (!cents) { marks.push({ md: md.id, to: pr.to, name: md.person_name, fee: f.name }); continue; }
+            if (!cents) { marks.push({ md: md.id, to: pr.to, name: md.person_name, fee: f.name, mid: md.member_id, zero: true }); continue; }
             positions.push({ key: `z${md.id}-${pr.from}`, kind: 'beitrag', member_id: payer, for_member_id: md.member_id, member_dept_id: md.id,
-              text: `${f.name} ${fees.periodText(pr.from, pr.to)}${pr.partial && f.prorate === 'anteilig' ? ' (anteilig)' : ''}${payer !== md.member_id ? ` – ${md.person_name}` : ''}`,
+              text: `${f.name} ${fees.periodText(pr.from, pr.to)}${pr.partial && (md.first_year || f.prorate) === 'anteilig' ? ' (anteilig)' : ''}${payer !== md.member_id ? ` – ${md.person_name}` : ''}`,
               period_from: pr.from, period_to: pr.to, cents, due_date: pr.from, payer_name: payerName(payer), for_name: md.person_name, payment: pp.payment || 'lastschrift' });
           }
         }
       }
-      const mFree = marks.filter(x => !x.age), mAge = marks.filter(x => x.age);
-      const names = a => `${[...new Set(a.map(x => x.name))].slice(0, 6).join(', ')}${a.length > 6 ? ' …' : ''}`;
-      if (mFree.length) info.push(`${mFree.length} Zeitraum/Zeiträume im Eintrittsjahr beitragsfrei (${names(mFree)}) – wird als abgerechnet vermerkt.`);
-      if (mAge.length) info.push(`${mAge.length} Zeitraum/Zeiträume ohne Zusatzbeitrag, weil keine Altersstufe passt (${names(mAge)}) – wird als abgerechnet vermerkt.`);
-      if (sh.ageOpen) { const n = sh.ageScan ? sh.ageScan() : sh.ageOpen(); if (n) info.push(`${n} ${n === 1 ? 'Altersstufen-Hinweis' : 'Altersstufen-Hinweise'} offen – bis zur Entscheidung läuft der bisherige Beitrag weiter (Beiträge → Altersstufen).`); }
+      const byMember = a => [...new Map(a.map(x => [x.mid, x])).values()];   // je Mitglied einmal
+      const mFree = byMember(marks.filter(x => !x.age && !x.zero)), mZero = byMember(marks.filter(x => !x.age && x.zero)), mAge = byMember(marks.filter(x => x.age));
+      if (mFree.length) info.push(`${mFree.length} ${mFree.length === 1 ? 'Mitglied' : 'Mitglieder'} im Eintrittsjahr beitragsfrei (${nameList(mFree)}) – der Zeitraum wird als abgerechnet vermerkt, ab dem nächsten Zeitraum gilt der normale Beitrag.`);
+      const nx = [...new Set(mFree.map(x => fees.addDays(fees.freeEnd(x.to, yearStart), 1)))].filter(d => d > until).sort();   // jeder freie Zeitraum liegt im Eintrittsjahr: dessen Ende folgt aus „bis“; was bis zum Stichtag beginnt, steht schon als Position da
+      if (nx.length) {
+        info.push(`Beitragsfrei ist nur das Beitragsjahr des Eintritts – danach wird ganz normal berechnet (nächster Beitrag ab ${nx.slice(0, 3).map(deD).join(', ')}${nx.length > 3 ? ' …' : ''}).`); }
+      if (mZero.length) info.push(`${mZero.length} ${mZero.length === 1 ? 'Mitglied' : 'Mitglieder'} mit 0 € (befreit) (${nameList(mZero)}) – der Zeitraum wird als abgerechnet vermerkt.`);
+      if (mAge.length) info.push(`${mAge.length} ${mAge.length === 1 ? 'Mitglied' : 'Mitglieder'} ohne Zusatzbeitrag, weil keine Altersstufe passt (${nameList(mAge)}) – der Zeitraum wird als abgerechnet vermerkt.`);
+      if (sh.ageOpen) { if (sh.ageScan) sh.ageScan(); const n = db.prepare("SELECT COUNT(*) n FROM mv_age_notice WHERE status = 'offen' AND kind != 'alone'").get().n, na = db.prepare("SELECT COUNT(*) n FROM mv_age_notice WHERE status = 'offen' AND kind = 'alone'").get().n;
+        if (na) info.push(`Allein im Familienbeitrag: ${na} – bis zur Entscheidung läuft der Familienbeitrag weiter (Beiträge → Altersstufen).`);
+        if (n) info.push(`${n} ${n === 1 ? 'Altersstufen-Hinweis' : 'Altersstufen-Hinweise'} offen – bis zur Entscheidung läuft der bisherige Beitrag weiter (Beiträge → Altersstufen).`); }
       // Familienmitgliedschaft ohne Deckung: das Oberhaupt hat (am Stichtag) keinen Familienbeitrag mehr
       for (const r of db.prepare(`SELECT m.name, p.family_of, h.name AS head_name FROM mv_person p JOIN members m ON m.id = p.member_id JOIN members h ON h.id = p.family_of
           WHERE p.family_of IS NOT NULL AND m.deleted = 0 AND p.anonymized_at IS NULL AND (p.exit_date IS NULL OR p.exit_date >= ?)`).all(until)) {
-        if (!store.familyFee(r.family_of)) warnings.push({ member_id: r.family_of, text: `${r.name} gehört zur Familienmitgliedschaft von ${r.head_name} – ${r.head_name} hat aber keinen Familienbeitrag (mehr). Bitte Familienbeitrag zuweisen oder die Zuordnung lösen.` });
+        if (!store.familyFee(r.family_of)) warnings.push({ member_id: r.family_of, text: `${lastFirst(r.name, 'mitglied')} gehört zur Familienmitgliedschaft von ${lastFirst(r.head_name, 'mitglied')} – ${lastFirst(r.head_name, 'mitglied')} hat aber keinen Familienbeitrag (mehr). Bitte Familienbeitrag zuweisen oder die Zuordnung lösen.` });
       }
       // ohne Beitrag (Hinweis) – wer über eine Familienmitgliedschaft abgedeckt ist, braucht keinen eigenen
       const noFee = db.prepare(`SELECT m.name FROM members m JOIN mv_person p ON p.member_id = m.id WHERE m.kind = 'mitglied' AND m.deleted = 0 AND p.anonymized_at IS NULL
         AND (p.exit_date IS NULL OR p.exit_date >= ?) AND p.payer_id IS NULL AND p.family_of IS NULL AND p.status != 'ehren' AND NOT EXISTS (SELECT 1 FROM mv_member_fee mf WHERE mf.member_id = m.id AND (mf.end_date IS NULL OR mf.end_date >= ?))`).all(until, until);
-      if (noFee.length) info.push(`${noFee.length} ${noFee.length === 1 ? 'Mitglied' : 'Mitglieder'} ohne Beitrag: ${noFee.slice(0, 8).map(x => x.name).join(', ')}${noFee.length > 8 ? ' …' : ''}`);
+      if (noFee.length) info.push(`${noFee.length} ${noFee.length === 1 ? 'Mitglied' : 'Mitglieder'} ohne Beitrag: ${nameList(noFee, 8)}`);
       // Positionen anderer Module (z. B. Arbeitsstunden)
       if (o.extra !== false) {
         for (const h of await C.callHooks('beitragsPositionen', { until })) {
           for (const x of Array.isArray(h.result) ? h.result : []) {
             if (!x || !x.member_id || !Number.isInteger(x.cents) || !x.ext_key) continue;
             if (db.prepare('SELECT 1 FROM mv_charge WHERE ext_key = ?').get(String(x.ext_key))) continue;
+            if (skipRing(x.member_id, payerName(x.member_id))) continue;
             const payer = store.payerOf(x.member_id); const pp = personOf(payer);
             if (o.payment && (pp.payment || 'lastschrift') !== o.payment) continue;
             positions.push({ key: 'x' + x.ext_key, kind: one(x.kind, 20) || 'sonstiges', member_id: payer, for_member_id: x.member_id, ext_key: String(x.ext_key).slice(0, 80), text: one(x.text, 140), period_from: x.period_from || null, period_to: x.period_to || null,
@@ -158,6 +178,7 @@ function register(sh) {
         // nur echte Mitglieder (mit Mitgliedsdaten) – Mannschaften, „Kein Mitglied“ und Konten ohne Daten zahlen unter Verkauf › Abrechnung
         if (!p.member_id) { notMembers.push({ id: r.id, name: lastFirst(r.name, r.kind), kind: r.kind, cents: r.total_cents }); continue; }
         if (p.anonymized_at) continue;
+        if (p.drinks_to_payer !== 0 && skipRing(r.id, r.name)) continue;
         const payer = p.drinks_to_payer === 0 ? r.id : store.payerOf(r.id);
         const pp = personOf(payer);
         if (o.payment && (pp.payment || 'lastschrift') !== o.payment) continue;
@@ -704,7 +725,7 @@ function register(sh) {
       await new Promise(ok => setTimeout(ok, 150));
     }
     C.audit(req.user, 'Rechnungen versendet', `${sent} E-Mails${missing.length ? `, ${missing.length} ohne E-Mail` : ''}`);
-    res.json({ ok: true, sent, missing, failed });
+    res.json({ ok: true, sent, missing: missing.sort((a, b) => nameKey(a, 'mitglied').localeCompare(nameKey(b, 'mitglied'), 'de')).map(n => lastFirst(n, 'mitglied')), failed });   // „Nachname, Vorname“, sortiert
   }));
   /* Übersicht Finanzen */
   admin.get('/finance', PF, (req, res) => {

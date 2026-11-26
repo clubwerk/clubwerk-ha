@@ -151,7 +151,16 @@ Example: 18:55 to 20:30 with €0.50 from 18:00 is 7 started quarters of an hour
 
 #### Notifications
 
-If a light cannot be switched, Clubwerk can notify a phone: the phone’s name in Home Assistant (the “notify” service). Empty = no message. Clubwerk keeps trying in any case.
+![“Notifications” card: email recipients, push and, folded away, the Home Assistant notify service.](bild: seite=flutlicht-einstellungen; ziel=[data-card="benachrichtigungen"])
+
+Clubwerk reports a light that cannot be switched in two ways:
+
+- **Email recipients:** one or more addresses, separated by commas, e.g. the groundsman’s. The email is sent through the club mailbox (Settings › Mailbox) with the club name, what happened, the time and a link to the admin area (the link works on the club network). If the mailbox is missing, a note with a link appears at the top of the card. Clubwerk shows a mistyped address right at the field.
+- **Push:** admin users with the “Floodlights” permission get a notification in the member app if their user is linked to a member. Whether these notifications exist is decided by the board under Member app › Notifications (occasion “Floodlight malfunction”).
+
+The same malfunction is reported at most once an hour; Clubwerk keeps trying in any case. The addresses are personal data and are therefore not included in the file from “Transfer settings”.
+
+> Tip For advanced users: under **“Also to Home Assistant (notify service, for advanced users)”** you can enter the name of the phone in Home Assistant (e.g. `mobile_app_handy_vorstand`). A service entered there earlier is kept and keeps reporting.
 
 #### Transfer settings
 

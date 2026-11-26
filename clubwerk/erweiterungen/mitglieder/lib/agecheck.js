@@ -4,9 +4,10 @@
  *  Wird jemand älter und passt nicht mehr in seinen Beitrag (z. B. Jugend → Erwachsene), fällt ein Kind mit 19 aus dem Familienbeitrag
  *  oder rutscht in eine höhere Stufe des Zusatzbeitrags, entsteht ein Hinweis. Bis zur Entscheidung läuft der bisherige Beitrag weiter.
  *  Die Verwaltung entscheidet: „umstellen“ (ab dem nächsten Zeitraum der neue Beitrag) oder „so belassen“ (wird gemerkt, kein neuer Hinweis).
+ *  Ebenso, wenn das Oberhaupt allein im Familienbeitrag ist (keine Angehörigen mehr, alle ausgetreten oder Austritt geplant): Vorschlag Einzelbeitrag.
  *  Hintergrund: Lieber den Jugendbeitrag weiter bekommen, als dass ein passives Mitglied wegen des höheren Beitrags austritt.
  */
-const KIND = { fee: 'Beitrag passt nicht mehr zum Alter', family: 'fällt aus dem Familienbeitrag', zusatz: 'höhere Stufe beim Zusatzbeitrag' };
+const KIND = { fee: 'Beitrag passt nicht mehr zum Alter', family: 'fällt aus dem Familienbeitrag', zusatz: 'höhere Stufe beim Zusatzbeitrag', alone: 'Familienbeitrag ohne Angehörige' };
 
 function register(sh) {
   const { C, store, fees, euro, deD, uname } = sh;
@@ -34,10 +35,13 @@ function register(sh) {
   function scan(untilDate) {
     const day = today(), found = new Set();
     const ins = db.prepare('INSERT OR IGNORE INTO mv_age_notice(member_id, kind, ref_id, from_fee_id, to_fee_id, age, due_date) VALUES (?,?,?,?,?,?,?)');
-    const find = db.prepare('SELECT id, status FROM mv_age_notice WHERE member_id = ? AND kind = ? AND ref_id = ? AND COALESCE(to_fee_id, 0) = COALESCE(?, 0)');
+    // vorhandene Hinweise einmal laden statt je Anlass nachzufragen (wächst sonst mit der Zahl der Mitglieder)
+    const nkey = (m, k, ref, to) => `${m}|${k}|${ref}|${k === 'alone' ? '*' : to || 0}`;   // alone: ein Hinweis je Familienbeitrag, egal welcher Einzelbeitrag gerade vorgeschlagen wird – „so belassen“ bleibt
+    const known = new Map(db.prepare('SELECT id, status, member_id, kind, ref_id, to_fee_id FROM mv_age_notice').all().map(x => [nkey(x.member_id, x.kind, x.ref_id, x.to_fee_id), x]));
+    const find = { get: (m, k, ref, to) => known.get(nkey(m, k, ref, to)) };
     const reopen = db.prepare("UPDATE mv_age_notice SET status = 'offen', decided_by = NULL, decided_at = NULL, from_fee_id = ?, age = ?, due_date = ? WHERE id = ?");
     /** neu anlegen; ein „erledigter“ Hinweis (Anlass war weg) kommt wieder, wenn der Anlass zurückkehrt – „belassen“ und „umgestellt“ bleiben so */
-    const add = (m, k, ref, from, to, age, due) => { const x = find.get(m, k, ref, to); if (!x) ins.run(m, k, ref, from, to, age, due); else if (x.status === 'erledigt') reopen.run(from, age, due, x.id); found.add(`${m}|${k}|${ref}|${to}`); };
+    const add = (m, k, ref, from, to, age, due) => { const x = find.get(m, k, ref, to); if (!x) ins.run(m, k, ref, from, to, age, due); else if (x.status === 'erledigt') reopen.run(from, age, due, x.id); found.add(nkey(m, k, ref, to)); };
     const later = (start, step, end) => { const out = []; if (untilDate) for (let d = fees.addMonths(start, step), i = 0; d <= untilDate && i < 40; d = fees.addMonths(d, step), i++) if (!end || end >= d) out.push(d); return out; };
     const alive = `p.anonymized_at IS NULL AND (p.exit_date IS NULL OR p.exit_date >= ?) AND p.birth_date IS NOT NULL`;
     const gf = grundFees();
@@ -80,10 +84,31 @@ function register(sh) {
         if (a && b && a.id !== b.id) add(md.member_id, 'zusatz', md.id, a.id, b.id, fees.ageAt(md.birth_date, nx), nx);
       }
     }
+    // 4) Familienbeitrag ohne Angehörige: das Oberhaupt ist allein (keine Angehörigen, alle ausgetreten oder Austritt geplant) → Einzelbeitrag ab dem
+    //    Zeitraum nach dem letzten Austritt (ohne Angehörige: ab dem nächsten Zeitraum). Ohne Geburtsdatum passen nur Beiträge ohne Altersgrenze.
+    const single = db.prepare("SELECT * FROM mv_fee WHERE kind != 'zusatz' AND active = 1 AND family = 0 AND interval != 'einmalig'").all();
+    const fitsAny = (f, age) => (f.age_min == null && f.age_max == null) || fits(f, age);
+    // Angehörige und Belegung der Beitragsarten je eine Abfrage für alle (nicht je Oberhaupt – Liste und Übersicht prüfen bei jedem Laden)
+    const depsOf = new Map();
+    for (const d of db.prepare(`SELECT x.family_of AS head, x.exit_date FROM mv_person x JOIN members m ON m.id = x.member_id WHERE x.family_of IS NOT NULL AND x.family_of != x.member_id
+        AND m.deleted = 0 AND x.anonymized_at IS NULL AND (x.exit_date IS NULL OR x.exit_date >= ?)`).all(day)) { if (!depsOf.has(d.head)) depsOf.set(d.head, []); depsOf.get(d.head).push(d); }
+    const used = new Map(db.prepare('SELECT fee_id, COUNT(*) n FROM mv_member_fee WHERE end_date IS NULL OR end_date >= ? GROUP BY fee_id').all(day).map(r => [r.fee_id, r.n]));
+    for (const r of db.prepare(`SELECT mf.id, mf.member_id, mf.fee_id, mf.end_date, f.interval, p.birth_date, p.exit_date FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id
+        JOIN mv_person p ON p.member_id = mf.member_id JOIN members m ON m.id = mf.member_id
+        WHERE m.deleted = 0 AND p.anonymized_at IS NULL AND (p.exit_date IS NULL OR p.exit_date >= ?) AND f.family = 1 AND f.kind != 'zusatz' AND mf.start_date <= ? AND (mf.end_date IS NULL OR mf.end_date >= ?)`).all(day, day, day)) {
+      const deps = depsOf.get(r.member_id) || [];
+      if (deps.some(d => !d.exit_date)) continue;   // mindestens ein Angehöriger bleibt
+      const last = deps.map(d => d.exit_date).sort().pop();
+      const due = last ? fees.addMonths(store.periodStart(last, r.interval), fees.MONTHS[r.interval] || 12) : nextStart(r.interval);
+      if ((r.end_date && r.end_date < due) || (r.exit_date && r.exit_date < due)) continue;   // Familienbeitrag bzw. Mitgliedschaft endet ohnehin vorher
+      const age = fees.ageAt(r.birth_date, due);
+      const t = single.filter(f => fitsAny(f, age)).sort((a, b) => (b.interval === r.interval) - (a.interval === r.interval) || fees.higherFirst(a, b) || (used.get(b.id) || 0) - (used.get(a.id) || 0) || b.on_form - a.on_form)[0] || null;
+      add(r.member_id, 'alone', r.id, r.fee_id, t ? t.id : null, age, due);
+    }
     // offene Hinweise, deren Anlass weg ist (Beitrag geändert, ausgetreten …), schließen
     const near = nextStart('jahr');   // Hinweise weiter in der Zukunft (aus einer Vorschau bis später) bleiben stehen, solange diese Prüfung nicht so weit schaut
     for (const n of db.prepare("SELECT * FROM mv_age_notice WHERE status = 'offen'").all())
-      if (!(n.due_date && n.due_date > near && n.due_date > (untilDate || '')) && !found.has(`${n.member_id}|${n.kind}|${n.ref_id}|${n.to_fee_id}`)) db.prepare("UPDATE mv_age_notice SET status = 'erledigt', decided_at = ? WHERE id = ?").run(nowTs(), n.id);
+      if (!(n.due_date && n.due_date > near && n.due_date > (untilDate || '')) && !found.has(nkey(n.member_id, n.kind, n.ref_id, n.to_fee_id))) db.prepare("UPDATE mv_age_notice SET status = 'erledigt', decided_at = ? WHERE id = ?").run(nowTs(), n.id);
     return db.prepare("SELECT COUNT(*) n FROM mv_age_notice WHERE status = 'offen'").get().n;
   }
 
@@ -106,11 +131,14 @@ function register(sh) {
     const due = n.due_date && n.due_date > today() ? n.due_date : store.periodStart(today(), (db.prepare('SELECT interval FROM mv_fee WHERE id = ?').get(n.from_fee_id || n.to_fee_id) || {}).interval || 'jahr');
     db.transaction(() => {
       if (action === 'umstellen') {
-        if (n.kind === 'fee') {
+        if (n.kind === 'fee' || n.kind === 'alone') {   // alone: Familienbeitrag endet, Einzelbeitrag beginnt
+          if (n.kind === 'alone' && db.prepare('SELECT 1 FROM mv_person x JOIN members m ON m.id = x.member_id WHERE x.family_of = ? AND x.member_id != ? AND m.deleted = 0 AND x.anonymized_at IS NULL AND (x.exit_date IS NULL OR x.exit_date >= ?)').get(n.member_id, n.member_id, due))
+            throw new Error('Zur Familie gehört inzwischen wieder jemand – der Familienbeitrag bleibt.');
           const mf = db.prepare('SELECT * FROM mv_member_fee WHERE id = ?').get(n.ref_id);
-          if (!mf || !n.to_fee_id) throw new Error('Der bisherige Beitrag ist nicht mehr vorhanden.');
+          if (mf && !n.to_fee_id) throw new Error('Es gibt keinen passenden Einzelbeitrag – bitte im Mitglied von Hand zuordnen.');
+          if (!mf) throw new Error('Der bisherige Beitrag ist nicht mehr vorhanden.');
           db.prepare('UPDATE mv_member_fee SET end_date = ? WHERE id = ?').run(fees.addDays(due, -1), mf.id);
-          db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date, booked_until, note) VALUES (?,?,?,?,?)').run(n.member_id, n.to_fee_id, due, null, 'Altersstufe umgestellt');
+          db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date, booked_until, note) VALUES (?,?,?,?,?)').run(n.member_id, n.to_fee_id, due, null, n.kind === 'alone' ? 'Einzelbeitrag statt Familienbeitrag (keine Angehörigen)' : 'Altersstufe umgestellt');
         } else if (n.kind === 'family') {
           if (!n.to_fee_id) throw new Error('Es gibt keinen passenden Einzelbeitrag für dieses Alter – bitte im Mitglied von Hand zuordnen.');
           db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date, note) VALUES (?,?,?,?)').run(n.member_id, n.to_fee_id, due, 'eigener Beitrag statt Familienbeitrag');
@@ -120,7 +148,7 @@ function register(sh) {
       } else throw new Error('Unbekannte Entscheidung.');
       db.prepare('UPDATE mv_age_notice SET status = ?, decided_by = ?, decided_at = ? WHERE id = ?').run(action === 'umstellen' ? 'umgestellt' : 'belassen', by || null, nowTs(), n.id);
       const v = view(n);
-      store.hist(n.member_id, by, 'Altersstufe', v.from ? v.from.name : 'Familienbeitrag', action === 'umstellen' ? `${v.to ? v.to.name : '–'} ab ${deD(due)}` : 'so belassen');
+      store.hist(n.member_id, by, n.kind === 'alone' ? 'Familienbeitrag' : 'Altersstufe', v.from ? v.from.name : 'Familienbeitrag', action === 'umstellen' ? `${v.to ? v.to.name : '–'} ab ${deD(due)}` : 'so belassen');
     })();
   }
 

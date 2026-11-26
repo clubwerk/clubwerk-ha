@@ -61,9 +61,15 @@ Members choose from this list when reporting. “+ Add location” creates a new
 
 #### Notifications
 
-For new reports, all users with the “Faults” permission receive a push notification, provided their account is linked to a member and that member has switched notifications on in the app. You can also switch on e-mail (to the address of the linked member) and enter a list of further recipients, separated by commas, e.g. the caretaker's address.
+For every new report Clubwerk notifies in these ways – the same card as for floodlights, access and irrigation:
 
-![“Notifications” card: e-mail and further recipients.](bild: seite=maengel; tab=einstellungen; ziel=[data-card="benachrichtigungen"])
+- **Push:** admin users with the “Faults” permission get a notification in the member app if their user is linked to a member. Whether these notifications exist is decided by the board under Member app › Notifications (occasion “New fault report”).
+- **Also by email to the linked member’s address:** the same users also get the report by email.
+- **Email recipients:** further addresses, separated by commas, e.g. the caretaker’s. They get every new report, even if the tick box above is off. Clubwerk shows a mistyped address right at the field. The addresses are personal data and are therefore not included in the file from “Transfer settings”.
+
+Emails are sent through the club mailbox (Settings › Mailbox); if it is missing, a note with a link appears at the top of the card.
+
+![“Notifications” card: push, email to linked members and email recipients.](bild: seite=maengel; tab=einstellungen; ziel=[data-card="benachrichtigungen"])
 
 #### Retention
 

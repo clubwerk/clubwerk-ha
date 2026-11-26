@@ -41,8 +41,12 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
   const DIR = path.join(ctx.require('./db').DATA_DIR, 'fotos', 'maengel');   // unter „fotos“: Tresor und Komplettsicherung erfassen den Ordner mit
   const P = need('maengel');
   const S = ctx.setting, SET = ctx.setSetting2;
-  const cfg = () => ({ keep_months: Math.min(120, Math.max(1, int(S('keep_months', '12')) || 12)), mail_on: S('mail_on', '1') === '1', notify: S('notify', '') });
-  const CFG_LABELS = { keep_months: 'Erledigte Meldungen löschen nach (Monaten)', mail_on: ['E-Mail bei neuen Meldungen', 'bool'], notify: 'Weitere E-Mail-Empfänger' };
+  const cfg = () => ({ keep_months: Math.min(120, Math.max(1, int(S('keep_months', '12')) || 12)), mail_on: S('mail_on', '1') === '1' });
+  const CFG_LABELS = { keep_months: 'Erledigte Meldungen löschen nach (Monaten)', mail_on: ['E-Mail bei neuen Meldungen', 'bool'] };
+  /* Weitere E-Mail-Empfänger: gemeinsamer Baustein der Karte „Benachrichtigungen“ (src/stoerung.js, Personendaten – nicht im Funktionsexport).
+     Einmal-Umzug der früheren Einstellung ext_maengel_notify (höchstens 5 Adressen, schon geprüft) */
+  ctx.require('./db').once('maengel_notify_umzug', () => { const alt = S('notify', ''); if (alt) { ctx.stoerung.setEmpfaenger(alt.split(/[,;\s]+/).filter(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))); SET('notify', ''); } });
+  ctx.stoerung.einrichten({ pushId: 'neu' });
   const clubName = () => ctx.getSetting('club_name', 'Verein');
 
   /* ---------- Orte: Plätze aus dem Modul „Plätze“ (wenn aktiv) + eigene Orte ---------- */
@@ -100,9 +104,9 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     const title = `${r.urgent ? 'Dringend: ' : ''}Neue Mängelmeldung – ${r.place}`;
     if (ids.length) ctx.push.send(ids, 'neu', { title, body: r.text.slice(0, 120), url: './#maengel', tag: `maengel-neu-${r.id}` }).catch(() => {});
     const c = cfg();
-    if (!c.mail_on || !ctx.mail.ready()) return;
-    const to = new Set(c.notify.split(/[,;\s]+/).filter(Boolean));
-    if (ctx.isModuleActive('mitglieder')) for (const id of ids) { const a = (await ctx.callHooks('memberAddress', id)).map(x => x.result).find(Boolean); if (a && a.email && !/@clubwerk\.invalid$/i.test(a.email)) to.add(a.email); }
+    if (!ctx.mail.ready()) return;
+    const to = new Set(ctx.stoerung.empfaenger());   // E-Mail-Empfänger der Karte „Benachrichtigungen“ immer, die Adressen der verknüpften Mitglieder nur mit „Zusätzlich per E-Mail“
+    if (c.mail_on && ctx.isModuleActive('mitglieder')) for (const id of ids) { const a = (await ctx.callHooks('memberAddress', id)).map(x => x.result).find(Boolean); if (a && a.email && !/@clubwerk\.invalid$/i.test(a.email)) to.add(a.email); }
     if (!to.size) return;
     ctx.mail.send({ to: [...to].join(', '), subject: `${title} – ${clubName()}`,
       text: [`${r.urgent ? 'DRINGEND – ' : ''}Neue Meldung bei den Mängeln`, '', `Ort: ${r.place}`, `Beschreibung: ${r.text}`, '', 'Fotos und Bearbeitung in der Verwaltung unter „Mängel“.'].join('\n'),
@@ -259,7 +263,6 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     const b = req.body || {}, before = cfg();
     if (b.keep_months !== undefined) { const n = int(b.keep_months); if (!(n >= 1 && n <= 120)) return bad(res, 'Bitte eine Frist zwischen 1 und 120 Monaten eintragen.'); SET('keep_months', n); }
     if (b.mail_on !== undefined) SET('mail_on', b.mail_on ? '1' : '0');
-    if (b.notify !== undefined) { const l = String(b.notify || '').split(/[,;\s]+/).filter(Boolean); if (l.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) return bad(res, 'Bitte gültige E-Mail-Adressen eintragen (mehrere mit Komma).'); SET('notify', l.slice(0, 5).join(', ')); }
     let placesDiff = '';
     if (b.places !== undefined) {
       if (!Array.isArray(b.places)) return bad(res, 'Ungültige Ortsliste.');
@@ -319,7 +322,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     const n = int(c.keep_months);
     if (n >= 1 && n <= 120) SET('keep_months', n);
     if (c.mail_on !== undefined) SET('mail_on', c.mail_on ? '1' : '0');
-    if (typeof c.notify === 'string') { const l = c.notify.split(/[,;\s]+/).filter(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)); SET('notify', l.slice(0, 5).join(', ')); }
+    // c.notify (E-Mail-Empfänger, frühere Funktionsdateien) wird bewusst nicht übernommen: Personendaten gehören nicht in Funktionsdateien
     const z = konfigio.zaehler();
     if (Array.isArray(data.places)) {
       db.transaction(() => {

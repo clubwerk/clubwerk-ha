@@ -69,7 +69,8 @@ CREATE INDEX IF NOT EXISTS ix_fl_log_at ON fl_log(at);
 /* Uhr des Moduls: util.jetzt() – in der Testreihe fl stellt sie CW_TEST_UHR (src/testuhr.js): Für das Modul ist es dann heute 19:00 Uhr, egal wann die Reihe läuft */
 const nowD = () => util.jetzt();
 const log = (action, light, who, detail) => db.prepare('INSERT INTO fl_log(at, light, action, who, detail) VALUES (?,?,?,?,?)').run(L.ts(nowD()), light || null, action, who || null, detail || null);
-const notify = text => ha.notify(cfg().notify, 'Flutlicht', text);
+// Störung melden: E-Mail-Empfänger, Push und (früher eingetragen) notify-Dienst von Home Assistant – zentral in src/stoerung.js
+const notify = text => H.stoerung.melden(text);
 
 /* =================== Dunkelheit =================== */
 let sunCache = { day: '', set: null, at: 0 };
@@ -214,7 +215,7 @@ async function tickInner() {
       } else if (want && isOn && (!k || !k.on)) cmd.set(light.id, { on: true, at: Date.now(), seenOn: true });
       if (failed.has(light.id) && haOn(light, await trySt()) === want) { failed.delete(light.id); log('behoben', light.name, null, 'wieder erreichbar'); }   // erst, wenn Home Assistant den gewünschten Zustand meldet
     } catch (e) {
-      if (failed.get(light.id) !== e.message) { failed.set(light.id, e.message); log('fehler', light.name, null, e.message); notify(`${light.name}: Licht ließ sich nicht schalten (${e.message}).`); H.securityAlert('licht', `Flutlicht: ${light.name} ließ sich nicht schalten (${e.message}).`, { key: light.id }); }
+      schaltFehler(light, e.message);
     }
   }
 }
@@ -300,10 +301,18 @@ async function doAction(light, action, who, minutes) {
   if (!still.length) await kick(light, false);
   return { still: still.length ? lightEnd(openClaims(light.id), nowTs) : null };
 }
+/** Schalter antwortet nicht: einmal je Fehlerbild protokollieren und melden (auch beim Schalten von Hand – früher meldete dann
+ *  erst der nächste Durchlauf, und der sah denselben Fehler schon als bekannt an) */
+function schaltFehler(light, msg) {
+  if (failed.get(light.id) === msg) return;
+  failed.set(light.id, msg); log('fehler', light.name, null, msg);
+  notify(`${light.name}: Licht ließ sich nicht schalten (${msg}).`);
+  H.securityAlert('licht', `Flutlicht: ${light.name} ließ sich nicht schalten (${msg}).`, { key: light.id });
+}
 /** sofort schalten (nicht erst beim nächsten Durchlauf); Fehler → 502 */
 async function kick(light, on) {
   try { await switchHa(light, on); }
-  catch (e) { if (failed.get(light.id) !== e.message) { failed.set(light.id, e.message); log('fehler', light.name, null, e.message); } throw Object.assign(new Error(`${light.name} reagiert nicht – Clubwerk versucht es weiter. (${e.message})`), { status: 502 }); }
+  catch (e) { schaltFehler(light, e.message); throw Object.assign(new Error(`${light.name} reagiert nicht – Clubwerk versucht es weiter. (${e.message})`), { status: 502 }); }
 }
 async function allOff(by) {
   const c = cfg(), nowTs = L.ts(nowD());
@@ -525,6 +534,8 @@ function activate(ctx) {
   ctx.hooks.tabletSwitch = { get: () => Boolean(cfg().header), set: on => { const c = cfg(); c.header = on; save(c); } };
   ctx.hooks.usedEntities = () => cfg().lights.map(l => l.ref);
   // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
+  ctx.stoerung.einrichten({ seite: 'flutlicht-verlauf', ha: { get: () => cfg().notify, set: v => { const c = cfg(); c.notify = v; save(c); } } });
+  ctx.hooks.pushEvents = () => [ctx.stoerung.pushAnlass('Störung beim Flutlicht', 'Ein Licht ließ sich nicht schalten.')];
   ctx.hooks.securityEvents = () => [
     { id: 'tablet', label: 'Flutlicht: viele falsche PINs am Tablet', level: 'r', push: 'Flutlicht: viele falsche PINs am Tablet – das Schalten am Tablet ist aus.' },
     { id: 'schalter', label: 'Flutlicht: Schalter geändert', level: 'r', push: 'Im Modul Flutlicht wurden die Schalter geändert.' },

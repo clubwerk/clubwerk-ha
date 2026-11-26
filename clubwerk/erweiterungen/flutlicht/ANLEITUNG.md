@@ -151,7 +151,16 @@ Beispiel: 18:55 bis 20:30 Uhr mit 0,50 € ab 18:00 Uhr sind 7 angefangene Viert
 
 #### Benachrichtigungen
 
-Lässt sich ein Licht nicht schalten, kann Clubwerk aufs Handy melden: der Name des Handys in Home Assistant (Mitteilungsdienst „notify“). Leer = keine Meldung. Clubwerk versucht es in jedem Fall weiter.
+![Karte „Benachrichtigungen“: E-Mail-Empfänger, Push und eingeklappt der notify-Dienst von Home Assistant.](bild: seite=flutlicht-einstellungen; ziel=[data-card="benachrichtigungen"])
+
+Clubwerk meldet es, wenn sich ein Licht nicht schalten lässt, auf zwei Wegen:
+
+- **E-Mail-Empfänger:** eine oder mehrere Adressen, getrennt mit Komma, z. B. die des Platzwarts. Die Mail kommt über das Vereinspostfach (Einstellungen › Postfach) mit Vereinsname, Anlass, Uhrzeit und einem Link in die Verwaltung (der Link funktioniert im Vereinsnetz). Fehlt das Postfach, steht oben in der Karte ein Hinweis mit Link. Eine falsch geschriebene Adresse zeigt Clubwerk direkt am Feld.
+- **Push:** Benutzer der Verwaltung mit dem Recht „Flutlicht“ bekommen einen Hinweis in der Mitglieder-App, wenn ihr Benutzer mit einem Mitglied verknüpft ist. Ob es diese Hinweise gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest (Anlass „Störung beim Flutlicht“).
+
+Dieselbe Störung kommt höchstens einmal je Stunde; Clubwerk versucht es in jedem Fall weiter. Die Adressen sind persönliche Daten und stehen deshalb nicht in der Datei von „Einstellungen übertragen“.
+
+> Tipp Für Fortgeschrittene: Unter **„Zusätzlich an Home Assistant (notify-Dienst, für Fortgeschrittene)“** lässt sich der Name des Handys in Home Assistant eintragen (z. B. `mobile_app_handy_vorstand`). Ein früher dort eingetragener Dienst bleibt erhalten und meldet weiter.
 
 #### Einstellungen übertragen
 
