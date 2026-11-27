@@ -345,7 +345,7 @@ Drei Filter: **Zu prüfen** (Clubwerk hat einen Vorschlag), **Nicht zugeordnet**
 
 Im Fenster seht ihr Datum, Betrag, Zahler und Verwendungszweck, darunter die **Vorschläge** und die Suche **Von Hand zuordnen**. Bei einer **Rücklastschrift** stellt ihr zusätzlich die **Gebühr für den Zahler** ein und ob das **Mandat gesperrt** wird. **Gehört nicht zu Clubwerk** versteckt die Buchung; sie wird nach der Löschfrist (Einstellungen › Datenschutz, Vorgabe 90 Tage) gelöscht.
 
-> Zum Zuordnen braucht ihr das Recht „Kontoauszug“ und zusätzlich „Einzug“ bzw. „Buchhaltung“. Sonst seht ihr die Buchungen nur.
+> Zum Zuordnen braucht ihr das Recht „Kontoauszug“ und zusätzlich „Beiträge & Einzug“ bzw. „Buchhaltung“. Sonst seht ihr die Buchungen nur.
 
 ### Seite „Benutzer & Rechte“ {#benutzer}
 
@@ -355,14 +355,14 @@ Jeder meldet sich mit eigenem Benutzernamen an, so ist nachvollziehbar, wer was 
 
 ![Reiter „Benutzer“: Name, Zugang, letzte Anmeldung.](bild: seite=benutzer; tab=benutzer)
 
-Die Liste zeigt je Benutzer Name, Benutzername, die Rollen oder „alle Rechte“ und die letzte Anmeldung. Gesperrte Benutzer sind grau. „Startpasswort noch nicht geändert“ heißt: Der Benutzer hat sich noch nicht angemeldet und sein eigenes Passwort festgelegt.
+Die Liste zeigt je Benutzer Name, Benutzername, die Rollen als Schilder (oder „alle Rechte“) und die letzte Anmeldung. Darunter steht kurz, was der Benutzer insgesamt darf, eine Angabe je Modul: zum Beispiel „Verkauf: Abrechnung, Konten · Mitglieder: alle“. Rechte in einem ausgeschalteten Modul stehen mit „(Modul aus)“ dabei: Sie bleiben gespeichert, wirken aber erst wieder, wenn das Modul eingeschaltet ist. Gesperrte Benutzer sind grau. „Startpasswort noch nicht geändert“ heißt: Der Benutzer hat sich noch nicht angemeldet und sein eigenes Passwort festgelegt.
 
 ![Neuer Benutzer: Mitglied wählen oder manuell anlegen, dann Zugang vergeben.](bild: seite=benutzer; tab=benutzer; klick=#uNew; ziel=dialog)
 
 **+ Neuer Benutzer:**
 - **Mitglied auswählen** (der Benutzername entsteht automatisch) oder **Manuell anlegen** mit Vor- und Nachname.
 - **Start-Passwort** (mindestens 8 Zeichen) persönlich weitergeben. Es gilt nur für die erste Anmeldung: Danach sieht der Benutzer nur „Eigenes Passwort festlegen“ (Startpasswort und zweimal das neue). Erst mit dem eigenen Passwort geht es weiter, so kennt niemand sonst sein Passwort.
-- **Zugang:** „Nach Rollen“ (Rollen ankreuzen, dazu einzelne Zusatzrechte) oder „Alle Rechte“ (wie das Adminkonto; mit eigenem Passwort bestätigen).
+- **Zugang:** „Nach Rollen“ (Rollen ankreuzen, dazu einzelne Zusatzrechte) oder „Alle Rechte“ (wie das Adminkonto; mit eigenem Passwort bestätigen). Unter **Zusätzliche Einzelrechte** stehen die Rechte wie bei den Rollen nach Modulen geordnet; was eine angekreuzte Rolle schon gibt, ist mit „Schon über eine Rolle“ markiert.
 - **Abteilungen:** bei Rollen mit „eigene Abteilung“ legt ihr fest, für welche Abteilungen sie gelten.
 
 Beim Bearbeiten: **Zugang aktiv** sperrt oder öffnet ein Konto, **Neues Passwort vergeben** und **Benutzer löschen** (die Protokolleinträge bleiben). Ein neu vergebenes Passwort ist wieder ein Startpasswort: Der Benutzer wird abgemeldet und muss es beim nächsten Anmelden ersetzen. Das gilt nicht für das Adminkonto und nicht für dein eigenes Konto. Das **Adminkonto** hat immer alle Rechte und kann weder gesperrt noch gelöscht werden.
@@ -371,11 +371,21 @@ Beim Bearbeiten: **Zugang aktiv** sperrt oder öffnet ein Konto, **Neues Passwor
 
 ![Reiter „Rollen“: gebündelte Rechte.](bild: seite=benutzer; tab=rollen)
 
-Eine Rolle hat einen Namen, eine Beschreibung und Rechte. Die Liste zeigt, wie viele Benutzer sie haben.
+Eine Rolle hat einen Namen, eine Beschreibung und Rechte. Die Liste zeigt die Rechte kurz je Modul und wie viele Benutzer die Rolle haben.
 
-![Rolle bearbeiten: Name, Beschreibung, „Nur eigene Abteilungen“ und Rechte.](bild: seite=benutzer; tab=rollen; klick=[data-r]; ziel=dialog)
+![Rolle bearbeiten: Name, Beschreibung, „Nur eigene Abteilungen“ und Rechte je Modul.](bild: seite=benutzer; tab=rollen; klick=[data-r]; ziel=dialog)
+
+**Rechte je Modul:** Die Rechte sind nach Modulen geordnet, in der Reihenfolge des Menüs, „Allgemein“ (Nachrichten, Mitglieder-App einrichten, Sicherheitswarnungen, Module) zuletzt. Ihr seht nur eingeschaltete Module; ein ausgeschaltetes Modul erscheint nur, wenn dort noch Rechte vergeben sind, eingeklappt und mit „Modul aus“ – so bleibt nichts unbemerkt vergeben. Jedes Modul lässt sich auf- und zuklappen, rechts steht, wie viele seiner Rechte angekreuzt sind („2 von 6“), und **Alle** bzw. **Keine** kreuzt die ganze Gruppe an oder ab. Unter jedem Recht steht in einem Satz, was es freischaltet. Die Wörter sind überall gleich: „… bedienen“ ist der Alltag (zum Beispiel Licht schalten), „… einrichten“ sind die Einstellungen des Moduls. „Benutzer“ und „Einstellungen“ gibt es nur mit „Alle Rechte“.
+
+**Abhängigkeiten:** Manche Rechte wirken nur zusammen mit einem anderen, zum Beispiel „Bankdaten“, „Dokumente“ und „Beiträge & Einzug“ nur mit „Mitglieder“, jedes Recht für Plätze nur mit „Belegung ansehen“ und „… einrichten“ nur mit „… bedienen“. Unter so einem Recht steht „Setzt … voraus“. Kreuzt ihr es an, kreuzt das Fenster das nötige Recht sichtbar mit an und sperrt es, solange es gebraucht wird („Nötig für …“). Auch Clubwerk selbst prüft beim Speichern und lehnt eine neue Lücke mit einer Meldung ab – ergänzt wird nie etwas still. Rollen, die schon vorher so gespeichert waren, bleiben, wie sie sind.
+
+**Vorlagen:** Beim Anlegen einer neuen Rolle stehen oben Vorlagen für typische Ämter: Vorstand, Kassenwart, Thekendienst, Platzwart, Sportwart, Jugendwart, Abteilungsleitung und Schriftführer. Eine Vorlage füllt Name, Beschreibung und Rechte zurückhaltend vor, nur mit dem, was das Amt im Alltag braucht, und nur für eingeschaltete Module. Danach passt ihr alles frei an. Bestehende Rollen ändern die Vorlagen nicht.
+
+![Neue Rolle mit der Vorlage „Kassenwart“.](bild: seite=benutzer; tab=rollen; klick=#uNew; klick2=[data-tpl="kassenwart"]; ziel=dialog)
 
 **Nur Mitglieder der eigenen Abteilungen** ist für Abteilungsleitungen gedacht: Sie sehen nur die Mitglieder ihrer Abteilung (gilt für die Rechte „Mitglieder“ und „Nachrichten“). Eine Rolle, die Benutzer hat, lässt sich nicht löschen.
+
+**Wenn etwas fehlt:** Fehlt jemandem ein Reiter oder Knopf, weil ihm ein Recht fehlt, steht unter der Reiterzeile der Seite dezent „Manches ist ausgeblendet – warum?“. Aufgeklappt nennt es, was fehlt und welches Recht dafür nötig ist, zum Beispiel: „Reiter „Buchungen“, „+ Betrag auf Konto“: Dafür fehlt dir das Recht „Buchungen“ (Modul Verkauf).“ Wer alle Rechte hat, sieht den Hinweis nie.
 
 ### Reiter „Datensicherung“ (Seite „System“) {#sicherung}
 
@@ -682,13 +692,13 @@ Alles, was nur für euch gilt. Ihr erreicht die Seite über euren Namen unten im
 
 | Recht | Was es erlaubt |
 |---|---|
-| Einstellungen | Einstellungen, Datensicherung, Protokoll, Einrichtung, Update, Mitglieder-App (Adresse, Sicherheit, SMS, Push-Anlässe), Module ein- und ausschalten und Demo starten |
-| Benutzer | Benutzer und Rollen verwalten (Seite „Benutzer & Rechte“) |
-| Mitglieder-App einrichten (App) | Bereiche, Reiter, Benachrichtigungen und Name der App ändern; Adresse und Sicherheit nur mit „Einstellungen“ |
-| Mitglieder anlegen & neue bestätigen (Konten) | Konten und PINs verwalten, Neueinträge vom Tablet bestätigen, Mitglieder in der App freischalten |
-| Nachrichten (E-Mail) | Nachrichten an Mitglieder schreiben (E-Mail, App, Push) |
-| Kontoauszug | Kontoauszüge einlesen und zuordnen (zusätzlich „Einzug“ bzw. „Buchhaltung“) |
-| Module (Deinstallieren) | Module deinstallieren und wieder installieren (mit Pflicht-Sicherung) |
+| Einstellungen (nur mit „Alle Rechte“) | Einstellungen, Datensicherung, Protokoll, Einrichtung, Update, Mitglieder-App (Adresse, Sicherheit, SMS, Push-Anlässe), Module ein- und ausschalten und Demo starten |
+| Benutzer (nur mit „Alle Rechte“) | Benutzer und Rollen verwalten (Seite „Benutzer & Rechte“) |
+| Mitglieder-App einrichten | Bereiche, Reiter, Benachrichtigungen und Name der App ändern; Adresse und Sicherheit nur mit „Einstellungen“ |
+| Konten (bei Verkauf; ohne Verkauf unter „Allgemein“) | Konten und PINs verwalten, Neueinträge vom Tablet bestätigen, Mitglieder in der App freischalten |
+| Nachrichten | Nachrichten an Mitglieder schreiben (E-Mail, App, Push) |
+| Kontoauszug (bei Mitglieder) | Kontoauszüge einlesen und zuordnen (zusätzlich „Beiträge & Einzug“ bzw. „Buchhaltung“) |
+| Module | Module deinstallieren und wieder installieren (mit Pflicht-Sicherung) |
 | Sicherheitswarnungen | Sicherheitswarnungen per Push und E-Mail erhalten, unter Einstellungen › Sicherheit ansehen und als erledigt markieren |
 
 Das **Adminkonto** hat immer alle Rechte, ebenso Benutzer mit „Alle Rechte“. Das Sicherungspasswort, Sicherungsziele, Wiederherstellen und Updates darf nur ein Benutzer mit allen Rechten. „Mein Konto“ und die Übersicht stehen jedem angemeldeten Benutzer offen.

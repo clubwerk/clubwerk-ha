@@ -17,7 +17,7 @@ The module works on its own. Without Members, invoices and donation receipts go 
 4. **Check the club address:** address, email and phone appear in the letterhead. You maintain them once, centrally, under Settings › Club.
 5. **Set up the mailbox (for sending by email):** under Settings › Mailbox. Without a mailbox you can download the PDF and print it.
 6. **Accounting › Settings:** enter the number range, payment term and tax details. For donation receipts, also enter the details of the exemption notice. Until you do, the button “+ New donation receipt” stays locked.
-7. **Expenses and cash:** the treasurer gets the permission “Expenses”, auditors get “Audit” (view only). Under Settings › Expenses & cash enter the opening balance of the preset cash box, add more cash boxes if needed and set account and sphere per expense type under Settings › Bookkeeping.
+7. **Expenses and cash:** the treasurer gets the permission “Expenses & cash”, auditors get “Audit” (view only). Under Settings › Expenses & cash enter the opening balance of the preset cash box, add more cash boxes if needed and set account and sphere per expense type under Settings › Bookkeeping.
 
 ## Admin area {#verwaltung}
 
@@ -293,7 +293,7 @@ You assign payments to invoices through the **bank statement**. With Members it 
 - Clubwerk assigns a payment to an invoice if the **invoice number** appears in the payment reference. If the amount matches too, the assignment counts as certain. If more was paid, it counts as probable and the rest stays unassigned.
 - If the amount is too low, there is no automatic assignment. You record part payments by hand on the invoice.
 - An invoice paid this way carries the payment method “Bank statement”. If you want to reopen or cancel it, first remove the assignment in the bank statement.
-- To assign, you need the permission “Import and assign bank statements” and also “Accounting”.
+- To assign, you need the permission “Bank statement” and also “Accounting”.
 - **Debits:** with Accounting, the bank statement also keeps debits. If one matches an expense from the bank account (same amount, up to 14 days apart, payee in the name), Clubwerk suggests it. Other debits appear under Expenses › To record.
 
 ## Tablet and app {#tablet-app}
@@ -305,8 +305,8 @@ Accounting has no page at the tablet or in the member app. You send invoices and
 | Permission | What it allows |
 |---|---|
 | Accounting | Invoices, donation receipts, companies & sponsors and their settings: write, send, remind, record and cancel, assign invoices and expenses in the bank statement (in addition to the bank statement permission) |
-| Record expenses and cash book | Record and cancel expenses with receipts, cash count, cash transfer, lock months, set up expense types and cash boxes (the treasurer) |
-| Audit | View and download expenses with receipts, cash book and income statement only |
+| Expenses & cash | Record and cancel expenses with receipts, cash count, cash transfer, lock months, set up expense types and cash boxes (the treasurer) |
+| Cash audit | View and download expenses with receipts, cash book and income statement only |
 
 Whoever has “Accounting” also sees the names and addresses of invoice recipients.
 
@@ -318,7 +318,7 @@ Whoever has “Accounting” also sees the names and addresses of invoice recipi
 - **Bookkeeping (Settings):** expenses, cash transfers and cash differences go into the DATEV posting batch; set account and sphere per expense type there.
 - **All modules with cash:** their cash receipts appear in the cash book (main cash box or the chosen one).
 - **Settings:** address (Club), bank accounts and mailbox come from there.
-- **Overview:** shows the number of open invoices, the annual invoices still missing a warning about overdue invoices and – with the “Expenses” permission – a note while a cash box’s previous month is not locked.
+- **Overview:** shows the number of open invoices, the annual invoices still missing a warning about overdue invoices and – with the “Expenses & cash” permission – a note while a cash box’s previous month is not locked.
 - **Search (Ctrl/⌘ K):** finds invoices by number or recipient and companies by name or customer number.
 - **Privacy:** invoices, receipts and expense receipts are accounting records and are never deleted automatically (legal retention: receipts 8 years, books 10 years). A member’s data report includes their invoices and donations. When duplicate members are merged, they move along. If a member has open invoices, Clubwerk points this out. Paid and cancelled invoices keep the name.
 - **Setup assistant:** contains the step “Invoices and tax”.

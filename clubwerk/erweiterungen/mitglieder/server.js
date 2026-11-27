@@ -1334,7 +1334,7 @@ function activate(ctx) {
   admin.put('/settings', P, (req, res) => {
     // Erst alles prüfen und in `pending` sammeln, dann in einer Transaktion schreiben – bei einem Fehler bleibt alles unverändert
     const b = req.body || {}; const errors = []; const pending = [];
-    if (FIN_KEYS.some(k => b[k] !== undefined) && !req.user.perms.includes('mitglieder_finanzen')) return bad(res, 'Lastschrift, Rechnungen und Mahnungen (Beiträge & Zahlungen › Einstellungen) darf nur ändern, wer das Recht „Einzug“ hat.', 403);
+    if (FIN_KEYS.some(k => b[k] !== undefined) && !req.user.perms.includes('mitglieder_finanzen')) return bad(res, 'Lastschrift, Rechnungen und Mahnungen (Beiträge & Zahlungen › Einstellungen) darf nur ändern, wer das Recht „Beiträge & Einzug“ hat.', 403);
     const put = (k, v) => pending.push([k, v]);
     const str = (k, max) => { if (b[k] !== undefined) put(k, one(b[k], max)); };
     const long = (k, max) => { if (b[k] !== undefined) put(k, txt(b[k], max)); };
@@ -1342,8 +1342,8 @@ function activate(ctx) {
     long('due_text', 600); long('app_intro', 1500); long('work_text', 600); long('invoice_text', 800);
     if (b.satzung_url !== undefined) { const u = one(b.satzung_url, 300); if (u && !/^https?:\/\//i.test(u)) errors.push('Die Satzung bitte als Adresse mit https:// angeben.'); else put('satzung_url', u); }
     if (b.creditor_id !== undefined) { const c = sepa.checkCreditorId(b.creditor_id); if (b.creditor_id && !c.ok) errors.push(c.error); else put('creditor_id', c.ci); }
-    if (b.club_iban !== undefined && !/•/.test(String(b.club_iban))) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Die Vereins-IBAN darf nur ändern, wer das Recht „Finanzen“ hat.'); else { const i = sepa.checkIban(b.club_iban); if (b.club_iban && !i.ok) errors.push('Vereinskonto: ' + i.error); else put('club_iban', i.iban); } }
-    if (b.sepa_account !== undefined) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Das Konto für Lastschriften darf nur ändern, wer das Recht „Finanzen“ hat.'); else if (b.sepa_account && !(ctx.bank.get(b.sepa_account) || {}).active) errors.push('Dieses Bankkonto gibt es nicht (mehr).'); else put('sepa_account', b.sepa_account ? int(b.sepa_account) : ''); }
+    if (b.club_iban !== undefined && !/•/.test(String(b.club_iban))) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Die Vereins-IBAN darf nur ändern, wer das Recht „Beiträge & Einzug“ hat.'); else { const i = sepa.checkIban(b.club_iban); if (b.club_iban && !i.ok) errors.push('Vereinskonto: ' + i.error); else put('club_iban', i.iban); } }
+    if (b.sepa_account !== undefined) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Das Konto für Lastschriften darf nur ändern, wer das Recht „Beiträge & Einzug“ hat.'); else if (b.sepa_account && !(ctx.bank.get(b.sepa_account) || {}).active) errors.push('Dieses Bankkonto gibt es nicht (mehr).'); else put('sepa_account', b.sepa_account ? int(b.sepa_account) : ''); }
     if (b.club_bic !== undefined) { const c = sepa.checkBic(b.club_bic); if (!c.ok) errors.push('Der BIC des Vereinskontos hat 8 oder 11 Zeichen.'); else put('club_bic', c.bic); }
     if (b.sepa_purpose !== undefined) { const v = one(b.sepa_purpose, 140); if (/\{(?!Jahr\}|Posten\}|Nr\}|Name\}|Verein\})[^}]*\}/.test(v)) errors.push('Im Verwendungszweck gibt es nur die Platzhalter {Jahr}, {Posten}, {Nr}, {Name} und {Verein}.'); else put('sepa_purpose', v); }
     if (b.mandate_prefix !== undefined) put('mandate_prefix', String(b.mandate_prefix).replace(/[^A-Za-z0-9]/g, '').slice(0, 10));

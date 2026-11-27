@@ -593,6 +593,27 @@
   .ucard:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
   .usec { margin: 18px 0 10px; }
   .udet { margin-top: 12px; } .udet summary { cursor: pointer; font-weight: 700; padding: 6px 0; } .udet .permgrid { margin-top: 8px; }
+  /* Rechte je Modul (Benutzer & Rechte): aufklappbare Gruppen, Zähler rechts, Kurzsatz unter jedem Recht */
+  .rgrps { display: flex; flex-direction: column; gap: 8px; }
+  .rgrp { border: 1px solid var(--line); border-radius: 12px; }
+  .rgrp > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px; font-weight: 700; list-style: none; }
+  .rgrp > summary::-webkit-details-marker { display: none; }
+  .rgrp > summary::before { content: ''; flex: none; width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); margin: 0 4px 0 2px; transition: transform .15s; }
+  .rgrp[open] > summary::before { transform: rotate(45deg); }
+  .rgrp .rg-n { margin-left: auto; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .rg-body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .rg-tools { display: flex; justify-content: flex-end; }
+  .rperm > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+  .rperm .rh { line-height: 1.35; } .rperm .rrole { color: var(--blue); } .rperm .rdep { color: var(--muted); font-weight: 600; } .rperm .rdep.warn { color: var(--amber); }
+  .rtpl-l { margin-bottom: 6px; }
+  @media (min-width: 701px) { :where(html.cw-liste) .tbl.kompakt td.k-rsum { flex-basis: 100%; } }   /* Tablet-Liste: Rechte je Modul auf eigener Zeile, umbrechend statt „…“ (am Handy steht nur die Zahl) */
+  :where(html:not(.cw-liste)) .tbl.kompakt.rtab td:first-child { min-width: 17em; }   /* Tabelle am Rechner: übliche Namen in einer Zeile – umbrechen soll die Rechte-Spalte (sehr lange Namen dürfen umbrechen) */
+  .rsum-p, .rsum-kurz { white-space: nowrap; } .rsum-kurz { display: none; }
+  /* Hinweis auf fehlende Rechte unter der Reiterzeile (drawMissing in admin.js) – dezent, aufklappbar */
+  .rfehlt { margin: 0 0 12px; color: var(--muted); font-size: 13px; } .rfehlt > summary { display: inline-flex; align-items: center; min-height: 32px; font-weight: 600; }
+  .rfehlt ul { margin: 4px 0 0; padding-left: 18px; line-height: 1.5; } .rfehlt b { color: var(--ink); font-weight: 600; }
+  .rsum { line-height: 1.5; } .rsum-g { display: inline; } .rsum-g.off { color: var(--muted); } .rsum-roles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 4px; } .rsum-roles:not(:has(> :not(.rsum-kurz))) { display: none; }
+  @media (max-width: 700px) { .rsum-voll, .rsum-roles:has(> .pill) > .rsum-kurz { display: none; } .rsum-roles:not(:has(> .pill)) > .rsum-kurz { display: inline; } .rsum-roles:not(:has(> :not(.rsum-kurz))) { display: flex; } .rsum-roles { margin-bottom: 0; } }   /* Handy: Listeneintrag höchstens 96 px (Regel B-7) – Rollen und „n Module“ in einer Zeile */
   @media (max-width: 640px) { .ugrid, .rolegrid, .permgrid { grid-template-columns: 1fr; } }
   /* Aus Sicherung übernehmen (Teil-Wiederherstellung): Teile je Modul, Vorschau-Zeilen */
   .tl-liste { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }

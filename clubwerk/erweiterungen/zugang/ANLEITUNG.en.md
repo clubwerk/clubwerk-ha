@@ -11,7 +11,7 @@ Clubwerk switches the devices through Home Assistant. It does not matter which m
 
 1. **Set up the devices in Home Assistant:** The locks, door openers or gate drives must already be running in Home Assistant (Settings › Devices & services). Which integration fits your manufacturer is shown on the “Settings” tab.
 2. **Settings › Modules:** Switch on “Access”. With “Demo” you can try the module first with made-up data.
-3. **Assign permissions:** Under Settings › Users & permissions, give the “Access” permission to whoever should set everything up. Anyone who may only open doors remotely (for example the caretaker) gets “Operate access”.
+3. **Assign permissions:** Under Settings › Users & permissions, give the “Set up access” permission to whoever should set everything up. Anyone who may only open doors remotely (for example the caretaker) gets “Operate access”.
 4. **Add the doors:** “Doors” tab › “+ Door”. Then try opening each one under “Operate”.
 5. **Check the time profiles:** “Member” (daily 07:00–23:00) and “Round the clock” already exist. You create your own times on the “Time profiles” tab.
 6. **Authorise members:** “Authorisations” tab › “+ Enable member”. The member scans the QR code with their phone and chooses a PIN. Done – the doors appear in the app.
@@ -114,7 +114,7 @@ When editing, **Remove door …** is set apart at the bottom. Clubwerk asks for 
 
 **New device only with your password:** when a door gets a device from Home Assistant – a new door or a different device on an existing door – Clubwerk asks for **your own password** when saving. Renaming, changing the order, the pulse and removing work without a password.
 
-**Who may choose which devices:** users with **all permissions** can enter any suitable device from Home Assistant. Everyone else (e.g. only with the “Access” permission) only sees and chooses devices of the manufacturer selected on the “Settings” tab. If “Mixed / other manufacturer” is selected there, only users with all permissions assign devices. This way nobody without all permissions can enter the alarm system or a different lock as a door, for example.
+**Who may choose which devices:** users with **all permissions** can enter any suitable device from Home Assistant. Everyone else (e.g. only with the “Set up access” permission) only sees and chooses devices of the manufacturer selected on the “Settings” tab. If “Mixed / other manufacturer” is selected there, only users with all permissions assign devices. This way nobody without all permissions can enter the alarm system or a different lock as a door, for example.
 
 > When the doors are changed, the board gets a safety message showing “before” and “now”. That way you notice if someone enters a different device without permission.
 
@@ -211,7 +211,7 @@ Here you choose the **manufacturer** (Nuki, Matter, Yale, tedee, SwitchBot, Home
 Clubwerk reports a door that cannot be opened or locked, a door opener that stays on, a door left open too long or many wrong codes on a keypad in two ways:
 
 - **Email recipients:** one or more addresses, separated by commas, e.g. the groundsman’s. The email is sent through the club mailbox (Settings › Mailbox) with the club name, what happened, the time and a link to the admin area (the link works on the club network). If the mailbox is missing, a note with a link appears at the top of the card. Clubwerk shows a mistyped address right at the field.
-- **Push:** admin users with the “Access” permission get a notification in the member app if their user is linked to a member. Whether these notifications exist is decided by the board under Member app › Notifications (occasion “Access malfunction”).
+- **Push:** admin users with the “Set up access” permission get a notification in the member app if their user is linked to a member. Whether these notifications exist is decided by the board under Member app › Notifications (occasion “Access malfunction”).
 
 The same malfunction is reported at most once an hour; Clubwerk keeps trying in any case. The addresses are personal data and are therefore not included in the file from “Transfer settings”.
 
@@ -241,7 +241,7 @@ For a member to see the section in the app at all, they must be authorised (“A
 
 | Permission | What it allows |
 |---|---|
-| Access | Everything in the “Access” menu: authorisations, doors, time profiles, blocked days, history and settings; also remote opening and the emergency block |
+| Set up access | Everything in the “Access” menu: authorisations, doors, time profiles, blocked days, history and settings; also remote opening and the emergency block |
 | Operate access | Only the “Operate” page: open and close doors remotely, set and lift the emergency block, lift the block of a keypad. Nothing can be set up |
 
 Only users with the “Settings” permission can change Settings › Reachability (club network).

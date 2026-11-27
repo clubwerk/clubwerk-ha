@@ -644,7 +644,7 @@
         <label class="chk wall"><input type="checkbox" id="lbF" ${l && l.free_rules ? 'checked' : ''}> Vereinstermin: ohne Höchstdauer, Kontingent, Vorlauf und Gebühren (z. B. Training, Medenspiel)</label>
         ${l ? `<label class="chk wall"><input type="checkbox" id="lbA" ${l.active ? 'checked' : ''}> Aktiv (inaktive Buchungsarten sind nicht mehr wählbar, bestehende Termine behalten sie)</label>` : ''}</div>
       <div class="btns">${l ? '<button class="btn ghost danger" id="lbDel">Löschen</button><span style="flex:1"></span>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="lbOk">Speichern</button></div>`, true);
-    const HINT = { verwaltung: 'Nur in der Verwaltung wählbar (Recht „für Mitglieder buchen“) – Mitglieder sehen es in der App nicht.',
+    const HINT = { verwaltung: 'Nur in der Verwaltung wählbar (Recht „Für andere buchen“) – Mitglieder sehen es in der App nicht.',
       alle: 'Jedes Mitglied, das buchen darf, kann die Buchungsart in der App wählen (z. B. „Clubmeisterschaft“).',
       auswahl: 'Nur Mitglieder mit einem der Ämter oder einzeln ausgewählte – in der App und in der Verwaltung (mit verknüpftem Mitglied). Wer „Plätze, Buchungsarten & Einstellungen“ darf, kann es immer.' };
     const paint = () => { $('lbP').textContent = val('lbN') || 'Buchungsart'; $('lbP').style.background = color; $('lbP').style.color = ink(color); $('lbC').value = color;
@@ -1037,7 +1037,7 @@ Kontaktdaten löschen wir auf der Buchungsseite 30 Tage nach dem Termin, beim Ve
     const cd = st.meta.codeDoors; if (!cd) return '';
     const kp = cd.filter(x => x.keypad), mine = codeDoorIds(d), can = st.meta.canCodeDoors;
     return `<div class="f bkf wall rs-pl"><span>Platzcode öffnet diese Tore</span>${kp.length ? `<div class="bk-chips">${kp.map(x => `<label><input type="checkbox" data-cd="${esc(x.id)}" ${mine.includes(x.id) ? 'checked' : ''} ${can ? '' : 'disabled'}> ${esc(x.name)}</label>`).join('')}</div>
-      <small class="muted s">Jede Buchung bekommt einen 6-stelligen Code für die Tastatur am Tor – meist das Haupttor und genau dieses Platztor.${can ? '' : ' Ändern darf nur, wer auch das Recht „Zugang“ hat.'}</small>`
+      <small class="muted s">Jede Buchung bekommt einen 6-stelligen Code für die Tastatur am Tor – meist das Haupttor und genau dieses Platztor.${can ? '' : ' Ändern darf nur, wer auch das Recht „Zugang einrichten“ hat.'}</small>`
       : '<small class="muted s">Noch keine Tür mit Codetastatur – im Modul Zugang unter „Türen“ einer Tür eine Codetastatur geben.</small>'}</div>`;
   };
   function resDialog(r, after) {

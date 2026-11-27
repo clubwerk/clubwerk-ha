@@ -513,7 +513,7 @@ Exports settings, fee types and departments as a file and reads them into anothe
 
 ### “Fees & payments” menu {#zahlungen}
 
-This second menu item belongs to the module and only appears with the “Collection” permission. At the top of every page are **four tiles**:
+This second menu item belongs to the module and only appears with the “Fees & collection” permission. At the top of every page are **four tiles**:
 
 ![The tiles: open, of which overdue, in collection and received in the current year.](bild: seite=mv-beitraege; ziel=.kpis)
 
@@ -715,7 +715,7 @@ Signatures, cancellation and changes that concern money or email require the mem
 | Members | See and change members, handle applications and change requests, sign membership certificates (not with “Own department(s) only”), plus fees & departments, statistics, settings, import, Excel, data access request, delete and anonymise |
 | Tick box “Own department(s) only” (in the role) | Addition to “Members” for department heads: only their own department, only the “Members” and “Applications” tabs, on the member no “Payment & family” and “Account & mandate”, no import and Excel |
 | Bank details | See and change bank details and SEPA mandate in full (otherwise the IBAN is masked) |
-| Collection | “Fees & payments” menu: fee run, direct debits, open items, invoices & reminders, settings, claims, reminder holds |
+| Fees & collection | “Fees & payments” menu: fee run, direct debits, open items, invoices & reminders, settings, claims, reminder holds |
 | Documents | “Documents” tab on the member: view and upload |
 | Congratulations | “Congratulations” tab, ticking off and reminders |
 | “Check cards” switch (Member app › member, area “My data”) | check other members’ cards with the camera in your own app – not a permission in the admin area |

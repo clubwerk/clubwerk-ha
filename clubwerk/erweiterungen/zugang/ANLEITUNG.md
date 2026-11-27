@@ -11,7 +11,7 @@ Clubwerk schaltet die Geräte über Home Assistant. Welcher Hersteller dahinter 
 
 1. **Geräte in Home Assistant einrichten:** Die Schlösser, Türöffner oder Torantriebe müssen in Home Assistant bereits laufen (Einstellungen › Geräte & Dienste). Welche Integration zu eurem Hersteller passt, steht im Reiter „Einstellungen“.
 2. **Einstellungen › Module:** Schalter bei „Zugang“ einschalten. Mit „Demo“ könnt ihr das Modul vorher mit erfundenen Daten ausprobieren.
-3. **Rechte vergeben:** Unter Einstellungen › Benutzer & Rechte bekommt, wer alles einrichten soll, das Recht „Zugang“. Wer nur Türen aus der Ferne öffnen darf (z. B. der Hausmeister), bekommt „Zugang bedienen“.
+3. **Rechte vergeben:** Unter Einstellungen › Benutzer & Rechte bekommt, wer alles einrichten soll, das Recht „Zugang einrichten“. Wer nur Türen aus der Ferne öffnen darf (z. B. der Hausmeister), bekommt „Zugang bedienen“.
 4. **Türen anlegen:** Reiter „Türen“ › „+ Tür“. Danach unter „Bedienen“ einmal testweise öffnen.
 5. **Zeitprofile prüfen:** Es gibt schon „Mitglied“ (täglich 07:00–23:00) und „Rund um die Uhr“. Eigene Zeiten legt ihr im Reiter „Zeitprofile“ an.
 6. **Mitglieder freischalten:** Reiter „Freischaltungen“ › „+ Mitglied freischalten“. Das Mitglied scannt den QR-Code mit dem Handy und legt seine PIN fest. Fertig – die Türen erscheinen in der App.
@@ -114,7 +114,7 @@ Beim Bearbeiten steht unten abgesetzt **Tür entfernen …**. Clubwerk fragt im 
 
 **Neues Gerät nur mit Passwort:** Bekommt eine Tür ein Gerät aus Home Assistant – eine neue Tür oder ein anderes Gerät an einer vorhandenen Tür –, fragt Clubwerk beim Speichern nach eurem **eigenen Passwort**. Umbenennen, Reihenfolge, Impuls und Entfernen gehen ohne Passwort.
 
-**Wer welche Geräte wählen darf:** Benutzer mit **allen Rechten** können jedes passende Gerät aus Home Assistant eintragen. Alle anderen (z. B. nur mit dem Recht „Zugang“) sehen und wählen nur Geräte des Herstellers, der im Reiter „Einstellungen“ gewählt ist. Steht dort „Gemischt / anderer Hersteller“, ordnen nur Benutzer mit allen Rechten Geräte zu. So kann niemand ohne alle Rechte z. B. die Alarmanlage oder ein fremdes Schloss als Tür eintragen.
+**Wer welche Geräte wählen darf:** Benutzer mit **allen Rechten** können jedes passende Gerät aus Home Assistant eintragen. Alle anderen (z. B. nur mit dem Recht „Zugang einrichten“) sehen und wählen nur Geräte des Herstellers, der im Reiter „Einstellungen“ gewählt ist. Steht dort „Gemischt / anderer Hersteller“, ordnen nur Benutzer mit allen Rechten Geräte zu. So kann niemand ohne alle Rechte z. B. die Alarmanlage oder ein fremdes Schloss als Tür eintragen.
 
 > Wenn ihr die Türen ändert, bekommt der Vorstand zur Sicherheit eine Mitteilung mit „vorher“ und „jetzt“. So fällt auf, wenn jemand unbefugt ein anderes Gerät einträgt.
 
@@ -211,7 +211,7 @@ Hier wählt ihr den **Hersteller** (Nuki, Matter, Yale, tedee, SwitchBot, HomeKi
 Clubwerk meldet es, wenn sich eine Tür nicht öffnen oder abschließen lässt, ein Türöffner an bleibt, eine Tür zu lange offen steht oder an einer Codetastatur viele falsche Codes eingetippt werden, auf zwei Wegen:
 
 - **E-Mail-Empfänger:** eine oder mehrere Adressen, getrennt mit Komma, z. B. die des Platzwarts. Die Mail kommt über das Vereinspostfach (Einstellungen › Postfach) mit Vereinsname, Anlass, Uhrzeit und einem Link in die Verwaltung (der Link funktioniert im Vereinsnetz). Fehlt das Postfach, steht oben in der Karte ein Hinweis mit Link. Eine falsch geschriebene Adresse zeigt Clubwerk direkt am Feld.
-- **Push:** Benutzer der Verwaltung mit dem Recht „Zugang“ bekommen einen Hinweis in der Mitglieder-App, wenn ihr Benutzer mit einem Mitglied verknüpft ist. Ob es diese Hinweise gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest (Anlass „Störung beim Zugang“).
+- **Push:** Benutzer der Verwaltung mit dem Recht „Zugang einrichten“ bekommen einen Hinweis in der Mitglieder-App, wenn ihr Benutzer mit einem Mitglied verknüpft ist. Ob es diese Hinweise gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest (Anlass „Störung beim Zugang“).
 
 Dieselbe Störung kommt höchstens einmal je Stunde; Clubwerk versucht es in jedem Fall weiter. Die Adressen sind persönliche Daten und stehen deshalb nicht in der Datei von „Einstellungen übertragen“.
 
@@ -241,7 +241,7 @@ Damit ein Mitglied den Bereich in der App überhaupt sieht, muss er freigeschalt
 
 | Recht | Was es erlaubt |
 |---|---|
-| Zugang | Alles im Menü „Zugang“: Freischaltungen, Türen, Zeitprofile, Sperrtage, Verlauf und Einstellungen; außerdem Fernöffnung und Notfall-Sperre |
+| Zugang einrichten | Alles im Menü „Zugang“: Freischaltungen, Türen, Zeitprofile, Sperrtage, Verlauf und Einstellungen; außerdem Fernöffnung und Notfall-Sperre |
 | Zugang bedienen | Nur die Seite „Bedienen“: Türen aus der Ferne öffnen und schließen, Notfall-Sperre setzen und aufheben, Sperre einer Codetastatur aufheben. Nichts einrichten |
 
 Einstellungen › Erreichbarkeit (Vereinsnetz) ändert nur, wer das Recht „Einstellungen“ hat.

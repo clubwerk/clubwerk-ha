@@ -572,7 +572,7 @@ module.exports = function verkaufRouten(h) {
       credit: !mod || mod.billed !== false, undo: mod && mod.undo && req.user.perms.includes('mitglieder_finanzen') ? mod.undo : null });
   });
   admin.post('/bookings/:id/undo-run', need('buchungen'), (req, res) => {
-    if (!req.user.perms.includes('mitglieder_finanzen')) return bad(res, 'Dafür fehlt dir das Recht „Finanzen“ der Mitgliederverwaltung.', 403);
+    if (!req.user.perms.includes('mitglieder_finanzen')) return bad(res, 'Dafür fehlt dir das Recht „Beiträge & Einzug“ (Modul Mitglieder).', 403);
     const { b, mod } = settlementOf(req.params.id);
     if (!b || !mod || !mod.undo) return bad(res, 'Diese Abrechnung lässt sich hier nicht zurücknehmen.');
     for (const p of plugins.withHook('drinksSettlementUndo')) {

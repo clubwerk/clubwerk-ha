@@ -103,7 +103,7 @@ Each shift shows the time, the task, how full it is (“✓ full”, “3 missin
 ![The “Pass on” tab: copy as a template and transfer to Sales.](bild: seite=aw-plaene; tab=weitergeben; tabkey=detail_dienstplan; klick=[data-po])
 
 - **Copy as template …:** creates the same shifts on new days, e.g. for next year. You give a name and the first day (pre-filled: one year later, the year in the name counts up). Helpers are not copied; the new roster starts as a draft.
-- **Transfer to sales …:** creates the roster as an event in Sales (all items at the normal price) so drinks and food can be booked there. The card only appears if Sales is active, you have the “Events” permission there and the roster has not been transferred yet. Afterwards the “in Sales” tag shows the name of the event.
+- **Transfer to sales …:** creates the roster as an event in Sales (all items at the normal price) so drinks and food can be booked there. The card only appears if Sales is active, you have the “Events & tabs” permission there and the roster has not been transferred yet. Afterwards the “in Sales” tag shows the name of the event.
 
 ![The “Copy as template” window.](bild: seite=aw-plaene; tab=weitergeben; tabkey=detail_dienstplan; klick=[data-po]; klick2=#plCopy; ziel=dialog)
 
@@ -356,7 +356,7 @@ Club dates (type “Date”) do not appear on the tablet.
 | Permission | What it allows |
 |---|---|
 | Duties & dates | See and edit all six tabs: manage rosters, assignments, club dates and tasks, confirm and add hours, change targets, exemptions and settings, enter replies for members |
-| Events (Sales) | Also needed to “transfer a duty roster to Sales” |
+| Events & tabs (Sales) | Also needed to “transfer a duty roster to Sales” |
 
 Members need no permission: whether they see the “Duties” section in the app is set under Member app › Sections.
 

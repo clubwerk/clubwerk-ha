@@ -102,7 +102,7 @@ Unter „So geht's“ steht der Ablauf in drei Schritten: Excel herunterladen od
 
 ![Karte „Per Lastschrift einziehen“.](bild: seite=abrechnung; ziel=.card:has(#sepaGo))
 
-Diese Karte gibt es nur mit der Mitgliederverwaltung und dem Recht „Mitglieder: Finanzen“. Ein Fenster zeigt in einem Rutsch, wer wie viel zahlt (Angehörige beim Zahler) und schlägt den frühesten Einzugstag vor. Es listet klar auf, was **nicht** per Lastschrift geht (kein oder widerrufenes Mandat, Mannschaften, „Kein Mitglied“) und was dann zu tun ist. Ein Klick erstellt die SEPA-Datei, getrennt von den Beiträgen. Die eingezogenen Konten werden dabei als abgerechnet markiert. Ein verworfener Einzug fragt, ob der Lauf gleich zurückgenommen werden soll.
+Diese Karte gibt es nur mit der Mitgliederverwaltung und dem Recht „Beiträge & Einzug“ (Modul Mitglieder). Ein Fenster zeigt in einem Rutsch, wer wie viel zahlt (Angehörige beim Zahler) und schlägt den frühesten Einzugstag vor. Es listet klar auf, was **nicht** per Lastschrift geht (kein oder widerrufenes Mandat, Mannschaften, „Kein Mitglied“) und was dann zu tun ist. Ein Klick erstellt die SEPA-Datei, getrennt von den Beiträgen. Die eingezogenen Konten werden dabei als abgerechnet markiert. Ein verworfener Einzug fragt, ob der Lauf gleich zurückgenommen werden soll.
 
 #### Liste der offenen Konten
 
@@ -148,7 +148,7 @@ Name, Datum und – bei **Artikel & Preise übernehmen von** – entweder „all
 
 ![Kopf einer Veranstaltung: Name, Zustand und Knöpfe.](bild: seite=veranstaltungen; ziel=[data-evcard] > .row)
 
-Die Überschrift nennt Name und Datum, dahinter steht der Zustand: **aktiv – Tablet bucht auf diese Liste**, **nicht aktiv** oder **Kasse abgeschlossen**. Rechts davon stehen die Knöpfe (mit dem Recht „Veranstaltungen“):
+Die Überschrift nennt Name und Datum, dahinter steht der Zustand: **aktiv – Tablet bucht auf diese Liste**, **nicht aktiv** oder **Kasse abgeschlossen**. Rechts davon stehen die Knöpfe (mit dem Recht „Veranstaltungen & Deckel“):
 
 - **Artikel & Preise (n):** Nur angehakte Artikel erscheinen während der Veranstaltung am Tablet, mit dem Preis aus der rechten Spalte. „alle Artikel“ und „keine“ haken alles an oder ab.
 - **Aktivieren / Deaktivieren:** Solange eine Veranstaltung aktiv ist, zeigt das Tablet nur deren Liste und bucht darauf.
@@ -179,7 +179,7 @@ Gäste und gegnerische Mannschaften schreiben am Tablet auf einen Deckel an und 
 
 ![Karte „Offen“ mit dem offenen Deckel.](bild: seite=veranstaltungen; klick=#deckelBox .card:has([data-tx]) h3; ziel=#deckelBox .card:has([data-tx]))
 
-Die Karte **Offen** zeigt Name, was angeschrieben ist, wann der Deckel geöffnet wurde und den offenen Betrag. Mit **Abrechnen …** (Recht „Veranstaltungen“ oder „Übernahme“) öffnest du das Fenster:
+Die Karte **Offen** zeigt Name, was angeschrieben ist, wann der Deckel geöffnet wurde und den offenen Betrag. Mit **Abrechnen …** (Recht „Veranstaltungen & Deckel“ oder „Übernahme“) öffnest du das Fenster:
 
 ![Das Fenster „Deckel abrechnen“.](bild: seite=veranstaltungen; klick=[data-tx]; ziel=dialog)
 
@@ -453,18 +453,18 @@ Ist eine Veranstaltung aktiv, zeigt das Tablet nur noch deren Liste mit Namen. J
 
 | Recht | Was es erlaubt |
 |---|---|
-| Lieferungen & Belege hochladen | Seite „Lieferungen & Belege“, Zuordnungen von Lieferanten-Artikeln |
-| Bestand, Inventur & Abgleich | Seite „Bestand & Inventur“ |
-| Bestellung vorbereiten (Bestellmail) | Seite „Bestellung“, Bestelldaten und Mail |
-| Buchungen stornieren & nachtragen | Seite „Buchungen“, „+ Betrag auf Konto“ |
-| Aktuellen Stand ansehen & als Excel exportieren | Abrechnung ansehen, Excel, Abtippliste, Auswertung (z. B. für Kassenprüfer) |
+| Lieferungen | Seite „Lieferungen & Belege“, Zuordnungen von Lieferanten-Artikeln |
+| Bestand | Seite „Bestand & Inventur“ |
+| Bestellung | Seite „Bestellung“, Bestelldaten und Mail |
+| Buchungen | Seite „Buchungen“, „+ Betrag auf Konto“ |
+| Export | Abrechnung ansehen, Excel, Abtippliste, Auswertung (z. B. für Kassenprüfer) |
 | Abrechnung | Konten als abgerechnet markieren, Abrechnungen zurücknehmen, Buchungstext ändern (schließt „Export“ ein) |
-| Veranstaltungen verwalten | Veranstaltungen führen, bar und Karte abhaken, Deckel abrechnen |
-| Offene Veranstaltungsbeträge übernehmen (Kassierer) | Beträge auf Konten übernehmen, Deckel auf ein Konto übernehmen oder abschreiben |
+| Veranstaltungen & Deckel | Veranstaltungen führen, bar und Karte abhaken, Deckel abrechnen |
+| Übernahme | Beträge auf Konten übernehmen, Deckel auf ein Konto übernehmen oder abschreiben |
 | Artikel & Preise | Seite „Artikel“, Reihenfolge der Kategorien |
 | Einstellungen | „Gerade oft hier“ und „Einstellungen übertragen“ im Verkauf |
 
-Für die Konten & PINs gibt es das Recht „Mitglieder anlegen & neue bestätigen“. Die Rolle „Kassenwart“ bringt die Rechte für Abrechnung, Export und Übernahme schon mit.
+Für die Konten & PINs gibt es das Recht „Konten“. Die Rolle „Kassenwart“ bringt die Rechte für Abrechnung, Export und Übernahme schon mit.
 
 ## Zusammenspiel mit anderen Modulen {#zusammenspiel}
 

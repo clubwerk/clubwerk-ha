@@ -991,7 +991,7 @@ function activate(ctx) {
     if (old && gast.isGuest(old)) return bad(res, 'Gastbuchungen lassen sich nicht ändern – der Gast hat genau diese Zeit bezahlt. Bei Bedarf stornieren: Der Gast bekommt sein Geld zurück (Plätze › Gäste).');
     const type = old ? old.type : (b.type === 'sperre' ? 'sperre' : 'buchung');
     if (type === 'serie') return bad(res, 'Termine einer Serie werden über „Serien & Sperren“ geändert.');
-    if (type === 'sperre' ? !may(req, 'buchung_serien') : !may(req, 'buchung_buchen')) return bad(res, type === 'sperre' ? 'Sperren anlegen und ändern darf nur, wer das Recht „Serien & Sperren“ hat.' : 'Für andere buchen und Buchungen ändern darf nur, wer das Recht „für Mitglieder buchen“ hat.', 403);
+    if (type === 'sperre' ? !may(req, 'buchung_serien') : !may(req, 'buchung_buchen')) return bad(res, type === 'sperre' ? 'Sperren anlegen und ändern darf nur, wer das Recht „Serien & Sperren“ hat.' : 'Für andere buchen und Buchungen ändern darf nur, wer das Recht „Für andere buchen“ hat.', 403);
     const r = resource(b.resource_id); if (!r) return bad(res, 'Bitte einen Platz wählen.');
     const s = tm(b.start), e = tm(b.end);
     const ge = gridError(r, String(b.date || ''), s, e, { admin: true }); if (ge) return bad(res, ge);
@@ -1056,9 +1056,9 @@ function activate(ctx) {
     if (!b0) return bad(res, 'Diese Buchung gibt es nicht (mehr).', 404);
     const x = req.body || {}, scope = SCOPES.includes(x.scope) ? x.scope : 'one';
     if ((b0.series_id || b0.type !== 'buchung') && !may(req, 'buchung_serien')) return bad(res, 'Serien und Sperren ändern darf nur, wer das Recht „Serien & Sperren“ hat.', 403);
-    if (b0.type === 'buchung' && !b0.series_id && !may(req, 'buchung_stornieren') && x.action === 'cancel') return bad(res, 'Dafür fehlt das Recht „Buchungen stornieren“.', 403);
+    if (b0.type === 'buchung' && !b0.series_id && !may(req, 'buchung_stornieren') && x.action === 'cancel') return bad(res, 'Dafür fehlt das Recht „Stornieren“ (Modul Plätze).', 403);
     // Ändern einer Einzelbuchung braucht dasselbe Recht wie PUT /bookings/:id (sonst reicht „Belegung ansehen“ zum Verlegen)
-    if (x.action !== 'cancel' && b0.type === 'buchung' && !b0.series_id && !may(req, 'buchung_buchen')) return bad(res, 'Für andere buchen und Buchungen ändern darf nur, wer das Recht „für Mitglieder buchen“ hat.', 403);
+    if (x.action !== 'cancel' && b0.type === 'buchung' && !b0.series_id && !may(req, 'buchung_buchen')) return bad(res, 'Für andere buchen und Buchungen ändern darf nur, wer das Recht „Für andere buchen“ hat.', 403);
     if (x.action !== 'cancel' && x.fields && x.fields.label_id != null && int(x.fields.label_id) !== b0.label_id) {
       const label = labelRow(int(x.fields.label_id));
       if (label && !labelForUser(req, label)) return bad(res, `Die Buchungsart „${label.name}“ dürfen nur bestimmte Personen verwenden.`, 403);
@@ -1086,7 +1086,7 @@ function activate(ctx) {
   admin.post('/bookings/:id/cancel', P, ar(async (req, res) => {
     const b = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int(req.params.id));
     if (!b) return bad(res, 'Nicht gefunden.', 404);
-    if (b.type === 'sperre' ? !(may(req, 'buchung_serien') || may(req, 'buchung_stornieren')) : !may(req, 'buchung_stornieren')) return bad(res, 'Buchungen stornieren darf nur, wer das Recht „Buchungen anderer stornieren“ hat.', 403);
+    if (b.type === 'sperre' ? !(may(req, 'buchung_serien') || may(req, 'buchung_stornieren')) : !may(req, 'buchung_stornieren')) return bad(res, 'Buchungen stornieren darf nur, wer das Recht „Stornieren“ (Modul Plätze) hat.', 403);
     const reason = txt((req.body || {}).reason, 160);
     await cancel(b, uname(req), reason);
     if (b.type === 'buchung' && (req.body || {}).notify !== false) mailPlayers(b, 'storno', { reason, toBooker: true });
@@ -1228,7 +1228,7 @@ function activate(ctx) {
   /** Tore für den Platzcode geändert? Nur mit dem Recht „Zugang“ (sonst könnte das Buchungsrecht ein fremdes Tor freigeben) – Protokoll und Warnung */
   const codeDoorsChanged = (req, res, cur, v) => {
     if (v.code_doors === undefined || v.code_doors === ((cur && cur.code_doors) || '[]')) { delete v.code_doors; return false; }
-    if (!req.user.perms.includes('zugang')) { bad(res, 'Die Tore für den Platzcode darf nur ändern, wer auch das Recht „Zugang“ hat.', 403); return null; }
+    if (!req.user.perms.includes('zugang')) { bad(res, 'Die Tore für den Platzcode darf nur ändern, wer auch das Recht „Zugang einrichten“ hat.', 403); return null; }
     return true;
   };
   const codeDoorsTold = (req, name, before, after) => {

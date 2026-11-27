@@ -1,17 +1,65 @@
 {
   "id": "buchung",
   "name": "Plätze",
-  "version": "1.35.1",
+  "version": "1.36.0",
   "kurz": "Plätze und Geräte buchen – per App und am Tablet.",
   "beschreibung": "Mitglieder buchen Plätze (z. B. Tennis, Padel) und Geräte (z. B. Ballmaschine) in der Mitglieder-App oder am Tablet im Vereinsheim: feste Zeitraster, Höchstdauer, Kontingent je Mitglied, Mitspieler und Gäste (Gastgebühr als offener Posten bei den Mitgliedern), Warteliste, Mitspielersuche (Gesuche mit Zusage, direkt in die Buchung). In der Verwaltung: Belegungsplan, Serienbuchungen für Training und Mannschaften, Platzsperren. Gästebuchung: Nichtmitglieder buchen freigegebene Plätze auf einer eigenen Buchungsseite und zahlen mit PayPal oder Karte; Clubwerk prüft jede Zahlung selbst bei PayPal.",
   "minApp": "3.6.4",
   "perms": {
-    "buchung": "Plätze: Belegung ansehen",
-    "buchung_buchen": "Plätze: für Mitglieder buchen, Einzelbuchungen mit Buchungsart",
-    "buchung_stornieren": "Plätze: Buchungen anderer stornieren",
-    "buchung_serien": "Plätze: Serien & Sperren anlegen und beenden",
-    "buchung_einstellungen": "Plätze: Plätze, Buchungsarten & Einstellungen",
-    "buchung_gaeste": "Plätze: Gästebuchung (PayPal) einrichten, Gastbuchungen stornieren, Abweichungen klären"
+    "buchung": {
+      "label": "Belegung ansehen",
+      "hint": "Belegung, Buchungen und Auswertung der Plätze ansehen",
+      "vorlagen": [
+        "vorstand",
+        "platzwart",
+        "sportwart",
+        "jugendwart"
+      ]
+    },
+    "buchung_buchen": {
+      "label": "Für andere buchen",
+      "hint": "Für Mitglieder buchen, Einzelbuchungen mit Buchungsart",
+      "requires": [
+        "buchung"
+      ],
+      "vorlagen": [
+        "sportwart",
+        "jugendwart"
+      ]
+    },
+    "buchung_stornieren": {
+      "label": "Stornieren",
+      "hint": "Buchungen anderer stornieren, Mitspielersuche ausblenden",
+      "requires": [
+        "buchung"
+      ]
+    },
+    "buchung_serien": {
+      "label": "Serien & Sperren",
+      "hint": "Serien und Sperren anlegen und beenden (Training, Platzpflege)",
+      "requires": [
+        "buchung"
+      ],
+      "vorlagen": [
+        "platzwart",
+        "sportwart"
+      ]
+    },
+    "buchung_gaeste": {
+      "label": "Gästebuchung",
+      "hint": "Gästebuchung (PayPal) einrichten, Gastbuchungen stornieren, Abweichungen klären",
+      "requires": [
+        "buchung"
+      ]
+    },
+    "buchung_einstellungen": {
+      "label": "Plätze einrichten",
+      "hint": "Plätze, Buchungsarten und Einstellungen",
+      "level": "einrichten",
+      "requires": [
+        "buchung"
+      ]
+    }
   },
   "tablet": {
     "label": "Plätze",

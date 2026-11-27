@@ -8,7 +8,7 @@
    Liga werden ausgelost, dann die Paare in Gruppen, danach Endrunde je Doppel-Liga. Saisonabschluss: Ehrentafel und Einteilung der
    Folgesaison aus der Relegation; einmaliger Import einer Einteilung aus Excel/CSV.
    Spieler melden sich in der Mitglieder-App an, vereinbaren Termine selbst (mit Platzbuchung, wenn das Modul „Plätze“ aktiv ist)
-   und tragen Ergebnisse ein; der Sportwart (Recht „turniere“) lost aus, korrigiert und setzt Fristen.
+   und tragen Ergebnisse ein; der Sportwart (Recht „Turniere“) lost aus, korrigiert und setzt Fristen.
    Wertung (Sätze prüfen, Tabelle, direkter Vergleich): lib/wertung.js
    Zweiter Teil – LK-Turniertag mit nuLiga-Import, Check-in, Turnierzentrale, Zeitplan, Fernseher und Spielerseite: lk.js
    Dritter Teil – Turnierplaner für freie Turniere (Dorfturnier: Gruppen + Endrunde, Jeder gegen jeden, K.-o., Schleifchen): ft.js

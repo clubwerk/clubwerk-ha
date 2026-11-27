@@ -13,6 +13,7 @@ const path = require('path');
 const express = require('express');
 const { db, getSetting, setSetting, audit, auditDiff } = require('./db');
 const auth = require('./auth');
+const rechte = require('./rechte');
 const APP_VERSION = require('../package.json').version;
 // Verkauf hat eine eigene Modulversion (package.json „verkaufVersion“) – die Add-on-Version zählt alles zusammen
 const VERKAUF_VERSION = require('../package.json').verkaufVersion || APP_VERSION;
@@ -171,7 +172,7 @@ function load({ app, admin, helpers }) {
     const id = p.meta.id;
     // Rechte der Erweiterung bekannt machen (nur sichtbar, solange sie aktiv ist)
     if (p.error) continue;   // nicht freigegeben oder fehlerhaft: kein Code, keine Dateien, keine Rechte
-    for (const [k, v] of Object.entries(p.meta.perms || {})) if (/^[a-z0-9_]{2,40}$/.test(k) && !auth.PERMS[k] && !RESERVED_PERMS.has(k)) auth.PERMS[k] = String(v);
+    for (const [k, v] of Object.entries(p.meta.perms || {})) if (/^[a-z0-9_]{2,40}$/.test(k) && !auth.PERMS[k] && !RESERVED_PERMS.has(k)) auth.PERMS[k] = rechte.normalize(v).label || k;   // Text oder { label, hint, … }
     const guard = (req, res, next) => (isActive(id) ? next() : res.status(404).json({ error: 'Diese Erweiterung ist nicht aktiv.' }));
     // Seiten und Dateien einer ausgeschalteten Erweiterung: Text für Seiten, JSON für alles unter /api/
     const inactive = (req, res) => (req.originalUrl.startsWith('/api/') ? res.status(404).json({ error: 'Diese Erweiterung ist nicht aktiv.' }) : res.status(404).type('text/plain; charset=utf-8').send('Erweiterung nicht aktiv'));
@@ -366,7 +367,17 @@ function visiblePerms() {
   return Object.fromEntries(Object.entries(auth.PERMS).filter(([k]) => !hidden.has(k)));
 }
 
-auth.setPermFilter(k => { for (const p of plugins.values()) if (p.meta.perms && p.meta.perms[k] !== undefined && !isActive(p.meta.id)) return false; return true; });
+/** Rechte nach Modulen gruppiert (src/rechte.js). onlyActive: nur eingeschaltete Module (für jeden Angemeldeten – die Rechte
+ *  verraten die installierten Module); sonst auch ausgeschaltete, damit dort vergebene Rechte sichtbar bleiben (Benutzer & Rechte). */
+function permCatalog({ onlyActive = false } = {}) {
+  const mods = [...plugins.values()].filter(p => !p.error && (!onlyActive || isActive(p.meta.id))).map((p, i) => ({ p, i }))
+    .sort((a, b) => orderPos(a.p.meta.id) - orderPos(b.p.meta.id) || a.i - b.i)
+    .map(({ p }) => ({ id: p.meta.id, name: p.meta.name, active: isActive(p.meta.id), perms: p.builtin ? {} : Object.fromEntries(Object.entries(p.meta.perms || {}).filter(([k]) => auth.PERMS[k] && !RESERVED_PERMS.has(k))) }));
+  return rechte.catalog(mods, k => auth.PERMS[k] !== undefined && permEffective(k));
+}
+/** Recht wirkt gerade (sein Modul ist eingeschaltet) */
+const permEffective = k => { for (const p of plugins.values()) if (p.meta.perms && p.meta.perms[k] !== undefined && !isActive(p.meta.id)) return false; return true; };
+auth.setPermFilter(permEffective);
 const withHook = name => [...plugins.values()].filter(p => !p.builtin && !p.error && isActive(p.meta.id) && typeof p.hooks[name] === 'function');
 const activeIds = () => [...plugins.values()].filter(p => isActive(p.meta.id)).map(p => p.meta.id);
 
@@ -437,4 +448,4 @@ const get = id => plugins.get(id);
 /** Ordner der geladenen, freigegebenen Erweiterungen (für deren Sprachdateien) */
 const dirs = () => [...plugins.values()].filter(p => p.dir && !p.error && !p.unapproved && !p.pending).map(p => p.dir);
 
-module.exports = { tabletSlugs, tabletPage, dirs, load, list, adminIndex, setActive, isActive, tabletNav, tabletSwitches, setTabletSwitch, orderPos, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };
+module.exports = { tabletSlugs, tabletPage, dirs, load, list, adminIndex, setActive, isActive, tabletNav, tabletSwitches, setTabletSwitch, orderPos, visiblePerms, permCatalog, activeIds, withHook, installZip, removeUploaded, approve, get };

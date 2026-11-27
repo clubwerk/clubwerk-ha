@@ -18,7 +18,7 @@ Das Modul läuft allein. Ohne die Mitgliederverwaltung kennt es nur Vor- und Nac
 
 ## Verwaltung {#verwaltung}
 
-Im Menü „Plätze“ gibt es acht Reiter: **Belegung**, **Serien & Sperren**, **Buchungen**, **Gebühren**, **Auswertung**, **Mitspielersuche**, **Plätze & Geräte** und **Einstellungen**. Der Reiter „Einstellungen“ erscheint nur mit dem Recht „Plätze, Buchungsarten & Einstellungen“.
+Im Menü „Plätze“ gibt es acht Reiter: **Belegung**, **Serien & Sperren**, **Buchungen**, **Gebühren**, **Auswertung**, **Mitspielersuche**, **Plätze & Geräte** und **Einstellungen**. Der Reiter „Einstellungen“ erscheint nur mit dem Recht „Plätze einrichten“.
 
 ### Reiter „Belegung“ {#bk-belegung}
 
@@ -29,7 +29,7 @@ Der Plan zeigt, wer wann auf welchem Platz spielt.
 - **Tag oder Woche:** Mit den Schaltern „Tag“ und „Woche“ wechselt ihr zwischen allen Plätzen an einem Tag und einem Platz über sieben Tage (dann wählt ihr den Platz in der Leiste, die Pfeile blättern wochenweise).
 - **Tag wählen:** Die Tage der Woche stehen als Kacheln oben, die Pfeile ‹ › blättern wochenweise, im Datumsfeld wählt ihr jeden anderen Tag. „Heute“ springt zurück.
 - **Plan lesen:** Jede Spalte ist ein Platz oder Gerät. Eine Buchung ist ein Block in der Farbe ihrer Buchungsart; Sperren sind rot gestreift, nicht buchbare Zeiten (außerhalb der Öffnungszeit) schraffiert. Die rote Linie ist „jetzt“. Heute sind vergangene Stunden eingeklappt – ein Klick auf die Leiste klappt sie auf. Unter dem Plan erklärt eine Legende die Farben.
-- **Freie Stelle anklicken:** öffnet „Buchung eintragen“ mit Platz, Tag und Uhrzeit schon ausgefüllt. Nötig ist das Recht „für Mitglieder buchen“.
+- **Freie Stelle anklicken:** öffnet „Buchung eintragen“ mit Platz, Tag und Uhrzeit schon ausgefüllt. Nötig ist das Recht „Für andere buchen“.
 
 ![Die Leiste der Wochenansicht: Platz wählen, Woche mit den Pfeilen und im Datumsfeld wechseln.](bild: seite=bk-belegung; klick=#bkV [data-v="woche"]; ziel=.bk-bar)
 
@@ -50,7 +50,7 @@ Der Knopf „+ Buchung“ steht rechts oben.
 Hinter **„Weitere Angaben“** stehen die seltenen Felder:
 
 - **Gäste:** Namen mit Komma getrennt. Je Gast fällt die Gastgebühr an, als offener Posten beim buchenden Mitglied. Mit dem Haken „Gäste aus Partnerverein“ entfällt sie.
-- **Wiederholen** und **Bis:** macht aus der Buchung eine Serie, z. B. jede Woche bis Saisonende. Belegte Tage werden ausgelassen. Nötig ist das Recht „Serien & Sperren anlegen“.
+- **Wiederholen** und **Bis:** macht aus der Buchung eine Serie, z. B. jede Woche bis Saisonende. Belegte Tage werden ausgelassen. Nötig ist das Recht „Serien & Sperren“.
 - **Notiz (intern):** sehen nur Benutzer in der Verwaltung.
 
 „Speichern“ trägt die Buchung ein. Ist die Zeit schon belegt, sagt Clubwerk das und trägt nichts ein.
@@ -69,9 +69,9 @@ Hinter **„Weitere Angaben“** stehen die seltenen Felder:
 
 Ein Klick auf einen Block zeigt die Einzelheiten: Spieler, Titel, Gebühr, Notiz und wer die Buchung wann und wo (App, Tablet, Verwaltung, Spielplan-Import) eingetragen hat.
 
-- **Stornieren** fragt nach einem Grund (freiwillig). Das Mitglied bekommt eine E-Mail, eine Gebühr entfällt. Nötig ist das Recht „Buchungen anderer stornieren“. Du findest es in den Einzelheiten und auch im Fenster „Bearbeiten“ (Knopf „Stornieren“ links unten).
+- **Stornieren** fragt nach einem Grund (freiwillig). Das Mitglied bekommt eine E-Mail, eine Gebühr entfällt. Nötig ist das Recht „Stornieren“. Du findest es in den Einzelheiten und auch im Fenster „Bearbeiten“ (Knopf „Stornieren“ links unten).
 - **Bearbeiten** öffnet dasselbe Fenster wie beim Eintragen: Platz, Zeit, Mitglied, Mitspieler, Gäste und Buchungsart lassen sich ändern. Gastgebühren werden neu berechnet, neue Mitspieler bekommen die Mail.
-- **Platzcode „Zeigen“** (nur auf Plätzen mit Toren, mit dem Recht „für Mitglieder buchen“ oder „Serien & Sperren“): zeigt den Code für die Tastatur am Tor, z. B. um ihn einer Mannschaft ohne App weiterzugeben. Jedes Ansehen steht im Änderungsprotokoll (ohne den Code).
+- **Platzcode „Zeigen“** (nur auf Plätzen mit Toren, mit dem Recht „Für andere buchen“ oder „Serien & Sperren“): zeigt den Code für die Tastatur am Tor, z. B. um ihn einer Mannschaft ohne App weiterzugeben. Jedes Ansehen steht im Änderungsprotokoll (ohne den Code).
 
 Gehört der Termin zu einer Serie oder Sperre, fragt Clubwerk zuerst, was gemeint ist:
 
@@ -83,7 +83,7 @@ Beim Stornieren folgt eine Rückfrage, bevor etwas verschwindet. Beim Bearbeiten
 
 ![Der Reiter „Serien & Sperren“ mit den aktiven Serien, Sperren und Spielplänen.](bild: seite=bk-serien)
 
-Hier stehen alle wiederkehrenden Termine: Training, Kurse, Mannschaftsspiele und Sperren. Jede Zeile nennt Titel, Wiederholung („jeden Dienstag“), Uhrzeit, Zeitraum, Plätze, wen es betrifft und wie viele Termine noch kommen. „Beenden“ (bei Sperren „Aufheben“) entfernt die kommenden Termine nach einer Rückfrage; vergangene bleiben stehen. Beendete Serien stehen darunter. Die Knöpfe oben brauchen das Recht „Serien & Sperren anlegen“.
+Hier stehen alle wiederkehrenden Termine: Training, Kurse, Mannschaftsspiele und Sperren. Jede Zeile nennt Titel, Wiederholung („jeden Dienstag“), Uhrzeit, Zeitraum, Plätze, wen es betrifft und wie viele Termine noch kommen. „Beenden“ (bei Sperren „Aufheben“) entfernt die kommenden Termine nach einer Rückfrage; vergangene bleiben stehen. Beendete Serien stehen darunter. Die Knöpfe oben brauchen das Recht „Serien & Sperren“.
 
 #### + Serie
 
@@ -147,7 +147,7 @@ Gebühren entstehen beim Buchen als offene Posten und werden mit dem nächsten E
 
 ![Das Fenster „Gebühr buchen“.](bild: seite=bk-gebuehren; klick=#feNew; ziel=dialog)
 
-Für eine Gebühr ohne Buchung, z. B. eine Hallenmiete: Person, Betrag (zwischen 0,10 € und 1.000 €), Datum und Text. Bei Mitgliedern entsteht eine Forderung, die wie ein Beitrag eingezogen wird. Bei Trainern („Kein Mitglied“) kommt der Betrag aufs Verkaufskonto. Nötig ist das Recht „für Mitglieder buchen“.
+Für eine Gebühr ohne Buchung, z. B. eine Hallenmiete: Person, Betrag (zwischen 0,10 € und 1.000 €), Datum und Text. Bei Mitgliedern entsteht eine Forderung, die wie ein Beitrag eingezogen wird. Bei Trainern („Kein Mitglied“) kommt der Betrag aufs Verkaufskonto. Nötig ist das Recht „Für andere buchen“.
 
 Von Hand gebuchte Gebühren haben in der Zeile den Knopf **Stornieren**; die Rückfrage nennt den Betrag, der offene Posten wird zurückgenommen. Ist die Gebühr schon eingezogen oder bezahlt, storniert ihr sie in den Mitgliedern (dort mit „als Guthaben behalten“ oder „zurücküberwiesen“). Eine Buchung mit bezahlter Gebühr lässt sich nicht mehr ändern, nur stornieren – die Gebühr bleibt dann stehen, das Protokoll vermerkt „Gebühr nicht storniert“.
 
@@ -289,7 +289,7 @@ Mitglieder stellen in der App unter Plätze › Mitspieler **Gesuche** ein („D
 
 ![Ein Gesuch mit „Ausblenden“ und „Mitglied für die Mitspielersuche sperren“.](bild: seite=bk-mitspieler; klick=tr[data-ms]; ziel=dialog)
 
-Eine Zeile anklicken zeigt das Gesuch mit Hinweis, Zusagen und Meldungen. Mitglieder können ein Gesuch in der App **melden**; gemeldete Gesuche stehen als Hinweis in der Übersicht. **Ausblenden** nimmt das Gesuch aus der App („Wieder zeigen“ macht das rückgängig). **Mitglied für die Mitspielersuche sperren** blendet dessen offene Gesuche aus; es kann danach keine Gesuche mehr einstellen und nicht mehr zusagen, buchen bleibt möglich. Beides braucht das Recht „Buchungen anderer stornieren“ und steht im Protokoll.
+Eine Zeile anklicken zeigt das Gesuch mit Hinweis, Zusagen und Meldungen. Mitglieder können ein Gesuch in der App **melden**; gemeldete Gesuche stehen als Hinweis in der Übersicht. **Ausblenden** nimmt das Gesuch aus der App („Wieder zeigen“ macht das rückgängig). **Mitglied für die Mitspielersuche sperren** blendet dessen offene Gesuche aus; es kann danach keine Gesuche mehr einstellen und nicht mehr zusagen, buchen bleibt möglich. Beides braucht das Recht „Stornieren“ und steht im Protokoll.
 
 ![Die Karte „Gesperrt für die Mitspielersuche“.](bild: seite=bk-mitspieler; ziel=[data-card="ms-gesperrt"])
 
@@ -307,7 +307,7 @@ Der Haken schaltet die Mitspielersuche in der App an oder aus. Dazu kommen die G
 
 ![Der Reiter „Plätze & Geräte“ mit Name, Buchbarkeit, Raster, Gastgebühr und kommenden Buchungen.](bild: seite=bk-plaetze)
 
-Alles, was gebucht werden kann. Die Liste zeigt je Zeile Name und Bereich (Hinweise wie „Mitspieler Pflicht“ oder die Abteilung stehen darunter), **Buchbar** (Tage und Zeiten), **Raster** (Zeitraster und Höchstdauer), **Gastgebühr** und die Zahl **kommender** Buchungen. Mit **↑ ↓** legt ihr die Reihenfolge fest – so stehen die Plätze im Plan, in der App und am Tablet. Neue Plätze kommen ans Ende. Alles hier braucht das Recht „Plätze, Buchungsarten & Einstellungen“.
+Alles, was gebucht werden kann. Die Liste zeigt je Zeile Name und Bereich (Hinweise wie „Mitspieler Pflicht“ oder die Abteilung stehen darunter), **Buchbar** (Tage und Zeiten), **Raster** (Zeitraster und Höchstdauer), **Gastgebühr** und die Zahl **kommender** Buchungen. Mit **↑ ↓** legt ihr die Reihenfolge fest – so stehen die Plätze im Plan, in der App und am Tablet. Neue Plätze kommen ans Ende. Alles hier braucht das Recht „Plätze einrichten“.
 
 ![Das Fenster zum Bearbeiten eines Platzes.](bild: seite=bk-plaetze; klick=[data-ed]; ziel=dialog)
 
@@ -326,7 +326,7 @@ Beide öffnen dasselbe Fenster, das mit „Bearbeiten“ auch einen bestehenden 
 - **Gehört der Abteilung** (erscheint, sobald es Abteilungen gibt): Mitglieder der Abteilung buchen kostenlos; für **andere Mitglieder** wählt ihr „buchen mit Platzgebühr“ (Betrag je Person) oder „dürfen nicht buchen“.
 - **Aktiv:** inaktive Plätze sind nicht buchbar und nicht im Plan.
 
-Nur bei **Plätzen** (sobald das Modul Zugang an ist): **Platzcode öffnet diese Tore** – die Türen mit Codetastatur aus dem Modul Zugang, die der Code einer Buchung auf diesem Platz öffnet, meist das Haupttor und genau das Tor dieses Platzes. Ein Tor kann mehrere Plätze bedienen. Ändern darf das nur, wer zusätzlich das Recht „Zugang“ hat; jede Änderung steht im Protokoll und der Vorstand bekommt eine Sicherheitswarnung. Ohne Tore bekommt der Platz keinen Code.
+Nur bei **Plätzen** (sobald das Modul Zugang an ist): **Platzcode öffnet diese Tore** – die Türen mit Codetastatur aus dem Modul Zugang, die der Code einer Buchung auf diesem Platz öffnet, meist das Haupttor und genau das Tor dieses Platzes. Ein Tor kann mehrere Plätze bedienen. Ändern darf das nur, wer zusätzlich das Recht „Zugang einrichten“ hat; jede Änderung steht im Protokoll und der Vorstand bekommt eine Sicherheitswarnung. Ohne Tore bekommt der Platz keinen Code.
 
 ![Im Fenster eines Platzes: welche Tore der Platzcode öffnet.](bild: seite=bk-plaetze; klick=[data-ed="4"]; ziel=#dialog .bkf:has([data-cd]))
 
@@ -336,7 +336,7 @@ Nur bei **Plätzen** außerdem: **Mitspieler** „optional“ oder „Pflicht“
 
 ### Reiter „Einstellungen“ {#bk-einstellungen}
 
-Die Regeln fürs Buchen, in Karten gegliedert. **Jede Karte hat ihr eigenes „Speichern“.** Nötig ist das Recht „Plätze, Buchungsarten & Einstellungen“.
+Die Regeln fürs Buchen, in Karten gegliedert. **Jede Karte hat ihr eigenes „Speichern“.** Nötig ist das Recht „Plätze einrichten“.
 
 #### Buchen
 
@@ -474,12 +474,12 @@ Plätze, Buchungsarten und Einstellungen als Datei exportieren und in einer ande
 
 | Recht | Was es erlaubt |
 |---|---|
-| Plätze: Belegung ansehen | Belegung, Buchungen, Gebühren, Auswertung und Mitspielersuche ansehen |
-| Plätze: für Mitglieder buchen, Einzelbuchungen mit Buchungsart | Buchungen und Sperren eintragen und bearbeiten, Gebühren von Hand buchen und stornieren |
-| Plätze: Buchungen anderer stornieren | Buchungen und Sperren stornieren; Gesuche der Mitspielersuche ausblenden und Mitglieder dafür sperren |
-| Plätze: Serien & Sperren anlegen und beenden | Serien, Sperren und Spielplan-Import; Wiederholungen im Buchungsfenster |
-| Plätze: Plätze, Buchungsarten & Einstellungen | Reiter „Plätze & Geräte“ und „Einstellungen“ mit Buchungsarten und Sonderrechten, Einstellungen der Mitspielersuche; die Tore für den Platzcode nur zusammen mit dem Recht „Zugang“ |
-| Plätze: Gästebuchung (PayPal) einrichten, Gastbuchungen stornieren, Abweichungen klären | Reiter „Gäste“: Einrichten, Schlüssel, PayPal-Zugang, Plätze für Gäste, Gastbuchung mit Kontakt ansehen, stornieren mit Erstattung, Abweichungen klären. Ansehen dürfen den Reiter alle mit einem Recht der Plätze (ohne Kontaktdaten). |
+| Belegung ansehen | Belegung, Buchungen, Gebühren, Auswertung und Mitspielersuche ansehen |
+| Für andere buchen | Buchungen und Sperren eintragen und bearbeiten, Gebühren von Hand buchen und stornieren |
+| Stornieren | Buchungen und Sperren stornieren; Gesuche der Mitspielersuche ausblenden und Mitglieder dafür sperren |
+| Serien & Sperren | Serien, Sperren und Spielplan-Import; Wiederholungen im Buchungsfenster |
+| Plätze einrichten | Reiter „Plätze & Geräte“ und „Einstellungen“ mit Buchungsarten und Sonderrechten, Einstellungen der Mitspielersuche; die Tore für den Platzcode nur zusammen mit dem Recht „Zugang einrichten“ |
+| Gästebuchung | Reiter „Gäste“: Einrichten, Schlüssel, PayPal-Zugang, Plätze für Gäste, Gastbuchung mit Kontakt ansehen, stornieren mit Erstattung, Abweichungen klären. Ansehen dürfen den Reiter alle mit einem Recht der Plätze (ohne Kontaktdaten). |
 
 Mitglieder und Trainer buchen in der App und am Tablet ohne Verwaltungsrecht. Wer nur die Belegung sehen darf, sieht den Plan, kann aber nichts eintragen.
 

@@ -513,7 +513,7 @@ Exportiert Einstellungen, Beitragsarten und Abteilungen als Datei und liest sie 
 
 ### Menü „Beiträge & Zahlungen“ {#zahlungen}
 
-Dieser zweite Menüpunkt gehört zum Modul und erscheint nur mit dem Recht „Einzug“. Oben auf jeder Seite stehen **vier Kacheln**:
+Dieser zweite Menüpunkt gehört zum Modul und erscheint nur mit dem Recht „Beiträge & Einzug“. Oben auf jeder Seite stehen **vier Kacheln**:
 
 ![Die Kacheln: offen, davon überfällig, im Einzug und eingegangen im laufenden Jahr.](bild: seite=mv-beitraege; ziel=.kpis)
 
@@ -552,7 +552,7 @@ Für den Umstieg aus einem anderen Programm: Wurden die Beiträge bis zu einem T
 
 **Vorschau** zeigt, wie viele Zuordnungen bei wie vielen Mitgliedern sich ändern, von welchem auf welches Datum, wer übersprungen wird (schon später abgerechnet, ausgetreten, beginnt erst später, befreit, über die Familie abgedeckt, ohne Beitrag) und wie viel ein Beitragslauf bis zum Datum dadurch nicht mehr berechnet. Hinweise warnen, wenn das Datum in der Zukunft oder mitten in einem Beitragszeitraum liegt. Die Listen klappt ihr auf oder holt sie mit **Liste als Excel**.
 
-**Setzen …** öffnet die Sicherheitsabfrage: ihr tippt **SETZEN** ein und bestätigt mit eurem **eigenen Passwort**. Hat sich seit der Vorschau etwas geändert, verlangt Clubwerk eine neue Vorschau. Das dürfen nur Benutzer mit dem Recht „Beitragslauf, Lastschriften …“.
+**Setzen …** öffnet die Sicherheitsabfrage: ihr tippt **SETZEN** ein und bestätigt mit eurem **eigenen Passwort**. Hat sich seit der Vorschau etwas geändert, verlangt Clubwerk eine neue Vorschau. Das dürfen nur Benutzer mit dem Recht „Beiträge & Einzug“.
 
 Unter **Bisherige Änderungen „abgerechnet bis“** steht jede Änderung. Die letzte lässt sich mit **Zurücknehmen …** (mit Passwort) rückgängig machen, solange danach kein Beitragslauf gelaufen ist; was jemand seitdem einzeln geändert hat, bleibt. Ein Beitragslauf von **vor** einer solchen Änderung lässt sich erst zurücknehmen, wenn die Änderung zurückgenommen ist. Jede Änderung steht im Protokoll, in der Historie der Mitglieder und im Änderungsjournal (Buchführung).
 
@@ -715,7 +715,7 @@ Unterschriften, Kündigung und Änderungen, die Geld oder E-Mail betreffen, verl
 | Mitglieder | Mitglieder sehen und ändern, Anträge und Änderungswünsche bearbeiten, Mitgliedsbescheinigungen unterschreiben (nicht mit „Nur eigene Abteilung(en)“), dazu Beiträge & Abteilungen, Auswertung, Einstellungen, Import, Excel, Datenauskunft, Löschen und Anonymisieren |
 | Häkchen „Nur eigene Abteilung(en)“ (in der Rolle) | Zusatz bei „Mitglieder“ für Abteilungsleitungen: nur die eigene Abteilung, nur die Reiter „Mitglieder“ und „Anträge“, am Mitglied ohne „Zahlung & Familie“ und „Konto & Mandat“, ohne Import und Excel |
 | Bankdaten | Bankverbindung und SEPA-Mandat vollständig sehen und ändern (sonst ist die IBAN unkenntlich) |
-| Einzug | Menü „Beiträge & Zahlungen“: Beitragslauf, Lastschriften, Offene Posten, Rechnungen & Mahnungen, Einstellungen, Forderungen, Mahnsperren |
+| Beiträge & Einzug | Menü „Beiträge & Zahlungen“: Beitragslauf, Lastschriften, Offene Posten, Rechnungen & Mahnungen, Einstellungen, Forderungen, Mahnsperren |
 | Dokumente | Reiter „Dokumente“ am Mitglied: ansehen und hochladen |
 | Gratulationen | Reiter „Gratulationen“, Abhaken und Erinnerungen |
 | Schalter „Ausweise prüfen“ (Mitglieder-App › Mitglied, Bereich „Meine Daten“) | in der eigenen App Mitgliedsausweise anderer mit der Kamera prüfen – kein Recht in der Verwaltung |

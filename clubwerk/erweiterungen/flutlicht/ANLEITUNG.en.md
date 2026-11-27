@@ -18,7 +18,7 @@ The module also works on its own. Without the “Courts” module there is no au
 
 1. **Set up the switches in Home Assistant:** Each court has a switch that works in Home Assistant (Settings › Devices & services).
 2. **Settings › Modules:** Switch on “Floodlights”. With “Demo” you can try the module first with made-up data.
-3. **Assign permissions:** Under Settings › Users & permissions, give the “Floodlights” permission to whoever should set everything up. Anyone who should only switch (for example the groundsman) gets “Operate floodlights”.
+3. **Assign permissions:** Under Settings › Users & permissions, give the “Set up floodlights” permission to whoever should set everything up. Anyone who should only switch (for example the groundsman) gets “Operate floodlights”.
 4. **Add the lights:** “Lights” tab › “+ Light”. For each court choose a name, switch and court. Then switch it on and off once under “Operate”.
 5. **Set the times:** “Times” tab: location for sunset and lights-out.
 6. **Authorise members:** Under Member app, authorise the “Lights” section for the members who may switch. On the tablet, “Lights” appears once you switch it on under Settings › Tablet.
@@ -156,7 +156,7 @@ Example: 18:55 to 20:30 with €0.50 from 18:00 is 7 started quarters of an hour
 Clubwerk reports a light that cannot be switched in two ways:
 
 - **Email recipients:** one or more addresses, separated by commas, e.g. the groundsman’s. The email is sent through the club mailbox (Settings › Mailbox) with the club name, what happened, the time and a link to the admin area (the link works on the club network). If the mailbox is missing, a note with a link appears at the top of the card. Clubwerk shows a mistyped address right at the field.
-- **Push:** admin users with the “Floodlights” permission get a notification in the member app if their user is linked to a member. Whether these notifications exist is decided by the board under Member app › Notifications (occasion “Floodlight malfunction”).
+- **Push:** admin users with the “Set up floodlights” permission get a notification in the member app if their user is linked to a member. Whether these notifications exist is decided by the board under Member app › Notifications (occasion “Floodlight malfunction”).
 
 The same malfunction is reported at most once an hour; Clubwerk keeps trying in any case. The addresses are personal data and are therefore not included in the file from “Transfer settings”.
 
@@ -182,7 +182,7 @@ Switching only works on the clubhouse Wi-Fi, never over the internet, not even w
 
 | Permission | What it allows |
 |---|---|
-| Floodlights | Everything in the “Floodlights” menu: lights, times, history, cancelling light fees and settings; also operating |
+| Set up floodlights | Everything in the “Floodlights” menu: lights, times, history, cancelling light fees and settings; also operating |
 | Operate floodlights | Only the “Operate” page: switch lights on and off, extend, “All off”. Nothing to set up |
 
 ## Working with other modules {#zusammenspiel}

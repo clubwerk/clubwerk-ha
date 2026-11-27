@@ -73,7 +73,7 @@ Bei der direkten Hydrawise-Anbindung tragt ihr statt des Geräts die **Zonennumm
 
 **Neues Gerät nur mit Passwort:** Bekommt eine Zone ein Ventil oder einen Schalter aus Home Assistant, das bisher keine Zone hatte, fragt Clubwerk beim Speichern nach eurem **eigenen Passwort**. Namen, Minuten, Reihenfolge und Löschen gehen ohne Passwort; der Vorstand bekommt bei geänderten Geräten wie bisher eine Sicherheitswarnung.
 
-**Wer welche Geräte wählen darf:** Benutzer mit **allen Rechten** können jedes Ventil und jeden Schalter aus Home Assistant eintragen. Alle anderen (z. B. nur mit dem Recht „Beregnung“) sehen und wählen nur Geräte des Herstellers, der unter „Einstellungen“ gewählt ist. Bei „Anderer Hersteller“ ordnen nur Benutzer mit allen Rechten Geräte zu.
+**Wer welche Geräte wählen darf:** Benutzer mit **allen Rechten** können jedes Ventil und jeden Schalter aus Home Assistant eintragen. Alle anderen (z. B. nur mit dem Recht „Beregnung einrichten“) sehen und wählen nur Geräte des Herstellers, der unter „Einstellungen“ gewählt ist. Bei „Anderer Hersteller“ ordnen nur Benutzer mit allen Rechten Geräte zu.
 
 > Stellt die Standard-Laufzeit der Zone in der Hersteller-App mindestens so lang ein wie hier. Clubwerk schaltet nach der eingestellten Zeit selbst wieder aus, die Steuerung ist nur die Sicherung dahinter.
 
@@ -141,7 +141,7 @@ Die Webapp ist eine eigene Seite fürs Handy. Ihre Adresse steht in der Karte (`
 Clubwerk meldet es, wenn ein Platz nicht startet oder sich eine Zone nicht ausschalten lässt, auf zwei Wegen:
 
 - **E-Mail-Empfänger:** eine oder mehrere Adressen, getrennt mit Komma, z. B. die des Platzwarts. Die Mail kommt über das Vereinspostfach (Einstellungen › Postfach) mit Vereinsname, Anlass, Uhrzeit und einem Link in die Verwaltung (der Link funktioniert im Vereinsnetz). Fehlt das Postfach, steht oben in der Karte ein Hinweis mit Link. Eine falsch geschriebene Adresse zeigt Clubwerk direkt am Feld.
-- **Push:** Benutzer der Verwaltung mit dem Recht „Beregnung“ bekommen einen Hinweis in der Mitglieder-App, wenn ihr Benutzer mit einem Mitglied verknüpft ist. Ob es diese Hinweise gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest (Anlass „Störung bei der Beregnung“).
+- **Push:** Benutzer der Verwaltung mit dem Recht „Beregnung einrichten“ bekommen einen Hinweis in der Mitglieder-App, wenn ihr Benutzer mit einem Mitglied verknüpft ist. Ob es diese Hinweise gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest (Anlass „Störung bei der Beregnung“).
 
 Dieselbe Störung kommt höchstens einmal je Stunde; Clubwerk versucht es in jedem Fall weiter. Die Adressen sind persönliche Daten und stehen deshalb nicht in der Datei von „Einstellungen übertragen“.
 
@@ -169,7 +169,7 @@ Anbindung, Plätze mit Zonen, Bedienung und Webapp als Datei exportieren und in 
 
 | Recht | Was es erlaubt |
 |---|---|
-| Beregnung | Plätze und Zonen einrichten, Einstellungen ändern, Verlauf ansehen, Plätze starten und stoppen |
+| Beregnung einrichten | Plätze und Zonen einrichten, Einstellungen ändern, Verlauf ansehen, Plätze starten und stoppen |
 | Beregnung bedienen | Plätze starten und stoppen (Reiter „Bedienen“ in der Verwaltung und die gesperrte Webapp), sonst nichts |
 
 Wer die Beregnung in der Mitglieder-App bedienen darf, legt ihr nicht über ein Recht fest, sondern unter Mitglieder-App › Bereiche.

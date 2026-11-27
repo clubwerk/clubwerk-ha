@@ -239,7 +239,7 @@
     $('flSaveW').onclick = async () => { c.who = { auto: $('flWA').checked, app: $('flWP').checked, tablet: $('flWT').checked }; c.maxMin = $('flMax').value; c.extendMin = $('flExt').value; if (await saveCfg(['who', 'maxMin', 'extendMin'])) again(); };
     $('flSaveF').onclick = async () => { c.fee = { on: $('flFee').checked, cents: GK.toCents($('flFeeC').value), from: $('flFeeF').value }; if (await saveCfg(['fee'])) again(); };
     await GK.stoerungKarte($('flNotif'), { mod: 'flutlicht', anlass: 'Eine E-Mail kommt, wenn sich ein Licht nicht schalten lässt – mit Uhrzeit und Link in die Verwaltung.',
-      push: 'Push über die Mitglieder-App bekommen Verwaltungsnutzer mit dem Recht „Flutlicht“, wenn ihr Benutzer mit einem Mitglied verknüpft ist.' });
+      push: 'Push über die Mitglieder-App bekommen Verwaltungsnutzer mit dem Recht „Flutlicht einrichten“, wenn ihr Benutzer mit einem Mitglied verknüpft ist.' });
     if (GK.funcBox) GK.funcBox($('flFunc'), 'flutlicht', 'Flutlicht', again);
   }
 

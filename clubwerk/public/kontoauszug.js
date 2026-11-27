@@ -104,7 +104,7 @@
       <div class="chips" id="kaF" role="group" aria-label="Filter" style="margin-bottom:12px">${[['pruefen', 'Zu prüfen', nCheck], ['nicht', 'Nicht zugeordnet', nNone + st.counts.fremd], ['zugeordnet', 'Zugeordnet', st.counts.zugeordnet]]
         .map(([k, l, n]) => `<button type="button" data-f="${k}" class="${filter === k ? 'on' : ''}" aria-pressed="${filter === k}">${l}<span class="cnt">${n || ''}</span></button>`).join('')}</div>
       <div class="card" id="kaList">${table(rows)}</div>
-      ${st.modules.length ? '' : '<div class="banner a"><span>Zum Zuordnen fehlt dir das Recht „Einzug“ bzw. „Buchhaltung“ – du siehst die Buchungen nur.</span></div>'}`;
+      ${st.modules.length ? '' : '<div class="banner a"><span>Zum Zuordnen fehlt dir das Recht „Beiträge & Einzug“ bzw. „Buchhaltung“ – du siehst die Buchungen nur.</span></div>'}`;
     GK.tabTools(filter === 'pruefen' && safe.length ? `<button class="btn primary" id="kaSafe">Alle sicheren übernehmen (${safe.length})</button>` : '', $('kaList'));
     const drop = $('kaDrop');
     ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, x => { x.preventDefault(); drop.classList.add('over'); }));

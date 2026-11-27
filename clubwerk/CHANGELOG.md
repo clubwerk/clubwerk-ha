@@ -1,5 +1,20 @@
 # Änderungen
 
+## 2026.11.66
+
+### Neu
+- Benutzer & Rechte: Die Rechte sind jetzt nach Modulen geordnet, in der Reihenfolge des Menüs, „Allgemein“ zuletzt. Jedes Modul lässt sich auf- und zuklappen, zeigt „x von y“ und hat einen Knopf „Alle“ bzw. „Keine“. Unter jedem Recht steht in einem Satz, was es freischaltet.
+- Vorlagen für typische Ämter beim Anlegen einer Rolle: Vorstand, Kassenwart, Thekendienst, Platzwart, Sportwart, Jugendwart, Abteilungsleitung und Schriftführer. Sie füllen die Rolle zurückhaltend vor, nur für eingeschaltete Module; bestehende Rollen bleiben unverändert.
+- Abhängigkeiten zwischen Rechten werden sichtbar: Wer zum Beispiel „Bankdaten“ ankreuzt, bekommt „Mitglieder“ sichtbar mit angekreuzt. Beim Speichern lehnt Clubwerk neue Lücken mit einer Meldung ab, ergänzt wird nie etwas still.
+- Fehlt ein Reiter oder Knopf wegen eines fehlenden Rechts, nennt ein dezenter Hinweis unter der Reiterzeile das nötige Recht, z. B. „Dafür fehlt dir das Recht „Buchungen“ (Modul Verkauf)“.
+- Die Suche findet die Rechte unter ihrem Namen und führt zu Benutzer & Rechte › Rollen.
+
+### Verbessert
+- Einheitliche Namen für Rechte: „… bedienen“ für den Alltag, „… einrichten“ für die Einstellungen eines Moduls. Benutzerliste, Rollen, Protokoll, Suche, Meldungen und Anleitungen nennen sie gleich.
+- Die Benutzer- und Rollenliste zeigen die Rechte in einer kurzen Zeile je Modul (z. B. „Verkauf: Abrechnung, Konten · Mitglieder: alle“), Rollen weiter als Schilder.
+- Rechte in einem ausgeschalteten Modul bleiben sichtbar („Modul aus“) und gehen beim Speichern eines Benutzers nicht mehr verloren.
+- Das Protokoll nennt bei Benutzern und Rollen die Namen der Rechte und Rollen statt interner Bezeichnungen.
+
 ## 2026.11.65
 
 ### Neu

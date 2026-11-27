@@ -345,7 +345,7 @@ Three filters: **To check** (Clubwerk has a suggestion), **Not matched** (no sug
 
 In the window you see date, amount, payer and purpose, below them the **suggestions** and the search **Match by hand**. For a **returned debit** you also set the **charge for the payer** and whether the **mandate is blocked**. **Not related to Clubwerk** hides the transaction; it is deleted after the retention period (Settings › Privacy, default 90 days).
 
-> To match you need the “Bank statement” permission and also “Collection” or “Accounting”. Otherwise you only see the transactions.
+> To match you need the “Bank statement” permission and also “Fees & collection” or “Accounting”. Otherwise you only see the transactions.
 
 ### Page “Users & permissions” {#benutzer}
 
@@ -355,14 +355,14 @@ Everyone logs in with their own username, so it is clear who changed what. **Rol
 
 ![Tab “Users”: name, access, last login.](bild: seite=benutzer; tab=benutzer)
 
-The list shows each user's name, username, the roles or “all permissions” and the last login. Locked users are grey. “Start password not yet changed” means the user has not yet logged in and set their own password.
+The list shows each user's name, username, the roles as labels (or “all permissions”) and the last login. Below that is a short summary of everything the user may do, one entry per module: for example “Sales: Billing, Accounts · Members: all”. Permissions in a module that is switched off are marked “(Module off)”: they stay saved but only take effect again once the module is switched on. Locked users are grey. “Start password not yet changed” means the user has not yet logged in and set their own password.
 
 ![New user: choose a member or create manually, then grant access.](bild: seite=benutzer; tab=benutzer; klick=#uNew; ziel=dialog)
 
 **+ New user:**
 - **Select member** (the username is created automatically) or **Create manually** with first and last name.
 - Give the **start password** (at least 8 characters) to the person in person. It only works for the first login: after that the user only sees “Set your own password” (start password and the new one twice). Only with their own password can they continue, so nobody else knows it.
-- **Access:** “By role” (tick roles, plus single extra permissions) or “All permissions” (like the admin account; confirm with your own password).
+- **Access:** “By role” (tick roles, plus single extra permissions) or “All permissions” (like the admin account; confirm with your own password). Under **Additional individual permissions** the permissions are grouped by module as for roles; anything a ticked role already grants is marked “Already via a role”.
 - **Departments:** for roles with “own department” you decide which departments they apply to.
 
 When editing: **Access active** locks or opens an account, **Set new password** and **Delete user** (log entries stay). A newly set password is again a start password: the user is logged out and must replace it at the next login. This does not apply to the admin account or to your own account. The **admin account** always has all permissions and can be neither locked nor deleted.
@@ -371,11 +371,21 @@ When editing: **Access active** locks or opens an account, **Set new password** 
 
 ![Tab “Roles”: bundled permissions.](bild: seite=benutzer; tab=rollen)
 
-A role has a name, a description and permissions. The list shows how many users have it.
+A role has a name, a description and permissions. The list shows the permissions briefly per module and how many users have the role.
 
-![Editing a role: name, description, “Only own departments” and permissions.](bild: seite=benutzer; tab=rollen; klick=[data-r]; ziel=dialog)
+![Editing a role: name, description, “Only own departments” and permissions per module.](bild: seite=benutzer; tab=rollen; klick=[data-r]; ziel=dialog)
+
+**Permissions per module:** The permissions are grouped by module, in the order of the menu, with “General” (Messages, Set up member app, Security warnings, Modules) last. You only see modules that are switched on; a module that is switched off only appears while permissions are still granted there, collapsed and marked “Module off” – so nothing stays granted unnoticed. Each module can be expanded and collapsed, on the right you see how many of its permissions are ticked (“2 of 6”), and **All** or **None** ticks or unticks the whole group. Below each permission one sentence says what it unlocks. The words are the same everywhere: “… operate” is day-to-day use (for example switching lights), “… set up” covers the module's settings. “Users” and “Settings” are only available with “All permissions”.
+
+**Dependencies:** Some permissions only work together with another one, for example “Bank details”, “Documents” and “Fees & collection” only with “Members”, every courts permission only with “View occupancy”, and “… set up” only with “… operate”. Such a permission shows “Requires …”. When you tick it, the window visibly ticks the required permission as well and locks it while it is needed (“Needed for …”). Clubwerk also checks when saving and rejects a new gap with a message – nothing is ever added silently. Roles that were saved like that before stay as they are.
+
+**Templates:** When you create a new role, templates for typical offices appear at the top: Board, Treasurer, Bar duty, Groundskeeper, Sports officer, Youth officer, Department head and Secretary. A template pre-fills name, description and permissions sparingly – only what the office needs day to day, and only for modules that are switched on. You can then adjust everything freely. Templates never change existing roles.
+
+![New role with the “Treasurer” template.](bild: seite=benutzer; tab=rollen; klick=#uNew; klick2=[data-tpl="kassenwart"]; ziel=dialog)
 
 **Only members of own departments** is meant for department heads: they only see the members of their department (applies to the “Members” and “Messages” permissions). A role that has users cannot be deleted.
+
+**If something is missing:** If a tab or button is missing because a permission is missing, a discreet “Some things are hidden – why?” appears below the page's tab row. Expanded, it says what is missing and which permission is needed, for example: “Tab “Bookings”, “+ Amount to account”: You need the permission “Bookings” (module Sales) for this.” Users with all permissions never see this note.
 
 ### Tab “Backup” (page “System”) {#sicherung}
 
@@ -682,13 +692,13 @@ Everything that applies only to you. You reach the page through your name at the
 
 | Permission | What it allows |
 |---|---|
-| Settings | Settings, backup, log, setup, update, member app (address, security, SMS, push occasions), switching modules on and off and starting a demo |
-| Users | Manage users and roles (page “Users & permissions”) |
-| Set up the member app (App) | Change sections, tabs, notifications and name of the app; address and security only with “Settings” |
-| Create members & confirm new ones (Accounts) | Manage accounts and PINs, confirm new entries from the tablet, authorise members in the app |
-| Messages (Email) | Write messages to members (email, app, push) |
-| Bank statement | Read in and match bank statements (also needs “Collection” or “Accounting”) |
-| Modules (Uninstall) | Uninstall and reinstall modules (with mandatory backup) |
+| Settings (only with “All permissions”) | Settings, backup, log, setup, update, member app (address, security, SMS, push occasions), switching modules on and off and starting a demo |
+| Users (only with “All permissions”) | Manage users and roles (page “Users & permissions”) |
+| Set up member app | Change sections, tabs, notifications and name of the app; address and security only with “Settings” |
+| Accounts (under Sales; without Sales under “General”) | Manage accounts and PINs, confirm new entries from the tablet, authorise members in the app |
+| Messages | Write messages to members (email, app, push) |
+| Bank statement (under Members) | Read in and match bank statements (also needs “Fees & collection” or “Accounting”) |
+| Modules | Uninstall and reinstall modules (with mandatory backup) |
 | Security warnings | Receive security warnings by push and email, view them under Settings › Security and mark them as done |
 
 The **admin account** always has all permissions, as do users with “All permissions”. The backup password, backup targets, restoring and updates are for a user with all permissions only. “My account” and the overview are open to every logged-in user.

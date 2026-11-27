@@ -410,7 +410,7 @@ function activate(ctx) {
   admin.post('/plans/:id/sales', P, (req, res) => {
     const p = db.prepare('SELECT * FROM aw_plan WHERE id = ?').get(int(req.params.id)); if (!p) return bad(res, 'Nicht gefunden.', 404);
     if (!ctx.drinks || !ctx.drinks.active()) return bad(res, 'Das Modul „Verkauf“ ist nicht aktiv.');
-    if (!req.user.perms.includes('veranstaltungen')) return bad(res, 'Veranstaltungen im Verkauf anlegen darf nur, wer das Recht „Veranstaltungen“ hat.', 403);
+    if (!req.user.perms.includes('veranstaltungen')) return bad(res, 'Veranstaltungen im Verkauf anlegen darf nur, wer das Recht „Veranstaltungen & Deckel“ (Modul Verkauf) hat.', 403);
     if (p.sales_event_id && ctx.drinks.event(p.sales_event_id)) return bad(res, 'Diese Veranstaltung gibt es im Verkauf schon.');
     const id = ctx.drinks.createEvent(p.title, p.from_date, req.user);
     db.prepare('UPDATE aw_plan SET sales_event_id = ? WHERE id = ?').run(id, p.id);

@@ -103,7 +103,7 @@ Jede Schicht zeigt Zeit, Aufgabe, den Füllstand („✓ voll“, „3 fehlen“
 ![Der Reiter „Weitergeben“: als Vorlage kopieren und in den Verkauf übernehmen.](bild: seite=aw-plaene; tab=weitergeben; tabkey=detail_dienstplan; klick=[data-po])
 
 - **Als Vorlage kopieren …:** Legt dieselben Schichten an neuen Tagen an, z. B. für nächstes Jahr. Ihr gebt Name und ersten Tag an (vorbelegt: ein Jahr später, die Jahreszahl im Namen zählt hoch). Helfer werden nicht übernommen, der neue Plan ist zunächst ein Entwurf.
-- **In den Verkauf übernehmen …:** Legt den Dienstplan als Veranstaltung im Verkauf an (alle Artikel zum Normalpreis), damit Getränke und Speisen dort gebucht werden können. Die Karte erscheint nur, wenn der Verkauf aktiv ist, ihr dort das Recht „Veranstaltungen“ habt und der Plan noch nicht übernommen wurde. Danach steht an der Marke „im Verkauf“, wie die Veranstaltung heißt.
+- **In den Verkauf übernehmen …:** Legt den Dienstplan als Veranstaltung im Verkauf an (alle Artikel zum Normalpreis), damit Getränke und Speisen dort gebucht werden können. Die Karte erscheint nur, wenn der Verkauf aktiv ist, ihr dort das Recht „Veranstaltungen & Deckel“ habt und der Plan noch nicht übernommen wurde. Danach steht an der Marke „im Verkauf“, wie die Veranstaltung heißt.
 
 ![Das Fenster „Als Vorlage kopieren“.](bild: seite=aw-plaene; tab=weitergeben; tabkey=detail_dienstplan; klick=[data-po]; klick2=#plCopy; ziel=dialog)
 
@@ -356,7 +356,7 @@ Termine (Art „Termin“) erscheinen nicht am Tablet.
 | Recht | Was es erlaubt |
 |---|---|
 | Dienste & Termine | Alle sechs Reiter sehen und bearbeiten: Dienstpläne, Einsätze, Termine und Aufgaben verwalten, Stunden bestätigen und nachtragen, Soll, Befreiungen und Einstellungen ändern, Zu- und Absagen für Mitglieder eintragen |
-| Veranstaltungen (Verkauf) | Zusätzlich nötig, um einen Dienstplan „in den Verkauf zu übernehmen“ |
+| Veranstaltungen & Deckel (Verkauf) | Zusätzlich nötig, um einen Dienstplan „in den Verkauf zu übernehmen“ |
 
 Mitglieder brauchen kein Recht: Ob sie den Bereich „Dienste“ in der App sehen, legt ihr unter Mitglieder-App › Bereiche fest.
 

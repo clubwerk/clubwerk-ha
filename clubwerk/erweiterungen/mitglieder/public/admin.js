@@ -1702,7 +1702,7 @@
         <div class="kpi ${f.overdue.c > 0 ? 'warn' : ''}"><div class="l">davon überfällig</div><div class="v">${euro(f.overdue.c)}</div></div>
         <div class="kpi"><div class="l">im Einzug</div><div class="v">${euro(f.inCollection.c)}</div></div>
         <div class="kpi"><div class="l">eingegangen ${esc(f.year)}</div><div class="v">${euro(f.paidYear.c)}</div></div></div>`;
-  /** Menü „Beiträge & Zahlungen“ (Recht „Einzug“): Reiter Beitragslauf · Lastschriften · Offene Posten · Rechnungen & Mahnungen, je mit den Kennzahlen oben */
+  /** Menü „Beiträge & Zahlungen“ (Recht „Beiträge & Einzug“): Reiter Beitragslauf · Lastschriften · Offene Posten · Rechnungen & Mahnungen, je mit den Kennzahlen oben */
   const finPage = fn => async function show(el) {
     const f = await api('finance');
     el.innerHTML = `${finKpis(f)}<div id="fBody"></div>`;
@@ -2717,7 +2717,7 @@
   GK.registerPage({ key: 'mv-stamm', title: 'Beiträge & Abteilungen', perm: '!mitglieder', render: pageRender('mv-stamm', showCatalog), group: G });
   GK.registerPage({ key: 'mv-auswertung', title: 'Auswertung', perm: '!mitglieder', render: pageRender('mv-auswertung', showReports), group: G });
   GK.registerPage({ key: 'mv-einstellungen', title: 'Einstellungen', perm: '!mitglieder', render: pageRender('mv-einstellungen', showSettings), group: G });
-  /* Menü „Beiträge & Zahlungen“ (Recht „Einzug“): Beitragslauf · Lastschriften · Offene Posten · Rechnungen & Mahnungen · Einstellungen
+  /* Menü „Beiträge & Zahlungen“ (Recht „Beiträge & Einzug“): Beitragslauf · Lastschriften · Offene Posten · Rechnungen & Mahnungen · Einstellungen
      (Adressen mv-beitraege und mv-einzug wie bisher, damit Lesezeichen und Links aus der Übersicht weiter stimmen) */
   GK.registerPage({ key: 'mv-beitraege', title: 'Beitragslauf', perm: 'mitglieder_finanzen', render: pageRender('mv-beitraege', showRun), group: GZ });
   GK.registerPage({ key: 'mv-einzug', title: 'Lastschriften', perm: 'mitglieder_finanzen', render: pageRender('mv-einzug', showCollections), group: GZ });

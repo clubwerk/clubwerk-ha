@@ -18,7 +18,7 @@ Das Modul läuft auch allein. Ohne das Modul „Plätze“ gibt es keine Automat
 
 1. **Schalter in Home Assistant einrichten:** Jeder Platz hat einen Schalter, der in Home Assistant funktioniert (Einstellungen › Geräte & Dienste).
 2. **Einstellungen › Module:** Schalter bei „Flutlicht“ einschalten. Mit „Demo“ könnt ihr das Modul vorher mit erfundenen Daten ausprobieren.
-3. **Rechte vergeben:** Unter Einstellungen › Benutzer & Rechte bekommt, wer alles einrichten soll, das Recht „Flutlicht“. Wer nur schalten soll (z. B. der Platzwart), bekommt „Flutlicht bedienen“.
+3. **Rechte vergeben:** Unter Einstellungen › Benutzer & Rechte bekommt, wer alles einrichten soll, das Recht „Flutlicht einrichten“. Wer nur schalten soll (z. B. der Platzwart), bekommt „Flutlicht bedienen“.
 4. **Lichtanlagen anlegen:** Reiter „Anlagen“ › „+ Lichtanlage“. Je Platz Name, Schalter und Platz wählen. Danach unter „Bedienen“ einmal ein- und ausschalten.
 5. **Zeiten einstellen:** Reiter „Zeiten“: Standort für den Sonnenuntergang und die Nachtruhe.
 6. **Mitglieder freischalten:** Unter Mitglieder-App den Bereich „Licht“ für die Mitglieder freischalten, die schalten dürfen. Am Tablet erscheint „Licht“, wenn ihr es unter Einstellungen › Tablet einschaltet.
@@ -156,7 +156,7 @@ Beispiel: 18:55 bis 20:30 Uhr mit 0,50 € ab 18:00 Uhr sind 7 angefangene Viert
 Clubwerk meldet es, wenn sich ein Licht nicht schalten lässt, auf zwei Wegen:
 
 - **E-Mail-Empfänger:** eine oder mehrere Adressen, getrennt mit Komma, z. B. die des Platzwarts. Die Mail kommt über das Vereinspostfach (Einstellungen › Postfach) mit Vereinsname, Anlass, Uhrzeit und einem Link in die Verwaltung (der Link funktioniert im Vereinsnetz). Fehlt das Postfach, steht oben in der Karte ein Hinweis mit Link. Eine falsch geschriebene Adresse zeigt Clubwerk direkt am Feld.
-- **Push:** Benutzer der Verwaltung mit dem Recht „Flutlicht“ bekommen einen Hinweis in der Mitglieder-App, wenn ihr Benutzer mit einem Mitglied verknüpft ist. Ob es diese Hinweise gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest (Anlass „Störung beim Flutlicht“).
+- **Push:** Benutzer der Verwaltung mit dem Recht „Flutlicht einrichten“ bekommen einen Hinweis in der Mitglieder-App, wenn ihr Benutzer mit einem Mitglied verknüpft ist. Ob es diese Hinweise gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest (Anlass „Störung beim Flutlicht“).
 
 Dieselbe Störung kommt höchstens einmal je Stunde; Clubwerk versucht es in jedem Fall weiter. Die Adressen sind persönliche Daten und stehen deshalb nicht in der Datei von „Einstellungen übertragen“.
 
@@ -182,7 +182,7 @@ Schalten geht nur im WLAN des Vereinsheims, nie über das Internet, auch nicht m
 
 | Recht | Was es erlaubt |
 |---|---|
-| Flutlicht | Alles im Menü „Flutlicht“: Lichtanlagen, Zeiten, Verlauf, Lichtgeld stornieren und Einstellungen; außerdem Bedienen |
+| Flutlicht einrichten | Alles im Menü „Flutlicht“: Lichtanlagen, Zeiten, Verlauf, Lichtgeld stornieren und Einstellungen; außerdem Bedienen |
 | Flutlicht bedienen | Nur die Seite „Bedienen“: Licht ein- und ausschalten, verlängern, „Alles aus“. Nichts einrichten |
 
 ## Zusammenspiel mit anderen Modulen {#zusammenspiel}

@@ -73,7 +73,7 @@ With the direct Hydrawise connection you enter the **zone number** instead of th
 
 **New device only with your password:** when a zone gets a valve or switch from Home Assistant that no zone had before, Clubwerk asks for **your own password** when saving. Names, minutes, order and deleting work without a password; as before, the board gets a safety warning when devices change.
 
-**Who may choose which devices:** users with **all permissions** can enter any valve and switch from Home Assistant. Everyone else (e.g. only with the “Irrigation” permission) only sees and chooses devices of the manufacturer selected under “Settings”. With “Other manufacturer”, only users with all permissions assign devices.
+**Who may choose which devices:** users with **all permissions** can enter any valve and switch from Home Assistant. Everyone else (e.g. only with the “Set up irrigation” permission) only sees and chooses devices of the manufacturer selected under “Settings”. With “Other manufacturer”, only users with all permissions assign devices.
 
 > Set the zone’s default run time in the manufacturer’s app to at least as long as here. Clubwerk switches off by itself after the set time; the controller is only the safety net behind it.
 
@@ -141,7 +141,7 @@ The web app is a separate page for phones. Its address is shown in the card (`ht
 Clubwerk reports a court that does not start or a zone that cannot be switched off in two ways:
 
 - **Email recipients:** one or more addresses, separated by commas, e.g. the groundsman’s. The email is sent through the club mailbox (Settings › Mailbox) with the club name, what happened, the time and a link to the admin area (the link works on the club network). If the mailbox is missing, a note with a link appears at the top of the card. Clubwerk shows a mistyped address right at the field.
-- **Push:** admin users with the “Irrigation” permission get a notification in the member app if their user is linked to a member. Whether these notifications exist is decided by the board under Member app › Notifications (occasion “Irrigation malfunction”).
+- **Push:** admin users with the “Set up irrigation” permission get a notification in the member app if their user is linked to a member. Whether these notifications exist is decided by the board under Member app › Notifications (occasion “Irrigation malfunction”).
 
 The same malfunction is reported at most once an hour; Clubwerk keeps trying in any case. The addresses are personal data and are therefore not included in the file from “Transfer settings”.
 
@@ -169,7 +169,7 @@ Irrigation looks the same everywhere: the same tiles with “▶ Start” and �
 
 | Permission | What it allows |
 |---|---|
-| Irrigation | Set up courts and zones, change settings, view the history, start and stop courts |
+| Set up irrigation | Set up courts and zones, change settings, view the history, start and stop courts |
 | Operate irrigation | Start and stop courts (tab “Operate” in the admin area and the locked web app), nothing else |
 
 Who may operate irrigation in the member app is not set by a permission but under Member app › Sections.

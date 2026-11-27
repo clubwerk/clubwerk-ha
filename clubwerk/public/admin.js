@@ -430,7 +430,7 @@
   CWDom.beobachte(() => { labelTables($('dialog')); growAll($('dialog')); }, { ziel: $('dialog') });
 
   /* ---------- Anmeldung ---------- */
-  let me = null, permLabels = {};
+  let me = null, permCat = [];   // permCat: Rechte je eingeschaltetem Modul mit Namen (Hinweis „Dafür fehlt dir das Recht …“)
   const can = p => Boolean(me && me.perms.includes(p));
 
   let SCHEME = 'http';   // Schema der direkten Adressen (Tablet, Mitglieder-App, Beregnung)
@@ -442,7 +442,7 @@
     const pre = window.CW_START; window.CW_START = null;
     const s = (pre && await pre.catch(() => null)) || await fetch('api/admin/status?ext=1').then(r => r.json());
     if (s.brand) brand = s.brand; else await loadBrand();
-    permLabels = s.permLabels || {};
+    permCat = s.permCatalog || [];
     SCHEME = s.https ? 'https' : 'http'; tabletOnUI = s.tablet !== false;
     if (!s.configured) return showSetup(s.modules || [], s);
     if (!s.loggedIn) return showLogin();
@@ -916,7 +916,10 @@
     const pages = PAGES.filter(x => canAny(x[2]) && !hid(x[0]) && RENDER[x[0]] && (x[0] !== 'app' || (cache.appModules || []).length))
       .map(([k, l, , g]) => ({ label: groupOf(k) ? TAB_LABEL[k] || l : l, page: k, kind: groupOf(k) ? 'reiter' : 'seite', words: groupOf(k) ? `${l} ${MODG[g].label}` : '', path: pathOf(k).slice(0, -1) }));
     const reg = SEARCH.filter(e => allowed(e.page) && !hid(e.feature) && canAny(e.perm)).map(e => ({ ...e, path: pathOf(e.page, e.in) }));
-    return [...pages, ...reg].map(e => {
+    // Rechte mit denselben Namen wie in Benutzer & Rechte (nach den eigentlichen Seiten gereiht)
+    const rights = allowed('benutzer') ? permCat.flatMap(g => g.perms.map(p => ({ label: p.label, page: 'benutzer', tab: ['benutzer', 'rollen'], kind: 'einstellung',
+      words: `Recht Rechte Rolle Berechtigung ${g.name}`, boost: -1.5, path: pathOf('benutzer', 'Rollen').concat(g.id === 'allgemein' ? [] : [g.name]) }))) : [];
+    return [...pages, ...reg, ...rights].map(e => {
       const lab = snorm(e.label + ' ' + T(e.label)), words = snorm([e.words, e.words ? T(e.words) : ''].join(' ')), path = snorm(e.path.map(x => x + ' ' + T(x)).join(' ') + ' ' + (berLabel(bereichOf(navKey(e.page))) || ''));
       return { ...e, _l: lab, _lw: lab.split(' '), _lc: lab.replace(/ /g, ''), _w: words, _p: path };
     });
@@ -1118,6 +1121,41 @@
     const on = t.querySelector('.on'); if (on) revealTab(on); else tabFade(t);
     badgeTabs();
   }
+  /* ---------- Fehlendes Recht sichtbar machen (zentral, Anlass: Kassenwart fand „Buchungen“ und „+ Betrag auf Konto“ nicht) ----------
+     Reiter einer Gruppe, die wegen eines Rechts fehlen, und Knöpfe, die eine Seite mit GK.rechtFehlt(recht, 'Knopf') meldet, stehen
+     unter der Reiterzeile in einem dezenten, aufklappbaren Hinweis: „Dafür fehlt dir das Recht „Buchungen“ (Modul Verkauf).“ */
+  const fehltNow = new Map();   // Recht(e) → Set der Dinge, die die aktuelle Seite deswegen nicht zeigt
+  function rechtFehlt(spec, was) { if (me && me.role !== 'oberadmin') { const k = JSON.stringify(spec); if (!fehltNow.has(k)) fehltNow.set(k, new Set()); fehltNow.get(k).add(was); } return ''; }
+  const permOf = k => { for (const g of permCat) { const p = g.perms.find(x => x.key === k); if (p) return { label: p.label, group: g }; } return null; };
+  function rechtSatz(spec) {
+    const full = typeof spec === 'string' && spec.startsWith('!'), keys = (Array.isArray(spec) ? spec : [spec]).map(k => String(k).replace(/^!/, ''));
+    const known = keys.map(permOf).filter(Boolean);
+    if (!known.length) return T('Das geht nur mit „Alle Rechte“.');
+    const g = known[0].group, names = known.map(x => `„${T(x.label)}“`).join(` ${T('oder')} `);
+    const mod = g.id === 'allgemein' || known.some(x => x.group !== g) ? '' : T(g.name);   // Rechte aus verschiedenen Modulen: ohne Modulnamen
+    if (full && ((me && me.deptOnly) || []).includes(keys[0])) return T('Dafür fehlt dir das Recht {0} (Modul {1}) für alle Mitglieder, nicht nur für deine Abteilung.', [names, T(g.name)]);
+    if (known.length > 1) return mod ? T('Dafür fehlt dir eines der Rechte {0} (Modul {1}).', [names, mod]) : T('Dafür fehlt dir eines der Rechte {0}.', [names]);
+    return mod ? T('Dafür fehlt dir das Recht {0} (Modul {1}).', [names, mod]) : T('Dafür fehlt dir das Recht {0}.', [names]);
+  }
+  function drawMissing() {
+    const m = $('main'); if (!m || !me) return;
+    const items = new Map([...fehltNow].map(([k, v]) => [k, [...v].map(x => `„${T(x)}“`)]));
+    const g = groupOf(page);
+    if (g && !detailCur && me.role !== 'oberadmin') for (const x of PAGES.filter(y => y[3] === g && RENDER[y[0]] && !hid(y[0]) && !canAny(y[2]))) {
+      const k = JSON.stringify(x[2]); if (!items.has(k)) items.set(k, []);
+      items.get(k).unshift(T('Reiter „{0}“', [T(TAB_LABEL[x[0]] || x[1])]));
+    }
+    const html = items.size ? `<summary>${esc(T('Manches ist ausgeblendet – warum?'))}</summary><ul>${[...items].map(([k, w]) => `<li><b>${esc(w.join(', '))}:</b> ${esc(rechtSatz(JSON.parse(k)))}</li>`).join('')}</ul>` : '';
+    let box = $('rFehlt');
+    if (box && box.dataset.h === html && box.parentNode === m) return;   // unverändert (der Beobachter von <main> ruft oft)
+    if (!html) { if (box) box.remove(); return; }
+    const open = Boolean(box && box.open);
+    if (!box) { box = document.createElement('details'); box.id = 'rFehlt'; box.className = 'rfehlt'; }
+    box.innerHTML = html; box.dataset.h = html; box.open = open;
+    let anchor = m.querySelector(':scope > .tabrow') || m.querySelector(':scope > .leadbox') || m.querySelector(':scope > p.lead') || m.querySelector(':scope > h2.page');
+    if (anchor && anchor.nextElementSibling && anchor.nextElementSibling.matches('.toolbar')) anchor = anchor.nextElementSibling;   // Knöpfe bleiben direkt unter den Reitern
+    if (anchor) anchor.after(box); else m.prepend(box);
+  }
   /* Zähler an den Reitern an Ort und Stelle setzen (nicht die Reiterzeile neu bauen: Knöpfe daneben und offene Fenster bleiben, wie sie sind); vorgelesen als „Anträge, 3 offen“ */
   function badgeTabs() {
     document.querySelectorAll('.drinktabs [data-tab]').forEach(b => {
@@ -1160,7 +1198,7 @@
     history.replaceState(null, '', '#' + hashOf());
     // Reiter der Module: neu einsetzen, sobald eine Seite ihren Inhalt schreibt. Nach erneuter Anmeldung (z. B. nach einem Update des Add-ons)
     // baut die Verwaltung ihr Grundgerüst neu – dann muss auch der Beobachter an das neue <main>, sonst fehlen die Reiter bis zum Neuladen.
-    if ($('main') && go.obsEl !== $('main')) { if (go.obs) go.obs.disconnect(); go.obsEl = $('main'); go.obs = new MutationObserver(() => { placeDrinkTabs(); pageH1(); }); go.obs.observe(go.obsEl, { childList: true }); }
+    if ($('main') && go.obsEl !== $('main')) { if (go.obs) go.obs.disconnect(); go.obsEl = $('main'); go.obs = new MutationObserver(() => { placeDrinkTabs(); pageH1(); drawMissing(); }); go.obs.observe(go.obsEl, { childList: true }); }
     if ($('main') && go.reqEl !== $('main')) { if (go.req) go.req.disconnect(); go.reqEl = $('main'); let q = 0; go.req = new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; markRequired($('main')); markSave($('main')); $('main').querySelectorAll('.tabs').forEach(tabFade); }); }); go.req.observe(go.reqEl, { childList: true, subtree: true }); }
     setChrome(p);
     $('side').classList.remove('open');
@@ -1168,9 +1206,9 @@
     $('main').innerHTML = '<p class="muted">Lade …</p>';
     // Seitenwechsel während eine langsame Seite noch lädt: endet die alte Seite nach der neuen, hätte sie den Inhalt überschrieben → neue Seite neu zeichnen
     const gen = go.gen = (go.gen || 0) + 1;
-    const redraw = () => { const g2 = go.gen; go.fin = 0; go.stale = 0; renderCur().catch(pageFail).finally(() => { if (g2 === go.gen) { go.fin = g2; placeDrinkTabs(); } }); };
+    const redraw = () => { const g2 = go.gen; go.fin = 0; go.stale = 0; renderCur().catch(pageFail).finally(() => { if (g2 === go.gen) { go.fin = g2; placeDrinkTabs(); drawMissing(); } }); };
     const settle = () => {
-      if (gen === go.gen) { if (go.stale === gen) redraw(); else { go.fin = gen; placeDrinkTabs(); } return; }
+      if (gen === go.gen) { if (go.stale === gen) redraw(); else { go.fin = gen; placeDrinkTabs(); drawMissing(); } return; }
       // alte Seite fertig: aktuelle schon fertig → neu zeichnen, sonst merken (die aktuelle zeichnet sich am Ende neu)
       if (go.fin === go.gen) redraw(); else go.stale = go.gen;
     };
@@ -1178,7 +1216,7 @@
     window.scrollTo(0, 0);
   }
   const hashOf = () => page + (detailCur ? `/${detailCur.key}/${encodeURIComponent(detailCur.id)}` : '');
-  const renderCur = () => (detailCur ? renderDetail(detailCur) : RENDER[page]());
+  const renderCur = () => { fehltNow.clear(); return detailCur ? renderDetail(detailCur) : RENDER[page](); };   // jede Ansicht meldet fehlende Rechte selbst neu (GK.rechtFehlt)
 
   window.addEventListener('hashchange', () => { const p = location.hash.slice(1); if (me && p && p !== hashOf()) go(p); });
 
@@ -1417,6 +1455,8 @@
     registerSearch(list) { if (lazyNow()) return; for (const e of list || []) if (e && e.label && e.page) SEARCH.push({ kind: 'einstellung', words: '', ...e }); },
     /** Für den Design-Prüfstand: alle sichtbaren Sucheinträge und der Sprung dorthin (true = Ziel gefunden) */
     searchIndex: () => searchIndex(), searchJump: e => searchJump(e),
+    /** Knopf fehlt wegen eines Rechts: rechtFehlt('buchungen', '+ Betrag auf Konto') → '' (für Vorlagen); der Kern nennt es im Hinweis unter der Reiterzeile */
+    rechtFehlt: (recht, was) => rechtFehlt(recht, was),
     /** Sprung zu einem Datensatz-Treffer der Suche (Server-Hook „search“) ohne Detailansicht: registerHit(art, { tab: [tabsKey, reiter], before(id, ref), find(id, ref) → Element })
      *  before setzt Filter der Liste (z. B. „Alle“), find liefert die Zeile, die hervorgehoben wird. Mit Detailansicht (registerDetail, gleiche Art) ist nichts anzumelden. */
     registerHit(art, h) { if (/^[a-z0-9-]+$/.test(art) && h) HIT[art] = h; },
@@ -2290,10 +2330,10 @@
       <p class="lead">Liste holen, in der Vereinsverwaltung abbuchen, hier als abgerechnet markieren.</p>
       <div class="toolbar">
         <button class="btn ghost" id="reload">Liste aktualisieren</button>
-        ${can('buchungen') ? '<button class="btn" id="addAmt">+ Betrag auf Konto</button>' : ''}
+        ${can('buchungen') ? '<button class="btn" id="addAmt">+ Betrag auf Konto</button>' : rechtFehlt('buchungen', '+ Betrag auf Konto')}
         ${r.rows.length ? '<button class="btn" id="abtipp">Abtippliste</button>' : ''}
         ${mayClose ? (r.rows.length ? '<button class="btn" id="settleAll">Alle als abgerechnet markieren</button>' : '')
-          : '<span class="muted s" style="align-self:center">Als abgerechnet markieren darf nur, wer das Recht „Abrechnung“ hat.</span>'}
+          : rechtFehlt('abrechnung', 'Alle als abgerechnet markieren')}
         <a class="btn ${sepa ? '' : 'primary'}" href="${xls}">Excel</a>
       </div>
       <details class="howto mb14"><summary>So geht's</summary><p class="muted s m-8-0-0"><b>1.</b> Excel herunterladen oder die <b>Abtippliste</b> öffnen (nach Nachnamen sortiert, mit fertigem Buchungstext, zum Abhaken oder Ausdrucken) · <b>2.</b> in der Vereinsverwaltung bei den Mitgliedern abbuchen ·
@@ -3805,7 +3845,71 @@
 
   /* =================== Benutzer & Rechte =================== */
   let userTab = (() => { try { return sessionStorage.getItem('tab_benutzer') === 'rollen' ? 'rollen' : 'benutzer'; } catch (e) { return 'benutzer'; } })();   // Reiter wird gemerkt wie bei tabs()
-  const permList = (sel, attr) => `<div class="permgrid">${Object.entries(permLabels).map(([k, l]) => `<label class="chk"><input type="checkbox" ${attr}="${k}" ${sel.includes(k) ? 'checked' : ''}> <span>${esc(l)}</span></label>`).join('')}</div>`;
+  /* Rechte je Modul (Katalog vom Server, src/rechte.js): Gruppen in der Reihenfolge des Menüs, je Gruppe aufklappbar mit Zähler „x von y“
+     und „Alle“/„Keine“. Ausgeschaltete Module erscheinen nur, wenn dort Rechte vergeben sind (eingeklappt, „Modul aus“) – so bleibt nichts
+     unsichtbar vergeben und geht beim Speichern nicht verloren. Abhängigkeiten (requires) kreuzt das Fenster sichtbar mit an und sperrt das
+     nötige Recht, solange es gebraucht wird; der Server prüft sie beim Speichern noch einmal. */
+  const catLabel = (cat, k) => { for (const g of cat) { const p = g.perms.find(x => x.key === k); if (p) return p.label; } return ''; };
+  function permPicker(cat, sel, attr, { onlyAll = {}, id = 'rPick' } = {}) {
+    const has = new Set(sel);
+    const groups = cat.filter(g => g.active || g.perms.some(p => has.has(p.key)));
+    const req = p => p.requires.filter(r => cat.some(g => g.perms.some(x => x.key === r)));
+    const row = (g, p) => `<label class="chk rperm"><input type="checkbox" ${attr}="${esc(p.key)}" data-g="${esc(g.id)}" ${has.has(p.key) ? 'checked' : ''}>
+      <span><b>${esc(p.label)}</b>${p.hint ? `<span class="muted s rh">${esc(p.hint)}</span>` : ''}${req(p).length ? `<span class="muted s rh">${esc(T('Setzt „{0}“ voraus', [req(p).map(r => catLabel(cat, r)).join('“, „')]))}</span>` : ''}<span class="s rh rrole" hidden>${esc(T('Schon über eine Rolle'))}</span><span class="s rh rdep" hidden></span></span></label>`;
+    return `<div class="rgrps" id="${id}">${groups.map(g => `<details class="rgrp" data-grp="${esc(g.id)}"${g.active && g.perms.some(p => has.has(p.key)) ? ' open' : ''}>
+        <summary><span class="rg-t">${esc(T(g.name))}</span>${g.active ? '' : ` <span class="pill a">${esc(T('Modul aus'))}</span>`}<span class="rg-n muted s"></span></summary>
+        <div class="rg-body">${g.active ? '' : `<p class="muted s m0">${esc(T('Das Modul ist ausgeschaltet – diese Rechte wirken erst wieder, wenn es eingeschaltet ist.'))}</p>`}
+          <div class="rg-tools"><button type="button" class="btn small ghost" data-rall>Alle</button></div>
+          <div class="permgrid">${g.perms.map(p => row(g, p)).join('')}</div>
+          ${g.id === 'allgemein' && Object.keys(onlyAll).length ? `<p class="muted s m0">${esc(T('„{0}“ gibt es nur mit „Alle Rechte“.', [Object.values(onlyAll).map(x => T(x)).join('“ und „')]))}</p>` : ''}</div></details>`).join('')}</div>`;
+  }
+  /** Verhalten des Rechte-Bausteins: Zähler, Alle/Keine, Abhängigkeiten. extraHave(k): Recht kommt schon von anderswo (Rollen beim Benutzer) */
+  function bindPicker(root, cat, attr, extraHave = () => false) {
+    const box = k => root.querySelector(`[${attr}="${CSS.escape(k)}"]`);
+    const all = () => [...root.querySelectorAll(`[${attr}]`)];
+    const meta = k => { for (const g of cat) { const p = g.perms.find(x => x.key === k); if (p) return p; } return null; };
+    const sync = changed => {
+      const on = new Set(all().filter(c => c.checked).map(c => c.getAttribute(attr)));
+      // gerade angekreuzt: Voraussetzungen sichtbar mit ankreuzen (beim Öffnen nie – gespeicherte Rechte bleiben, wie sie sind)
+      if (changed && changed.checked) for (const r of (meta(changed.getAttribute(attr)) || { requires: [] }).requires) { const b = box(r); if (b && !b.checked && !extraHave(r)) { b.checked = true; on.add(r); } }
+      for (const c of all()) {
+        const k = c.getAttribute(attr), need = all().filter(x => x.checked && (meta(x.getAttribute(attr)) || { requires: [] }).requires.includes(k)).map(x => (meta(x.getAttribute(attr)) || {}).label);
+        const dep = c.closest('label').querySelector('.rdep');
+        c.disabled = c.checked && need.length > 0;   // wird gebraucht: erst das andere Recht abwählen
+        dep.hidden = !need.length;
+        dep.classList.toggle('warn', !c.checked && !extraHave(k));
+        dep.textContent = !need.length ? '' : c.checked || extraHave(k) ? T('Nötig für „{0}“', [need.join('“, „')]) : T('Fehlt – nötig für „{0}“', [need.join('“, „')]);
+        c.closest('label').querySelector('.rrole').hidden = !extraHave(k);
+      }
+      root.querySelectorAll('.rgrp').forEach(g => {
+        const cs = [...g.querySelectorAll(`[${attr}]`)], n = cs.filter(c => c.checked).length;
+        g.querySelector('.rg-n').textContent = T('{0} von {1}', [n, cs.length]);
+        const b = g.querySelector('[data-rall]'); b.textContent = T(n === cs.length ? 'Keine' : 'Alle');
+      });
+    };
+    root.addEventListener('change', e => { if (e.target.matches(`[${attr}]`)) sync(e.target); });
+    root.querySelectorAll('[data-rall]').forEach(b => { b.onclick = () => {
+      const cs = [...b.closest('.rgrp').querySelectorAll(`[${attr}]`)], fill = cs.some(c => !c.checked);
+      if (fill) cs.forEach(c => { if (!c.checked) { c.checked = true; sync(c); } });
+      else {   // „Keine“: was ein Recht außerhalb dieser Gruppe noch braucht, bleibt angekreuzt
+        cs.forEach(c => { c.checked = false; });
+        const keep = new Set(all().filter(x => x.checked).flatMap(x => (meta(x.getAttribute(attr)) || { requires: [] }).requires));
+        cs.forEach(c => { if (keep.has(c.getAttribute(attr))) c.checked = true; });
+      }
+      sync();
+    }; });
+    sync();
+    return { sync: () => sync(), set: keys => { const want = new Set(keys); all().forEach(c => { c.checked = want.has(c.getAttribute(attr)); }); sync(); }, get: () => all().filter(c => c.checked).map(c => c.getAttribute(attr)) };
+  }
+  /** Kompakte Zeile je Modul: „Verkauf: Abrechnung, Konten · Mitglieder: alle“ – für Benutzer- und Rollenliste */
+  function permSummary(cat, keys) {
+    const has = new Set(keys);
+    return cat.map(g => {
+      const mine = g.perms.filter(p => has.has(p.key)); if (!mine.length) return '';
+      const what = mine.length === g.perms.length && g.perms.length > 1 ? [T('alle')] : mine.map(p => T(p.label));   // jeder Name bleibt zusammen (kein Umbruch mitten in „Beregnung bedienen“)
+      return `<span class="rsum-g${g.active ? '' : ' off'}"><b class="rsum-p">${esc(T(g.name))}${g.active ? '' : ` (${esc(T('Modul aus'))})`}:</b> ${what.map(x => `<span class="rsum-p">${esc(x)}</span>`).join(', ')}</span>`;
+    }).filter(Boolean).join('<span class="rsum-sep" aria-hidden="true"> · </span>');
+  }
   async function userDialog(u, opt) {
     const fixed = Boolean(u && u.builtin);
     const roles = opt.roles, depts = opt.departments;
@@ -3828,7 +3932,8 @@
         <div class="rolegrid">${roles.map(r => `<label class="chk ucard"><input type="checkbox" data-role="${r.id}" ${myRoles.includes(r.id) ? 'checked' : ''}> <span><b>${esc(r.name)}</b>${r.dept_scope ? ' <span class="pill b">eigene Abteilung</span>' : ''}<br><span class="muted s">${esc(r.description || '')}</span></span></label>`).join('') || '<p class="empty">Noch keine Rollen – unter „Rollen“ anlegen.</p>'}</div>
         <div id="uDeptBox" class="card soft mt12"><h3 class="m-0-0-8">Abteilungen für „eigene Abteilung“</h3>
           ${depts.length ? `<div class="permgrid">${depts.map(d => `<label class="chk"><input type="checkbox" data-dep="${d.id}" ${myDepts.includes(d.id) ? 'checked' : ''}> <span translate="no">${esc(d.name)}</span></label>`).join('')}</div>` : '<p class="muted m0">Abteilungen gibt es in der Mitgliederverwaltung.</p>'}</div>
-        <details class="udet"${extra.length ? ' open' : ''}><summary>Zusätzliche Einzelrechte${extra.length ? ` (${extra.length})` : ''}</summary>${permList(extra, 'data-perm')}</details>
+        <details class="udet"${extra.length ? ' open' : ''}><summary>Zusätzliche Einzelrechte${extra.length ? ` (${extra.length})` : ''}</summary>
+          <p class="muted s m-8-0-0">Nur, was die Rollen nicht schon geben. Rechte aus angekreuzten Rollen sind markiert.</p>${permPicker(opt.catalog, extra, 'data-perm', { onlyAll: opt.onlyAll, id: 'uPick' })}</details>
       </div>`}
       ${u ? `<div class="row" style="align-items:center;margin-top:14px">${fixed ? '' : `<label class="chk"><input type="checkbox" id="uAct" ${u.active ? 'checked' : ''}> Zugang aktiv</label>`}
         <button class="btn small" id="uReset">Neues Passwort vergeben</button>
@@ -3842,7 +3947,12 @@
       const scoped = [...document.querySelectorAll('[data-role]:checked')].some(c => (roles.find(r => r.id === +c.dataset.role) || {}).dept_scope);
       $('uDeptBox').classList.toggle('hidden', !scoped);
     };
-    if (!fixed) { document.querySelectorAll('[name=uRole], [data-role]').forEach(r => { r.onchange = sync; }); sync(); }
+    let pick = null;
+    if (!fixed) {
+      const viaRoles = () => new Set([...document.querySelectorAll('[data-role]:checked')].flatMap(c => (roles.find(r => r.id === +c.dataset.role) || { perms: [] }).perms));
+      pick = bindPicker($('uPick'), opt.catalog, 'data-perm', k => viaRoles().has(k));
+      document.querySelectorAll('[name=uRole], [data-role]').forEach(r => { r.onchange = () => { sync(); pick.sync(); }; }); sync();
+    }
     let src = free.length ? 'mem' : 'man';
     let sugT = 0;
     const suggest = () => {
@@ -3870,7 +3980,7 @@
     };
     $('ok').onclick = () => busy($('ok'), async () => {
       const body = fixed ? {} : { role: document.querySelector('[name=uRole]:checked').value, roles: [...document.querySelectorAll('[data-role]:checked')].map(x => +x.dataset.role),
-        departments: [...document.querySelectorAll('[data-dep]:checked')].map(x => +x.dataset.dep), perms: [...document.querySelectorAll('[data-perm]:checked')].map(x => x.dataset.perm) };
+        departments: [...document.querySelectorAll('[data-dep]:checked')].map(x => +x.dataset.dep), perms: pick ? pick.get() : [] };
       if (body.role === 'oberadmin' && !(u && u.role === 'oberadmin')) {   // „alle Rechte“ vergeben: mit dem eigenen Passwort bestätigen
         const mine = await askText('Zur Bestätigung: dein eigenes Passwort', '', { ok: 'Bestätigen', password: true });
         if (!mine) return;
@@ -3892,29 +4002,33 @@
 
   function roleDialog(r, opt) {
     dialog(`<h2>${r ? 'Rolle bearbeiten' : 'Neue Rolle'}</h2>
+      ${!r && opt.vorlagen.length ? `<div class="mb12"><div class="muted s rtpl-l">Vorlage für ein typisches Amt – füllt die Rolle zurückhaltend vor, danach frei anpassbar:</div>
+        <div class="chips" id="rTpl">${opt.vorlagen.map(v => `<button type="button" data-tpl="${esc(v.id)}">${esc(T(v.name))}</button>`).join('')}</div></div>` : ''}
       <div class="ugrid"><label class="f">Name<input id="rNm" value="${esc(r ? r.name : '')}" maxlength="40" placeholder="z. B. Jugendwart"></label>
         <label class="f">Beschreibung<input id="rDs" value="${esc(r ? r.description || '' : '')}" maxlength="300"></label></div>
-      <label class="chk ucard mt12"><input type="checkbox" id="rSc" ${r && r.dept_scope ? 'checked' : ''}> <span><b>Nur Mitglieder der eigenen Abteilungen</b><br><span class="muted s">Für Abteilungsleitungen: Mitglieder ihrer Abteilung sehen, Stammdaten ändern, Austritte eintragen, neue Mitglieder anlegen und Anträge mit dieser Abteilung annehmen. Welche Abteilung, steht beim Benutzer. Gilt nur für die Rechte „Mitglieder“ und „E-Mail an Mitglieder“ – andere Rechte bitte in einer eigenen Rolle vergeben.</span></span></label>
-      <h3 class="usec">Rechte</h3>${permList(r ? r.perms : [], 'data-rp')}
+      <label class="chk ucard mt12"><input type="checkbox" id="rSc" ${r && r.dept_scope ? 'checked' : ''}> <span><b>Nur Mitglieder der eigenen Abteilungen</b><br><span class="muted s">Für Abteilungsleitungen: Mitglieder ihrer Abteilung sehen, Stammdaten ändern, Austritte eintragen, neue Mitglieder anlegen und Anträge mit dieser Abteilung annehmen. Welche Abteilung, steht beim Benutzer. Gilt nur für die Rechte „Mitglieder“ und „Nachrichten“ – andere Rechte bitte in einer eigenen Rolle vergeben.</span></span></label>
+      <h3 class="usec">Rechte</h3>${permPicker(opt.catalog, r ? r.perms : [], 'data-rp', { onlyAll: opt.onlyAll })}
       <div class="err ta-l" id="rErr"></div>
       <div class="btns">${r && !r.users ? '<button class="btn danger mr-auto" id="rDel">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="rOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
+    const pick = bindPicker($('rPick'), opt.catalog, 'data-rp');
+    if ($('rTpl')) $('rTpl').onclick = e => {   // Vorlage: füllt Name, Beschreibung, Rechte und „eigene Abteilung“ vor – danach frei anpassbar
+      const b = e.target.closest('[data-tpl]'); if (!b) return;
+      const v = opt.vorlagen.find(x => x.id === b.dataset.tpl), prev = opt.vorlagen.find(x => x.id === $('rTpl').dataset.cur);
+      if (!$('rNm').value.trim() || (prev && $('rNm').value === T(prev.name))) $('rNm').value = T(v.name);
+      if (!$('rDs').value.trim() || (prev && $('rDs').value === T(prev.beschreibung))) $('rDs').value = T(v.beschreibung);
+      $('rSc').checked = Boolean(v.scope); pick.set(v.perms);
+      $('rTpl').dataset.cur = v.id; $('rTpl').querySelectorAll('[data-tpl]').forEach(x => x.classList.toggle('on', x === b));
+      $('rPick').querySelectorAll('.rgrp').forEach(g => { g.open = Boolean(g.querySelector('[data-rp]:checked')); });
+    };
     if ($('rDel')) $('rDel').onclick = async () => { if (!await ask(`Rolle „${r.name}“ löschen?`)) return; try { await api('roles/' + r.id, 'DELETE'); closeDialog(); RENDER.benutzer(); } catch (e) { fail(e); } };
     $('rOk').onclick = () => busy($('rOk'), async () => {
-      const body = { name: $('rNm').value, description: $('rDs').value, dept_scope: $('rSc').checked, perms: [...document.querySelectorAll('[data-rp]:checked')].map(x => x.dataset.rp) };
+      const body = { name: $('rNm').value, description: $('rDs').value, dept_scope: $('rSc').checked, perms: pick.get() };
       try { if (r) await api('roles/' + r.id, 'PUT', body); else await api('roles', 'POST', body); closeDialog(); toast('Gespeichert.'); RENDER.benutzer(); } catch (e) { formError($('rErr'), e.message); }
     });
     void opt;
   }
 
-  const PERM_SHORT = { lieferungen: 'Lieferungen', bestand: 'Bestand', bestellung: 'Bestellung', buchungen: 'Buchungen', export: 'Export',
-    abrechnung: 'Abrechnung', veranstaltungen: 'Veranstaltungen', uebernahme: 'Übernahme', artikel: 'Artikel', konten: 'Konten', deinstallieren: 'Module',
-    mitglieder: 'Mitglieder', mitglieder_bank: 'Bankdaten', mitglieder_finanzen: 'Einzug', mitglieder_dokumente: 'Dokumente', gratulationen: 'Gratulationen', arbeitseinsatz: 'Helferdienste',
-    zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', zugang_bedienen: 'Zugang bedienen', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen', flutlicht: 'Flutlicht', flutlicht_bedienen: 'Flutlicht bedienen', app: 'App einrichten', maengel: 'Mängel', schluessel: 'Schlüssel', turniere: 'Turniere',
-    email: 'Nachrichten', kontoauszug: 'Kontoauszug', buchhaltung: 'Buchhaltung', ausgaben: 'Ausgaben & Kasse', kassenpruefung: 'Kassenprüfung', spielbetrieb: 'Spielbetrieb', benutzer: 'Benutzer', einstellungen: 'Einstellungen', sicherheit: 'Sicherheitswarnungen',
-    buchung: 'Belegung ansehen', buchung_buchen: 'Für andere buchen', buchung_stornieren: 'Buchungen stornieren', buchung_serien: 'Serien & Sperren', buchung_einstellungen: 'Buchung einrichten', buchung_gaeste: 'Gästebuchung' };
-  // Rechte von Erweiterungen ohne Kurzname: ihr Name aus erweiterung.json, nie der interne Schlüssel
-  const permPills = (list, labels = {}) => list.map(p => `<span class="pill b" style="margin:1px">${esc(PERM_SHORT[p] || labels[p] || p)}</span>`).join(' ');
   RENDER.benutzer = async () => {
     try { userTab = sessionStorage.getItem('tab_benutzer') === 'rollen' ? 'rollen' : 'benutzer'; } catch (e) { /* egal */ }   // auch die Suche wählt den Reiter vor
     const [users, opt] = await Promise.all([api('users'), api('users/options')]);
@@ -3926,16 +4040,20 @@
       <div class="tabtools"><button class="btn primary" id="uNew">${userTab === 'rollen' ? '+ Neue Rolle' : '+ Neuer Benutzer'}</button></div></div>
       <div class="scroll" id="uBody"></div>`;
     if (userTab === 'rollen') {
-      $('uBody').innerHTML = `<table class="tbl kompakt"><tr><th>Rolle</th><th>Rechte</th><th class="r">Benutzer</th><th></th></tr>
+      $('uBody').innerHTML = `<table class="tbl kompakt rtab"><tr><th>Rolle</th><th>Rechte</th><th class="r">Benutzer</th><th></th></tr>
         ${opt.roles.map(r => `<tr><td><b>${esc(r.name)}</b><div class="muted s">${r.dept_scope ? '<span class="pill b">eigene Abteilung</span> ' : ''}${esc(r.description || '')}</div></td>
-          <td class="k-weg k-1z">${permPills(r.perms, opt.permLabels) || '<span class="muted s">keine</span>'}</td><td class="r k-lbl">${r.users}</td><td class="r"><button class="btn small" data-r="${r.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
+          <td class="k-weg k-1z k-rsum"><div class="s rsum">${permSummary(opt.catalog, r.perms) || '<span class="muted">keine</span>'}</div></td><td class="r k-lbl">${r.users}</td><td class="r"><button class="btn small" data-r="${r.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
       $('uBody').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => roleDialog(opt.roles.find(x => x.id === +b.dataset.r), opt); });
     } else {
-      $('uBody').innerHTML = `<table class="tbl kompakt"><tr><th>Benutzer</th><th>Zugang</th><th>Letzte Anmeldung</th><th></th></tr>
-        ${users.map(u => `<tr class="${u.active ? '' : 'off'}"><td><b>${esc(u.member_id && u.name ? lastFirst(u.name) : u.name || u.username)}</b><div class="muted s">${esc(u.username)}${u.member_id ? ' · Mitglied' : ''}</div></td>
-          <td>${u.builtin ? '<span class="pill g">Adminkonto</span>' : u.role === 'oberadmin' ? '<span class="pill g">alle Rechte</span>'
-            : [u.roles.map(id => `<span class="pill b" style="margin:1px">${esc(roleName(id) || '?')}</span>`).join(' '), u.extra.length ? permPills(u.extra, opt.permLabels) : ''].filter(Boolean).join(' ') || '<span class="muted s">keine Rechte</span>'}
-            ${u.departments.length && u.deptOnly.length ? `<div class="muted s" translate="no">${esc(u.departments.map(deptName).filter(Boolean).join(', '))}</div>` : ''}${u.active ? '' : ' <span class="pill">gesperrt</span>'}</td>
+      $('uBody').innerHTML = `<table class="tbl kompakt rtab"><tr><th>Benutzer</th><th>Zugang</th><th>Letzte Anmeldung</th><th></th></tr>
+        ${users.map(u => `<tr class="${u.active ? '' : 'off'}"><td><b translate="no">${esc(u.member_id && u.name ? lastFirst(u.name) : u.name || u.username)}</b><div class="muted s">${esc(u.username)}${u.member_id ? ' · Mitglied' : ''}</div></td>
+          <td class="k-1z k-rsum">${u.builtin ? '<span class="pill g">Adminkonto</span>' : u.role === 'oberadmin' ? '<span class="pill g">alle Rechte</span>'
+            : (() => {   // Rollen als Schilder, daneben Abteilung; darunter die Rechte je Modul – am Handy statt der Zeile nur „n Module“ (Listeneintrag höchstens 96 px)
+              const keys = [...new Set([...u.perms, ...u.extra])], n = opt.catalog.filter(g => g.perms.some(p => keys.includes(p.key))).length;
+              const dept = u.departments.length && u.deptOnly.length ? `<span class="muted s" translate="no">${esc(u.departments.map(deptName).filter(Boolean).join(', '))}</span>` : '';
+              return `<div class="rsum-roles">${u.roles.map(id => `<span class="pill b">${esc(roleName(id) || '?')}</span>`).join('')}${dept}<span class="muted s rsum-kurz">${esc(!n ? T('keine Rechte') : n === 1 ? T('1 Modul') : T('{0} Module', [n]))}</span></div>
+                <div class="s rsum rsum-voll">${n ? permSummary(opt.catalog, keys) : '<span class="muted">keine Rechte</span>'}</div>`; })()}
+            ${u.active ? '' : ' <span class="pill">gesperrt</span>'}</td>
           <td>${u.startPw ? '<span class="pill a">Startpasswort noch nicht geändert</span>' : u.last_login ? deTime(u.last_login) : '<span class="muted s">noch nie</span>'}</td>
           <td class="r"><button class="btn small" data-u="${u.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
       $('uBody').querySelectorAll('[data-u]').forEach(b => { b.onclick = () => userDialog(users.find(x => x.id === Number(b.dataset.u)), opt).catch(fail); });

@@ -1,14 +1,29 @@
 {
   "id": "buchhaltung",
   "name": "Buchhaltung",
-  "version": "1.16.6",
+  "version": "1.17.0",
   "kurz": "Rechnungen, Spendenquittungen, Ausgaben und Kassenbuch.",
   "beschreibung": "Rechnungen an Sponsoren, Firmen und Mitglieder (Umsatzsteuer je Position, Jahresrechnungen mit einem Klick, offen/bezahlt, Zahlungserinnerung per E-Mail; an Mitglieder zusätzlich als offener Posten bei den Mitgliedern) und Spendenquittungen nach amtlichem Muster – Geld, Sachspende oder Verzicht auf Aufwandserstattung – für Mitglieder, Firmen oder einmalige Spender. Dazu Ausgaben mit Belegfoto (eingefroren, Storno statt Löschen), Kassenbuch mit Kassensturz und Festschreibung je Monat sowie die Einnahmen-Überschuss-Rechnung je Sphäre; Ausgaben und Kassenbewegungen laufen in den DATEV-Buchungsstapel.",
   "minApp": "3.5.0",
   "perms": {
-    "buchhaltung": "Buchhaltung: Rechnungen, Firmen & Sponsoren, Spendenquittungen",
-    "ausgaben": "Ausgaben und Kassenbuch erfassen (Kassenwart)",
-    "kassenpruefung": "Kassenprüfung: Ausgaben, Belege, Kassenbuch und EÜR nur ansehen"
+    "ausgaben": {
+      "label": "Ausgaben & Kasse",
+      "hint": "Ausgaben und Kassenbuch erfassen",
+      "vorlagen": [
+        "kassenwart"
+      ]
+    },
+    "buchhaltung": {
+      "label": "Buchhaltung",
+      "hint": "Rechnungen, Firmen & Sponsoren, Spendenquittungen",
+      "vorlagen": [
+        "kassenwart"
+      ]
+    },
+    "kassenpruefung": {
+      "label": "Kassenprüfung",
+      "hint": "Ausgaben, Belege, Kassenbuch und EÜR nur ansehen"
+    }
   },
   "verwaltung": {
     "label": "Buchhaltung",

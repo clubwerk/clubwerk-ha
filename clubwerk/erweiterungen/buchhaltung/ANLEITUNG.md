@@ -17,7 +17,7 @@ Das Modul läuft allein. Ohne die Mitgliederverwaltung gibt es Rechnungen und Sp
 4. **Vereinsanschrift prüfen:** Anschrift, E-Mail und Telefon stehen im Briefkopf. Ihr pflegt sie einmal zentral unter Einstellungen › Verein.
 5. **Postfach einrichten (für den E-Mail-Versand):** Unter Einstellungen › Postfach. Ohne Postfach könnt ihr das PDF herunterladen und ausdrucken.
 6. **Buchhaltung › Einstellungen:** Nummernkreis, Zahlungsziel und Steuerangaben eintragen. Für Spendenquittungen zusätzlich die Angaben zum Freistellungsbescheid. Ohne sie bleibt der Knopf „+ Neue Spendenquittung“ gesperrt.
-7. **Ausgaben und Kasse:** Der Kassenwart bekommt das Recht „Ausgaben“, Kassenprüfer das Recht „Kassenprüfung“ (nur ansehen). Unter Einstellungen › Ausgaben & Kasse den Anfangsbestand der vorgegebenen Kasse eintragen, bei Bedarf weitere Kassen anlegen und Konto und Sphäre je Ausgabeart unter Einstellungen › Buchführung festlegen.
+7. **Ausgaben und Kasse:** Der Kassenwart bekommt das Recht „Ausgaben & Kasse“, Kassenprüfer das Recht „Kassenprüfung“ (nur ansehen). Unter Einstellungen › Ausgaben & Kasse den Anfangsbestand der vorgegebenen Kasse eintragen, bei Bedarf weitere Kassen anlegen und Konto und Sphäre je Ausgabeart unter Einstellungen › Buchführung festlegen.
 
 ## Verwaltung {#verwaltung}
 
@@ -293,7 +293,7 @@ Zahlungen ordnet ihr den Rechnungen über den **Kontoauszug** zu. Mit der Mitgli
 - Eine Zahlung ordnet Clubwerk einer Rechnung zu, wenn im Verwendungszweck die **Rechnungsnummer** steht. Stimmt auch der Betrag, gilt die Zuordnung als sicher. Ist mehr eingegangen, ist sie wahrscheinlich, und der Rest bleibt ohne Zuordnung.
 - Reicht der Betrag nicht, gibt es keine automatische Zuordnung. Teilzahlungen bucht ihr von Hand in der Rechnung.
 - Eine so bezahlte Rechnung trägt den Zahlungsweg „Kontoauszug“. Wollt ihr sie wieder öffnen oder stornieren, hebt ihr zuerst die Zuordnung im Kontoauszug auf.
-- Zum Zuordnen braucht ihr das Recht „Kontoauszüge einlesen und zuordnen“ und zusätzlich „Buchhaltung“.
+- Zum Zuordnen braucht ihr das Recht „Kontoauszug“ und zusätzlich „Buchhaltung“.
 - **Abbuchungen:** Mit der Buchhaltung behält der Kontoauszug auch Abbuchungen. Passt eine zu einer Ausgabe vom Bankkonto (gleicher Betrag, bis 14 Tage Abstand, Empfänger im Namen), schlägt Clubwerk sie vor. Andere Abbuchungen erscheinen unter Ausgaben › Zu erfassen.
 
 ## Tablet und App {#tablet-app}
@@ -305,7 +305,7 @@ Die Buchhaltung hat keine Seite am Tablet und in der Mitglieder-App. Rechnungen 
 | Recht | Was es erlaubt |
 |---|---|
 | Buchhaltung | Rechnungen, Spendenquittungen, Firmen & Sponsoren und ihre Einstellungen: schreiben, verschicken, anmahnen, buchen und stornieren, Rechnungen und Ausgaben im Kontoauszug zuordnen (zusätzlich zum Kontorecht) |
-| Ausgaben und Kassenbuch erfassen | Ausgaben mit Beleg erfassen und stornieren, Kassensturz, Geldtransit, Monate festschreiben, Ausgabearten und Kassen einrichten (der Kassenwart) |
+| Ausgaben & Kasse | Ausgaben mit Beleg erfassen und stornieren, Kassensturz, Geldtransit, Monate festschreiben, Ausgabearten und Kassen einrichten (der Kassenwart) |
 | Kassenprüfung | Ausgaben mit Belegen, Kassenbuch und EÜR nur ansehen und herunterladen |
 
 Wer „Buchhaltung“ hat, sieht auch die Namen und Anschriften der Rechnungsempfänger.
@@ -318,7 +318,7 @@ Wer „Buchhaltung“ hat, sieht auch die Namen und Anschriften der Rechnungsemp
 - **Buchführung (Einstellungen):** Ausgaben, Geldtransit und Kassendifferenzen laufen mit in den DATEV-Buchungsstapel; Konto und Sphäre je Ausgabeart stellt ihr dort ein.
 - **Alle Module mit Bargeld:** Ihre Bareinnahmen erscheinen im Kassenbuch (Hauptkasse oder die gewählte Kasse).
 - **Einstellungen:** Anschrift (Verein), Bankkonten und Postfach kommen von dort.
-- **Übersicht:** zeigt die Zahl offener Rechnungen, die noch fehlenden Jahresrechnungen, eine Warnung bei überfälligen Rechnungen und – mit dem Recht „Ausgaben“ – einen Hinweis, solange der Vormonat einer Kasse nicht festgeschrieben ist.
+- **Übersicht:** zeigt die Zahl offener Rechnungen, die noch fehlenden Jahresrechnungen, eine Warnung bei überfälligen Rechnungen und – mit dem Recht „Ausgaben & Kasse“ – einen Hinweis, solange der Vormonat einer Kasse nicht festgeschrieben ist.
 - **Suche (Strg/⌘ K):** findet Rechnungen nach Nummer oder Empfänger und Firmen nach Name oder Kundennummer.
 - **Datenschutz:** Rechnungen, Quittungen und Ausgabenbelege sind Belege und werden nie automatisch gelöscht (Aufbewahrung gesetzlich: Belege 8 Jahre, Bücher 10 Jahre). Die Datenauskunft eines Mitglieds enthält seine Rechnungen und Spenden. Beim Zusammenführen doppelter Mitglieder gehen sie mit. Hat ein Mitglied offene Rechnungen, weist Clubwerk darauf hin. Bezahlte und stornierte Rechnungen bleiben mit dem Namen erhalten.
 - **Einrichtungs-Assistent:** enthält den Schritt „Rechnungen und Steuer“.

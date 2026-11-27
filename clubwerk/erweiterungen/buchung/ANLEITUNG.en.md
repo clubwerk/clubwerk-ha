@@ -18,7 +18,7 @@ The module works on its own. Without the Members module it only knows first and 
 
 ## Admin area {#verwaltung}
 
-The “Courts” menu has eight tabs: **Occupancy**, **Recurring bookings & blocks**, **Bookings**, **Fees**, **Statistics**, **Partner search**, **Courts & equipment** and **Settings**. The “Settings” tab only appears with the permission “Courts: courts, booking types & settings”.
+The “Courts” menu has eight tabs: **Occupancy**, **Recurring bookings & blocks**, **Bookings**, **Fees**, **Statistics**, **Partner search**, **Courts & equipment** and **Settings**. The “Settings” tab only appears with the permission “Set up courts”.
 
 ### Tab “Occupancy” {#bk-belegung}
 
@@ -29,7 +29,7 @@ The plan shows who plays on which court and when.
 - **Day or week:** the “Day” and “Week” switches toggle between all courts on one day and a single court over seven days (then you pick the court in the bar, and the arrows page by week).
 - **Choosing a day:** the days of the week are tiles at the top, the arrows ‹ › page by week, and the date field takes you to any other day. “Today” jumps back.
 - **Reading the plan:** each column is a court or an equipment item. A booking is a block in the colour of its booking type; blocks are striped red, times that cannot be booked (outside opening hours) are hatched. The red line is “now”. Today, past hours are folded away – click the bar to unfold them. A legend under the plan explains the colours.
-- **Clicking a free slot:** opens “Enter booking” with court, day and time already filled in. You need the permission “book for members”.
+- **Clicking a free slot:** opens “Enter booking” with court, day and time already filled in. You need the permission “Book for others”.
 
 ![The bar of the week view: choose the court, change the week with the arrows or in the date field.](bild: seite=bk-belegung; klick=#bkV [data-v="woche"]; ziel=.bk-bar)
 
@@ -50,7 +50,7 @@ The “+ Booking” button is at the top right.
 Behind **“More details”** are the rarely used fields:
 
 - **Guests:** names separated by commas. Each guest incurs the guest fee, as an open item on the booking member's account. Ticking “Guests from partner club” waives it.
-- **Repeat** and **To:** turns the booking into a recurring one, e.g. every week until the end of the season. Days that are already taken are skipped. You need the permission “create recurring bookings & blocks”.
+- **Repeat** and **To:** turns the booking into a recurring one, e.g. every week until the end of the season. Days that are already taken are skipped. You need the permission “Recurring bookings & blocks”.
 - **Note (internal):** only visible to users in the admin area.
 
 “Save” enters the booking. If the time is already taken, Clubwerk tells you and enters nothing.
@@ -69,9 +69,9 @@ Behind **“More details”** are the rarely used fields:
 
 Clicking a block shows the details: players, title, fee, note and who entered the booking, when and where (app, tablet, admin area, schedule import).
 
-- **Cancel** asks for a reason (optional). The member receives an email and any fee is dropped. You need the permission “cancel other people's bookings”. You find it in the details and also in the “Edit” window (“Cancel” button at the bottom left).
+- **Cancel** asks for a reason (optional). The member receives an email and any fee is dropped. You need the permission “Cancel”. You find it in the details and also in the “Edit” window (“Cancel” button at the bottom left).
 - **Edit** opens the same window as when entering a booking: court, time, member, playing partners, guests and booking type can be changed. Guest fees are recalculated, and new playing partners receive the email.
-- **Court code “Show”** (only on courts with gates, with the permission “book for members” or “Series & blocks”): shows the code for the keypad at the gate, e.g. to pass it on to a team without the app. Every view is recorded in the change log (without the code).
+- **Court code “Show”** (only on courts with gates, with the permission “Book for others” or “Series & blocks”): shows the code for the keypad at the gate, e.g. to pass it on to a team without the app. Every view is recorded in the change log (without the code).
 
 If the date belongs to a recurring booking or block, Clubwerk first asks what you mean:
 
@@ -83,7 +83,7 @@ When cancelling, a confirmation follows before anything disappears. When editing
 
 ![The tab “Recurring bookings & blocks” with the active series, blocks and fixture lists.](bild: seite=bk-serien)
 
-All recurring dates are listed here: training, courses, team matches and blocks. Each line gives the title, repetition (“every Tuesday”), time, period, courts, who it concerns and how many dates are still to come. “End” (for blocks “Lift”) removes the upcoming dates after a confirmation; past ones stay. Ended series are listed below. The buttons at the top need the permission “create recurring bookings & blocks”.
+All recurring dates are listed here: training, courses, team matches and blocks. Each line gives the title, repetition (“every Tuesday”), time, period, courts, who it concerns and how many dates are still to come. “End” (for blocks “Lift”) removes the upcoming dates after a confirmation; past ones stay. Ended series are listed below. The buttons at the top need the permission “Recurring bookings & blocks”.
 
 #### + Recurring booking
 
@@ -147,7 +147,7 @@ Fees arise when booking, as open items, and are settled with the next collection
 
 ![The “Book fee” window.](bild: seite=bk-gebuehren; klick=#feNew; ziel=dialog)
 
-For a fee without a booking, e.g. a hall rental: person, amount (between €0.10 and €1,000), date and text. For members this creates a claim that is collected like a membership fee. For coaches (“Not a member”) the amount goes to the sales account. You need the permission “book for members”.
+For a fee without a booking, e.g. a hall rental: person, amount (between €0.10 and €1,000), date and text. For members this creates a claim that is collected like a membership fee. For coaches (“Not a member”) the amount goes to the sales account. You need the permission “Book for others”.
 
 Fees booked by hand have a **Cancel** button in their row; the confirmation names the amount, and the open item is withdrawn. If the fee has already been collected or paid, you cancel it in Members (choosing “keep as credit” or “transferred back”). A booking whose fee has been paid can no longer be edited, only cancelled – the fee then stays and the log notes “Fee not cancelled”.
 
@@ -289,7 +289,7 @@ In the app, under Courts › Playing partners, members post **requests** (“Dou
 
 ![A request with “Hide” and “Block member from the partner search”.](bild: seite=bk-mitspieler; klick=tr[data-ms]; ziel=dialog)
 
-Click a row to see the request with its note, replies and reports. Members can **report** a request in the app; reported requests appear as a note in the overview. **Hide** removes the request from the app (“Show again” undoes it). **Block member from the partner search** hides their open requests; they can no longer post requests or reply, but can still book. Both need the permission “Courts: cancel other people's bookings” and are recorded in the log.
+Click a row to see the request with its note, replies and reports. Members can **report** a request in the app; reported requests appear as a note in the overview. **Hide** removes the request from the app (“Show again” undoes it). **Block member from the partner search** hides their open requests; they can no longer post requests or reply, but can still book. Both need the permission “Cancel” and are recorded in the log.
 
 ![The card “Blocked from the partner search”.](bild: seite=bk-mitspieler; ziel=[data-card="ms-gesperrt"])
 
@@ -307,7 +307,7 @@ The tick switches the partner search in the app on or off. Then there are the li
 
 ![The tab “Courts & equipment” with name, bookable times, grid, guest fee and upcoming bookings.](bild: seite=bk-plaetze)
 
-Everything that can be booked. Each row of the list shows the name and area (notes such as “partner required” or the department are underneath), **Bookable** (days and times), **Grid** (time grid and maximum duration), **Guest fee** and the number of **upcoming** bookings. With **↑ ↓** you set the order – this is how courts appear in the plan, in the app and on the tablet. New courts go to the end. Everything here needs the permission “Courts: courts, booking types & settings”.
+Everything that can be booked. Each row of the list shows the name and area (notes such as “partner required” or the department are underneath), **Bookable** (days and times), **Grid** (time grid and maximum duration), **Guest fee** and the number of **upcoming** bookings. With **↑ ↓** you set the order – this is how courts appear in the plan, in the app and on the tablet. New courts go to the end. Everything here needs the permission “Set up courts”.
 
 ![The window for editing a court.](bild: seite=bk-plaetze; klick=[data-ed]; ziel=dialog)
 
@@ -326,7 +326,7 @@ Both open the same window, which “Edit” also opens for an existing court:
 - **Belongs to department** (appears as soon as there are departments): members of the department book for free; for **other members** you choose “book with court fee” (amount per person) or “may not book”.
 - **Active:** inactive courts cannot be booked and are not in the plan.
 
-Only for **courts** (as soon as the Access module is on): **Court code opens these gates** – the doors with a keypad from the Access module that the code of a booking on this court opens, usually the main gate and exactly this court’s gate. One gate can serve several courts. Only users who also have the “Access” permission may change this; every change is logged and the board receives a security warning. Without gates, the court gets no code.
+Only for **courts** (as soon as the Access module is on): **Court code opens these gates** – the doors with a keypad from the Access module that the code of a booking on this court opens, usually the main gate and exactly this court’s gate. One gate can serve several courts. Only users who also have the “Set up access” permission may change this; every change is logged and the board receives a security warning. Without gates, the court gets no code.
 
 ![In a court’s window: which gates the court code opens.](bild: seite=bk-plaetze; klick=[data-ed="4"]; ziel=#dialog .bkf:has([data-cd]))
 
@@ -336,7 +336,7 @@ Also only for **courts**: **Playing partners** “optional” or “required”,
 
 ### Tab “Settings” {#bk-einstellungen}
 
-The rules for booking, organised in cards. **Each card has its own “Save”.** You need the permission “Courts: courts, booking types & settings”.
+The rules for booking, organised in cards. **Each card has its own “Save”.** You need the permission “Set up courts”.
 
 #### Book
 
@@ -474,12 +474,12 @@ Export courts, booking types and settings as a file and import them into another
 
 | Permission | What it allows |
 |---|---|
-| Courts: view occupancy | View occupancy, bookings, fees, statistics and partner search |
-| Courts: book for members, single bookings with booking type | Enter and edit bookings and blocks, book and cancel fees by hand |
-| Courts: cancel other people's bookings | Cancel bookings and blocks; hide partner search requests and block members from it |
-| Courts: create and end recurring bookings & blocks | Recurring bookings, blocks and schedule import; repeating in the booking window |
-| Courts: courts, booking types & settings | Tabs “Courts & equipment” and “Settings” with booking types and special rights, partner search settings; the gates for the court code only together with the “Access” permission |
-| Courts: set up guest booking (PayPal), cancel guest bookings, resolve discrepancies | Tab “Guests”: set up, key, PayPal access, courts for guests, view a guest booking with contact details, cancel with refund, resolve discrepancies. Everyone with a Courts permission may view the tab (without contact details). |
+| View occupancy | View occupancy, bookings, fees, statistics and partner search |
+| Book for others | Enter and edit bookings and blocks, book and cancel fees by hand |
+| Cancel | Cancel bookings and blocks; hide partner search requests and block members from it |
+| Recurring bookings & blocks | Recurring bookings, blocks and schedule import; repeating in the booking window |
+| Set up courts | Tabs “Courts & equipment” and “Settings” with booking types and special rights, partner search settings; the gates for the court code only together with the “Set up access” permission |
+| Guest booking | Tab “Guests”: set up, key, PayPal access, courts for guests, view a guest booking with contact details, cancel with refund, resolve discrepancies. Everyone with a Courts permission may view the tab (without contact details). |
 
 Members and coaches book in the app and on the tablet without any admin permission. Someone who may only view the occupancy sees the plan but cannot enter anything.
 

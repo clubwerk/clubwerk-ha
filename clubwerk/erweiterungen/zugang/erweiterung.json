@@ -1,13 +1,23 @@
 {
   "id": "zugang",
   "name": "Zugang",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "kurz": "Türen und Tore per Handy öffnen.",
   "beschreibung": "Türen, Tore und Schlösser per Handy öffnen – in der Mitglieder-App (ein QR-Code, eine PIN). Zeitprofile mit Standardprofil, Sperrtage, Fernöffnung aus der Verwaltung, Protokoll. Herstellerneutral über Home Assistant (z. B. Nuki, Matter, Yale, tedee, Shelly). Optional am Tablet.",
   "minApp": "2.3.0",
   "perms": {
-    "zugang": "Zugang: Türen, Zeitprofile, Freischaltungen, Fernöffnung & Protokoll",
-    "zugang_bedienen": "Zugang bedienen: Türen aus der Ferne öffnen und schließen, Notfall-Sperre"
+    "zugang_bedienen": {
+      "label": "Zugang bedienen",
+      "hint": "Türen aus der Ferne öffnen und schließen, Notfall-Sperre"
+    },
+    "zugang": {
+      "label": "Zugang einrichten",
+      "hint": "Türen, Zeitprofile, Freischaltungen und Protokoll – schließt „bedienen“ ein",
+      "level": "einrichten",
+      "requires": [
+        "zugang_bedienen"
+      ]
+    }
   },
   "tablet": {
     "label": "Türen",

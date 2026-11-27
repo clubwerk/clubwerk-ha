@@ -318,7 +318,7 @@
     const only = (id, keys) => { $(id).onclick = async () => { const cc = st.c; cc.vendor = $('zVendor').value; cc.wlanOnly = $('zWlan').checked; if (await saveCfg(keys)) renderEinstellungen().catch(fail); }; };
     only('zSaveV', ['vendor']); only('zSaveS', ['wlanOnly']);
     await GK.stoerungKarte($('zNotif'), { mod: 'zugang', anlass: 'Eine E-Mail kommt, wenn sich eine Tür nicht öffnen oder abschließen lässt, ein Türöffner an bleibt, eine Tür zu lange offen steht oder an einer Codetastatur viele falsche Codes eingetippt werden.',
-      push: 'Push über die Mitglieder-App bekommen Verwaltungsnutzer mit dem Recht „Zugang“, wenn ihr Benutzer mit einem Mitglied verknüpft ist.',
+      push: 'Push über die Mitglieder-App bekommen Verwaltungsnutzer mit dem Recht „Zugang einrichten“, wenn ihr Benutzer mit einem Mitglied verknüpft ist.',
       vorne: `<label class="f mb14">Tür länger offen als … Minuten melden (0 = aus)<input id="zAlert" inputmode="numeric" value="${st.c.openAlertMin || 0}"></label>`,
       speichern: async () => { const r = await api('config', 'PUT', { openAlertMin: $('zAlert').value }); st.d.cfg = r.cfg; st.c = JSON.parse(JSON.stringify(r.cfg)); } });
     if (GK.funcBox) GK.funcBox($('zFunc'), 'zugang', 'Zugang', () => renderEinstellungen().catch(fail));

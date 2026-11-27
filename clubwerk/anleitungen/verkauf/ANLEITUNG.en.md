@@ -102,7 +102,7 @@ The buttons are on the right next to the tabs (see the picture above).
 
 ![Card “Collect by direct debit”.](bild: seite=abrechnung; ziel=.card:has(#sepaGo))
 
-This card only exists with member management and the “Members: finances” permission. A window shows in one go who pays how much (relatives with the payer) and suggests the earliest collection day. It lists clearly what does **not** work by direct debit (no or revoked mandate, teams, “Not a member”) and what to do about it. One click creates the SEPA file, separate from the membership fees. The accounts collected are marked as billed at the same time. If you discard a collection, Clubwerk asks whether the run should be undone straight away.
+This card only exists with member management and the “Fees & collection” permission (module Members). A window shows in one go who pays how much (relatives with the payer) and suggests the earliest collection day. It lists clearly what does **not** work by direct debit (no or revoked mandate, teams, “Not a member”) and what to do about it. One click creates the SEPA file, separate from the membership fees. The accounts collected are marked as billed at the same time. If you discard a collection, Clubwerk asks whether the run should be undone straight away.
 
 #### List of open accounts
 
@@ -148,7 +148,7 @@ Name, date and – under **Copy items & prices from** – either “all items at
 
 ![Header of an event: name, status and buttons.](bild: seite=veranstaltungen; ziel=[data-evcard] > .row)
 
-The heading gives name and date, followed by the status: **active – tablet books to this list**, **not active** or **Cash register closed**. To the right are the buttons (with the “Events” permission):
+The heading gives name and date, followed by the status: **active – tablet books to this list**, **not active** or **Cash register closed**. To the right are the buttons (with the “Events & tabs” permission):
 
 - **Items & prices (n):** only ticked items appear at the tablet during the event, with the price from the right-hand column. “all items” and “none” tick or untick everything.
 - **Activate / Deactivate:** while an event is active, the tablet only shows its list and books to it.
@@ -179,7 +179,7 @@ Guests and visiting teams are put on a tab at the tablet and pay before they go 
 
 ![Card “Open” with the open tab.](bild: seite=veranstaltungen; klick=#deckelBox .card:has([data-tx]) h3; ziel=#deckelBox .card:has([data-tx]))
 
-The **Open** card shows the name, what has been put on the tab, when the tab was opened and the open amount. With **Settle up …** (permission “Events” or “Transfer”) you open the window:
+The **Open** card shows the name, what has been put on the tab, when the tab was opened and the open amount. With **Settle up …** (permission “Events & tabs” or “Transfer”) you open the window:
 
 ![The “Settle tab” window.](bild: seite=veranstaltungen; klick=[data-tx]; ziel=dialog)
 
@@ -453,18 +453,18 @@ If an event is active, the tablet only shows its list of names. Everyone adds th
 
 | Permission | What it allows |
 |---|---|
-| Upload deliveries & receipts | “Deliveries & receipts” page, saved assignments of supplier items |
-| Stock, stocktake & reconciliation | “Stock & stocktake” page |
-| Prepare order (order email) | “Order” page, order details and email |
-| Cancel & add bookings | “Bookings” page, “+ Amount to account” |
-| View current status & export as Excel | View billing, Excel, manual entry list, statistics (for example for auditors) |
+| Deliveries | “Deliveries & receipts” page, saved assignments of supplier items |
+| Stock | “Stock & stocktake” page |
+| Order | “Order” page, order details and email |
+| Bookings | “Bookings” page, “+ Amount to account” |
+| Export | View billing, Excel, manual entry list, statistics (for example for auditors) |
 | Billing | Mark accounts as billed, undo billings, change the booking text (includes “Export”) |
-| Manage events | Run events, tick off cash and card, settle tabs |
-| Transfer open event amounts (treasurer) | Transfer amounts to accounts, transfer tabs to an account or write them off |
+| Events & tabs | Run events, tick off cash and card, settle tabs |
+| Transfer | Transfer amounts to accounts, transfer tabs to an account or write them off |
 | Items & prices | “Items” page, category order |
 | Settings | “Frequently here” and “Transfer settings” in Sales |
 
-For accounts & PINs there is the permission “Add members & confirm new ones”. The “Treasurer” role already includes the permissions for billing, export and transfer.
+For accounts & PINs there is the permission “Accounts”. The “Treasurer” role already includes the permissions for billing, export and transfer.
 
 ## Working with other modules {#zusammenspiel}
 

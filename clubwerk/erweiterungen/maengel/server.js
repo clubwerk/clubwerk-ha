@@ -4,7 +4,7 @@
    Mitglieder melden in der Mitglieder-App oder am Tablet (mit PIN) Defekte auf der Anlage: Ort, Beschreibung, bis zu 3 Fotos, „dringend“.
    Vor dem Absenden sieht das Mitglied offene Meldungen zum selben Ort (ohne Namen). „Ja, das ist es“ legt keine neue Meldung an,
    sondern zählt bei der vorhandenen „auch gemeldet“ hoch (je Mitglied einmal) – das Mitglied bekommt dann auch deren Statusmeldungen.
-   Die Verwaltung (Recht „maengel“) setzt Status, antwortet dem Melder, schreibt interne Notizen und weist Zuständige zu.
+   Die Verwaltung (Recht „Mängel“) setzt Status, antwortet dem Melder, schreibt interne Notizen und weist Zuständige zu.
    Fotos liegen verschlüsselt im Tresor (Ordner fotos/maengel), erledigte Meldungen werden nach einer einstellbaren Frist gelöscht.
    ===================================================================================================== */
 const fs = require('fs');
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
   const alsoCount = id => db.prepare('SELECT COUNT(*) n FROM mg_also WHERE report_id = ?').get(id).n;
 
   /* ---------- Benachrichtigungen ---------- */
-  /** Verwaltungsnutzer mit dem Recht „maengel“ (auch alle mit allen Rechten) */
+  /** Verwaltungsnutzer mit dem Recht „Mängel“ (auch alle mit allen Rechten) */
   function handlers() {
     return db.prepare('SELECT * FROM admin_users WHERE active = 1').all().filter(u => ctx.auth.permInfo(u).perms.includes('maengel'));
   }

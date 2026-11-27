@@ -523,7 +523,7 @@
   /* Verteiler */
   async function showLists(body) {
     body.innerHTML = `<div class="card"><div class="row" style="align-items:center;margin-bottom:6px"><h3 style="margin:0;flex:1">${esc(T('Verteiler'))} <span class="muted s">(${O.lists.length})</span></h3><button class="btn primary" id="mlLNew">＋ ${esc(T('Neuer Verteiler'))}</button></div>
-      <p class="muted s" style="margin:0 0 10px">${esc(T('Gespeicherte Empfängerlisten wie „Vorstand“, „Trainer“ oder „Sponsoren“ – für alle mit dem Recht „Nachrichten schreiben“. Gruppen bleiben aktuell: Wer neu in die Abteilung kommt, ist automatisch dabei.'))}</p>
+      <p class="muted s" style="margin:0 0 10px">${esc(T('Gespeicherte Empfängerlisten wie „Vorstand“, „Trainer“ oder „Sponsoren“ – für alle mit dem Recht „Nachrichten“. Gruppen bleiben aktuell: Wer neu in die Abteilung kommt, ist automatisch dabei.'))}</p>
       ${O.lists.length ? `<table class="tbl kompakt"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Inhalt'))}</th><th></th></tr>${O.lists.map(l => `<tr><td><b>${esc(l.name)}</b></td><td class="muted s">${esc(specText(l.spec))}</td>
         <td class="r" style="white-space:nowrap"><button class="btn small" data-lw="${l.id}">${esc(T('Nachricht schreiben'))}</button> <button class="btn small" data-le="${l.id}">${esc(T('Bearbeiten'))}</button></td></tr>`).join('')}</table>` : `<p class="muted">${esc(T('Noch keine Verteiler.'))}</p>`}</div>`;
     $('mlLNew').onclick = () => listDialog(null, body);

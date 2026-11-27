@@ -26,6 +26,7 @@ const mail = require('./mail');
 const modules = require('./modules');
 const auth = require('./auth');
 const plugins = require('./plugins');
+const rechte = require('./rechte');
 require('./geheim');   // legt die Tabelle der Geheimnisse an – früh laden wie bisher
 const APP_VERSION = require('../package.json').version;
 const versioniert = require('./versioniert');
@@ -450,7 +451,8 @@ app.get('/api/admin/status', (req, res) => {
     tabletPwMissing: u && auth.adminConfigured() ? tabletOn() && !gateOn() : undefined, tablet: tabletOn(),
     clubNetsMissing: u && auth.adminConfigured() && u.perms.includes('einstellungen') ? !require('./memberapp').hasClubNets() : undefined,
     user: u ? { id: u.id, username: u.username, name: u.name, role: u.role, perms: u.perms, deptOnly: u.deptOnly, depts: u.depts, builtin: Boolean(u.builtin) } : null,
-    permLabels: u ? plugins.visiblePerms() : undefined,   // die Rechte verraten die installierten Module – erst nach der Anmeldung
+    // Namen der Rechte je Modul (für den Hinweis „Dafür fehlt dir das Recht …“) – sie verraten die installierten Module: erst nach der Anmeldung
+    permCatalog: u ? plugins.permCatalog({ onlyActive: true }).map(g => ({ id: g.id, name: g.name, perms: g.perms.map(p => ({ key: p.key, label: p.label })) })) : undefined,
     setupCode: !auth.adminConfigured() && setupNeedsCode(req) ? true : undefined,
     modules: auth.adminConfigured() ? undefined : plugins.list().filter(p => !p.error).map(p => ({ id: p.id, name: p.name, description: p.short || p.description, active: p.active })),
     languages: auth.adminConfigured() ? undefined : i18n.list().map(l => ({ code: l.code, name: l.name })), language: auth.adminConfigured() ? undefined : i18n.clubLang(),
@@ -602,11 +604,12 @@ const roleIds = v => (Array.isArray(v) ? [...new Set(v.map(Number))].filter(id =
 const deptIds = v => { if (!Array.isArray(v)) return null; const ok = new Set(departmentList().map(d => d.id)); return [...new Set(v.map(Number))].filter(id => ok.has(id)); };
 const memberOk = v => (v ? (db.prepare("SELECT id FROM members WHERE id = ? AND deleted = 0").get(int(v)) || {}).id || null : null);
 admin.get('/users/options', need('benutzer'), (req, res) => {
+  const cat = plugins.permCatalog();   // auch ausgeschaltete Module: dort vergebene Rechte bleiben sichtbar und gehen beim Speichern nicht verloren
   const linked = new Set(db.prepare('SELECT member_id FROM admin_users WHERE member_id IS NOT NULL').all().map(r => r.member_id));
   const taken = new Set(db.prepare('SELECT username FROM admin_users').all().map(r => String(r.username).toLowerCase()));   // Benutzernamen: NOCASE
   res.json({ roles: db.prepare('SELECT * FROM admin_roles ORDER BY sort, name').all().map(r => ({ ...r, perms: jarr(r.perms), dept_scope: Boolean(r.dept_scope),
     users: db.prepare('SELECT username, roles FROM admin_users').all().filter(u => jarr(u.roles).map(Number).includes(r.id)).length })),
-    departments: departmentList(), permLabels: plugins.visiblePerms(),
+    departments: departmentList(), permLabels: plugins.visiblePerms(), catalog: cat, vorlagen: rechte.vorlagen(cat), onlyAll: rechte.ONLY_ALL,
     members: db.prepare("SELECT id, name, first_name, last_name FROM members WHERE kind = 'mitglied' AND deleted = 0 AND active = 1 ORDER BY name_key(name, kind)").all()
       .map(m => { const sp = m.first_name || m.last_name ? { first: m.first_name || '', last: m.last_name || '' } : splitPersonName(m.name);
         return { id: m.id, name: m.name, linked: linked.has(m.id), username: suggestUsername(sp.first, sp.last, 0, taken) }; }) });
@@ -638,8 +641,23 @@ admin.delete('/bank-accounts/:id', (req, res) => {
   if (used.length) return bad(res, `Das Konto wird noch verwendet: ${used.join(', ')}. Stattdessen auf „inaktiv“ setzen.`);
   bank.remove(cur.id); audit(req.user, 'Bankkonto gelöscht', cur.name); res.json({ ok: true });
 });
-/** Rechte fürs Protokoll mit ihren Namen („Lieferungen & Belege hochladen“), nie als interne Schlüssel */
-const permNames = list => (list || []).map(k => auth.PERMS[k] || k).join(', ') || 'keine';
+/** Rechte fürs Protokoll mit ihren Namen („Buchungen (Verkauf)“), nie als interne Schlüssel */
+const permNames = list => { const cat = plugins.permCatalog(); return (list || []).map(k => rechte.nameOf(cat, k)).join(', ') || 'keine'; };
+const roleNames = ids => (ids || []).map(r => (db.prepare('SELECT name FROM admin_roles WHERE id = ?').get(r) || {}).name).filter(Boolean).join(', ');
+/** Alle Rechte eines Benutzers aus Rollen und Einzelrechten (wie auth.permInfo, aber ungefiltert – für die Prüfung der Abhängigkeiten).
+ *  rolePerms: geänderte Rechte einer Rolle { id, perms } statt des gespeicherten Stands */
+function unionPerms(roleIdList, extra, rolePerms) {
+  const out = new Set(extra || []);
+  for (const id of roleIdList || []) {   // auch Rollen „nur eigene Abteilung“: deren „Mitglieder“ gilt für die Mitglieder dieser Abteilung (wie in auth.permInfo)
+    const r = db.prepare('SELECT perms FROM admin_roles WHERE id = ?').get(id); if (!r) continue;
+    for (const p of rolePerms && rolePerms.id === id ? rolePerms.perms : jarr(r.perms)) out.add(p);
+  }
+  return [...out];
+}
+/** Gespeicherte Schlüssel, die gerade kein Modul kennt (Erweiterung nicht geladen) – bleiben beim Speichern unverändert */
+const keepUnknown = v => jarr(v).filter(k => typeof k === 'string' && /^[a-z0-9_]{2,40}$/.test(k) && !auth.PERMS[k] && !['benutzer', 'einstellungen'].includes(k));
+/** Abhängigkeiten der Rechte (src/rechte.js): neue Lücken → Fehlertext, sonst '' */
+const gapError = (next, before, wer) => rechte.checkGaps(plugins.permCatalog(), next, before, wer);
 admin.post('/users', need('benutzer'), async (req, res) => {
   const { username, name, password, role, perms } = req.body || {};
   const b = req.body || {};
@@ -655,9 +673,10 @@ admin.post('/users', need('benutzer'), async (req, res) => {
   if (db.prepare('SELECT 1 FROM admin_users WHERE username = ?').get(un)) return bad(res, 'Diesen Benutzernamen gibt es schon.');
   if (!pwOk(password)) return bad(res, PW_MSG);
   const roles = roleIds(b.roles) || [], depts = deptIds(b.departments) || [];
+  if (role !== 'oberadmin') { const gap = gapError(unionPerms(roles, Array.isArray(perms) ? perms.filter(p => auth.PERMS[p]) : [])); if (gap) return bad(res, gap); }
   const id = await auth.createUser({ username: un, name: nm, password: String(password),   // Startpasswort: beim ersten Anmelden ersetzen
     role: role === 'oberadmin' ? 'oberadmin' : 'admin', perms: Array.isArray(perms) ? perms : [], roles, departments: depts, memberId, mustChange: startPwPflicht() });
-  audit(req.user, 'Admin angelegt', `${un} (${role === 'oberadmin' ? 'alle Rechte' : [roles.map(r => (db.prepare('SELECT name FROM admin_roles WHERE id = ?').get(r) || {}).name).join(', '), Array.isArray(perms) ? permNames(perms) : ''].filter(Boolean).join(' · ')})`);
+  audit(req.user, 'Admin angelegt', `${un} (${role === 'oberadmin' ? 'alle Rechte' : [roleNames(roles), Array.isArray(perms) && perms.length ? permNames(perms.filter(p => auth.PERMS[p])) : ''].filter(Boolean).join(' · ') || 'keine Rechte'})`);
   securityAlert(role === 'oberadmin' ? 'benutzer.alle' : 'benutzer.rechte', `Neuer Benutzer der Verwaltung „${un}“${role === 'oberadmin' ? ' mit allen Rechten' : ''}, angelegt von ${req.user.name || req.user.username}.`, { key: un });
   res.json({ id, username: un });
 });
@@ -666,10 +685,18 @@ admin.post('/users', need('benutzer'), async (req, res) => {
 const roleInput = (b, cur = {}) => {
   const name = cleanName(b.name !== undefined ? b.name : cur.name, 40);
   if (name.length < 2) return { error: 'Bitte einen Namen für die Rolle eintragen.' };
-  const perms = Array.isArray(b.perms) ? [...new Set(b.perms.filter(p => auth.PERMS[p]))] : jarr(cur.perms);
+  // Rechte von Erweiterungen, die gerade nicht geladen sind (z. B. nach einem Update noch nicht freigegeben), bleiben beim Speichern erhalten – sie wirken ohnehin nicht
+  const perms = Array.isArray(b.perms) ? [...new Set([...b.perms.filter(p => auth.PERMS[p]), ...keepUnknown(cur.perms)])] : jarr(cur.perms);
   const scoped = b.dept_scope !== undefined ? Boolean(b.dept_scope) : Boolean(cur.dept_scope);
   const wide = scoped ? perms.filter(p => !auth.DEPT_PERMS.includes(p)) : [];
-  if (wide.length) return { error: `„Nur eigene Abteilung(en)“ gilt nur für die Rechte ${auth.DEPT_PERMS.map(p => '„' + auth.PERMS[p] + '“').join(' und ')}. Diese Rechte würden für alle Mitglieder gelten – bitte in einer eigenen Rolle vergeben: ${permNames(wide)}.` };
+  if (wide.length) return { error: `„Nur eigene Abteilung(en)“ gilt nur für die Rechte ${auth.DEPT_PERMS.map(p => '„' + permNames([p]) + '“').join(' und ')}. Diese Rechte würden für alle Mitglieder gelten – bitte in einer eigenen Rolle vergeben: ${permNames(wide)}.` };
+  const gap = gapError(perms, cur.perms ? jarr(cur.perms) : []);
+  if (gap) return { error: gap };
+  // Benutzer mit dieser Rolle: Einzelrechte, die auf ein Recht dieser Rolle angewiesen sind, dürfen nicht ins Leere laufen
+  if (cur.id) for (const u of db.prepare("SELECT username, roles, perms FROM admin_users WHERE role != 'oberadmin' AND active = 1").all().filter(x => jarr(x.roles).map(Number).includes(cur.id))) {   // „alle Rechte“ und gesperrte: Rollen wirken dort nicht
+    const ids = jarr(u.roles).map(Number), e = gapError(unionPerms(ids, jarr(u.perms), { id: cur.id, perms }), unionPerms(ids, jarr(u.perms)), `Benutzer „${u.username}“`);
+    if (e) return { error: e };
+  }
   return { v: { name, description: b.description !== undefined ? String(b.description || '').replace(/[<>]/g, '').trim().slice(0, 300) || null : cur.description || null,
     perms: JSON.stringify(perms), dept_scope: b.dept_scope !== undefined ? (b.dept_scope ? 1 : 0) : (cur.dept_scope || 0), sort: b.sort !== undefined ? int(b.sort) : (cur.sort || 0) } };
 };
@@ -712,9 +739,13 @@ admin.put('/users/:id', need('benutzer'), async (req, res) => {
   }
   if (u.id === req.user.id && (role !== 'oberadmin' || !active)) return bad(res, 'Du kannst dich nicht selbst herabstufen oder sperren.');
   if (role === 'oberadmin' && u.role !== 'oberadmin' && !await ownerConfirm(req, res)) return;   // auf „alle Rechte“ hochstufen nur mit dem eigenen Passwort
-  const perms = Array.isArray(b.perms) ? JSON.stringify(b.perms.filter(p => auth.PERMS[p])) : u.perms;
+  const perms = Array.isArray(b.perms) ? JSON.stringify([...new Set([...b.perms.filter(p => auth.PERMS[p]), ...keepUnknown(u.perms)])]) : u.perms;
   const name = u.builtin ? u.name : (b.name !== undefined ? String(b.name).trim().slice(0, 60) : u.name);
   const roles = roleIds(b.roles), depts = deptIds(b.departments);
+  if (role !== 'oberadmin') {
+    const gap = gapError(unionPerms(roles || jarr(u.roles).map(Number), jarr(perms)), u.role === 'oberadmin' ? [] : unionPerms(jarr(u.roles).map(Number), jarr(u.perms)));
+    if (gap) return bad(res, gap);
+  }
   let memberId = u.member_id;
   if (b.member_id !== undefined) {
     memberId = memberOk(b.member_id);
@@ -725,7 +756,7 @@ admin.put('/users/:id', need('benutzer'), async (req, res) => {
     .run(name, role, perms, active, roles ? JSON.stringify(roles) : u.roles, depts ? JSON.stringify(depts) : u.departments, memberId, u.id);
   auth.dropUserSessions(u.id);   // geänderte Rechte gelten sofort
   if (!active) require('./vault').dropUser(u.id);   // gesperrter Benutzer: seine Schlüsselkopie für den Tresor entfällt
-  audit(req.user, 'Admin geändert', `${u.username}: ${role}${active ? '' : ', gesperrt'} ${role === 'admin' ? perms : ''}${roles ? ' Rollen ' + roles.join(',') : ''}`);
+  audit(req.user, 'Admin geändert', `${u.username}: ${role === 'oberadmin' ? 'alle Rechte' : [roleNames(roles || jarr(u.roles).map(Number)) ? 'Rollen ' + roleNames(roles || jarr(u.roles).map(Number)) : '', jarr(perms).length ? 'Einzelrechte ' + permNames(jarr(perms)) : ''].filter(Boolean).join(' · ') || 'keine Rechte'}${active ? '' : ', gesperrt'}`);
   if (role === 'oberadmin' && u.role !== 'oberadmin') securityAlert('benutzer.alle', `„${u.username}“ hat von ${req.user.name || req.user.username} alle Rechte bekommen.`, { key: u.username });
   else if (role !== u.role || perms !== u.perms || active !== u.active || (roles && JSON.stringify(roles) !== (u.roles || '[]'))) securityAlert('benutzer.rechte', `Rechte von „${u.username}“ geändert von ${req.user.name || req.user.username}${active ? '' : ' (gesperrt)'}.`, { key: u.username });
   res.json({ ok: true });
@@ -1552,7 +1583,7 @@ admin.delete('/extensions/:id', need('einstellungen'), owner, (req, res) => {
   try { const n = plugins.removeUploaded(String(req.params.id)); audit(req.user, 'Erweiterung entfernt', n); securityAlert('erweiterung.entfernt', `Erweiterung „${n}“ entfernt von ${req.user.name || req.user.username}.`); res.json({ ok: true, restart: true }); }
   catch (e) { bad(res, e.message); }
 });
-/* ---------- Module deinstallieren / installieren (Recht „deinstallieren“) ----------
+/* ---------- Module deinstallieren / installieren (Recht „Module“) ----------
    Ablauf: Sicherung erstellen → herunterladen → Modulnamen eintippen → deinstallieren. Installieren optional mit Sicherung. */
 /* Deinstallieren/Sichern/Einspielen: „Deinstallieren“ UND das Recht des Moduls selbst (bzw. „Einstellungen“) –
    sonst käme man über eine Sicherung an Daten, die man im Modul gar nicht sehen darf (z. B. Stundenlöhne) */

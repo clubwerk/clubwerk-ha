@@ -188,7 +188,7 @@
         });
         cardSave($('bSaveW'), () => ({ appName: $('bApp').value, subtitle: $('bSub').value, ...($('bNext') ? { nextEntity: $('bNext').value } : {}) }));
         GK.stoerungKarte($('bNotif'), { mod: 'beregnung', anlass: 'Eine E-Mail kommt, wenn ein Platz nicht startet oder sich eine Zone nicht ausschalten lässt – mit Uhrzeit und Link in die Verwaltung.',
-          push: 'Push über die Mitglieder-App bekommen Verwaltungsnutzer mit dem Recht „Beregnung“, wenn ihr Benutzer mit einem Mitglied verknüpft ist.' }).catch(fail);
+          push: 'Push über die Mitglieder-App bekommen Verwaltungsnutzer mit dem Recht „Beregnung einrichten“, wenn ihr Benutzer mit einem Mitglied verknüpft ist.' }).catch(fail);
         if (GK.funcBox) GK.funcBox($('bFunc'), 'beregnung', 'Beregnung', again);
         return;
       }
